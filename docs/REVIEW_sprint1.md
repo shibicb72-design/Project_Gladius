@@ -295,3 +295,81 @@ host on the hotspot, join by IP and play to 100 points.
 Medium N1 is open, so this re-review iterates.
 
 VERDICT: ITERATE
+
+## Re-review 2
+
+Scope: `git log --oneline a3ea02d..HEAD` (2 commits): G1 `d0e19d2` (N1, N4, N5) and G1b `99cc07f`
+(N2, N3, N6). Neither commit is missing. Checked against "## Re-review" above, docs/plans/sprint1.md and
+docs/DESIGN.md. This review changed no code, data or tests.
+
+### Verification (run during this re-review)
+
+| Step | Result |
+|---|---|
+| `mkdir -p build` | exit 0 |
+| `godot --headless --path . --import` | exit 0, no ERROR / SCRIPT ERROR / Parse Error lines |
+| `godot --headless --path . --export-debug "Android" build/gladius-debug.apk` | exit 0, "Signed" with the shared debug key, APK verified, `build/gladius-debug.apk` found by Glob, no ERROR lines |
+| `godot --headless --path . --script res://tests/run_tests.gd` | exit 0, `TESTS: 89 passed, 0 failed` (was 86; +3 new tests) |
+
+`godot` was not on the Bash PATH in this session, so each command ran as `godot.cmd` with the same arguments.
+
+### Per-finding status
+
+- **N1 (Medium, spawn protection on client fire): fixed.**
+  - `scripts/net/net_match_bridge.gd:214`: after an accepted request (ammo used, validator passed), the
+    host emits `pawn.fired`. That reaches `MatchDirector._on_pawn_fired` → `spawn_rules.notify_event(pid, "fire")`
+    (`match_director.gd:42,123-124`), the same path a local shot takes (`pawn.gd:102`). It also matches
+    the local order: protection ends before the raycast.
+  - Rejected requests (`no_pawn`, `reloading`, `empty`, validator failures) return before line 214, so
+    they keep protection. Nothing else connects to `fired` (scripts or .tscn), so the host copy gets no
+    side effects.
+  - Tests:
+    - `tests/test_net_authority.gd:128` `test_remote_fire_ends_spawn_protection_only_when_accepted`
+      (an empty shot keeps protection; an accepted shot ends it)
+    - `tests/test_net_match.gd:194` `test_e2e_client_fire_ends_spawn_protection_on_host`
+      (real loopback RPC; an enemy hit is blocked before the shot and does damage after it)
+- **N2 (Low, OQ-50 reused): fixed.** OQ-50 now means only max name length (`docs/OPEN_QUESTIONS.md:76`,
+  `data/net.json:8`). OQ-51 follows it (`:77`). The tunables entry is now OQ-52 under its own heading
+  (`:110`). `data/match.json:10` and `data/ui.json:3` cite OQ-52. No other OQ-50 reference is left.
+  This is a docs change, so it has no test.
+- **N3 (Low, stale "M1/M2" note): fixed.** `docs/OPEN_QUESTIONS.md:69` now lists only the missing host
+  `ev_kill` and quitter handling (OQ-27). Docs only, no test.
+- **N4 (Low, dead `last_frames`): fixed.** The field, its write in `submit_input` (`net_match_bridge.gd:145-152`)
+  and its erase in `unregister_peer` are gone. Nothing referenced it. The full suite still passes; no test
+  is needed for removed code.
+- **N5 (Low, repeated corrections): fixed.** `net_match_bridge.gd:170-174` sends `correct_position` at most once
+  per `snapshot_interval_s` per player. `_last_correction_s` is cleared in `unregister_peer` (`:76`). The
+  move is still rejected on every packet, and `_last_move_s` is still reset on each attempt (`:164`).
+  Test: `tests/test_net_authority.gd:111` `test_rejected_move_corrections_are_rate_limited`.
+- **N6 (Low, hidden file read): fixed.** `BotSpawner.plan_fill` takes `squad_count`
+  (`scripts/systems/bot_spawner.gd:12`) and reads no file. `spawn_bots` passes it through (`:35-40`). The
+  only caller, `match_root.gd:107`, passes `squads.size()`, which comes from `director.match_cfg["squads"]`
+  (`:79`), so `data/match.json` stays the single source. Tests: `tests/test_bots.gd:11`
+  `test_fill_counts_from_data` and `tests/test_net_authority.gd:145` `test_squad_count_single_source`.
+- **N7 (Low, no host `ev_kill`): still open, still noted** at `docs/OPEN_QUESTIONS.md:69`. It affects only
+  the kill feed.
+
+### Data numbers and design values
+
+- The only data changes are two reference strings: `data/match.json:10` (OQ-50 → OQ-52) and `data/ui.json:3`
+  (OQ-50 → OQ-52).
+- No value changed, no key was added, and no number was added to data/*.json.
+- No DESIGN.md value was changed and no product decision was added. Protection ending on fire follows
+  DESIGN.md.
+- No cross-platform rule is affected: no OS, touch or renderer code changed, and `export_presets.cfg` is untouched.
+
+### Remaining concerns
+
+- **Low: N7, no host kill events** (`docs/OPEN_QUESTIONS.md:69`). Already noted; it affects only the kill feed.
+- **Low: formatting nit** at `scripts/net/net_match_bridge.gd:33`: `var _rng :=RandomNumberGenerator.new()`
+  is missing a space after `:=`. G1 introduced it; it has no functional effect.
+
+### Pending outside this session (not blockers)
+
+- Two-phone manual acceptance (docs/plans/sprint1.md:497-502): install the APK on two phones, host on the
+  hotspot, join by IP and play to 100 points.
+- First real GitHub Actions run (T-02), checked by the orchestrator after the push.
+
+Every concern still open is Low, so this re-review approves.
+
+VERDICT: APPROVE
