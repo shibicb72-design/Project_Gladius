@@ -11,6 +11,8 @@ var look_value: Vector2 = Vector2.ZERO  # stick mode: deflection in [-1, 1]
 var sensitivity: float = 1.0
 var invert_y: bool = false
 var look_mode: String = "stick"
+var shape_move: bool = true  # off for the custom stick, which has its own dead zone
+var _feel: Dictionary = {}
 var _cfg: Dictionary = {}
 var _drag_accum: Vector2 = Vector2.ZERO  # pixels since the last tick (drag mode)
 var _viewport_h: float = 1.0
@@ -18,6 +20,7 @@ var _viewport_h: float = 1.0
 
 func configure(cfg: Dictionary) -> void:
 	_cfg = cfg
+	_feel = cfg["move_feel"] if cfg.has("move_feel") else {}
 	sensitivity = float(cfg.get("sensitivity", {}).get("touch_look", sensitivity))
 	invert_y = bool(cfg.get("invert_y", false))
 	look_mode = String(cfg.get("look", {}).get("mode", "stick"))
@@ -34,8 +37,17 @@ func clear_look() -> void:
 	_drag_accum = Vector2.ZERO
 
 
+## Radial dead zone on the vector's length (no diagonal snapping), then the response curve:
+## out = dir * pow(remapped_len, exponent). An unconfigured provider passes the raw value through.
 func get_move() -> Vector2:
-	return move_value
+	if not shape_move or _feel.is_empty():
+		return move_value
+	var length := move_value.length()
+	var dead: float = _feel["radial_deadzone"]["value"]
+	if length <= dead or length <= 0.0:
+		return Vector2.ZERO
+	var remapped := minf(1.0, (length - dead) / (1.0 - dead))
+	return move_value / length * pow(remapped, float(_feel["response_exponent"]["value"]))
 
 
 func get_look() -> Vector2:

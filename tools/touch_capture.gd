@@ -295,8 +295,7 @@ func _match_shots() -> void:
 
 ## G2 trial: the touch HUD with the VirtualJoystick move stick at rest (no touch), over a flat backdrop.
 func _vjoy_rest_shot() -> void:
-	var hud_script: GDScript = load("res://scripts/ui/touch_hud.gd")
-	hud_script.move_stick_override = "virtual"
+	# No override: the shot shows whatever the shipped default is (data/input.json touch_layout.move_stick).
 	var bg := ColorRect.new()
 	bg.color = Color(0.18, 0.2, 0.24)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -307,7 +306,7 @@ func _vjoy_rest_shot() -> void:
 	await _frames(4)
 	hud.relayout()
 	await _frames(3)
-	var vj_ok: bool = hud.move_stick is VirtualJoystick and hud.move_stick.is_visible_in_tree() and hud._move_touch == -1
+	var vj_ok: bool = hud.move_mode == "virtual" and hud.vjoy_layout == "floating" and hud.move_stick is VirtualJoystick and hud.move_stick.is_visible_in_tree() and hud._move_touch == -1
 	_log("vjoy rest: visible=%s dp=%.1f RESULT vjoy_rest_visible=%s" % [str(hud.visible), hud.get_move_target_dp(), str(vj_ok)])
 	var img_name := _vjoy_shot_name
 	await _frames(2)
@@ -315,7 +314,6 @@ func _vjoy_rest_shot() -> void:
 	var img := get_viewport().get_texture().get_image()
 	var err := img.save_png(_out.path_join("%s.png" % img_name))
 	_log("saved %s.png (%dx%d) err=%d" % [img_name, img.get_width(), img.get_height(), err])
-	hud_script.move_stick_override = ""
 
 
 func _touch_event(idx: int, canvas_pos: Vector2, pressed: bool) -> void:

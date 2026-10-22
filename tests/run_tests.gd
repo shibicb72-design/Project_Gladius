@@ -14,13 +14,15 @@ func _initialize() -> void:
 	# Optional: godot ... --script res://tests/run_tests.gd -- --only=<substring of file::test> --repeat=N
 	var only := ""
 	var repeat := 1
+	var move_stick_arg := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			only = a.substr(7)
 		elif a.begins_with("--repeat="):
 			repeat = maxi(1, int(a.substr(9)))
 		elif a.begins_with("--move-stick="):  # test-only: force the touch HUD move stick ("virtual" | "custom")
-			load("res://scripts/ui/touch_hud.gd").move_stick_override = a.substr(13)
+			move_stick_arg = a.substr(13)
+			load("res://scripts/ui/touch_hud.gd").move_stick_override = move_stick_arg
 	# The root is still being set up inside _initialize; let one frame pass so add_child works for the
 	# very first test (matters when --only selects a single scene-using test).
 	await process_frame
@@ -37,6 +39,11 @@ func _initialize() -> void:
 			if only != "" and not ("%s::%s" % [f, mname]).contains(only):
 				continue
 			for i in repeat:
+				# Start every test outside the physics step: a test that ended on a physics_frame await
+				# would otherwise hand the next one a tick already in progress (pawns would run early).
+				await process_frame
+				# A test that forced a move-stick mode must not leak it into later tests.
+				load("res://scripts/ui/touch_hud.gd").move_stick_override = move_stick_arg
 				var inst = script.new()
 				await inst.call(mname)
 				if inst.failures.is_empty():

@@ -19,7 +19,9 @@
     "_placeholder": true, "_todo": "OQ-18: jump itself is decided (jump_enabled true); all movement numbers are still placeholders",
     "base_speed_mps": 5.0,
     "gravity": 20.0,
-    "accel": 40.0,
+    "ground_accel": {"_placeholder": true, "time_s": 0.125, "note": "seconds from rest to full speed; 0 = instant. 5.0 m/s / 40 m/s^2 = today's behaviour"},
+    "ground_decel": {"_placeholder": true, "time_s": 0.125, "note": "seconds from full speed to stop; 0 = instant. Same as today's behaviour"},
+    "strafe_back_ratio": {"_source": "TSG Forge Wiki community tag data: sideways 2 / forward 2.25, backward 2", "value": 0.889, "note": "sideways and backward speed as a ratio of forward speed"},
     "jump_enabled": true,
     "jump_velocity": 7.0,
     "muzzle_height_m": 1.3

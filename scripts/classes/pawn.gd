@@ -191,10 +191,21 @@ func _apply_look() -> void:
 
 
 func _apply_movement(delta: float) -> void:
-	var wish := global_transform.basis * Vector3(_frame.move.x, 0.0, _frame.move.y) * get_move_speed()
-	var accel: float = float(_movement.get("accel", 40.0))
-	velocity.x = move_toward(velocity.x, wish.x, accel * delta)
-	velocity.z = move_toward(velocity.z, wish.z, accel * delta)
+	# Full analog speed: the wish speed scales continuously with the stick length (no walk/run step).
+	# Sideways and backward are a ratio of forward speed (stats.json movement.strafe_back_ratio).
+	var ratio: float = _movement["strafe_back_ratio"]["value"]
+	var local := Vector3(_frame.move.x * ratio, 0.0, _frame.move.y * (ratio if _frame.move.y > 0.0 else 1.0))
+	var wish := global_transform.basis * local * get_move_speed()
+	var cur := Vector2(velocity.x, velocity.z)
+	var target := Vector2(wish.x, wish.z)
+	var accelerating := target.length() >= cur.length()
+	var ramp_s: float = _movement["ground_accel" if accelerating else "ground_decel"]["time_s"]
+	if ramp_s <= 0.0:
+		cur = target
+	else:
+		cur = cur.move_toward(target, get_move_speed() / ramp_s * delta)
+	velocity.x = cur.x
+	velocity.z = cur.y
 	if is_on_floor():
 		if _frame.jump_just_pressed and bool(_movement.get("jump_enabled", false)):
 			velocity.y = float(_movement.get("jump_velocity", 0.0))

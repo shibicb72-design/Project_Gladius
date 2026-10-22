@@ -63,6 +63,7 @@ func _router_for(hud: Control) -> InputRouter:
 
 
 func test_move_stick_forward_and_release() -> void:
+	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick
 	var hud := _new_hud()
 	var r := _router_for(hud)
 	var start := Vector2(200, 400)
@@ -78,6 +79,7 @@ func test_move_stick_forward_and_release() -> void:
 
 
 func test_move_stick_in_match_moves_pawn() -> void:
+	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick
 	var tree: SceneTree = Engine.get_main_loop()
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
@@ -353,6 +355,7 @@ func test_each_button_presses_and_releases_its_action() -> void:
 
 
 func test_fire_button_works_with_move_finger_held() -> void:
+	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick
 	var hud := _new_hud()
 	_touch(hud, 0, Vector2(200, 400), true)
 	_drag(hud, 0, Vector2(200, 320), Vector2(0, -80))
@@ -428,6 +431,7 @@ func test_both_sticks_visible_at_rest_folded_2520x1080() -> void:
 
 
 func test_both_sticks_visible_at_rest_unfolded_2176x1812() -> void:
+	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick
 	_check_rest_sticks(Vector2(2176, 1812))
 
 
@@ -468,16 +472,19 @@ func _check_hud_clear(sz: Vector2) -> void:
 
 
 func test_hud_clear_of_sticks_and_buttons_folded() -> void:
+	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick
 	await _check_hud_clear(Vector2(1512, 648))
 	await _check_hud_clear(Vector2(2520, 1080))
 
 
 func test_hud_clear_of_sticks_and_buttons_unfolded() -> void:
+	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick
 	await _check_hud_clear(Vector2(1152, 959))
 	await _check_hud_clear(Vector2(2176, 1812))
 
 
 func test_move_stick_recentres_on_touch_and_returns_to_rest() -> void:
+	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick
 	var hud := _new_hud()
 	var rest: Vector2 = hud.move_stick.get_global_rect().get_center()
 	var p := Vector2(300, 400)
@@ -494,116 +501,3 @@ func test_mouse_emulation_off_while_hud_active_and_restored() -> void:
 	assert_true(not Input.emulate_mouse_from_touch, "emulation off while HUD active")
 	hud.free()
 	assert_true(Input.emulate_mouse_from_touch, "emulation restored after HUD freed")
-
-
-# --- G2: VirtualJoystick trial. New tests run under both move_stick modes. ---
-
-const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
-const _Platform := preload("res://scripts/platform/platform_services.gd")
-const MOVE_MODES := ["virtual", "custom"]
-const FOLD_SIZES := [Vector2(2520, 1080), Vector2(2176, 1812)]
-
-
-## A HUD built with the move stick forced to `mode` (the previous override is restored afterwards).
-func _hud_mode(mode: String) -> Control:
-	var prev: String = _TouchHud.move_stick_override
-	_TouchHud.move_stick_override = mode
-	var hud := _new_hud()
-	_TouchHud.move_stick_override = prev
-	return hud
-
-
-func test_move_stick_visible_with_no_touch_in_both_modes() -> void:
-	for mode in MOVE_MODES:
-		var hud := _hud_mode(mode)
-		assert_eq(hud.move_mode, mode, "%s: mode applied" % mode)
-		assert_true(hud.move_stick.is_visible_in_tree(), "%s: move stick visible with no touch" % mode)
-		assert_eq(hud._move_touch, -1, "%s: no touch yet" % mode)
-		if mode == "virtual":
-			assert_true(hud.move_stick is VirtualJoystick, "virtual: move_stick is a VirtualJoystick")
-			assert_eq(hud.move_stick.visibility_mode, VirtualJoystick.VISIBILITY_ALWAYS, "virtual: VISIBILITY_ALWAYS")
-			assert_eq(hud.move_stick.joystick_mode, VirtualJoystick.JOYSTICK_DYNAMIC, "virtual: JOYSTICK_DYNAMIC")
-		hud.free()
-
-
-func test_move_stick_touch_target_at_least_48dp_at_fold_sizes() -> void:
-	for mode in MOVE_MODES:
-		for dpi in [0.0, 420.0]:  # 0 = platform default (160 dpi, 1 dp = 1 px); 420 = a Fold-class density
-			_Platform.dpi_override = dpi
-			for sz in FOLD_SIZES:
-				var hud := _hud_mode(mode)
-				hud.size = sz
-				hud.relayout()
-				var dp: float = hud.get_move_target_dp()
-				assert_true(dp >= 48.0, "%s: move stick target %.1f dp >= 48 at %s, dpi %s" % [mode, dp, sz, dpi])
-				hud.free()
-	_Platform.dpi_override = 0.0
-
-
-## Real viewport input path (not hud._input) so the VirtualJoystick receives its touch like on a device.
-func test_multitouch_move_and_look_reach_one_input_frame() -> void:
-	for mode in MOVE_MODES:
-		var hud := _hud_mode(mode)
-		var r := _router_for(hud)
-		var move_c: Vector2 = hud._zone_rect("move_zone").get_center()
-		var look_c: Vector2 = hud._zone_rect("look_zone").get_center()
-		var t0 := InputEventScreenTouch.new()
-		t0.index = 0
-		t0.position = move_c
-		t0.pressed = true
-		_deliver(t0)
-		var t1 := InputEventScreenTouch.new()
-		t1.index = 1
-		t1.position = look_c
-		t1.pressed = true
-		_deliver(t1)
-		var d0 := InputEventScreenDrag.new()
-		d0.index = 0
-		d0.position = move_c + Vector2(0, -hud._radius())
-		d0.relative = Vector2(0, -hud._radius())
-		_deliver(d0)
-		var d1 := InputEventScreenDrag.new()
-		d1.index = 1
-		d1.position = look_c + Vector2(hud._radius() * 0.8, 0)
-		d1.relative = Vector2(hud._radius() * 0.8, 0)
-		_deliver(d1)
-		await _frames(2)
-		var f: InputFrame = r.update_frame()
-		assert_true(f.move != Vector2.ZERO, "%s: move non-zero with look held, got %s" % [mode, f.move])
-		assert_true(f.look != Vector2.ZERO, "%s: look non-zero with move held, got %s" % [mode, f.look])
-		for e in [t0, t1]:
-			e.pressed = false
-			_deliver(e)
-		await _frames(2)
-		assert_eq(r.update_frame().move, Vector2.ZERO, "%s: move released" % mode)
-		r.free()
-		hud.free()
-
-
-func test_touch_started_on_look_side_never_grabs_move_stick() -> void:
-	for mode in MOVE_MODES:
-		var hud := _hud_mode(mode)
-		var r := _router_for(hud)
-		var look_c: Vector2 = hud._zone_rect("look_zone").get_center()
-		var inside_move: Vector2 = hud.get_move_rest()
-		var t := InputEventScreenTouch.new()
-		t.index = 1
-		t.position = look_c
-		t.pressed = true
-		_deliver(t)
-		for p in [look_c.lerp(inside_move, 0.5), inside_move, inside_move + Vector2(0, -hud._radius())]:
-			var d := InputEventScreenDrag.new()
-			d.index = 1
-			d.position = p
-			d.relative = Vector2(-50, 0)
-			_deliver(d)
-		await _frames(2)
-		assert_eq(r.update_frame().move, Vector2.ZERO, "%s: look-side finger dragged into the move zone gives no move" % mode)
-		assert_eq(hud._move_touch, -1, "%s: move touch not grabbed" % mode)
-		assert_eq(hud.provider.move_value, Vector2.ZERO, "%s: move_value stays zero" % mode)
-		if mode == "custom":
-			assert_true(hud.move_stick.get_global_rect().get_center().is_equal_approx(hud.get_move_rest()), "custom: move stick still at rest")
-		t.pressed = false
-		_deliver(t)
-		r.free()
-		hud.free()

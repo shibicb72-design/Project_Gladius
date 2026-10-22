@@ -31,6 +31,13 @@
 		"stick_rate_deg_s": 180.0,
 		"drag_rad_per_screen_height": 3.14
 	},
+	"_move_feel_todo": "OQ-VJOY: move-stick feel. Every entry is a NEUTRAL placeholder (not a design value, not tuned). Applies to the VirtualJoystick move stick only; the custom stick keeps dead_zones.touch_move.",
+	"move_feel": {
+		"vjoy_deadzone_ratio": {"_placeholder": true, "value": 0.0, "unit": "ratio of joystick radius", "note": "VirtualJoystick.deadzone_ratio; 0.0 is the engine default"},
+		"vjoy_clampzone_ratio": {"_placeholder": true, "value": 1.0, "unit": "ratio", "note": "VirtualJoystick.clampzone_ratio; 1.0 is the engine default"},
+		"radial_deadzone": {"_placeholder": true, "value": 0.1, "unit": "stick length 0..1", "note": "applied to the vector's length (not per axis); the rest is rescaled to 0..1"},
+		"response_exponent": {"_placeholder": true, "value": 1.0, "unit": "exponent", "note": "out = dir * pow(remapped_length, exponent); 1.0 = linear"}
+	},
 	"touch_layout": {
 		"_placeholder": true,
 		"_todo": "OQ-35",
@@ -41,17 +48,16 @@
 		"_sticks_todo": "OQ-35: rest centres of the always-visible sticks are placeholders: [x as fraction of width, y as fraction of height]. Move bottom-left; look bottom-centre-right, left of the button cluster.",
 		"move_stick_rest": [0.15, 0.76],
 		"look_stick_rest": [0.58, 0.76],
-		"_move_stick_note": "TRIAL (G2): which move stick the touch HUD builds. 'virtual' = Godot 4.7 VirtualJoystick; 'custom' = hand-written stick. Shibi judges the trial on the Fold. Default is 'custom' because 'virtual' cannot pass tests/test_touch_controls.gd unchanged (see docs/OPEN_QUESTIONS.md OQ-VJOY).",
-		"move_stick": "custom",
+		"_move_stick_note": "Which move stick the touch HUD builds. 'virtual' (the default) = Godot 4.7 VirtualJoystick; 'custom' = the hand-written stick, kept as a working fallback. The player profile (Settings in the main menu) overrides this value. See docs/CONTROLS.md and OQ-VJOY.",
+		"move_stick": "virtual",
+		"_vjoy_layout_note": "Only used when move_stick is 'virtual'. 'floating' (default): JOYSTICK_DYNAMIC, a touch anywhere in the left half (move_zone) spawns the base under the thumb. 'fixed': JOYSTICK_FIXED at move_stick_rest, only touches on the stick grab it; other touches go to look.",
+		"vjoy_layout": "floating",
 		"_vjoy_todo": "OQ-VJOY: all values below are trial placeholders, not design values. Sizes are fractions of the custom stick radius / ring.",
 		"vjoy": {
 			"_placeholder": true,
-			"mode": "dynamic",
 			"visibility": "always",
 			"size_frac_of_ring": 1.0,
-			"tip_frac_of_size": 0.4,
-			"deadzone_ratio": 0.1,
-			"clampzone_ratio": 1.0
+			"tip_frac_of_size": 0.4
 		},
 		"move_zone": {"left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0},
 		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},

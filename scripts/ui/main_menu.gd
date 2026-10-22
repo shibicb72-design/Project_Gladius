@@ -13,6 +13,10 @@ var host_button: Button
 var join_button: Button
 var gyro_button: Button
 var gyro_enabled: bool = false
+var move_stick_button: Button
+var stick_layout_button: Button
+var move_stick_mode: String = "virtual"
+var vjoy_layout: String = "floating"
 var later_buttons: Array[Button] = []
 
 
@@ -43,6 +47,12 @@ func _ready() -> void:
 	gyro_enabled = bool(profile["gyro_enabled"])
 	gyro_button = _button(box, "", toggle_gyro)  # Settings: gyro On/Off (OQ-34)
 	_refresh_gyro_text()
+	var input_cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json")["touch_layout"]
+	move_stick_mode = str(profile["move_stick"]) if str(profile["move_stick"]) != "" else str(input_cfg["move_stick"])
+	vjoy_layout = str(profile["vjoy_layout"]) if str(profile["vjoy_layout"]) != "" else str(input_cfg["vjoy_layout"])
+	move_stick_button = _button(box, "", toggle_move_stick)  # Settings: Virtual / Custom move stick
+	stick_layout_button = _button(box, "", toggle_stick_layout)  # Settings: Floating / Fixed (virtual stick)
+	_refresh_stick_text()
 	for entry in LATER_ENTRIES:
 		var b := _button(box, "%s (later)" % entry, Callable())
 		b.disabled = true
@@ -71,9 +81,27 @@ func _refresh_gyro_text() -> void:
 	gyro_button.text = "Gyro aim: %s" % ("On" if gyro_enabled else "Off")
 
 
+func toggle_move_stick() -> void:
+	move_stick_mode = "custom" if move_stick_mode == "virtual" else "virtual"
+	_refresh_stick_text()
+	_save_profile()
+
+
+func toggle_stick_layout() -> void:
+	vjoy_layout = "fixed" if vjoy_layout == "floating" else "floating"
+	_refresh_stick_text()
+	_save_profile()
+
+
+func _refresh_stick_text() -> void:
+	move_stick_button.text = "Move stick: %s" % move_stick_mode.capitalize()
+	stick_layout_button.text = "Stick: %s" % vjoy_layout.capitalize()
+	stick_layout_button.disabled = move_stick_mode != "virtual"
+
+
 func _save_profile() -> void:
 	AppFlow.profile = {"gamertag": name_edit.text.strip_edges(), "last_ip": ip_edit.text.strip_edges(),
-			"gyro_enabled": gyro_enabled}
+			"gyro_enabled": gyro_enabled, "move_stick": move_stick_mode, "vjoy_layout": vjoy_layout}
 	save.save_profile(AppFlow.profile)
 	AppFlow.profile = save.load_profile()
 
