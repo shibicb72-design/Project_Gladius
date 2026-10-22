@@ -15,7 +15,12 @@ func _init(save_path: String = DEFAULT_PATH) -> void:
 
 
 static func defaults() -> Dictionary:
-	return {"version": VERSION, "gamertag": DEFAULT_GAMERTAG, "last_ip": ""}
+	return {"version": VERSION, "gamertag": DEFAULT_GAMERTAG, "last_ip": "", "gyro_enabled": false}  # OQ-34: gyro off by default
+
+
+## Input config value for GyroProvider.configure(): "off" unless the profile turned gyro on.
+static func gyro_mode(profile: Dictionary) -> String:
+	return "on" if bool(profile.get("gyro_enabled", false)) else "off"
 
 
 func load_profile() -> Dictionary:
@@ -33,6 +38,7 @@ func load_profile() -> Dictionary:
 	if not tag.strip_edges().is_empty():
 		profile["gamertag"] = tag
 	profile["last_ip"] = str(data.get("last_ip", ""))
+	profile["gyro_enabled"] = bool(data.get("gyro_enabled", false))
 	return profile
 
 
@@ -43,5 +49,6 @@ func save_profile(profile: Dictionary) -> bool:
 	var out := defaults()
 	out["gamertag"] = str(profile.get("gamertag", DEFAULT_GAMERTAG))
 	out["last_ip"] = str(profile.get("last_ip", ""))
+	out["gyro_enabled"] = bool(profile.get("gyro_enabled", false))
 	f.store_string(JSON.stringify(out, "\t"))
 	return true

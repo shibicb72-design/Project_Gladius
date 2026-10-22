@@ -9,19 +9,19 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 ## Identity and packaging
 
-- **OQ-01: Final Android application id.** Placeholder: `com.placeholder.gladius` (S1, export_presets.cfg `package/unique_name`).
-- **OQ-02: App display name on the launcher.** Placeholder: `Project Gladius` (S1, project.godot `application/config/name`).
+- **OQ-01: Final Android application id.** DECIDED (Shibi, 2026-10-22): `com.shibibabu.gladius` (export_presets.cfg `package/unique_name`). Superseded placeholder: `com.placeholder.gladius` (S1, export_presets.cfg `package/unique_name`).
+- **OQ-02: App display name on the launcher.** DECIDED (Shibi, 2026-10-22): launcher name `Project Gladius` (project.godot `application/config/name`, export preset `package/name`). Previous placeholder: `Project Gladius` (S1, project.godot `application/config/name`).
 - **OQ-03: App icon.** Placeholder: plain generated `res://icon.svg` (S1).
-- **OQ-04: Screen orientation.** DESIGN.md does not state it. Placeholder: sensor landscape (`display/window/handheld/orientation=4`) (S1).
+- **OQ-04: Screen orientation.** DECIDED (Shibi, 2026-10-22): landscape only, sensor landscape (rotates between both landscape sides): `display/window/handheld/orientation=sensor_landscape` (value 4). Previous placeholder: sensor landscape (`display/window/handheld/orientation=4`) (S1).
 - **OQ-05: Minimum Android version / supported devices beyond S24 Ultra, S25 Ultra and Z Fold7.** Placeholder: Godot 4.7.2 default min SDK, arm64-v8a only (S1).
 
 ## Weapons and loadouts
 
 - **OQ-06: Pilum BR and Gladius Lux numbers**: damage, headshot multiplier, fire interval, burst size, magazine, reserve ammo, reload time, range, spread. DESIGN.md gives none. Placeholder: values in `data/stats.json` under `weapons`, each entry `"_placeholder": true` (S1).
 - **OQ-07: What kind of weapon Gladius Lux is** (ranged gun, or an energy blade / melee weapon?). Pilum BR's "BR" suggests a battle rifle, but that isn't stated either. Placeholder: both are hitscan guns (`"kind": "hitscan"`). Pilum BR fires a burst; Gladius Lux fires single shots (S1/S6).
-- **OQ-08: Spawn loadout per class in milestone 1.** Which two weapons Hastati and Sagittarii spawn with. Placeholder: both spawn with Pilum BR (primary) + Gladius Lux (secondary) (S6, `data/loadouts.json`).
+- **OQ-08: Spawn loadout per class in milestone 1.** DECIDED (Shibi, 2026-10-22): Hastati spawn with Pilum BR + Gladius Lux; Sagittarii spawn with a long-range single-shot rifle (`sagittarii_rifle`, working name, hitscan, all numbers placeholder `# TUNE`) + Gladius Lux (`data/loadouts.json`, `data/stats.json`). Previous placeholder: both spawn with Pilum BR (primary) + Gladius Lux (secondary) (S6, `data/loadouts.json`).
 - **OQ-09: Class sidearm.** DESIGN.md says "class sidearm" but names none. Placeholder: no sidearm in milestone 1 (S6).
-- **OQ-10: Sagittarii loadout and identity in milestone 1.** It is the counter-sniper class ("one-shot Gladiators"), but no sniper weapon is in milestone 1 (Scorpio Rail is not listed). Placeholder: same loadout as Hastati; only the class table stats differ (S6).
+- **OQ-10: Sagittarii loadout and identity in milestone 1.** DECIDED (Shibi, 2026-10-22): long-range single-shot rifle (`sagittarii_rifle`, working name; numbers are placeholders) + Gladius Lux; see OQ-08. Earlier note: it is the counter-sniper class ("one-shot Gladiators"), but no sniper weapon is in milestone 1 (Scorpio Rail is not listed). Placeholder: same loadout as Hastati; only the class table stats differ (S6).
 - **OQ-11: Weapon tier for milestone 1.** Placeholder: `standard` only (S1).
 
 ## Combat rules
@@ -31,7 +31,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-14: Shield-break overflow.** Does damage that breaks the shield carry over into health in the same hit? Placeholder: yes, overflow carries over (S3).
 - **OQ-15: What spawn protection blocks.** Placeholder: all damage is blocked for 5 s; protection ends on firing (both from DESIGN.md) (S4).
 - **OQ-16: Which combat features are in milestone 1.** Milestone 1 lists only map, hill, two weapons, two classes, bots, input and hotspot. Placeholder: these are OUT of milestone 1: melee, grenades, crouch/prone, radar, scorestreaks, deployables, weapon pickups from the fallen, power weapons, killcam and vehicles. All are provisioned in ARCHITECTURE.md (S-none).
-- **OQ-17: Jump.** DESIGN.md never mentions a jump button (the map has jump pads). Placeholder: jump is enabled with a placeholder jump velocity, behind `"jump_enabled"` in `data/stats.json` `movement` (S6).
+- **OQ-17: Jump.** DECIDED (Shibi, 2026-10-22): jump stays in (`jump_enabled` true); jump numbers remain placeholders (see OQ-18). Previous note: DESIGN.md never mentions a jump button (the map has jump pads). Earlier placeholder: jump is enabled with a placeholder jump velocity, behind `"jump_enabled"` in `data/stats.json` `movement` (S6).
 - **OQ-18: Base movement speed in m/s** (class speed is a % of it), gravity and acceleration. Placeholder: values in `data/stats.json` `movement` (S6).
 - **OQ-19: Aim assist numbers** (friction, follow, magnetism, angle zones, falloff). DESIGN.md only says "all values low". Placeholder: `aim_assist` section in `data/stats.json` with every strength at 0, so aim assist is effectively off in milestone 1 (S6).
 
@@ -41,23 +41,23 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-21: When is the hill contested?** Placeholder: if players from more than one squad are inside, nobody scores (S4).
 - **OQ-22: Result when the 10-minute timer ends.** Highest score wins; what about a tie? Placeholder: a tie at the top is a draw (S4).
 - **OQ-23: Hill size and shape.** Placeholder: cylinder, radius and height in `data/maps/alesia_section.json` (S7).
-- **OQ-24: Which part of Alesia is the "rough section".** Placeholder: the hilltop citadel (fixed hill) plus a slice of the inner wall and legion-camp ring, as greybox geometry (S7).
-- **OQ-25: Art assets for milestone 1.** DESIGN.md names CC0 packs (Kenney, Quaternius, Mixamo), but the build sessions cannot download them. Placeholder: greybox primitives (CSG/MeshInstance3D) and capsule characters until Shibi adds asset packs to the repo (S6/S7).
+- **OQ-24: Which part of Alesia is the "rough section".** DECIDED (Shibi, 2026-10-22): the Alesia hilltop citadel section, in greybox. Earlier placeholder: the hilltop citadel (fixed hill) plus a slice of the inner wall and legion-camp ring, as greybox geometry (S7).
+- **OQ-25: Art assets for milestone 1.** DESIGN.md names CC0 packs (Kenney, Quaternius, Mixamo), but the build sessions cannot download them. DECIDED (Shibi, 2026-10-22): the map stays the Alesia hilltop citadel section in greybox. Earlier placeholder: greybox primitives (CSG/MeshInstance3D) and capsule characters until Shibi adds asset packs to the repo (S6/S7).
 - **OQ-26: Number and placement of squad spawn spots on the section.** Placeholder: 6 spots in `data/maps/alesia_section.json`, arranged evenly around the hill (S7).
 - **OQ-27: Join in progress and host-drop handling (60 s reconnect pause) in milestone 1?** Placeholder: out of milestone 1. Players join only in the pre-match lobby. If the host drops, clients return to the main menu (S9). Quitter handling mid-match: DESIGN.md says "Quitter replaced by bot", but that is not built. Placeholder (F2): the quitter's pawn is only marked inactive (MatchRoster._on_peer_left, TODO).
 - **OQ-28: Pre-match lobby in milestone 1.** Placeholder: minimal. The host sees connected players, squads are auto-assigned (humans first, then bots fill), the host taps Start. Slot tapping, move/kick/lock, Advanced options and series are out (S9/S10). Undecided detail: `LobbyState.assign()` puts humans in the first slots, so they share squad 0 (co-op against bots) until the design says whether humans are split across squads. Net tolerances in `data/net.json` `validation` are placeholders (see T-03).
-- **OQ-29: Class selection in milestone 1.** Where and when does a player pick Hastati or Sagittarii? Placeholder: a two-button toggle in the lobby; applies on the next spawn (S10).
+- **OQ-29: Class selection in milestone 1.** Where and when does a player pick Hastati or Sagittarii? DECIDED (Shibi, 2026-10-22): a class toggle Hastati/Sagittarii in the lobby for each human player (large touch button, synced host-authoritative); applies at match start and next spawn. Earlier placeholder: a two-button toggle in the lobby; applies on the next spawn (S10).
 
 ## Bots
 
-- **OQ-30: How many bots in milestone 1 ("a few bots").** Placeholder: fill to 2 squads of 3 (6 total). The number of squads is the single key `data/match.json` `squads` (read by the lobby, MatchRoot, NetLobby and bot fill; replaces `offline_squads` and `match_fill.squads`); `DataRegistry.validate()` checks squads * squad_size <= max_players and enough map spawn spots. Bot profile and squad size are in `data/bots.json` `match_fill` (S8).
-- **OQ-31: Bot difficulty in milestone 1, and numbers for Tiro/Miles/Centurion/Legatus** (accuracy, reaction time, damage, health...). Placeholder: one profile `tiro` with placeholder numbers; the other three listed with placeholder numbers, unused (S8). damage_mult, health_mult, aim_smartness and grenade_freq are stored in data/bots.json but not yet applied by the bot brain.
+- **OQ-30: How many bots in milestone 1 ("a few bots").** DECIDED (Shibi, 2026-10-22): bots fill to 2 squads of 3 (`data/match.json` squads = 2). Implementation notes: fill to 2 squads of 3 (6 total). The number of squads is the single key `data/match.json` `squads` (read by the lobby, MatchRoot, NetLobby and bot fill; replaces `offline_squads` and `match_fill.squads`); `DataRegistry.validate()` checks squads * squad_size <= max_players and enough map spawn spots. Bot profile and squad size are in `data/bots.json` `match_fill` (S8).
+- **OQ-31: Bot difficulty in milestone 1, and numbers for Tiro/Miles/Centurion/Legatus** (accuracy, reaction time, damage, health...). DECIDED (Shibi, 2026-10-22): bots use the Tiro profile; the Tiro numbers themselves stay placeholders. Notes: one profile `tiro` with placeholder numbers; the other three listed with placeholder numbers, unused (S8). damage_mult, health_mult, aim_smartness and grenade_freq are stored in data/bots.json but not yet applied by the bot brain.
 - **OQ-32: Bot classes.** Placeholder: bots alternate Hastati / Sagittarii (S8).
 - **OQ-33: Bot squad commands in milestone 1?** (follow/attack/hold/rush hill). Not listed for milestone 1. Placeholder: out of milestone 1. Bots always play the hill. Command system provisioned in ARCHITECTURE.md (S8).
 
 ## Input and controls
 
-- **OQ-34: Gyro aim in milestone 1?** Milestone 1 says "touch + controller". Placeholder: a gyro provider exists but is a no-op and the default mode is `Off` (S5).
+- **OQ-34: Gyro aim in milestone 1?** DECIDED (Shibi, 2026-10-22): gyro off by default, with an On/Off toggle in settings (main menu), saved to `user://profile.json` (`gyro_enabled`). Earlier note: milestone 1 says "touch + controller". Earlier placeholder: a gyro provider exists but is a no-op and the default mode is `Off` (S5).
 - **OQ-35: Default touch layout** (button positions and sizes, stick dead zones) and **default controller mapping**. Placeholder: values in `data/input.json`, marked placeholder (S5). Touch buttons (Fire, Aim, Reload, Swap, Jump): size, gap, font, anchor and grid cells are placeholders (`button_*` keys); layout is recomputed from the viewport size for foldables (T1b). Always-visible sticks: rest centres (`move_stick_rest`, `look_stick_rest`), radius and ring alpha are placeholders in `data/input.json`.
 - **OQ-36: Default look sensitivity (stick, touch) and invert Y default.** Placeholder: values in `data/input.json`, invert off (S5).
 - **OQ-53: Right-side touch look.** DESIGN.md says an aim stick (default `"stick"`); a drag-to-look option (`"drag"`) exists for Shibi to try after the Fold 7 test. Which should be the default, and what turn-rate cap and sensitivity? Placeholders in `data/input.json` `look`: `mode`, `max_turn_rate_deg_s`, `stick_rate_deg_s`, `drag_rad_per_screen_height` (also `touch_layout.stick_radius_frac_of_height`, OQ-35). T1 also asked for a "pilum" button, but there is no such action (Pilum BR is the rifle, fired with `fire`). If a thrown pilum or grenade was meant, that is later than milestone 1.

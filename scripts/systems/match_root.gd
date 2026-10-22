@@ -42,6 +42,10 @@ func _ready() -> void:
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
 	router.add_provider(gamepad)
+	var gyro := GyroProvider.new()
+	var profile: Dictionary = AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
+	gyro.configure({"gyro_mode": SaveService.gyro_mode(profile)})
+	router.add_provider(gyro)
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
 	director.match_over.connect(_on_match_over)

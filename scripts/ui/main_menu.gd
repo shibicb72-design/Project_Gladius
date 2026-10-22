@@ -3,7 +3,7 @@ extends Control
 ## Main menu: Host, Join (manual IP, OQ-41), gamertag (OQ-39). Later-milestone entries are shown disabled.
 
 const _Theme := preload("res://scenes/ui/theme.tres")
-const LATER_ENTRIES: Array[String] = ["Loadout", "Profile", "Shop", "Tutorials", "Settings"]
+const LATER_ENTRIES: Array[String] = ["Loadout", "Profile", "Shop", "Tutorials"]
 
 var save := SaveService.new()
 var name_edit: LineEdit
@@ -11,6 +11,8 @@ var ip_edit: LineEdit
 var status_label: Label
 var host_button: Button
 var join_button: Button
+var gyro_button: Button
+var gyro_enabled: bool = false
 var later_buttons: Array[Button] = []
 
 
@@ -38,6 +40,9 @@ func _ready() -> void:
 	ip_edit.text = str(profile["last_ip"])
 	box.add_child(ip_edit)
 	join_button = _button(box, "Join", _on_join)
+	gyro_enabled = bool(profile["gyro_enabled"])
+	gyro_button = _button(box, "", toggle_gyro)  # Settings: gyro On/Off (OQ-34)
+	_refresh_gyro_text()
 	for entry in LATER_ENTRIES:
 		var b := _button(box, "%s (later)" % entry, Callable())
 		b.disabled = true
@@ -56,8 +61,19 @@ func _button(parent: Node, text: String, handler: Callable) -> Button:
 	return b
 
 
+func toggle_gyro() -> void:
+	gyro_enabled = not gyro_enabled
+	_refresh_gyro_text()
+	_save_profile()
+
+
+func _refresh_gyro_text() -> void:
+	gyro_button.text = "Gyro aim: %s" % ("On" if gyro_enabled else "Off")
+
+
 func _save_profile() -> void:
-	AppFlow.profile = {"gamertag": name_edit.text.strip_edges(), "last_ip": ip_edit.text.strip_edges()}
+	AppFlow.profile = {"gamertag": name_edit.text.strip_edges(), "last_ip": ip_edit.text.strip_edges(),
+			"gyro_enabled": gyro_enabled}
 	save.save_profile(AppFlow.profile)
 	AppFlow.profile = save.load_profile()
 

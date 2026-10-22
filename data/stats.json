@@ -16,7 +16,7 @@
     "overflow_to_health": true
   },
   "movement": {
-    "_placeholder": true, "_todo": "OQ-17 OQ-18",
+    "_placeholder": true, "_todo": "OQ-18: jump itself is decided (jump_enabled true); all movement numbers are still placeholders",
     "base_speed_mps": 5.0,
     "gravity": 20.0,
     "accel": 40.0,
@@ -46,6 +46,16 @@
       "burst_count": 1, "burst_interval_s": 0.05,
       "magazine": 12, "reserve_ammo": 60, "reload_s": 1.5,
       "range_m": 60, "spread_deg": 1.5
+    },
+    "sagittarii_rifle": {
+      "display_name": "Sagittarii Rifle (working name)", "_placeholder": true,
+      "_todo": "OQ-08 OQ-10 OQ-06 OQ-07: working name; every number below is a placeholder (# TUNE). Long-range single-shot hitscan.",
+      "# TUNE": "all numbers are placeholders",
+      "kind": "hitscan", "tier": "standard",
+      "damage": 90, "headshot_multiplier": 2.0, "fire_interval_s": 1.2,
+      "burst_count": 1, "burst_interval_s": 0.05,
+      "magazine": 5, "reserve_ammo": 25, "reload_s": 2.5,
+      "range_m": 200, "spread_deg": 0.1
     }
   }
 }
