@@ -1954,3 +1954,116 @@ VERDICT: ITERATE
    must then FAIL.
 2. Minor: docs/CONTROLS.md:17: update the Aim row to say the host takes aim from the client's latest InputFrame and
    ignores the client-sent flag.
+
+## GBTN3 review
+
+Opus check of 73d196b ("fix: GBTN3 bot shot wiring test via begin, far tracer shots, aim doc") against
+cc_gladius/fixG/GBTN3.txt, Oct 22 2026. Review only; no product code changed (mutations were in-repo and reverted).
+
+INPUTS: step commit = FOUND (73d196b, parent db40f64; 7 files, +115/-2) ; test run = FOUND (run by this review:
+`godot --headless --path . --import` exit 0, `--export-debug "Android" build/gladius-debug.apk` exit 0 ending
+"[ DONE ] export", suite exit 0 "TESTS: 215 passed, 0 failed"; no SCRIPT ERROR / Parse Error / ERROR: lines from
+project files; tests_GBTN3.log also says "TESTS: 215 passed, 0 failed") ; apk = FOUND (Glob build/gladius-debug.apk) ;
+shots = FOUND (build/shots/*.png well over 4, incl. Fold landscape) ; named shots = FOUND
+(buttons_fire_cover_landscape.png, buttons_fire_inner_landscape.png, buttons_fire_far_cover_landscape.png,
+buttons_fire_far_inner_landscape.png). Note: fix3c.log has no "GATE GBTN3" line; the task said to run the gates
+myself, which I did.
+
+1. Wiring test, tests/test_bot_shot_wiring.gd (new file, all lines added). It builds a hosted session (:12-17
+   `isolated = true`, :22 `host.host_game()`, :23 `host.lobby.host_open(2, 3, "Host")`), a SubViewport with its own
+   world (:24-28), and the match with `fill_bots = true`, `session_override = host`, `lobby_override`, `seed_override`
+   (:29-35). It starts the match through `m.begin()` (:40), asserts `m.bots.size() >= 1` (:42) and a valid
+   `m.roster.bridge` (:43-44), looks the bot id up from `m.director.all_players()` (:48-51, not hardcoded), connects
+   `shot_announced` (:54), calls `bot.fire_shot()` (:55), and asserts exactly one announce (:56) carrying that id (:57).
+   It never calls `wire_bot_shots`. Cleanup (:58-65): queue_free on match, session and viewport, `host.leave()`,
+   AppFlow reset, two frames. Run: "PASS test_bot_shot_wiring.gd::test_begin_wires_bot_shots_to_the_host_bridge".
+   `git diff db40f64 -- tests/test_host_aim_and_bot_tracers.gd`: empty. PASS.
+2. Docs: docs/CONTROLS.md:17 now ends "the host takes aim from the client's latest `InputFrame`
+   (`net_match_bridge.gd` `host_note_input` stores it, the shot's spread reads it) and ignores the client-sent aim
+   flag." This matches net_match_bridge.gd:167 (`_last_aim[pid] = ...aim_pressed`) and :238-239. The diff against
+   db40f64 touches only line 17. PASS.
+3. Tracer at distance. I opened all four PNGs from the GBTN3 run, then re-ran
+   `godot --path . res://tools/button_capture.tscn -- --out=build/shots` (exit 0, all 7 shots "-> OK") and opened the
+   fresh far cover shot too. The spawn spot changes per run, so world endpoints differ between runs.
+   - buttons_fire_cover_landscape (2520x1080)
+     MEASURED: GBTN3 summary: world_a=(-20.18,1.15,33.85) world_b=(10.41,1.57,-17.77) px_a=(1165.6,617.2)
+     px_b=(1261.4,540.3) len_px=122.8. My run: world_a=(-19.22,1.15,-34.40) world_b=(-15.0,1.34,-25.97)
+     px_a=(1165.6,617.2) px_b=(1260.1,553.5) len_px=114.0. Read off the image: the trail starts at the muzzle flash at
+     about (1166,615) and ends at about (1260,542), on the shooter's neck/left shoulder.
+     INFERRED: a short yellow stub that rises from the gun to the shooter's own neck. It does not read as a shot going
+     out into the arena.
+   - buttons_fire_inner_landscape (2176x1812)
+     MEASURED: summary: world_b=(-10.58,1.32,-17.68) px_a=(955.4,1014.5) px_b=(1083.1,910.3) len_px=164.8. My run:
+     px_b=(1092.7,926.1) len_px=163.3. Image: starts at about (956,1014), ends at about (1085,913), at the base of the
+     shooter's head.
+     INFERRED: same as cover. The trail stops at the shooter's own body.
+   - buttons_fire_far_cover_landscape (2520x1080)
+     MEASURED: summary: world_a=(19.40,1.15,-34.09) world_b=(-14.84,1.56,-34.68) (34.2 m, the target pawn)
+     px_a=(1165.6,617.2) px_b=(1260.7,540.7) len_px=122.1. My run: world_b=(-31.08,1.02,-15.0), only ~22 m, so it hit
+     level geometry, not the 35 m target; px_b=(1253.9,555.8) len_px=107.6. Image (both runs): starts at about
+     (1166,617), ends at about (1256,546) / (1254,554), on the shooter's neck/shoulder. The 35 m target pawn is not
+     visible (hidden behind the shooter's body).
+     INFERRED: the far shot looks the same as the near one: a ~110-120 px stub ending at the shooter's own body. A
+     player would not see a shot travelling into the distance. The extra world distance changes nothing on screen,
+     because a far point on the aim ray projects to the screen centre, and the pawn body sits there.
+   - buttons_fire_far_inner_landscape (2176x1812)
+     MEASURED: summary: world_b=(-40.60,1.26,-34.51) (60 m, missed the target, max range) px_a=(955.4,1014.5)
+     px_b=(1085.9,911.2) len_px=166.5. My run: world_b=(-14.83,1.87,-34.71) (34.2 m, target) px_b=(1089.7,898.9)
+     len_px=177.2. Image: starts at about (956,1014), ends at about (1088,913), at the shooter's neck.
+     INFERRED: same. The trail visibly stops at the shooter's own body; no distant target or impact is visible.
+   The near buttons_fire_* shots are still produced (SHOTS :13-14 unchanged; both "-> OK"). The new value
+   data/ui.json:30-34 `capture.far_target_distance_m` = 35.0 sits in a block with `"_placeholder": true`, is listed in
+   OPEN_QUESTIONS.md, and is read without a fallback (tools/button_capture.gd:79). The aim chord uses a hard-coded
+   `PI / 3.0` (button_capture.gd:87) that assumes the spawn layout. In my run it did not give a clear line (hit at
+   ~22 m), so the far endpoint is not reliably far.
+   Result: the far shots show the trail ending at the shooter's own body -> ITERATE (task rule).
+4. LESSONS.md: `git diff db40f64 -- docs/LESSONS.md` is 18 added lines, 0 removed. The "## GBTN2 ITERATE, Oct 22 2026"
+   entry has Whys 1-5 and ends with "Wiring tests go through the real entry point, not the helper." verbatim. PASS.
+5. Stability: full suite 3 runs: "TESTS: 215 passed, 0 failed" / "TESTS: 215 passed, 0 failed" /
+   "TESTS: 215 passed, 0 failed". `-- --only=action_buttons --move-stick=virtual`: "TESTS: 8 passed, 0 failed";
+   `--move-stick=custom`: "TESTS: 8 passed, 0 failed". PASS.
+6. Mutations (in repo, each reverted; `git status --porcelain` afterwards: empty):
+   (iv-a) match_root.gd:116 `wire_bot_shots(host_bridge, bots)` -> `pass`: "FAIL test_bot_shot_wiring.gd::
+   test_begin_wires_bot_shots_to_the_host_bridge: one bot shot -> exactly one announce through begin()'s wiring
+   (expected 1, got 0); announced with the bot's player id (expected 1, got -1)". Caught.
+   (i) shot_fx.gd:69 origin and end moved onto the camera forward ray: "FAIL test_tracer_visibility.gd::
+   test_tracer_projects_to_a_readable_segment_and_draws_on_top: (2520, 1080) mode=virtual: projected endpoints differ;
+   ... tracer on-screen length 0.0 px > 60.0 px".
+   (ii) feedback anchors back to 0.62/0.7/0.55: "FAIL test_feedback_clearance.gd::
+   test_feedback_widgets_clear_of_sticks_and_buttons: reload_box (1512.0, 648.0) mode=virtual ... overlaps look_stick".
+   (iii) net_match_bridge.gd:239 uses `_aimed`: "FAIL ...test_host_ignores_client_claimed_aim_when_frame_says_not_aiming:
+   ... (expected 1.0, got 0.5)" and "FAIL ...test_host_uses_frame_aim_even_when_client_claims_not_aimed: (expected
+   0.5, got 1.0)".
+   (iv-b) match_root.gd:191-192 connect -> `pass`: "FAIL test_host_aim_and_bot_tracers.gd::
+   test_bot_shot_is_announced_with_the_bot_player_id_and_client_draws_it: one bot shot -> one announce_shot
+   (expected 1, got 0)".
+   (v) pawn.gd:166 `res = {}` (forced miss): "FAIL test_action_buttons.gd::test_hit_marker_shows_on_a_hit_only: hit
+   shows the hit marker; the real hitscan hit the target pawn". All caught. PASS.
+7. Integrity: `git diff 8ffb2da -- tests/test_touch_controls.gd` = exactly 7 added lines, each
+   `load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick`.
+   `git diff db40f64 -- tests/test_physics_baseline.gd data/physics_baseline.json tests/run_tests.gd
+   tests/test_case.gd tests/test_runner_safety.gd .claude/settings.json`: empty. Both baseline tests PASS.
+   `git diff db40f64 --stat -- tests/`: only test_bot_shot_wiring.gd (+65) and its .uid (+1), new files; no changed
+   or removed assertion. PASS.
+8. Data: the only new data value is `capture.far_target_distance_m` (placeholder block). No new PUBG label
+   (data/ grep "PUBG" hits only stats.json:46 "Not PUBG values", which is pre-existing). No numeric fallback in the new
+   read. PASS.
+9. Paths: Grep `C:\\|cc_gladius|/Users/|/home/` (-i) over tests/**, scripts/**, tools/**: "No matches found". PASS.
+10. Hygiene: `git diff db40f64 -U0 -G "[Hh][Aa][Ll][Oo]"`: empty. `git diff db40f64 --diff-filter=D --name-only`:
+    empty. OS.get_name only in scripts/platform/platform_services.gd. Button sizing untouched;
+    test_move_stick_touch_target_at_least_48dp_at_fold_sizes and test_menu_buttons_meet_touch_target_height PASS.
+    PASS.
+
+VERDICT: ITERATE
+1. tools/button_capture.gd:76-90, :115-125 (GBTN3 item 3): in all four fire shots, including both new far shots, the
+   tracer ends on screen at the shooter's own neck/shoulder (px_b about (1254-1261, 540-556) at 2520x1080; about
+   (1085-1093, 899-926) at 2176x1812). A player would not read it as a shot travelling into the distance, and the 35 m
+   target is hidden behind the shooter's body. The root cause is the camera, not the distance: the crosshair (where any
+   far point on the aim ray projects) sits on the pawn's own body in this third-person framing. More distance cannot
+   fix that. Fix options (a camera-framing product call for Shibi; if undecided, add an OQ): offset the third-person camera so the crosshair clears
+   the pawn (an over-the-shoulder offset in data/camera, `_placeholder`), or make the pawn body see-through/hidden
+   along the aim line. Either way, add a capture/test check that the tracer's far pixel endpoint is not inside the
+   local pawn's on-screen rect.
+2. tools/button_capture.gd:87: the far-shot aim uses a hard-coded `PI / 3.0` spawn-layout assumption. With a
+   different spawn (this review's run) the shot hit level geometry at ~22 m instead of the 35 m target. Derive the
+   direction from the map data (e.g. aim at the actual target or a known open lane), so the far shot is reliably far.
