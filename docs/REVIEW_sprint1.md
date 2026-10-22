@@ -122,3 +122,176 @@ and docs/plans/sprint1.md.
   - lobby squad count vs bot fill consistency (M3)
 
 VERDICT: ITERATE
+
+## Re-review
+
+Scope: `git log --oneline 8ee5273..HEAD` (6 commits): F1 `80a22bd` (CI), F2 `1c63451` (lobby, H2),
+F2b `7ef6744` (networked match setup), F2c `8a98f55` (end-to-end client input/fire/replica),
+F3 `e01eed0` (M1-M3), F4 `db3a6f4` (L1, L2, L4). No fix step is missing. Checked against
+docs/REVIEW_sprint1.md (above), docs/plans/sprint1.md and docs/DESIGN.md. This review changed no code, data or tests.
+
+### Verification (run during this re-review)
+
+| Step | Result |
+|---|---|
+| `mkdir -p build` | exit 0 |
+| `godot --headless --path . --import` | exit 0, no ERROR / SCRIPT ERROR / Parse Error lines |
+| `godot --headless --path . --export-debug "Android" build/gladius-debug.apk` | exit 0, signed with the shared debug key ("Signed", APK verified), `build/gladius-debug.apk` found by Glob, no ERROR lines |
+| `godot --headless --path . --script res://tests/run_tests.gd` | exit 0, `TESTS: 86 passed, 0 failed` (was 62) |
+
+### Per-finding status
+
+- **H1 (hotspot multiplayer end to end): fixed (code and loopback tests). Two-phone run still pending.**
+  - Start RPC: `scripts/net/net_lobby.gd:54-58,79-86`. The host sends the lobby state and seed to all
+    peers (`call_local`), and `scripts/ui/lobby.gd:114` plus `_on_match_starting` load the match on every peer.
+  - One pawn per lobby slot, with the lobby's player ids and squads: `scripts/systems/match_roster.gd:31-58`,
+    used by `scripts/systems/match_root.gd:86-98`.
+  - Bridge: created under the NetSession on every peer (`scripts/net/net_session.gd` `_enter_tree`).
+    The host registers peer → player ids (`match_roster.gd:63-77`).
+  - Client input and fire go through the bridge: `match_root.gd:133,137-145`, using `Pawn.shot`,
+    `reload_started` and `weapon_switched`. The replica is applied in `match_root.gd` `_on_snapshot` and
+    `net_match_bridge.gd:270-306`.
+  - Lobby name/class sync: `net_lobby.gd:46-51,62-76,90-100`. The host edits only the sender's entry
+    and truncates names to `max_name_length`.
+  - Tests exist and pass:
+    - F2: `test_net_lobby.gd` (4/4)
+    - F2b: `test_match_roster.gd` (4/4)
+    - F2c: `test_net_match.gd` (`test_e2e_client_join_start_same_pawn_set`, `test_e2e_client_input_moves_pawn_on_host`, `test_e2e_client_fire_damages_on_host_only`, 3/3)
+    - F3 follow-up: `test_net_authority.gd` (8/8)
+  - **Client never applies damage or score locally: confirmed.**
+    - The client's local pawn has `hit_authority = Callable()` (`match_roster.gd:50-53`), and
+      `scripts/weapons/hitscan.gd:44` applies nothing when the authority is invalid.
+    - Every other pawn on a client is `REPLICA` (`match_roster.gd:56-58`): `pawn.gd:123` returns before
+      any tick, so it has no brain, no weapon and no regen.
+    - The client director is passive (`match_director.gd:73`, `authoritative = false` from `match_root.gd:86`).
+      Score, respawns and match over arrive only through `apply_remote_*`. The client's own shield, health
+      and alive values come from the host snapshot (`net_match_bridge.gd:286-296`).
+  - **Remote pawns on the host are not fired or moved twice: confirmed.**
+    - A remote human is `HOST_REMOTE` (`match_roster.gd:58`). `pawn.gd:127` returns after `bridge.tick`,
+      so no look, movement or weapon runs from an InputFrame.
+    - Position changes only in `host_handle_move` (`net_match_bridge.gd:159-175`). Shots happen only in
+      `host_handle_fire` (`:195-217`), one host raycast per accepted request.
+    - `last_frames` (`:153`) is stored but never read (see N4).
+- **H2 (client registers with host peer id): fixed.**
+  - `lobby.gd:81,99` use `net_lobby.local_id()` (`net_lobby.gd:26`).
+  - Clients add themselves through `_request_update`, keyed on `multiplayer.get_remote_sender_id()` (`net_lobby.gd:62-69`).
+  - Test: `test_net_lobby.gd::test_lobby_client_registers_with_own_peer_id`, plus `test_lobby_rejects_edit_of_other_player`.
+- **M1 (host ammo/reload): fixed.**
+  - `net_match_bridge.gd:195-212`: the host Weapon copy is advanced, and requests are rejected while
+    reloading or when the magazine is empty (`reloading` / `empty`). Each accepted shot uses one round.
+  - Reload and slot changes are synced reliably (`:98-142`). Weapon has no auto-reload
+    (`scripts/weapons/weapon.gd:24-64`), so client and host magazines stay in step.
+  - Tests: `test_net_authority.gd` (empty, reloading, reload refill).
+- **M2 (horizontal-only move check): fixed.**
+  - `net_validator.gd` `validate_move` bounds the vertical change: up by jump velocity plus slope climb,
+    down by `max_fall_speed_mps`.
+  - `_last_move_s` is reset on every attempt (`net_match_bridge.gd:166`), so a rejected position cannot
+    age into acceptance. The host keeps its position and sends `correct_position` (`:173`).
+  - Tests: `test_validate_move_rejects_vertical_teleport`, `test_validate_move_allows_jump_and_fall`,
+    `test_rejected_move_keeps_host_position_and_does_not_age_in`.
+- **M3 (three squad-count sources): fixed.**
+  - `data/match.json` `squads` is the single key. It is read by `lobby.gd:60`, `match_root.gd:79` (via
+    `lobby.squad_count` when networked) and `bot_spawner.gd:16`.
+  - `match_fill.squads` and `offline_squads` are removed. `DataRegistry.validate_squads`
+    (`data_registry.gd:92-103`) checks the count against max_players and map spawn spots.
+  - Tests: `test_squad_count_single_source`, `test_validate_rejects_more_squads_than_spawns`.
+- **L1 (tunables in scripts): fixed.**
+  - Pitch clamp: from `camera.json` (`pawn.gd:136-137`, no more ±80 / ±70 conflict).
+  - Muzzle height: `stats.json` movement `muzzle_height_m` (`pawn.gd:94`).
+  - Bot eye/target heights and nav distances: `bots.json` brain.
+  - Squad spacing: `match.json` `squad_spacing_m` (`match_director.gd` `_place`).
+  - Fire pulse: `input.json` `fire_pulse_s`.
+  - End-screen delay: `data/ui.json`.
+  - Test: `test_pitch_clamp_uses_camera_data`.
+- **L2 (float score): fixed.** `koth_rules.gd` uses an integer score plus a float carry, and the win check
+  is an integer comparison. Tests: `test_koth_integer_score_exact_at_100`, `test_koth_win_on_same_tick_as_timer_expiry`.
+- **L3 (CI unproven): fixed statically; real run pending (orchestrator).** See CI below.
+- **L4 (missing tests): fixed.** Each test listed in L4 now exists and passes:
+  - snapshot → replica: `test_bridge_snapshot_applies_replica`
+  - implausible move rejection: `test_net_authority.gd` (move tests), via `host_handle_move`
+  - KotH reaching 100 on the timer-expiry tick
+  - `MatchDirector.start` false path: `test_match_director_start_fails_with_more_squads_than_spots`
+  - squad count consistency: `test_squad_count_single_source`
+
+### CI (static; GitHub Actions cannot run here)
+
+`.github/workflows/android.yml`:
+- `on: push: branches [main]`, `pull_request`, `workflow_dispatch`, so a PR from the same repo builds once.
+- `android-actions/setup-android@v3` with `packages: "platform-tools build-tools;36.0.0 platforms;android-36"`.
+  It has no `tools` entry, and a check step greps `sdkmanager --list_installed` for both pinned packages.
+- No `secrets.` references, and `permissions: contents: read` is unchanged.
+
+The first real run (T-02) is checked by the orchestrator after the push.
+
+### Data numbers and product decisions
+
+Every new number in data/*.json is a placeholder with an OPEN_QUESTIONS entry:
+- `net.json`:
+  - `input_rate_hz` 30 (OQ-51)
+  - `max_name_length` 24 (OQ-50)
+  - `validation.move_vertical_tolerance` 1.5 and `max_fall_speed_mps` 60 (T-03, block `_placeholder`)
+- `stats.json` `muzzle_height_m` 1.3: movement block `_placeholder`, OQ-50 tunables entry
+- `bots.json` brain `eye_height_m`, `target_height_m`, `path_desired_distance_m` and
+  `target_desired_distance_m`: block `_placeholder`
+- `match.json`:
+  - `squads` 2: TODO note, OQ-30
+  - `squad_spacing_m` 1.5: TODO note
+- `input.json` `fire_pulse_s` 0.08: touch_layout `_placeholder`
+- `ui.json` `end_screen_delay_s` 3.0: file `_placeholder`
+
+No design value was changed, and no product decision was invented:
+- Squad assignment is unchanged (`LobbyState.assign` not touched; OQ-28 still notes that humans share squad 0).
+- The quitter's pawn is only made inactive, with a TODO pointing at DESIGN.md's "replaced by bot"
+  (`match_roster.gd:93-100`, OQ-27).
+- Squad count stays the OQ-30 placeholder.
+
+### Cross-platform
+
+- `OS.get_name()` appears only in `scripts/platform/platform_services.gd`.
+- `InputEventScreenTouch` / `InputEventScreenDrag` appear only in `scripts/ui/touch_hud.gd:89,94`.
+- Networking is ENet over high-level multiplayer RPCs only.
+- The renderer is still `mobile` (`project.godot:104`), and `export_presets.cfg` is unchanged.
+- No hard-coded absolute paths.
+
+### New concerns
+
+- **N1 (Medium): spawn protection never ends when a client fires on the host.**
+  - DESIGN.md: protection ends on firing.
+  - Protection ends only through `Pawn.fired` → `MatchDirector._on_pawn_fired` → `spawn_rules.notify_event`
+    (`match_director.gd:42,123-124`). `fired` is emitted only in `Pawn.fire_shot` (`pawn.gd:102`).
+  - The host's copy of a remote human never calls `fire_shot`: `host_handle_fire`
+    (`scripts/net/net_match_bridge.gd:195-217`) raycasts directly.
+  - So for the full `spawn_protection_s` after every spawn, a client can shoot while taking no damage.
+    The host and bots lose protection as soon as they fire. Any unmodified client gets this, and it breaks
+    a design rule in the milestone-1 multiplayer path.
+  - Fix: after an accepted request in `host_handle_fire`, emit `pawn.fired` (or call
+    `director.spawn_rules.notify_event(pid, "fire")`). Add a test next to
+    `test_e2e_client_fire_damages_on_host_only` with protection left on.
+- **N2 (Low): OQ-50 is used for three different things.**
+  - It is the max name length (`docs/OPEN_QUESTIONS.md:100`, `data/net.json:8`).
+  - It is also the "placeholder tunables moved out of scripts" entry (`docs/OPEN_QUESTIONS.md:107`),
+    which is filed under Technical defaults.
+  - `data/match.json:10` (squad_spacing_m) and `data/ui.json:3` cite it as well.
+  - OQ-51 is listed before OQ-50.
+  - Fix: give the tunables entry its own id and fix the references.
+- **N3 (Low): stale note.** `docs/OPEN_QUESTIONS.md:69` still says "Still open: M1/M2". Both were fixed in F3.
+- **N4 (Low): dead state.** The host stores `last_frames[pid]` (`net_match_bridge.gd:153`) and nothing reads it.
+  Remove it, or use it once HOST_REMOTE pawns need input-driven state such as a crouch or animation.
+- **N5 (Low): repeated corrections.** A rejected move sends a reliable `correct_position` for every packet
+  (`net_match_bridge.gd:173`). That is up to `input_rate_hz` (30) per second until the snap arrives, for
+  example after a respawn before `ev_respawn`. Rate-limit it to once per snapshot interval.
+- **N6 (Low): hidden file read.** `BotSpawner.plan_fill` now loads `res://data/match.json` itself
+  (`scripts/systems/bot_spawner.gd:16`) instead of taking the squad count as a parameter. That hides a file
+  read inside a helper that was pure. Pass `squads` in from the caller.
+- **N7 (Low, already noted in OPEN_QUESTIONS.md:69): no host kill events.** Kills by the host's own pawn
+  (local authority) do not send `ev_kill`, so clients get no kill event for them. This affects only the
+  kill feed; score and respawn are unaffected.
+
+### Pending (not a blocker)
+
+The two-phone manual acceptance (docs/plans/sprint1.md:497-502) is Shibi's: install the APK on two phones,
+host on the hotspot, join by IP and play to 100 points.
+
+Medium N1 is open, so this re-review iterates.
+
+VERDICT: ITERATE
