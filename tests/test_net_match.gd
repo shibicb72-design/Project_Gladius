@@ -160,6 +160,13 @@ func test_e2e_client_fire_damages_on_host_only() -> void:
 			if bot == null and b.squad_id != host_copy.squad_id:
 				bot = b
 		assert_true(bot != null, "an enemy bot exists")
+		# Squad spots depend on the random lobby seed, so the host's own (non-bot) pawn can spawn in the
+		# line of fire and soak up the shot. Park every non-bot pawn other than the shooter out of the way.
+		for id in hm.director.all_players():
+			var other: Pawn = hm.director.all_players()[id]
+			if other != host_copy and not hm.bots.has(other):
+				other.set_physics_process(false)
+				other.global_position += Vector3(0.0, 30.0, 0.0)
 		if bot != null:
 			bot.global_position = host_copy.global_position + Vector3(0.0, 0.0, -6.0)
 			var bot_id := -1
@@ -180,7 +187,15 @@ func test_e2e_client_fire_damages_on_host_only() -> void:
 				hit = await _wait_until(func() -> bool: return bot.bridge.state.shield < full, 0.7)
 				if hit:
 					break
-			assert_true(hit, "host applied the client's shot to the bot's shield")
+			var diag := ""
+			if not hit:
+				var q := PhysicsRayQueryParameters3D.create(muzzle, muzzle + Vector3(0, 0, -20.0), 7)
+				q.collide_with_areas = true
+				q.exclude = host_copy.hitscan_exclude()
+				var ray := hm.get_world_3d().direct_space_state.intersect_ray(q)
+				diag = " [muzzle %s bot %s ray_hit %s]" % [muzzle, bot.global_position,
+						str(ray.get("collider")) + " @ " + str(ray.get("position"))]
+			assert_true(hit, "host applied the client's shot to the bot's shield" + diag)
 			var host_shield: float = bot.bridge.state.shield
 			await _wait_until(func() -> bool: return false, 0.3)
 			assert_eq(client_bot.bridge.state.shield, full, "client copy unchanged before a snapshot")

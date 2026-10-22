@@ -11,6 +11,17 @@ func _initialize() -> void:
 			if f.begins_with("test_") and f.ends_with(".gd") and f != "test_case.gd":
 				files.append(f)
 	files.sort()
+	# Optional: godot ... --script res://tests/run_tests.gd -- --only=<substring of file::test> --repeat=N
+	var only := ""
+	var repeat := 1
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--only="):
+			only = a.substr(7)
+		elif a.begins_with("--repeat="):
+			repeat = maxi(1, int(a.substr(9)))
+	# The root is still being set up inside _initialize; let one frame pass so add_child works for the
+	# very first test (matters when --only selects a single scene-using test).
+	await process_frame
 	for f in files:
 		var script: GDScript = load("res://tests/" + f)
 		if script == null or not script.can_instantiate():
@@ -21,14 +32,17 @@ func _initialize() -> void:
 			var mname: String = m["name"]
 			if not mname.begins_with("test_"):
 				continue
-			var inst = script.new()
-			await inst.call(mname)
-			if inst.failures.is_empty():
-				passed += 1
-				print("PASS %s::%s" % [f, mname])
-			else:
-				failed += 1
-				print("FAIL %s::%s: %s" % [f, mname, "; ".join(inst.failures)])
+			if only != "" and not ("%s::%s" % [f, mname]).contains(only):
+				continue
+			for i in repeat:
+				var inst = script.new()
+				await inst.call(mname)
+				if inst.failures.is_empty():
+					passed += 1
+					print("PASS %s::%s" % [f, mname])
+				else:
+					failed += 1
+					print("FAIL %s::%s: %s" % [f, mname, "; ".join(inst.failures)])
 	print("TESTS: %d passed, %d failed" % [passed, failed])
 	var code := 0
 	if failed > 0 or passed == 0:

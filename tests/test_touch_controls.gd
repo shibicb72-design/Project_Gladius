@@ -112,13 +112,23 @@ func _deliver(e: InputEvent) -> void:
 
 
 ## T-MOVE: touch events through the viewport input path into the full HUD -> provider -> router -> pawn chain.
-func _inject_move_walk(m: MatchRoot) -> float:
+## `window_size` (if set) resizes the real root window first, so the HUD fills the actual viewport
+## at that resolution (full-rect anchors + canvas_items stretch) instead of a fixed test size.
+func _inject_move_walk(m: MatchRoot, window_size: Vector2i = Vector2i.ZERO) -> float:
 	var tree: SceneTree = Engine.get_main_loop()
 	await _frames(3)
 	var hud: Control = m.get_node("Hud/TouchHud")
 	hud.cfg["force_touch_hud"] = true
 	hud.refresh_visibility()
-	_fix_size(hud)
+	if window_size != Vector2i.ZERO:
+		_root().size = window_size
+		await _frames(3)
+		var vp := _root().get_visible_rect().size
+		var want := float(window_size.x) / float(window_size.y)
+		assert_true(absf(vp.x / vp.y - want) < 0.01, "viewport aspect matches window %s, got %s" % [window_size, vp])
+		assert_true(hud.size.is_equal_approx(vp), "HUD fills the viewport at %s: hud %s vp %s" % [window_size, hud.size, vp])
+	else:
+		_fix_size(hud)
 	var zone: Rect2 = hud._zone_rect("move_zone")
 	var start := zone.get_center()
 	var before := m.local_player.global_position
@@ -146,7 +156,32 @@ func _inject_move_walk(m: MatchRoot) -> float:
 
 
 func test_move_touch_events_move_pawn_offline() -> void:
+	await _move_offline(Vector2i.ZERO)
+
+
+func test_move_touch_offline_folded_2520x1080() -> void:
+	await _move_offline(Vector2i(2520, 1080))
+
+
+func test_move_touch_offline_unfolded_2176x1812() -> void:
+	await _move_offline(Vector2i(2176, 1812))
+
+
+func test_move_touch_host_folded_2520x1080() -> void:
+	await _move_host(Vector2i(2520, 1080))
+
+
+func test_move_touch_host_unfolded_2176x1812() -> void:
+	await _move_host(Vector2i(2176, 1812))
+
+
+func test_move_touch_events_move_pawn_as_host() -> void:
+	await _move_host(Vector2i.ZERO)
+
+
+func _move_offline(window_size: Vector2i) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
+	var prev := _root().size
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = false
@@ -155,14 +190,16 @@ func test_move_touch_events_move_pawn_offline() -> void:
 	await tree.physics_frame
 	m.director.load_config()
 	assert_true(m.begin(), "offline match begins")
-	var d: float = await _inject_move_walk(m)
-	assert_true(d > 0.05, "offline: injected touch drag moved the pawn, delta %s" % d)
+	var d: float = await _inject_move_walk(m, window_size)
+	assert_true(d > 0.05, "offline %s: injected touch drag moved the pawn, delta %s" % [window_size, d])
 	m.queue_free()
+	_root().size = prev
 	await tree.process_frame
 
 
-func test_move_touch_events_move_pawn_as_host() -> void:
+func _move_host(window_size: Vector2i) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
+	var prev := _root().size
 	var s := NetSession.new()
 	s.name = "TMoveHost"
 	s.isolated = true
@@ -181,9 +218,10 @@ func test_move_touch_events_move_pawn_as_host() -> void:
 	m.director.load_config()
 	m.director.match_cfg["spawn_protection_s"] = 0.0
 	assert_true(m.begin(), "host match begins")
-	var d: float = await _inject_move_walk(m)
-	assert_true(d > 0.05, "host: injected touch drag moved the pawn, delta %s" % d)
+	var d: float = await _inject_move_walk(m, window_size)
+	assert_true(d > 0.05, "host %s: injected touch drag moved the pawn, delta %s" % [window_size, d])
 	m.queue_free()
+	_root().size = prev
 	s.leave()
 	s.queue_free()
 	AppFlow.lobby = null

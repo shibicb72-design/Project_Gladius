@@ -1,11 +1,13 @@
 extends Node
 ## Desktop-render proof of the touch HUD (the Android emulator cannot boot on this PC). Run windowed:
 ##   godot --path . --resolution 2520x1080 res://tools/touch_capture.tscn -- --out=build/shots --tag=folded
-## Forces the touch HUD on, drives it with real input events, saves PNGs with a "desktop render" overlay
-## and writes <out>/<tag>_report.txt. Optional: --dpi=N (default: the desktop's reported DPI).
+## Simulates a touchscreen through PlatformServices (the HUD is NOT forced on), drives it with real input
+## events, saves PNGs with a "desktop render" overlay and writes <out>/<tag>_report.txt. Optional: --dpi=N (default: the desktop's reported DPI).
 
 const _LobbyScene := preload("res://scenes/ui/lobby.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
+const _Platform := preload("res://scripts/platform/platform_services.gd")
+const MIN_TOUCH_DP := 48.0
 const WALK_S := 1.0
 const LOOK_S := 1.0
 
@@ -40,6 +42,16 @@ func _ready() -> void:
 	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	_label.add_theme_constant_override("outline_size", 8)
 	layer.add_child(_label)
+	var note := Label.new()
+	note.text = "touch auto-detected (simulated touchscreen), not forced"
+	note.position = Vector2(12, 52)
+	note.add_theme_font_size_override("font_size", 22)
+	note.add_theme_color_override("font_color", Color(0.6, 1, 0.6))
+	note.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	note.add_theme_constant_override("outline_size", 6)
+	layer.add_child(note)
+	# Simulate a touchscreen device through the real auto-detect path (PlatformServices.is_touch_device).
+	_Platform.simulate_touchscreen = true
 	_run.call_deferred()
 
 
@@ -57,6 +69,28 @@ func _run() -> void:
 	else:
 		push_error("cannot write report in %s" % _out)
 	get_tree().quit()
+
+
+func _buttons_under(node: Node) -> Array[Button]:
+	var out: Array[Button] = []
+	for c in node.get_children():
+		if c is Button:
+			out.append(c)
+		out.append_array(_buttons_under(c))
+	return out
+
+
+## Texts under `root` that name keyboard keys or mouse clicks (empty = none shown).
+func _keyboard_prompts(root: Node) -> PackedStringArray:
+	var found: PackedStringArray = []
+	var rx := RegEx.create_from_string("(?i)\\b(wasd|esc|escape|enter|return|space|spacebar|tab|shift|ctrl|click|mouse|keyboard|press [a-z]\\b|\\[[a-z0-9]\\])")
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is Control and (n as Control).is_visible_in_tree() and ("text" in n) and rx.search(str(n.get("text"))) != null:
+			found.append(str(n.get("text")))
+	return found
 
 
 func _log(s: String) -> void:
@@ -117,6 +151,19 @@ func _lobby_shots() -> void:
 	_height_line("lobby class toggle button", lobby.class_button.size.y)
 	_height_line("lobby Start button", lobby.start_button.size.y)
 	_height_line("lobby first slot row", lobby.slot_buttons[0].size.y if not lobby.slot_buttons.is_empty() else 0.0)
+	var checked := 0
+	var too_small: PackedStringArray = []
+	for b in _buttons_under(lobby):
+		if not b.is_visible_in_tree():
+			continue
+		checked += 1
+		var dp := b.size.y * _px_scale() / (_dpi / 160.0)
+		if dp < MIN_TOUCH_DP:
+			too_small.append("'%s' %.1f dp" % [b.text, dp])
+	_log("lobby buttons checked: %d, all >= %.0f dp tall: %s%s" % [checked, MIN_TOUCH_DP,
+			str(too_small.is_empty() and checked > 0), "" if too_small.is_empty() else " TOO SMALL: " + ", ".join(too_small)])
+	_log("RESULT lobby_buttons_min_%.0fdp=%s" % [MIN_TOUCH_DP, str(too_small.is_empty() and checked > 0)])
+	_log("lobby keyboard prompts: %s" % str(_keyboard_prompts(lobby)))
 	await _shot("lobby_before")
 	var before_player := lobby.class_button.text
 	await _tap(lobby.class_button.get_global_rect().get_center())
@@ -149,10 +196,14 @@ func _match_shots() -> void:
 	m.begin()
 	await _frames(5)
 	var hud: Control = m.get_node("Hud/TouchHud")
-	hud.cfg["force_touch_hud"] = true
-	hud.refresh_visibility()
+	# No forcing: the HUD decides from PlatformServices.is_touch_device() (touchscreen simulated in _ready).
 	hud.relayout()
 	await _frames(3)
+	var forced := bool(hud.cfg.get("force_touch_hud", false))
+	_log("touch default: force_touch_hud=%s is_touch_device=%s HUD visible=%s keyboard prompts in HUD: %s" % [
+			str(forced), str(_Platform.new().is_touch_device()), str(hud.visible),
+			str(_keyboard_prompts(hud))])
+	_log("RESULT touch_on_by_default=%s (not forced)" % str(hud.visible and not forced))
 	for action in hud.get_button_actions():
 		_height_line("HUD button %s (%s)" % [action, hud.get_button_label(action)], hud.get_button_rect(action).size.y)
 	await _shot("hud_rest")

@@ -3,12 +3,17 @@ extends RefCounted
 ## Platform-specific code lives here behind an OS.get_name() switch with no-op fallbacks.
 
 
+## Tool/test hook: makes the desktop branch below behave as if the DisplayServer reported a
+## touchscreen, so the real auto-detect path can be exercised off-device. Never set in shipping code.
+static var simulate_touchscreen: bool = false
+
+
 func is_touch_device() -> bool:
 	match OS.get_name():
 		"Android", "iOS":
 			return true
 		_:
-			return DisplayServer.is_touchscreen_available()
+			return simulate_touchscreen or DisplayServer.is_touchscreen_available()
 
 
 ## Turns touch-to-mouse emulation on or off at runtime (never the project setting) and
