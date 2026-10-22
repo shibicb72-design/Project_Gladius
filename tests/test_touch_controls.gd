@@ -107,14 +107,24 @@ func test_move_stick_in_match_moves_pawn() -> void:
 ## Local coordinates: the headless root window is 64x64, so window->canvas stretching would otherwise
 ## scale positions out of the HUD zones. Input.parse_input_event is not used: under
 ## `--headless --script` it never reaches the scene tree (HUD stays at _move_touch == -1).
-func _deliver(e: InputEvent) -> void:
-	_root().push_input(e, true)
+func _deliver(e: InputEvent, window_coords: bool = false) -> void:
+	if window_coords:
+		# Real-device order: window pixels in, the viewport's stretch transform maps them to canvas space.
+		var xf := _root().get_screen_transform()
+		if e is InputEventScreenTouch:
+			e.position = xf * e.position
+		elif e is InputEventScreenDrag:
+			e.position = xf * e.position
+			e.relative = xf.basis_xform(e.relative)
+		_root().push_input(e, false)
+	else:
+		_root().push_input(e, true)
 
 
 ## T-MOVE: touch events through the viewport input path into the full HUD -> provider -> router -> pawn chain.
 ## `window_size` (if set) resizes the real root window first, so the HUD fills the actual viewport
 ## at that resolution (full-rect anchors + canvas_items stretch) instead of a fixed test size.
-func _inject_move_walk(m: MatchRoot, window_size: Vector2i = Vector2i.ZERO) -> float:
+func _inject_move_walk(m: MatchRoot, window_size: Vector2i = Vector2i.ZERO, window_coords: bool = false) -> float:
 	var tree: SceneTree = Engine.get_main_loop()
 	await _frames(3)
 	var hud: Control = m.get_node("Hud/TouchHud")
@@ -136,21 +146,21 @@ func _inject_move_walk(m: MatchRoot, window_size: Vector2i = Vector2i.ZERO) -> f
 	down.index = 0
 	down.position = start
 	down.pressed = true
-	_deliver(down)
+	_deliver(down, window_coords)
 	await tree.process_frame
-	assert_eq(hud._move_touch, 0, "touch-down in the move zone reached the HUD via Input")
+	assert_eq(hud._move_touch, 0, "touch-down in the move zone reached the HUD via Viewport.push_input (%s coordinates)" % ("window" if window_coords else "canvas"))
 	var drag := InputEventScreenDrag.new()
 	drag.index = 0
 	drag.position = start + Vector2(0, -hud._radius())
 	drag.relative = Vector2(0, -hud._radius())
-	_deliver(drag)
+	_deliver(drag, window_coords)
 	await _frames(20)
 	var after := m.local_player.global_position
 	var up := InputEventScreenTouch.new()
 	up.index = 0
 	up.position = drag.position
 	up.pressed = false
-	_deliver(up)
+	_deliver(up, window_coords)
 	await tree.process_frame
 	return Vector2(after.x - before.x, after.z - before.z).length()
 
@@ -179,7 +189,23 @@ func test_move_touch_events_move_pawn_as_host() -> void:
 	await _move_host(Vector2i.ZERO)
 
 
-func _move_offline(window_size: Vector2i) -> void:
+func test_move_window_coords_offline_folded_2520x1080() -> void:
+	await _move_offline(Vector2i(2520, 1080), true)
+
+
+func test_move_window_coords_offline_unfolded_2176x1812() -> void:
+	await _move_offline(Vector2i(2176, 1812), true)
+
+
+func test_move_window_coords_host_folded_2520x1080() -> void:
+	await _move_host(Vector2i(2520, 1080), true)
+
+
+func test_move_window_coords_host_unfolded_2176x1812() -> void:
+	await _move_host(Vector2i(2176, 1812), true)
+
+
+func _move_offline(window_size: Vector2i, window_coords: bool = false) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var prev := _root().size
 	var m: MatchRoot = _MatchScene.instantiate()
@@ -190,14 +216,14 @@ func _move_offline(window_size: Vector2i) -> void:
 	await tree.physics_frame
 	m.director.load_config()
 	assert_true(m.begin(), "offline match begins")
-	var d: float = await _inject_move_walk(m, window_size)
-	assert_true(d > 0.05, "offline %s: injected touch drag moved the pawn, delta %s" % [window_size, d])
+	var d: float = await _inject_move_walk(m, window_size, window_coords)
+	assert_true(d > 0.05, "offline %s (window_coords=%s): injected touch drag moved the pawn, delta %s" % [window_size, window_coords, d])
 	m.queue_free()
 	_root().size = prev
 	await tree.process_frame
 
 
-func _move_host(window_size: Vector2i) -> void:
+func _move_host(window_size: Vector2i, window_coords: bool = false) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var prev := _root().size
 	var s := NetSession.new()
@@ -218,8 +244,8 @@ func _move_host(window_size: Vector2i) -> void:
 	m.director.load_config()
 	m.director.match_cfg["spawn_protection_s"] = 0.0
 	assert_true(m.begin(), "host match begins")
-	var d: float = await _inject_move_walk(m, window_size)
-	assert_true(d > 0.05, "host %s: injected touch drag moved the pawn, delta %s" % [window_size, d])
+	var d: float = await _inject_move_walk(m, window_size, window_coords)
+	assert_true(d > 0.05, "host %s (window_coords=%s): injected touch drag moved the pawn, delta %s" % [window_size, window_coords, d])
 	m.queue_free()
 	_root().size = prev
 	s.leave()
@@ -400,6 +426,52 @@ func test_both_sticks_visible_at_rest_folded_2520x1080() -> void:
 
 func test_both_sticks_visible_at_rest_unfolded_2176x1812() -> void:
 	_check_rest_sticks(Vector2(2176, 1812))
+
+
+## Nothing on the gameplay HUD (stat bars, labels, ammo text) may overlap a stick or a button.
+func _check_hud_clear(sz: Vector2) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var touch := _new_hud()
+	touch.size = sz
+	touch.relayout()
+	var game: GameHud = load("res://scenes/ui/hud.tscn").instantiate()
+	_root().add_child(game)
+	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	game.size = sz
+	game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	game.timer_label.text = "10:00"
+	game.hill_label.text = "Hill: contested"
+	game.weapon_label.text = "Gladius Rifle"
+	game.ammo_label.text = "120 / 360"
+	await tree.process_frame
+	await tree.process_frame
+	var hud_items := {
+		"shield_bar": game.shield_bar, "health_bar": game.health_bar, "weapon_label": game.weapon_label,
+		"ammo_label": game.ammo_label, "scores_label": game.scores_label, "timer_label": game.timer_label,
+		"hill_label": game.hill_label}
+	var touch_items := {"move_stick": touch.move_stick.get_global_rect(), "look_stick": touch.look_stick.get_global_rect()}
+	for action in BUTTON_LABELS:
+		touch_items["button_" + action] = touch.get_button_rect(action)
+	var view := Rect2(Vector2.ZERO, sz)
+	for hname in hud_items:
+		var c: Control = hud_items[hname]
+		var r := c.get_global_rect()
+		assert_true(r.size.x > 0.0 and r.size.y > 0.0, "%s has size at %s" % [hname, sz])
+		assert_true(view.encloses(r), "%s inside viewport %s, got %s" % [hname, sz, r])
+		for tname in touch_items:
+			assert_true(not r.intersects(touch_items[tname]), "%s %s overlaps %s %s at %s" % [hname, r, tname, touch_items[tname], sz])
+	game.free()
+	touch.free()
+
+
+func test_hud_clear_of_sticks_and_buttons_folded() -> void:
+	await _check_hud_clear(Vector2(1512, 648))
+	await _check_hud_clear(Vector2(2520, 1080))
+
+
+func test_hud_clear_of_sticks_and_buttons_unfolded() -> void:
+	await _check_hud_clear(Vector2(1152, 959))
+	await _check_hud_clear(Vector2(2176, 1812))
 
 
 func test_move_stick_recentres_on_touch_and_returns_to_rest() -> void:

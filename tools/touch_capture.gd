@@ -26,8 +26,9 @@ func _ready() -> void:
 			_tag = a.substr(6)
 		elif a.begins_with("--dpi="):
 			_dpi = float(a.substr(6))
+	_Platform.dpi_override = _dpi  # 0 = leave the DisplayServer value alone
 	if _dpi <= 0.0:
-		_dpi = float(DisplayServer.screen_get_dpi())
+		_dpi = _Platform.new().get_screen_dpi()
 	if not _out.is_absolute_path():
 		_out = ProjectSettings.globalize_path("res://").path_join(_out)
 	DirAccess.make_dir_recursive_absolute(_out)
@@ -59,8 +60,8 @@ func _ready() -> void:
 
 func _run() -> void:
 	var win := get_window()
-	_log("tag=%s window=%s viewport=%s dpi=%.0f (desktop-reported; pass --dpi=N for the device)" % [
-			_tag, win.size, get_viewport().get_visible_rect().size, _dpi])
+	_log("tag=%s window=%s viewport=%s dpi=%.0f (DisplayServer.screen_get_dpi()=%d; --dpi=N overrides, e.g. 420 folded / 373 unfolded)" % [
+			_tag, win.size, get_viewport().get_visible_rect().size, _dpi, DisplayServer.screen_get_dpi()])
 	await _frames(3)
 	await _lobby_shots()
 	await _match_shots()
@@ -147,9 +148,17 @@ func _tap(canvas_pos: Vector2) -> void:
 
 
 func _lobby_shots() -> void:
+	# Host first (as test_ui.gd:_host_lobby), so the host-only bot class cycling is reachable (OQ-55).
+	var sess := NetSession.new()
+	sess.name = "CaptureSession"
+	sess.isolated = true
+	add_child(sess)
+	AppFlow.session = sess
+	sess.host_game()
 	var lobby: Lobby = _LobbyScene.instantiate()
 	add_child(lobby)
 	await _frames(4)
+	_log("lobby hosted: is_host=%s" % str(lobby.is_host))
 	_height_line("lobby class toggle button", lobby.class_button.size.y)
 	_height_line("lobby Start button", lobby.start_button.size.y)
 	_height_line("lobby first slot row", lobby.slot_buttons[0].size.y if not lobby.slot_buttons.is_empty() else 0.0)
@@ -175,12 +184,16 @@ func _lobby_shots() -> void:
 			bot_idx = int(s["player_id"])
 			break
 	var bot_before := lobby.slot_buttons[bot_idx].text if bot_idx >= 0 else ""
+	var bot_class_before := str(lobby.state.assign()[bot_idx]["class_id"]) if bot_idx >= 0 else ""
 	if bot_idx >= 0:
 		await _tap(lobby.slot_buttons[bot_idx].get_global_rect().get_center())
+	var bot_class_after := str(lobby.state.assign()[bot_idx]["class_id"]) if bot_idx >= 0 else ""
 	_log("lobby player class toggle: '%s' -> '%s'" % [before_player, lobby.class_button.text])
 	if bot_idx >= 0:
-		_log("lobby bot row tap: '%s' -> '%s' (is_host=%s; bot class cycling is host-only, OQ-55)" % [
-				bot_before, lobby.slot_buttons[bot_idx].text, str(lobby.is_host)])
+		_log("lobby bot row tap: '%s' -> '%s' (class %s -> %s, is_host=%s, OQ-55)" % [
+				bot_before, lobby.slot_buttons[bot_idx].text, bot_class_before, bot_class_after, str(lobby.is_host)])
+	_log("RESULT player_class_toggled=%s" % str(lobby.class_button.text != before_player))
+	_log("RESULT bot_class_cycled=%s" % str(bot_idx >= 0 and bot_class_after != bot_class_before and bot_class_after in Lobby.CLASSES))
 	await _shot("lobby_after")
 	remove_child(lobby)
 	lobby.free()
@@ -229,6 +242,10 @@ func _match_shots() -> void:
 	await _hold_drag(1, look_c, tgt, LOOK_S, "look")
 	var yaw1 := rad_to_deg(pawn.rotation.y)
 	var pitch1 := rad_to_deg(pawn.pitch)
+	var rate_cap: float = float(hud.cfg["look"].get("max_turn_rate_deg_s", 0.0))
+	var rate := sqrt(pow(yaw1 - yaw0, 2.0) + pow(pitch1 - pitch0, 2.0)) / LOOK_S
+	_log("look rate: %.1f deg/s over %.1f s vs data cap max_turn_rate_deg_s=%.1f -> exceeds cap: %s (reported only, cap unchanged)" % [
+			rate, LOOK_S, rate_cap, str(rate_cap > 0.0 and rate > rate_cap + 0.001)])
 	await _shot("hud_look")
 	_touch_up(1, tgt)
 	var lo := float(pawn._camera.get("pitch_min_deg", -70.0))

@@ -20,12 +20,28 @@ static func bind(root: Control) -> void:
 static func apply_to(root: Control, viewport_height: float = -1.0) -> void:
 	var cfg := DataRegistry.new().load_file("res://data/ui.json")
 	var h := viewport_height if viewport_height > 0.0 else _viewport_height(root)
-	var min_h := h * float(cfg.get("min_touch_target_frac_of_height", 0.0))
+	var min_h := min_button_height(h, _px_scale(root), PlatformServices.new().get_dp_scale(), cfg)
 	var font := roundi(h * float(cfg.get("font_size_frac_of_height", 0.0)))
 	if root.theme != null and font > 0:
 		root.theme = root.theme.duplicate()
 		root.theme.default_font_size = font
 	_apply_buttons(root, min_h)
+
+
+## Minimum canvas-unit button height: the larger of the height fraction and the dp floor.
+## `px_scale` is window pixels per canvas unit; `dp_scale` is window pixels per dp.
+static func min_button_height(canvas_h: float, px_scale: float, dp_scale: float, cfg: Dictionary) -> float:
+	var frac_h := canvas_h * float(cfg.get("min_touch_target_frac_of_height", 0.0))
+	var floor_h := float(cfg.get("min_touch_target_dp", 0.0)) * dp_scale / maxf(px_scale, 0.0001)
+	return maxf(frac_h, floor_h)
+
+
+static func _px_scale(root: Control) -> float:
+	var vp := root.get_viewport()
+	if vp == null:
+		return 1.0
+	var s := vp.get_screen_transform().get_scale().y
+	return s if s > 0.0 else 1.0
 
 
 static func _viewport_height(root: Control) -> float:

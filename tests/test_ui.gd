@@ -140,6 +140,24 @@ func test_lobby_bot_row_cycles_class() -> void:
 	_end_lobby(lobby)
 
 
+## Fold 7: cover 2520x1080 (window px per canvas unit 1.667) at 420 dpi; inner 2176x1812 (1.889) at 373 dpi.
+func test_dp_floor_holds_at_420_and_373_dpi() -> void:
+	var cfg := DataRegistry.new().load_file("res://data/ui.json")
+	assert_true(float(cfg["min_touch_target_dp"]) >= 48.0, "dp floor is at least 48")
+	for case in [[648.0, 1080.0 / 648.0, 420.0], [959.0, 1812.0 / 959.0, 373.0]]:
+		var canvas_h: float = case[0]
+		var px_scale: float = case[1]
+		var dpi: float = case[2]
+		PlatformServices.dpi_override = dpi
+		var dp_scale := PlatformServices.new().get_dp_scale()
+		PlatformServices.dpi_override = 0.0
+		assert_true(is_equal_approx(dp_scale, dpi / 160.0), "dp scale from dpi %d" % int(dpi))
+		var h := UiScale.min_button_height(canvas_h, px_scale, dp_scale, cfg)
+		var dp := h * px_scale / dp_scale
+		assert_true(dp >= 48.0 - 0.001, "button is %.1f dp at %d dpi, need >= 48" % [dp, int(dpi)])
+		assert_true(h >= canvas_h * float(cfg["min_touch_target_frac_of_height"]) - 0.001, "height fraction still honoured")
+
+
 func test_menu_buttons_meet_touch_target_height() -> void:
 	var frac := float(DataRegistry.new().load_file("res://data/ui.json")["min_touch_target_frac_of_height"])
 	assert_true(frac > 0.0, "touch target fraction present")

@@ -1,7 +1,13 @@
 {
 	"_placeholder": true,
-	"_todo": "OQ-38 (addendum) OQ-52: presentation timing, not design values. OQ-54: menu touch-target and font fractions are placeholders.",
+	"_todo": "OQ-38 (addendum) OQ-52: presentation timing, not design values. OQ-54: menu touch-target and font fractions are placeholders; min_touch_target_dp is the Android 48 dp guideline floor, applied on top of the height fraction.",
 	"end_screen_delay_s": 3.0,
 	"min_touch_target_frac_of_height": 0.09,
-	"font_size_frac_of_height": 0.035
+	"min_touch_target_dp": 48.0,
+	"font_size_frac_of_height": 0.035,
+	"hud_layout": {
+		"_placeholder": true,
+		"_todo": "OQ-35: gameplay HUD stat block (bars, weapon, ammo) top-left corner as [x frac of width, y frac of height]; kept clear of the touch sticks and buttons. Not a design value.",
+		"stat_block_pos": [0.01, 0.08]
+	}
 }

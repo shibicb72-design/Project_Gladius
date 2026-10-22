@@ -7,6 +7,7 @@ const _Theme := preload("res://scenes/ui/theme.tres")
 var director: MatchDirector
 var pawn: Pawn
 
+var stats: VBoxContainer
 var shield_bar: ProgressBar
 var health_bar: ProgressBar
 var ammo_label: Label
@@ -36,19 +37,27 @@ func _build() -> void:
 	timer_label = _label(top, "")
 	hill_label = _label(top, "")
 
-	var bottom := VBoxContainer.new()
-	bottom.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	bottom.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bottom)
-	shield_bar = _bar(bottom, Color(0.4, 0.6, 0.95))
-	health_bar = _bar(bottom, Color(0.8, 0.15, 0.15))
-	weapon_label = _label(bottom, "")
-	ammo_label = _label(bottom, "")
+	stats = VBoxContainer.new()
+	stats.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(stats)
+	shield_bar = _bar(stats, Color(0.4, 0.6, 0.95))
+	health_bar = _bar(stats, Color(0.8, 0.15, 0.15))
+	weapon_label = _label(stats, "")
+	ammo_label = _label(stats, "")
+	resized.connect(_place_stats)
+	_place_stats()
 
 	respawn_label = _label(self, "")
 	respawn_label.set_anchors_preset(Control.PRESET_CENTER)
 	respawn_label.visible = false
+
+
+## Positions the stat block from data/ui.json (hud_layout.stat_block_pos, fractions of the HUD size).
+func _place_stats() -> void:
+	var cfg := DataRegistry.new().load_file("res://data/ui.json")
+	var p: Array = cfg.get("hud_layout", {}).get("stat_block_pos", [0.01, 0.08])
+	stats.position = Vector2(float(p[0]) * size.x, float(p[1]) * size.y)
 
 
 func _label(parent: Node, text: String) -> Label:

@@ -8,6 +8,30 @@ extends RefCounted
 static var simulate_touchscreen: bool = false
 
 
+## Tool/test hook: pretend the screen reports this DPI (0 = use the DisplayServer). Never set in shipping code.
+static var dpi_override: float = 0.0
+
+
+## Screen DPI as the platform reports it (160 when unknown, so 1 dp = 1 px).
+func get_screen_dpi() -> float:
+	if dpi_override > 0.0:
+		return dpi_override
+	var dpi := float(DisplayServer.screen_get_dpi())
+	return dpi if dpi > 0.0 else 160.0
+
+
+## Window pixels per density-independent pixel (Android baseline: 160 dpi = 1.0).
+func get_dp_scale() -> float:
+	return get_screen_dpi() / 160.0
+
+
+## Startup diagnostic so a device run can confirm the real density.
+func log_display_info() -> void:
+	print("[display] os=%s screen_get_dpi=%d screen_get_scale=%.3f dp_scale=%.3f window=%s" % [
+			OS.get_name(), DisplayServer.screen_get_dpi(), DisplayServer.screen_get_scale(),
+			get_dp_scale(), DisplayServer.window_get_size()])
+
+
 func is_touch_device() -> bool:
 	match OS.get_name():
 		"Android", "iOS":
