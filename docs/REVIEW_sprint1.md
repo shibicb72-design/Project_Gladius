@@ -1321,3 +1321,138 @@ VERDICT: APPROVE
   exactly (max difference 0.003%), the 5% cap is enforced in code, the breaking-change audit holds, the melee
   carry-over and OQ-56 rewording are done as specified, no assertion was weakened, and settings.json is untouched.
   Findings 1-4 are minor.
+
+## G2b review
+
+Reviewer: Opus (VG2b), 2026-10-22. Target: commit 4a63495 "fix: G2b virtual stick tests and fixes" against
+`cc_gladius/fixG/G2b.txt`, using `fixG/VTEMPLATE.txt`.
+
+INPUTS: G2b commit = FOUND (4a63495, 16 files, +768/-163) ; test run = FOUND (run here: import exit 0, Android export
+exit 0, full suite 3 runs, each "TESTS: 194 passed, 0 failed", exit 0; orchestrator `fixG.log:21` "GATE G2b apk=True
+tests=0 shots=74") ; apk = FOUND (build/gladius-debug.apk, re-exported in this review) ; shots = FOUND (build/shots/*.png
+well over 4) ; vjoy_rest shots = FOUND (vjoy_rest_cover_landscape/portrait, vjoy_rest_inner_landscape/portrait).
+Import, export and test output had no "SCRIPT ERROR", "Parse Error" or "ERROR:" lines.
+
+### Checklist
+- **Item 0 (root cause).** `tests/run_tests.gd:44` has `await process_frame` right before `var inst = script.new()`
+  (:47), and `:46` resets `move_stick_override` to the `--move-stick` value (`move_stick_arg`, :17/:24, "" when not
+  given) before each test. `git diff f793f1a -- tests/test_tunables_and_bridge.gd` is empty. `test_bridge_snapshot_applies_replica`
+  passed in all 3 full-suite runs here (3/3). The G2b summary (`cc_gladius/out/G2b.json`) gives the root cause: G2
+  tests ended on physics_frame (`test_touch_controls.gd:54-56`), so the bridge test started inside the physics step, and
+  gravity at `pawn.gd:202` moved the local pawn before the await at `test_tunables_and_bridge.gd:27`. No retries:
+  `git diff f793f1a -G "[Rr]etr"` is empty. `--repeat` existed before G2b.
+- **test_touch_controls.gd rule.** `git diff 8ffb2da -- tests/test_touch_controls.gd` is exactly 7 added lines, each
+  `load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"` as the first body line of the tests at new
+  t:66, :82, :358, :434, :475, :481, :487 (old t:65, 80, 355, 430, 470, 475, 480). No line is changed or removed, so
+  :361/:364/:485 and `_check_hud_clear` t:439-471 (old 435-467) are intact. G2's tests now live in `tests/test_touch_virtual.gd`.
+- **Default.** `data/input.json` has `"move_stick": "virtual"` and `"vjoy_layout": "floating"`. The custom code is kept
+  (`touch_hud.gd:95`, `:405-411`), and `test_touch_controls_custom.gd` is unchanged and passes.
+- **Virtual tests are real (mutation check).** `git clone` is not allowed in this session's shell, so I did not make a
+  scratch clone. Instead, the probe `build/vg2b_mut.gd` (gitignored, outside res:// import) replaces `touch_hud.gd`'s
+  `source_code` in memory and calls `reload()`, so the working tree is never edited. Control (no mutation): 11/11 pass.
+  - M1, VirtualJoystick never created (`touch_hud.gd:95` -> always `_make_stick_visual`): 6 fail:
+    test_gui_routed_move_and_release, test_virtual_stick_in_match_moves_pawn, test_fire_button_works_with_virtual_move_finger_held,
+    test_virtual_stick_visible_with_no_touch_at_4_sizes, test_move_stick_touch_target_at_least_48dp_at_fold_sizes,
+    test_multitouch_move_and_look_reach_one_input_frame.
+  - M2, `_VJOY_ACTIONS` -> `provider.move_value` cut (`touch_hud.gd:178` -> `pass`): 6 fail:
+    test_gui_routed_move_and_release, test_virtual_stick_in_match_moves_pawn, test_fire_button_works_with_virtual_move_finger_held,
+    test_multitouch_move_and_look_reach_one_input_frame, test_floating_spawn_in_left_half_only,
+    test_fixed_layout_stick_moves_pawn_base_stays_and_elsewhere_goes_to_look.
+  Input goes through `Window.push_input` (`test_touch_virtual.gd:55-68`), never by setting `move_value` (`:137/:141/:210`
+  only read it). Coverage is present: move/release :75, pawn in match :113, fire with move held :129, visible at rest
+  at 4 sizes :146, multitouch in one InputFrame :176, look side never grabs :198, 48 dp at both Fold sizes with platform
+  dpi :163, floating spawn at 0.02w / 0.25w / 0.5w-6 and never at 0.5w or 0.75w, back at rest :216, fixed mode
+  :247, clearance :282-330. See minor 3 for the M1 tests that "pass" only because a script error aborts them.
+- **Clearance.** `_check_hud_clear` (`test_touch_virtual.gd:282-318`) uses the same 4 sizes (:15) and the same
+  size/encloses/intersects asserts as t:466-469, with no loosening. It adds move-vs-look `not intersects` (:307) and,
+  for fixed, Control == drawn stick (:309). `get_move_visual_rect()` (`touch_hud.gd:276-281`) is built from the same
+  `get_move_rest()` and `_vjoy_side()` that place the joystick (`:254-255`, base centre = `initial_offset_ratio`), so it
+  matches the drawn base by construction. The landscape shots agree. See minor 4.
+- **API.** Every VirtualJoystick name used is in `class_virtualjoystick.md`: class / `new()` touch_hud.gd:140 -> doc:2;
+  `action_left/right/up/down` :143-146 -> doc:3; `joystick_mode` / `JOYSTICK_FIXED` / `JOYSTICK_DYNAMIC` :147 -> doc:3,6;
+  `visibility_mode` / `VISIBILITY_*` :148 -> doc:3,7; `deadzone_ratio` :149 and `clampzone_ratio` :150 -> doc:3,8;
+  theme `normal_joystick` / `pressed_joystick` / `normal_tip` / `pressed_tip` :153-156 -> doc:4; signal `released` :157
+  -> doc:5; `initial_offset_ratio` :247/:254, `joystick_size` :255, `tip_size` :256 -> doc:3. Not in docs/engine-reference
+  (flagged): `Viewport.push_input` (test_touch_virtual.gd:60,68), `InputMap.has_action` / `add_action` (touch_hud.gd:138-139).
+  `Input.get_vector` (touch_hud.gd:178) is at `modules/input.md:33`, but not its 5th `deadzone` argument. None of
+  these is in `breaking-changes.md` or `deprecated-apis.md`.
+- **Tunables.** All are read from data with `[]` and no numeric `.get` fallback: vjoy deadzone/clamp touch_hud.gd:149-150;
+  radial deadzone (length-based) touch_provider.gd:45-50; exponent touch_provider.gd:50 (before the InputFrame);
+  accel/decel times pawn.gd:202; full analog pawn.gd:198; ratio pawn.gd:196-197. Each has an injecting test:
+  test_move_feel.gd:30 (exp 2.0, 0.5 -> 0.25), :38 (radial), :56 (vjoy 0.3/0.7), :94 (accel 0.5 s = 30 ticks), :110
+  (decel), :129 (half stick, ratio 0.5). Shipped data: neutral and `_placeholder: true` (input.json `move_feel`
+  0.0 / 1.0 / 0.1 / 1.0; stats.json `ground_accel` / `ground_decel` 0.125). `strafe_back_ratio` 0.889 has no
+  `_placeholder` and has the exact `_source` string; :148 asserts strafe and backpedal are 0.889 x forward within 1%,
+  :185 checks the markers. `base_speed_mps` is unchanged at 5.0. See issue 1 and minors 2 and 5.
+- **No labels.** `git grep -n -i halo` at 4a63495 gives the same 10 hits as at f793f1a (DESIGN.md, ARCHITECTURE.md,
+  OPEN_QUESTIONS.md:29, plans/sprint1.md, damage_rules.gd). G2b adds none. In the G2b diff, PUBG appears only in
+  `docs/CONTROLS.md:3-5`, as the layout reference, with an explicit "no value below is labelled as PUBG's".
+- **Baseline untouched.** `git diff f793f1a -- tests/test_physics_baseline.gd data/physics_baseline.json` is empty.
+  The baseline test passes (walk_speed_mps 5.000004, max_step_up_m 0.12, max_slope_deg 45.5).
+- **Ramp.** For a speed_pct 100 class the forward ramp matches 8ffb2da: rate = 5.0/0.125 = 40 m/s^2, the same as old
+  `accel 40` (test_move_feel.gd:164-182 passes). The value is shown as 5.0 / 40.0 = 0.125 s with `_placeholder: true`
+  (stats.json movement). For other classes it does not match; see issue 1.
+- **Mode switch.** `main_menu.gd:50-55` adds "Move stick: Virtual/Custom" and "Stick: Floating/Fixed" right after the
+  gyro toggle. They are saved via `_save_profile` (:102-106) and `save_service.gd:49-50,62-63`, which accepts only valid
+  values. `touch_hud.gd:76-81` resolves override > profile > input.json, which is the order the brief asks for (override
+  wins for tests).
+- **Docs.** `docs/CONTROLS.md` covers both modes, both layouts with the two quotes, how to switch, recentring (:26,
+  DYNAMIC base inside a fixed Control) and every tunable with its unit and value, plus the 0.889 `_source`. OQ-VJOY is
+  updated.
+- **Shots.** All 4 were made with no override (`tools/touch_capture.gd:298`, which asserts virtual + floating). The
+  stick is visible at rest in all 4. Landscape cover (2520x1080) and inner (2176x1812): the move base and look stick are
+  clear of each other and of the buttons. Portrait: see issue 2. The shots are drawn over a flat backdrop without the
+  game HUD (`touch_capture.gd:296`), so clearance from the HUD bars can't be seen in them. It is covered only by the
+  clearance tests at the 4 landscape sizes.
+- **settings.json / platform.** `git diff f793f1a -- .claude/settings.json` is empty. No Android-only API was added.
+  `OS.get_name()` appears only in `scripts/platform/platform_services.gd`.
+
+### Issues to fix
+1. `scripts/classes/pawn.gd:206`: the ramp rate is `get_move_speed() / ramp_s`, and `get_move_speed()` is class-scaled
+   (`pawn.gd:89-91`). At 8ffb2da the rate was a flat 40 m/s^2 for every class. Sagittarii is an enabled class with
+   `speed_pct` 95 (`stats.json:8`). Its rate is now 4.75/0.125 = 38 m/s^2, 5% lower on every ramp tick (tick 1: 0.633
+   vs 0.667 m/s). That fails "ramp and steady-state match 8ffb2da within 1%". Velites (115) and Triarii (85) would
+   differ by 15%. The ramp test (`test_move_feel.gd:164-182`) only covers a speed_pct 100 pawn, so it does not catch
+   this. Fix: derive the rate from the data base speed (`_movement["base_speed_mps"] / ramp_s`), which reproduces 40 for
+   every class while keeping `time_s` as the tunable. Add a ramp test for a non-100 class (e.g. Sagittarii). If
+   class-relative time is wanted instead, that is a design decision: record it in OPEN_QUESTIONS rather than choosing it.
+2. Portrait shots: in `build/shots/vjoy_rest_cover_portrait.png` (1080x2124), the move base at `move_stick_rest`
+   [0.15, 0.76] runs past the left screen edge, and its right side overlaps the look stick base. The look stick overlaps
+   the Reload, Swap and Fire buttons. In `vjoy_rest_inner_portrait.png` (1812x2124), the look stick overlaps Reload and
+   Swap. VG2b asks for the stick to be visible and clear at each size and orientation, so the shot check fails here.
+   The clearance tests only cover the 4 landscape sizes (`test_touch_virtual.gd:15`). The project is
+   `sensor_landscape` (test_decisions_batch1 `test_orientation_is_sensor_landscape`), so portrait may be unreachable
+   on device. Whether portrait must be supported is not decided in the step brief. Either make the layout (move rest,
+   radius and look rest relative to the short side) clear in portrait and add a portrait size to the clearance test,
+   or have EL drop portrait from the shot requirement and record that in docs/OPEN_QUESTIONS.md. Don't decide it in
+   code.
+
+### Minor findings (non-blocking)
+1. `touch_provider.gd:23`: `cfg["move_feel"] if cfg.has("move_feel") else {}` turns off shaping without any error when
+   the block is missing, but G2b.txt item 5 asks to "fail loudly". This is not a numeric fallback. Prefer `push_error`
+   when `shape_move` is on and `move_feel` is absent.
+2. `clampzone_ratio` only acts in JOYSTICK_FOLLOWING (`class_virtualjoystick.md:8`), and the shipped layouts use FIXED
+   or DYNAMIC (`touch_hud.gd:147`), so it does nothing today. `test_move_feel.gd:56-66` checks only that the property is
+   assigned, not that it changes anything. Note this in CONTROLS.md:35.
+3. `tests/run_tests.gd:48-49` (from before G2b): a test aborted by a SCRIPT ERROR returns with empty `failures` and is
+   counted as PASS. Under M1, `test_floating_spawn_in_left_half_only` (null `joystick_size`, :220) and the fixed-layout
+   test "passed" this way, and the run printed SCRIPT ERRORs. The gate's "SCRIPT ERROR" grep is the only safety net.
+   Consider a completion flag per test in the runner.
+4. `get_move_visual_rect()` is computed from layout data, not read back from the joystick. Because of that,
+   `test_touch_virtual.gd:236` ("base back at rest") always holds, and the clearance tests pass under M1. The geometry
+   matches the joystick by construction (`touch_hud.gd:254-255`), so this is acceptable.
+5. pawn.gd:199-206 changed per-axis `move_toward` to a vector `move_toward`. Diagonal moves now ramp more slowly than at
+   8ffb2da (before, each axis got 40 m/s^2). This is outside the forward-only ramp criterion. Disclosing it would help.
+6. The strafe and ramp tests call `_apply_movement` directly (`test_move_feel.gd:88-91`) through an InputFrame, rather
+   than stepping physics like test_physics_baseline.gd. This is acceptable because the tick count is exact.
+7. The mutation probe is in `build/vg2b_mut.gd` (gitignored). This session's shell has no `rm`, so I could not delete
+   it.
+
+VERDICT: ITERATE
+1. scripts/classes/pawn.gd:206: the accel/decel rate scales with class speed, so Sagittarii (speed_pct 95, enabled)
+   ramps 5% slower than 8ffb2da's flat 40 m/s^2. This breaks the "ramp matches 8ffb2da within 1%" requirement, and the
+   ramp test covers only a 100% class. Use base_speed_mps / time_s and add a non-100 class ramp test.
+2. build/shots/vjoy_rest_cover_portrait.png and vjoy_rest_inner_portrait.png: in portrait the move base is clipped at
+   the left edge and overlaps the look stick (cover), and the look stick overlaps Reload/Swap/Fire. That fails "clear at
+   each size and orientation". Fix the portrait layout and add a portrait clearance size, or get an EL decision that
+   portrait is out of scope (OPEN_QUESTIONS).
