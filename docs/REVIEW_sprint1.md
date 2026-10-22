@@ -1597,3 +1597,122 @@ VERDICT: ITERATE
      test_runner_safety FAILs". That mutation already fails today (M2).
 2. Minor: scripts/input/providers/touch_provider.gd:60: the doc comment says "touch_layout.move_feel", but move_feel is
    top-level in data/input.json:35. Correct the comment.
+
+## G2b3 review
+
+Opus check of 1abac99 "fix: G2b3 runner guard docs, FAIL reason" against cc_gladius/fixG/G2b3.txt, run on Oct 22 2026.
+
+INPUTS: tests log/exit code = FOUND (VG2b3 says to run the tests myself: import exit 0, export exit 0, full suite exit 0,
+"TESTS: 201 passed, 0 failed". cc_gladius/tests_G2b3.log exists. fix3c.log has no "GATE G2b3" line yet, which is the
+orchestrator's own gate) ; apk = FOUND (build/gladius-debug.apk, exported in this review, "Signed", "[ DONE ] export") ;
+shots = FOUND (n=75 in build/shots/*.png, at least 4 Fold-size landscape, e.g. folded*_hud_*, unfolded*_hud_*,
+cover_landscape_*, inner_landscape_*) incl. vjoy_rest_cover_landscape.png and vjoy_rest_inner_landscape.png = FOUND
+(portrait not required, OQ-PORTRAIT) ; step commit = FOUND (1abac99 on top of 07dc82d, 7 files, +51/-6)
+
+Verification:
+- `godot --headless --path . --import` exited 0, and `--export-debug "Android" build/gladius-debug.apk` exited 0. Neither
+  printed a SCRIPT ERROR, Parse Error or ERROR: line. Glob finds build/gladius-debug.apk.
+- The full suite exited 0 with no SCRIPT ERROR lines (the fixture's SCRIPT ERROR appears only inside the
+  subprocess, which captures it).
+
+1. Guard docs: OK.
+   - tests/test_case.gd:5-8:
+     "## SECONDARY guard only. Set true when run_test() resumes after the body. In Godot 4.7.2 a runtime script error
+     ## aborts just the called test body and the awaiting caller resumes, so this is still set true after such an
+     ## error and CANNOT detect it. The real guard is the script-error logger (tests/script_error_logger.gd, checked
+     ## in run_tests.gd). This flag only catches a body that never returns control normally."
+   - tests/test_case.gd:12: "## Runner entry point: runs the named test, then sets `completed` (see above; not proof the
+     body ran to its end)." The :13-15 code is unchanged.
+   - tests/run_tests.gd:31-32: "# The script-error logger is the real guard against runtime script errors (see the check
+     below); # test_case.gd's `completed` flag is only a secondary check."
+   - tests/run_tests.gd:59-60: "# A runtime script error aborts only the test body and the await above resumes, so
+     `completed` is still # true; the script-error logger (err_logger) is the real guard. `completed` is a SECONDARY
+     check."
+   - tests/script_error_logger.gd:2-4 was updated to match ("this logger is the real guard").
+   - The condition (now :61, was :58) still has all three checks:
+     `if inst.completed and inst.failures.is_empty() and err_logger.errors.is_empty():`. The diff shows no other
+     behaviour change.
+2. FAIL reason: OK.
+   - tests/run_tests.gd:69-74:
+     `var reason := "did not complete (script error?)"` /
+     `if not err_logger.errors.is_empty(): reason += "; script error logged: %s" % err_logger.errors[0]` /
+     `if err_logger.errors.size() > 1: reason += " (+%d more)" % (err_logger.errors.size() - 1)` /
+     `why.append(reason)`.
+     When errors is empty and completed is false, the old text "did not complete (script error?)" stays.
+   - `-- --only=test_runner_safety` exited 0:
+     "PASS test_runner_safety.gd::test_runtime_script_error_is_reported_as_fail_with_nonzero_exit",
+     "PASS test_runner_safety.gd::test_fixture_dir_is_not_in_the_default_scan", "TESTS: 2 passed, 0 failed".
+   - The fixture subprocess (`-- --dir=res://tests/fixtures/runner_error`) exited 1, as intended:
+     "FAIL test_runtime_error.gd::test_null_call_before_the_end: did not complete (script error?); script error logged:
+     Cannot call method 'call' on a null value. (res://tests/fixtures/runner_error/test_runtime_error.gd:7 in
+     test_null_call_before_the_end)"
+   - That line contains both asserted substrings:
+     - test_runner_safety.gd:16 `assert_true(text.contains("FAIL test_runtime_error.gd::test_null_call_before_the_end"), ...)`
+     - test_runner_safety.gd:17 `assert_true(text.contains("did not complete"), ...)`
+     It also contains the new "script error logged: <error>" text.
+   - `git diff 07dc82d -- tests/test_runner_safety.gd` is empty.
+   - Added test tests/test_runner_reason.gd:7-16 (test_fail_reason_names_the_logged_script_error, plus its .uid):
+     - It runs `OS.execute(OS.get_executable_path(), args, output, true)` with args `--headless --path
+       ProjectSettings.globalize_path("res://") --script res://tests/run_tests.gd -- --dir=res://tests/fixtures/runner_error`.
+     - It asserts `text.contains("did not complete (script error?); script error logged:")` and
+       `text.contains("script error logged: Cannot call method 'call' on a null value.")`.
+     - It uses only OS.get_executable_path() and res:// paths.
+3. Comment fix: OK. scripts/input/providers/touch_provider.gd:60: "## Fail loudly, once per provider: shaping is on but
+   data/input.json has no top-level move_feel." data/input.json:35 `"move_feel": {` is a sibling of
+   `"touch_layout"` at :41. The runtime message at :65 is unchanged and consistent.
+4. docs/LESSONS.md: OK.
+   - `git diff 07dc82d -- docs/LESSONS.md` only adds lines (hunk @@ -23,3 +23,19 @@, all "+").
+   - The new "## G2b2 ITERATE, Oct 22 2026" entry has 5 numbered Whys. Why 5 says "BOTH the spec author (Android Lead)
+     and the approver (Engineering Lead) assumed the semantics without a probe".
+   - It ends with "### Prevention rule" and the verbatim rule "Verify an engine's error semantics with a probe before
+     specifying a guard."
+5. Stability: OK. Three full runs (one before and two after the mutations, all on the unmutated tree):
+   "TESTS: 201 passed, 0 failed" / "TESTS: 201 passed, 0 failed" / "TESTS: 201 passed, 0 failed".
+6. Mutations: OK.
+   - `git clone` into build/ needed approval that a non-interactive session cannot give, so I applied the mutations
+     in memory in the repo with Edit and reverted them.
+   - `git status --porcelain` was EMPTY afterwards, before this review commit.
+   - M2: removed `and err_logger.errors.is_empty()` from run_tests.gd:61, then ran `--only=test_runner_`:
+     - "FAIL test_runner_safety.gd::test_runtime_script_error_is_reported_as_fail_with_nonzero_exit: fixture test
+       reported as FAIL, ... PASS test_runtime_error.gd::test_null_call_before_the_end ... ; fixture test must not PASS;
+       runner exit code is non-zero, got 0"
+     - test_runner_reason.gd also FAILs ("reason names the logged error").
+     - "TESTS: 1 passed, 2 failed". It FAILs as required.
+   - M3: changed pawn.gd:216 rate to `get_move_speed() / ramp_s * delta`:
+     - "FAIL test_move_feel.gd::test_shipped_ramp_per_axis_for_every_enabled_class_forward: sagittarii forward up tick 1
+       z: -0.63333332538605 vs -0.66666668653488; ..."
+     - The diagonal test also fails.
+     - "TESTS: 1 passed, 2 failed". The Sagittarii forward ramp test fails as required.
+   - M4: replaced pawn.gd:199-200 with the G2b `Vector2 cur.move_toward(target, get_move_speed() / ramp_s * delta)`
+     block:
+     - "FAIL test_move_feel.gd::test_shipped_ramp_per_axis_for_every_enabled_class_diagonal: hastati (0.707, 0.707) up
+       tick 1 x: 0.47140455245972 vs 0.66666668653488; ..."
+     - "TESTS: 1 passed, 2 failed". The diagonal ramp test fails as required.
+   - I reverted every mutation, so no clone was left behind.
+7. Integrity: OK.
+   - `git diff 8ffb2da -- tests/test_touch_controls.gd` is exactly 7 added lines, each
+     `load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick`,
+     with 0 removed.
+   - `git diff 07dc82d -- tests/test_physics_baseline.gd data/physics_baseline.json` is empty, and both baseline tests
+     PASS in all 3 runs (test_movement_within_tolerance_of_physics_baseline, test_physics_engine_is_jolt).
+   - In the touched test files, no assertion was changed or removed: test_case.gd assert_* is untouched,
+     run_tests.gd/script_error_logger.gd have no assertions, and test_runner_reason.gd is new.
+8. Paths: OK. Grep with pattern `C:\\|cc_gladius|/Users/|/home/` (case-insensitive) over tests/ finds "No matches
+   found".
+9. Hygiene: OK.
+   - `git diff 07dc82d -U0 -G "[Hh][Aa][Ll][Oo]"` is empty.
+   - `git diff 07dc82d -- .claude/settings.json` is empty.
+   - `git diff 07dc82d --diff-filter=D --name-only` is empty.
+   - iOS: the only OS-name checks in *.gd are scripts/platform/platform_services.gd:37/53/68 (`"Android", "iOS"`). There
+     are no JNISingleton, JavaClassWrapper or Android permission calls.
+   - API cites: docs/engine-reference/godot has no entry for OS.execute, OS.get_executable_path,
+     ProjectSettings.globalize_path or Logger/OS.add_logger. breaking-changes.md:92 covers only OS.execute_with_pipe,
+     which is not used.
+
+VERDICT: APPROVE
+All 9 G2b3 items are met:
+- the guard docs are correct and the condition is unchanged;
+- the FAIL reason names the logged error and keeps the asserted substrings;
+- the M2/M3/M4 mutations are each caught;
+- 3/3 full runs are green;
+- the locked files are untouched.
