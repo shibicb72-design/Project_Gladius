@@ -11,6 +11,14 @@ func is_touch_device() -> bool:
 			return DisplayServer.is_touchscreen_available()
 
 
+## Turns touch-to-mouse emulation on or off at runtime (never the project setting) and
+## returns the previous value.
+func set_mouse_emulation_from_touch(enabled: bool) -> bool:
+	var prev := Input.emulate_mouse_from_touch
+	Input.emulate_mouse_from_touch = enabled
+	return prev
+
+
 func has_gyro() -> bool:
 	match OS.get_name():
 		"Android", "iOS":

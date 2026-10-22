@@ -18,11 +18,22 @@
 		"touch_move": 0.1,
 		"touch_look": 0.1
 	},
+	"look": {
+		"_placeholder": true,
+		"_todo": "OQ-36, OQ-53: units are degrees/second (rates) and radians per screen height (drag); not design values",
+		"mode": "stick",
+		"max_turn_rate_deg_s": 360.0,
+		"stick_rate_deg_s": 180.0,
+		"drag_rad_per_screen_height": 3.14
+	},
 	"touch_layout": {
 		"_placeholder": true,
 		"_todo": "OQ-35",
-		"stick_radius_px": 120.0,
-		"move_zone": {"left": 0.0, "top": 0.4, "right": 0.5, "bottom": 1.0},
+		"stick_radius_frac_of_height": 0.12,
+		"tap_slop_frac_of_height": 0.01,
+		"knob_frac_of_radius": 0.4,
+		"ring_alpha": 0.35,
+		"move_zone": {"left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0},
 		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
 		"tap_fire_max_s": 0.2,
 		"fire_pulse_s": 0.08,

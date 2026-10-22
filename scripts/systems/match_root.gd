@@ -39,7 +39,9 @@ func _ready() -> void:
 	router = InputRouter.new()
 	add_child(router)
 	router.add_provider(KeyboardMouseProvider.new())
-	router.add_provider(GamepadProvider.new())
+	var gamepad := GamepadProvider.new()
+	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
+	router.add_provider(gamepad)
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
 	director.match_over.connect(_on_match_over)
