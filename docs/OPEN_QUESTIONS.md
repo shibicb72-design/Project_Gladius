@@ -72,6 +72,29 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 - **OQ-41: LAN autodiscovery in milestone 1?** The UI flow says "Join (autodiscovery)"; milestone 1 says "hotspot". Placeholder: manual IP entry, pre-filled with the last-used address. The host screen shows its local IPs. No multicast, so `CHANGE_WIFI_MULTICAST_STATE` is not requested (S9).
 
+## Traits and medals (DRAFT proposals from task T1)
+
+- **OQ-42: APPROVAL NEEDED: draft traits and medals.** Shibi asked for draft proposals.
+  docs/design/traits.md + `data/traits.json` (15 good, 6 bad traits) and docs/design/medals.md +
+  `data/medals.json` (27 medals) are DRAFT, `"status": "DRAFT - awaiting Shibi approval"`.
+  Names, rules and numbers are all proposals. Until Shibi approves, no build step wires them into
+  gameplay, UI or the economy.
+- **OQ-43: Do good traits stay forever once earned, or can they lapse?** Draft: permanent
+  (`good_traits_permanent: true`).
+- **OQ-44: Which matches count toward traits, and what counts as quitting?** Draft: multiplayer
+  matches only (`koth` now; never tutorial or campaign). Only a deliberate leave counts as quitting;
+  whether a lost connection that never reconnects counts is undecided.
+- **OQ-45: What behavior earns "Carthaginian"?** DESIGN.md names it but gives no rule, and there is no
+  friendly fire. Draft: a host who abandons matches (the match closes because the host left), read
+  as "Punic faith". Deserter covers players who quit.
+- **OQ-46: Do bot victims count as kills for medals and traits?** Draft: yes (`count_bot_victims: true`).
+- **OQ-47: Medal stacking.** Does a higher multi-kill/spree tier also award the lower tiers, and
+  is there a per-match cap? Draft: lower tiers are also awarded (each pays 10 Denarii); no cap.
+- **OQ-48: Trait display.** How many traits show per player in the lobby, and is there one in-game
+  banner per bad trait or one banner in total? Draft: TODO, not decided.
+- **OQ-49: Where the 10 Denarii per medal lives.** `medals.json` `denarii_per_medal` or
+  `economy.json`. Keep one source of truth. Draft: medals.json, until economy.json exists.
+
 ## Technical defaults (not product decisions; listed for visibility)
 
 - **T-01: Network port and tick/sync rates.** Default: port 7777, values in `data/net.json` (S9).

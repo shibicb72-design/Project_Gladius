@@ -1,0 +1,74 @@
+{
+  "status": "DRAFT - awaiting Shibi approval",
+  "version": 1,
+  "_note": "DRAFT proposal (task T1); every name, trigger and number here is a proposal, except denarii_per_medal (DESIGN.md). Mirrors docs/design/medals.md. Do NOT wire into gameplay, UI or the economy until Shibi approves (OQ-42).",
+  "denarii_per_medal": 10,
+  "_denarii_per_medal_source": "DESIGN.md: 10/medal. No other medal rewards. Single source of truth vs economy.json: OQ-49.",
+  "count_bot_victims": true,
+  "_count_bot_victims_todo": "OQ-46",
+  "award_lower_tiers": true,
+  "_award_lower_tiers_todo": "OQ-47",
+  "squad_bots_are_squad_members": true,
+  "trigger_types": {
+    "kill": "One kill by you that meets every `require` flag.",
+    "multikill": "`kills` kills in one life, each within `window_s` seconds of the previous one.",
+    "spree": "`kills` kills in one life without dying.",
+    "consecutive_kills": "Your last `count` kills in one life all meet every `require` flag.",
+    "kill_count_in_match": "`count` kills in one match that meet every `require` flag. Awarded once per match.",
+    "scorestreak_earned": "You earn the scorestreak `streak_id` (thresholds live in scorestreaks.json, not here).",
+    "hill_hold": "You stay inside the hill for `continuous_s` seconds in a row while your squad scores (uncontested). Once per continuous hold.",
+    "squad_hill_hold": "At least `min_members_inside` living members of your squad (you included) are inside the hill together for `continuous_s` seconds in a row while your squad scores. Once per continuous hold.",
+    "squad_bot_chain": "Your squad bots make `count` kills in one Denarii chain (the chain resets on bot death, as in the economy rules).",
+    "first_kill_of_match": "The first kill of the match by anyone."
+  },
+  "kill_flags": {
+    "headshot": "The killing hit was a headshot.",
+    "assassination": "Melee kill from behind (DESIGN.md instant kill).",
+    "melee_front": "Melee kill from the front.",
+    "killer_on_hill": "You were inside the hill.",
+    "victim_on_hill": "The victim was inside the hill.",
+    "hill_contested_before": "Before the kill, more than one squad was inside the hill.",
+    "only_killer_squad_on_hill_after": "After the kill, only your squad is inside the hill.",
+    "victim_is_kill_leader": "The victim had the most personal kills in the match (ties count) and at least 1 kill.",
+    "min_distance_m": "You were at least this many meters from the victim.",
+    "victim_damaged_squadmate_within_s": "The victim damaged a living squadmate of yours within this many seconds.",
+    "victim_killed_squadmate_within_s": "The victim killed a squadmate of yours within this many seconds.",
+    "victim_spree_min": "The victim had at least this many kills in their current life."
+  },
+  "medals": [
+    {"id": "duplex", "category": "multikill", "latin_name": "Duplex", "english_meaning": "Double", "trigger": {"type": "multikill", "kills": 2, "window_s": 4.0}},
+    {"id": "triplex", "category": "multikill", "latin_name": "Triplex", "english_meaning": "Triple", "trigger": {"type": "multikill", "kills": 3, "window_s": 4.0}},
+    {"id": "quadriga", "category": "multikill", "latin_name": "Quadriga", "english_meaning": "Four-horse chariot", "trigger": {"type": "multikill", "kills": 4, "window_s": 4.0}},
+    {"id": "quinqueremis", "category": "multikill", "latin_name": "Quinqueremis", "english_meaning": "Quinquereme (five-banked warship)", "trigger": {"type": "multikill", "kills": 5, "window_s": 4.0}},
+
+    {"id": "impetus", "category": "spree", "latin_name": "Impetus", "english_meaning": "Onslaught", "trigger": {"type": "spree", "kills": 5}},
+    {"id": "furor", "category": "spree", "latin_name": "Furor", "english_meaning": "Battle rage", "trigger": {"type": "spree", "kills": 10}},
+    {"id": "ira_martis", "category": "spree", "latin_name": "Ira Martis", "english_meaning": "Wrath of Mars", "trigger": {"type": "spree", "kills": 15}},
+    {"id": "invictus", "category": "spree", "latin_name": "Invictus", "english_meaning": "Unconquered", "trigger": {"type": "spree", "kills": 20}},
+
+    {"id": "commeatus", "category": "streak", "latin_name": "Commeatus", "english_meaning": "Supplies", "trigger": {"type": "scorestreak_earned", "streak_id": "ammo_drop"}},
+    {"id": "currus_auxilii", "category": "streak", "latin_name": "Currus Auxilii", "english_meaning": "Chariot of aid", "trigger": {"type": "scorestreak_earned", "streak_id": "support_chariot"}},
+    {"id": "fulmen_iovis", "category": "streak", "latin_name": "Fulmen Iovis", "english_meaning": "Thunderbolt of Jupiter", "trigger": {"type": "scorestreak_earned", "streak_id": "orbital_bombardment"}},
+
+    {"id": "custos_collis", "category": "hill", "latin_name": "Custos Collis", "english_meaning": "Guardian of the hill", "trigger": {"type": "kill", "require": {"killer_on_hill": true, "victim_on_hill": true}}},
+    {"id": "propugnator", "category": "hill", "latin_name": "Propugnator", "english_meaning": "Defender, champion", "trigger": {"type": "kill_count_in_match", "count": 5, "require": {"killer_on_hill": true, "victim_on_hill": true}}},
+    {"id": "expugnator", "category": "hill", "latin_name": "Expugnator", "english_meaning": "Stormer of strongholds", "trigger": {"type": "kill", "require": {"hill_contested_before": true, "only_killer_squad_on_hill_after": true}}},
+    {"id": "rex_collis", "category": "hill", "latin_name": "Rex Collis", "english_meaning": "King of the hill", "trigger": {"type": "hill_hold", "continuous_s": 30}},
+
+    {"id": "sicarius", "category": "assassination", "latin_name": "Sicarius", "english_meaning": "Dagger-man, assassin", "trigger": {"type": "kill", "require": {"assassination": true}}},
+    {"id": "idus_martiae", "category": "assassination", "latin_name": "Idus Martiae", "english_meaning": "Ides of March", "trigger": {"type": "kill", "require": {"assassination": true, "victim_is_kill_leader": true}}},
+    {"id": "comminus", "category": "assassination", "latin_name": "Comminus", "english_meaning": "Hand to hand", "trigger": {"type": "kill", "require": {"melee_front": true}}},
+
+    {"id": "caput", "category": "headshot", "latin_name": "Caput", "english_meaning": "Head", "trigger": {"type": "kill", "require": {"headshot": true}}},
+    {"id": "oculus_aquilae", "category": "headshot", "latin_name": "Oculus Aquilae", "english_meaning": "Eye of the eagle", "trigger": {"type": "consecutive_kills", "count": 5, "require": {"headshot": true}}},
+    {"id": "longinquus", "category": "headshot", "latin_name": "Longinquus", "english_meaning": "From afar", "trigger": {"type": "kill", "require": {"headshot": true, "min_distance_m": 60}}},
+
+    {"id": "corona_civica", "category": "squad", "latin_name": "Corona Civica", "english_meaning": "Civic crown (for saving a citizen)", "trigger": {"type": "kill", "require": {"victim_damaged_squadmate_within_s": 3.0}}},
+    {"id": "ultor", "category": "squad", "latin_name": "Ultor", "english_meaning": "Avenger", "trigger": {"type": "kill", "require": {"victim_killed_squadmate_within_s": 10.0}}},
+    {"id": "concordia", "category": "squad", "latin_name": "Concordia", "english_meaning": "Harmony", "trigger": {"type": "squad_hill_hold", "min_members_inside": 3, "continuous_s": 10}},
+    {"id": "dux", "category": "squad", "latin_name": "Dux", "english_meaning": "Leader", "trigger": {"type": "squad_bot_chain", "count": 5}},
+
+    {"id": "prima_caedes", "category": "special", "latin_name": "Prima Caedes", "english_meaning": "First blood", "trigger": {"type": "first_kill_of_match"}},
+    {"id": "finis", "category": "special", "latin_name": "Finis", "english_meaning": "The end (spree breaker)", "trigger": {"type": "kill", "require": {"victim_spree_min": 5}}}
+  ]
+}

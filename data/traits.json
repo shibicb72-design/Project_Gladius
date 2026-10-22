@@ -1,0 +1,156 @@
+{
+  "status": "DRAFT - awaiting Shibi approval",
+  "version": 1,
+  "_note": "DRAFT proposal (task T1); every name, rule and number here is a proposal, not a design value. Mirrors docs/design/traits.md. Do NOT wire into gameplay, UI or the economy until Shibi approves (OQ-42).",
+  "counted_matches": {
+    "_todo": "OQ-44",
+    "modes": ["koth"],
+    "exclude": ["tutorial", "campaign"],
+    "note": "Only multiplayer matches count. Add a mode id here when Slayer, Capture the Eagle or Oddball ship."
+  },
+  "good_traits_permanent": true,
+  "_good_traits_permanent_todo": "OQ-43",
+  "rule_types": {
+    "lifetime_sum": "Sum of `stat` over all counted matches >= `min`.",
+    "lifetime_count": "Number of counted matches (inside `scope`) where every `where` condition holds >= `count`.",
+    "consecutive": "The last `count` counted matches (inside `scope`) all meet every `where` condition.",
+    "window_count": "Among the last `window` counted matches (inside `scope`), at least `count` meet every `where` condition."
+  },
+  "condition_ops": ["==", "!=", ">=", "<=", ">", "<"],
+  "match_stats": {
+    "mode": {"type": "string", "description": "Mode id of the match (e.g. koth)."},
+    "finished": {"type": "bool", "description": "1 if you were still in the match when it ended."},
+    "quit": {"type": "bool", "description": "1 if you chose to leave before the match ended.", "_todo": "OQ-44 (does a lost connection count?)"},
+    "won": {"type": "bool", "description": "1 if your squad won. A draw counts as 0."},
+    "was_host": {"type": "bool", "description": "1 if your phone hosted the match."},
+    "host_abandoned": {"type": "bool", "description": "1 if you were host and the match closed because you left or did not return within the host-drop reconnect pause."},
+    "kills": {"type": "int", "description": "Enemies (human or bot) you killed yourself. Squad-bot kills are not included.", "_todo": "OQ-46"},
+    "deaths": {"type": "int", "description": "Times you died, suicides included."},
+    "suicides": {"type": "int", "description": "Deaths with no enemy credited (own grenade, fall, own mine...)."},
+    "headshot_kills": {"type": "int", "description": "Kills where the killing hit was a headshot."},
+    "assassinations": {"type": "int", "description": "Melee kills from behind (DESIGN.md instant kill)."},
+    "hill_seconds": {"type": "int", "description": "Seconds you spent inside the hill."},
+    "hill_defense_kills": {"type": "int", "description": "Kills that met the custos_collis medal trigger (data/medals.json)."},
+    "saves": {"type": "int", "description": "Kills that met the corona_civica medal trigger (data/medals.json)."},
+    "squad_bot_kills": {"type": "int", "description": "Kills made by your squad bots (the ones that pay you Denarii)."},
+    "medals": {"type": "int", "description": "Medals you earned in the match."},
+    "afk_timeouts": {"type": "int", "description": "Times the killcam timed out and you were respawned at a random spot (DESIGN.md anti-AFK)."},
+    "spawn_kills": {"type": "int", "description": "Kills on enemies whose spawn protection had ended less than `window_after_protection_s` seconds earlier.", "window_after_protection_s": 3},
+    "kill_death_ratio": {"type": "float", "derived": true, "description": "kills / max(deaths, 1)."},
+    "headshot_ratio": {"type": "float", "derived": true, "description": "headshot_kills / max(kills, 1)."}
+  },
+  "traits": [
+    {
+      "id": "virtus", "kind": "good", "display_name": "Virtus", "latin_name": "Virtus", "english_meaning": "Valor",
+      "earn": {"rule": "lifetime_sum", "stat": "kills", "min": 250},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "pietas", "kind": "good", "display_name": "Pietas", "latin_name": "Pietas", "english_meaning": "Dutiful devotion",
+      "earn": {"rule": "lifetime_count", "where": [{"stat": "finished", "op": "==", "value": 1}], "count": 50},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "fides", "kind": "good", "display_name": "Fides", "latin_name": "Fides", "english_meaning": "Good faith, loyalty",
+      "earn": {"rule": "consecutive", "where": [{"stat": "finished", "op": "==", "value": 1}], "count": 10},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "disciplina", "kind": "good", "display_name": "Disciplina", "latin_name": "Disciplina", "english_meaning": "Military discipline",
+      "earn": {"rule": "consecutive", "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "suicides", "op": "==", "value": 0}, {"stat": "afk_timeouts", "op": "==", "value": 0}], "count": 10},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "gravitas", "kind": "good", "display_name": "Gravitas", "latin_name": "Gravitas", "english_meaning": "Composure, seriousness",
+      "earn": {"rule": "lifetime_count", "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "kills", "op": ">=", "value": 5}, {"stat": "deaths", "op": "<=", "value": 5}], "count": 10},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "constantia", "kind": "good", "display_name": "Constantia", "latin_name": "Constantia", "english_meaning": "Steadfastness",
+      "earn": {"rule": "lifetime_count", "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "won", "op": "==", "value": 0}], "count": 10},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "dignitas", "kind": "good", "display_name": "Dignitas", "latin_name": "Dignitas", "english_meaning": "Prestige, standing",
+      "earn": {"rule": "lifetime_sum", "stat": "medals", "min": 100},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "auctoritas", "kind": "good", "display_name": "Auctoritas", "latin_name": "Auctoritas", "english_meaning": "Authority of command",
+      "earn": {"rule": "lifetime_sum", "stat": "squad_bot_kills", "min": 100},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "clementia", "kind": "good", "display_name": "Clementia", "latin_name": "Clementia", "english_meaning": "Mercy",
+      "earn": {"rule": "lifetime_count", "where": [{"stat": "won", "op": "==", "value": 1}, {"stat": "spawn_kills", "op": "==", "value": 0}], "count": 10},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "prudentia", "kind": "good", "display_name": "Prudentia", "latin_name": "Prudentia", "english_meaning": "Prudence",
+      "earn": {"rule": "lifetime_count", "where": [{"stat": "kills", "op": ">=", "value": 5}, {"stat": "kill_death_ratio", "op": ">=", "value": 2.0}], "count": 10},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "industria", "kind": "good", "display_name": "Industria", "latin_name": "Industria", "english_meaning": "Diligence, hard work",
+      "earn": {"rule": "lifetime_sum", "stat": "hill_seconds", "min": 3600},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "firmitas", "kind": "good", "display_name": "Firmitas", "latin_name": "Firmitas", "english_meaning": "Firmness, tenacity",
+      "earn": {"rule": "lifetime_sum", "stat": "hill_defense_kills", "min": 100},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "diligentia", "kind": "good", "display_name": "Diligentia", "latin_name": "Diligentia", "english_meaning": "Precision, care",
+      "earn": {"rule": "lifetime_count", "where": [{"stat": "kills", "op": ">=", "value": 5}, {"stat": "headshot_ratio", "op": ">=", "value": 0.5}], "count": 10},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "comitas", "kind": "good", "display_name": "Comitas", "latin_name": "Comitas", "english_meaning": "Comradeship",
+      "earn": {"rule": "lifetime_sum", "stat": "saves", "min": 50},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "felicitas", "kind": "good", "display_name": "Felicitas", "latin_name": "Felicitas", "english_meaning": "Good fortune, success",
+      "earn": {"rule": "lifetime_sum", "stat": "won", "min": 25},
+      "show_in_lobby": true, "show_in_game_banner": false, "effects": []
+    },
+    {
+      "id": "deserter", "kind": "bad", "display_name": "Deserter", "latin_name": "Desertor", "english_meaning": "Deserter",
+      "earn": {"rule": "window_count", "window": 10, "where": [{"stat": "quit", "op": "==", "value": 1}], "count": 2},
+      "fade": {"rule": "consecutive", "where": [{"stat": "finished", "op": "==", "value": 1}], "count": 5},
+      "show_in_lobby": true, "show_in_game_banner": true, "effects": []
+    },
+    {
+      "id": "carthaginian", "kind": "bad", "display_name": "Carthaginian", "latin_name": "Poenus", "english_meaning": "Carthaginian (one who breaks faith, 'Punic faith')",
+      "_todo": "OQ-45",
+      "earn": {"rule": "window_count", "scope": [{"stat": "was_host", "op": "==", "value": 1}], "window": 10, "where": [{"stat": "host_abandoned", "op": "==", "value": 1}], "count": 2},
+      "fade": {"rule": "consecutive", "scope": [{"stat": "was_host", "op": "==", "value": 1}], "where": [{"stat": "host_abandoned", "op": "==", "value": 0}, {"stat": "finished", "op": "==", "value": 1}], "count": 5},
+      "show_in_lobby": true, "show_in_game_banner": true, "effects": []
+    },
+    {
+      "id": "ignavus", "kind": "bad", "display_name": "Ignavus", "latin_name": "Ignavus", "english_meaning": "Shirker, coward",
+      "earn": {"rule": "window_count", "scope": [{"stat": "mode", "op": "==", "value": "koth"}], "window": 10, "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "hill_seconds", "op": "==", "value": 0}], "count": 3},
+      "fade": {"rule": "consecutive", "scope": [{"stat": "mode", "op": "==", "value": "koth"}], "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "hill_seconds", "op": ">=", "value": 30}], "count": 3},
+      "show_in_lobby": true, "show_in_game_banner": true, "effects": []
+    },
+    {
+      "id": "iners", "kind": "bad", "display_name": "Iners", "latin_name": "Iners", "english_meaning": "Idle, inactive",
+      "earn": {"rule": "window_count", "window": 10, "where": [{"stat": "afk_timeouts", "op": ">=", "value": 2}], "count": 2},
+      "fade": {"rule": "consecutive", "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "afk_timeouts", "op": "==", "value": 0}], "count": 5},
+      "show_in_lobby": true, "show_in_game_banner": true, "effects": []
+    },
+    {
+      "id": "temerarius", "kind": "bad", "display_name": "Temerarius", "latin_name": "Temerarius", "english_meaning": "Reckless",
+      "earn": {"rule": "window_count", "window": 10, "where": [{"stat": "suicides", "op": ">=", "value": 3}], "count": 3},
+      "fade": {"rule": "consecutive", "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "suicides", "op": "==", "value": 0}], "count": 5},
+      "show_in_lobby": true, "show_in_game_banner": true, "effects": []
+    },
+    {
+      "id": "latro", "kind": "bad", "display_name": "Latro", "latin_name": "Latro", "english_meaning": "Brigand (spawn camper)",
+      "earn": {"rule": "window_count", "window": 10, "where": [{"stat": "spawn_kills", "op": ">=", "value": 5}], "count": 2},
+      "fade": {"rule": "consecutive", "where": [{"stat": "finished", "op": "==", "value": 1}, {"stat": "spawn_kills", "op": "==", "value": 0}], "count": 5},
+      "show_in_lobby": true, "show_in_game_banner": true, "effects": []
+    }
+  ]
+}
