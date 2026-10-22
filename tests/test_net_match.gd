@@ -189,3 +189,42 @@ func test_e2e_client_fire_damages_on_host_only() -> void:
 				return is_equal_approx(client_bot.bridge.state.shield, host_shield), TIMEOUT_S)
 			assert_true(synced, "client sees the new shield after a snapshot")
 	await _teardown(p)
+
+
+func test_e2e_client_fire_ends_spawn_protection_on_host() -> void:
+	var p: Dictionary = await _start_pair("3")
+	if p["ok"]:
+		var hm: MatchRoot = p["hm"]
+		var cm: MatchRoot = p["cm"]
+		var pid: int = cm.roster.local_player_id
+		var host_copy: Pawn = hm.director.player(pid)
+		await _wait_until(func() -> bool: return cm.roster.bridge.last_snapshot_tick >= 0, TIMEOUT_S)
+		var enemy_squad := -1
+		for b in hm.bots:
+			var brain := b.get_node_or_null("Brain")
+			if brain != null:
+				brain.set_physics_process(false)
+			b.set_physics_process(false)
+			if enemy_squad < 0 and b.squad_id != host_copy.squad_id:
+				enemy_squad = b.squad_id
+		assert_true(enemy_squad >= 0, "an enemy squad exists")
+		var rules: SpawnRules = hm.director.spawn_rules
+		rules.protection_s = 1000.0
+		rules.spawn_now(pid)
+		for i in 2:
+			await _tree().physics_frame
+		assert_true(rules.is_protected(pid), "client's pawn protected on the host")
+		var def: WeaponDef = host_copy.loadout.get_active().def
+		var res := host_copy.receive_hit(def, false, enemy_squad)
+		assert_eq(res.blocked_reason, "protected", "enemy hit blocked while protected")
+		cm.roster.bridge.send_fire(host_copy.get_muzzle_position(), Vector3(0, 0, -1),
+				cm.local_player.loadout.get_active().def.id)
+		var ended: bool = await _wait_until(func() -> bool: return not rules.is_protected(pid), TIMEOUT_S)
+		assert_true(ended, "the client's shot ended protection on the host")
+		for i in 2:
+			await _tree().physics_frame
+		var before: float = host_copy.bridge.state.shield
+		res = host_copy.receive_hit(def, false, enemy_squad)
+		assert_eq(res.blocked_reason, "", "enemy hit no longer blocked")
+		assert_true(host_copy.bridge.state.shield < before, "host copy's shield went down")
+	await _teardown(p)

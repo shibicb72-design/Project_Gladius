@@ -108,6 +108,40 @@ func test_rejected_move_keeps_host_position_and_does_not_age_in() -> void:
 	rig["root"].queue_free()
 
 
+func test_rejected_move_corrections_are_rate_limited() -> void:
+	var rig := _host_rig()
+	var bridge: NetMatchBridge = rig["bridge"]
+	var far: Vector3 = (rig["pawn"] as Pawn).global_position + Vector3(8, 0, 0)
+	bridge._clock += 0.033
+	assert_true(not bridge.host_handle_move(PEER, far, 0.0), "first move rejected")
+	var first: float = bridge._last_correction_s[PID]
+	assert_eq(first, bridge._clock, "correction time recorded")
+	bridge._clock += 0.033
+	assert_true(not bridge.host_handle_move(PEER, far, 0.0), "second move rejected")
+	assert_eq(bridge._last_correction_s[PID], first, "second correction suppressed inside the interval")
+	bridge._clock = first + bridge.snapshot_interval_s
+	assert_true(not bridge.host_handle_move(PEER, far, 0.0), "third move rejected")
+	assert_eq(bridge._last_correction_s[PID], bridge._clock, "correction allowed after one snapshot interval")
+	rig["root"].queue_free()
+
+
+func test_remote_fire_ends_spawn_protection_only_when_accepted() -> void:
+	var rig := _host_rig()
+	var bridge: NetMatchBridge = rig["bridge"]
+	var pawn: Pawn = rig["pawn"]
+	var rules = bridge.director.spawn_rules
+	rules.spawn_now(PID)
+	assert_true(rules.is_protected(PID), "protected after spawn")
+	var w := pawn.loadout.get_active()
+	w.ammo_in_mag = 0
+	assert_eq(_fire(bridge, pawn)["reason"], "empty", "empty shot rejected")
+	assert_true(rules.is_protected(PID), "rejected shot keeps protection")
+	w.ammo_in_mag = 2
+	assert_true(_fire(bridge, pawn)["ok"], "shot with ammo accepted")
+	assert_true(not rules.is_protected(PID), "accepted shot ends protection")
+	rig["root"].queue_free()
+
+
 func test_squad_count_single_source() -> void:
 	var reg := DataRegistry.new()
 	var squads := int(reg.load_file("res://data/match.json").get("squads", 0))

@@ -18,8 +18,6 @@ var snapshot_interval_s: float = 1.0 / 15.0
 var input_interval_s: float = 1.0 / 15.0
 ## Host: peer id -> player id.
 var peer_to_player: Dictionary = {}
-## Host: latest InputFrame per player id.
-var last_frames: Dictionary = {}
 ## Client: player id -> {pos, yaw, shield, health, alive} from the latest host snapshot.
 var replica: Dictionary = {}
 var scores: Dictionary = {}
@@ -31,7 +29,8 @@ var _clock: float = 0.0
 var _since_snapshot: float = 0.0
 var _tick: int = 0
 var _last_move_s: Dictionary = {}  # player id -> time of last accepted position
-var _rng := RandomNumberGenerator.new()
+var _last_correction_s: Dictionary = {}  # player id -> _clock of the last correct_position
+var _rng :=RandomNumberGenerator.new()
 
 
 ## Called by MatchRoot when the match begins. Until then (and after detach) every handler ignores packets.
@@ -74,7 +73,7 @@ func register_peer(peer_id: int, player_id: int) -> void:
 func unregister_peer(peer_id: int) -> void:
 	var pid: int = peer_to_player.get(peer_id, -1)
 	peer_to_player.erase(peer_id)
-	last_frames.erase(pid)
+	_last_correction_s.erase(pid)
 	if validator != null:
 		validator.forget(pid)
 
@@ -150,7 +149,6 @@ func submit_input(frame_array: Array, pos: Vector3, yaw: float, _client_tick: in
 	var pid: int = peer_to_player.get(peer_id, -1)
 	if pid < 0 or director.player(pid) == null:
 		return
-	last_frames[pid] = InputFrame.from_array(frame_array)
 	host_handle_move(peer_id, pos, yaw)
 
 
@@ -169,8 +167,11 @@ func host_handle_move(peer_id: int, pos: Vector3, yaw: float) -> bool:
 		pawn.global_position = pos
 		pawn.rotation.y = yaw
 		return true
-	if _online():
-		correct_position.rpc_id(peer_id, pawn.global_position)
+	var last: float = _last_correction_s.get(pid, -INF)
+	if _clock - last >= snapshot_interval_s:
+		_last_correction_s[pid] = _clock
+		if _online():
+			correct_position.rpc_id(peer_id, pawn.global_position)
 	return false
 
 
@@ -210,6 +211,7 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 	if not v["ok"]:
 		return v
 	w.ammo_in_mag -= 1
+	pawn.fired.emit()  # ends spawn protection through MatchDirector, same as a local shot
 	var hit := Hitscan.fire(pawn.get_world_3d().direct_space_state, pawn, origin, direction, w.def,
 			pawn.hitscan_exclude(),
 			Callable(self, "_host_authority"), _rng)
