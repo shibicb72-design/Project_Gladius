@@ -57,7 +57,7 @@ func _ready() -> void:
 	net_lobby.match_starting.connect(_on_match_starting)
 	if is_host:
 		ips_label.text = "Your IP: " + ", ".join(local_ipv4())
-		net_lobby.host_open(2, int(cfg.get("squad_size", 3)), my_name)
+		net_lobby.host_open(int(cfg.get("squads", 2)),int(cfg.get("squad_size", 3)), my_name)
 	else:
 		status_label.text = "Connected. Waiting for the host to start."
 		net_lobby.submit_local(my_name, "hastati")

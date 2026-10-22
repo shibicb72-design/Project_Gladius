@@ -76,7 +76,7 @@ func begin() -> bool:
 		xforms[spot_id] = Transform3D(Basis.looking_at(to_hill.normalized()), pos)
 
 	var radius := float(hill.get("radius_m", 8.0))
-	var squads: Array = range(int(director.match_cfg.get("offline_squads", 2)))
+	var squads: Array = range(int(director.match_cfg.get("squads", 2)))
 	var session := session_override
 	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
 		session = AppFlow.session
@@ -138,6 +138,8 @@ func _wire_client(bridge: NetMatchBridge) -> void:
 	_client_bridge = bridge
 	if local_player != null:
 		local_player.shot.connect(bridge.send_fire)
+		local_player.reload_started.connect(bridge.send_reload)
+		local_player.weapon_switched.connect(bridge.send_weapon_slot)
 	bridge.snapshot_received.connect(_on_snapshot)
 	bridge.respawn_event.connect(_on_local_respawn_event)
 

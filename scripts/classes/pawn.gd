@@ -5,6 +5,9 @@ extends CharacterBody3D
 signal fired
 ## Every shot of the active weapon, for the network layer: a client forwards it to the host.
 signal shot(origin: Vector3, direction: Vector3, weapon_id: String)
+## A local reload started / the active slot changed, for the network layer (reliable host sync).
+signal reload_started
+signal weapon_switched(slot: int)
 
 ## LOCAL: full simulation (offline, host, own pawn on a client).
 ## HOST_REMOTE: remote human on the host; moved only by accepted net input, never fires by itself.
@@ -150,13 +153,13 @@ func _apply_movement(delta: float) -> void:
 
 
 func _apply_weapon() -> void:
-	if _frame.swap_weapon_just_pressed:
-		loadout.swap()
+	if _frame.swap_weapon_just_pressed and loadout.swap():
+		weapon_switched.emit(loadout.active)
 	var w := loadout.get_active()
 	if w == null:
 		return
-	if _frame.reload_just_pressed:
-		w.start_reload(_clock)
+	if _frame.reload_just_pressed and w.start_reload(_clock):
+		reload_started.emit()
 	var shots := w.update(_clock, _frame.fire_pressed)
 	for i in shots:
 		fire_shot()

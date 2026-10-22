@@ -6,7 +6,7 @@ const _MatchScene := preload("res://scenes/match/match.tscn")
 func _lobby() -> LobbyState:
 	var cfg := DataRegistry.new().load_file("res://data/match.json")
 	var l := LobbyState.new()
-	l.setup(int(cfg.get("offline_squads", 2)), int(cfg.get("squad_size", 3)))
+	l.setup(int(cfg.get("squads", 2)), int(cfg.get("squad_size", 3)))
 	l.add_human(11, "A")
 	l.add_human(12, "B")
 	l.add_human(13, "C")

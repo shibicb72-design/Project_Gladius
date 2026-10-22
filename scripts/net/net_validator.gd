@@ -35,13 +35,22 @@ func validate_fire(player_id: int, claimed_weapon_id: String, active_weapon: Wea
 	return {"ok": true, "reason": ""}
 
 
-## True if moving old_pos -> new_pos in dt seconds is plausible for max_speed_mps (horizontal only).
-func validate_move(old_pos: Vector3, new_pos: Vector3, dt: float, max_speed_mps: float) -> bool:
+## True if moving old_pos -> new_pos in dt seconds is plausible for max_speed_mps.
+## Up: (jump_velocity + max_speed * tan(floor_max_angle)) per second (jump or climbing a slope).
+## Down: max_fall_speed_mps from the validation config.
+func validate_move(old_pos: Vector3, new_pos: Vector3, dt: float, max_speed_mps: float,
+		jump_velocity: float = 0.0, floor_max_angle: float = 0.0) -> bool:
 	if not new_pos.is_finite():
 		return false
 	var window := maxf(dt, float(cfg.get("move_min_window_s", 0.05)))
 	var flat := Vector2(new_pos.x - old_pos.x, new_pos.z - old_pos.z).length()
-	return flat <= max_speed_mps * float(cfg.get("move_speed_tolerance", 1.5)) * window
+	if flat > max_speed_mps * float(cfg.get("move_speed_tolerance", 1.5)) * window:
+		return false
+	var tol := float(cfg.get("move_vertical_tolerance", 1.5))
+	var dy := new_pos.y - old_pos.y
+	if dy >= 0.0:
+		return dy <= (jump_velocity + max_speed_mps * tan(floor_max_angle)) * window * tol
+	return -dy <= float(cfg.get("max_fall_speed_mps", 60.0)) * window * tol
 
 
 func forget(player_id: int) -> void:

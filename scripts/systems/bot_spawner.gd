@@ -13,7 +13,8 @@ static func plan_fill(humans_per_squad: Dictionary, cfg: Dictionary) -> Array:
 	var fill: Dictionary = cfg.get("match_fill", {})
 	var rotation: Array = cfg.get("class_rotation", ["hastati"])
 	var plan: Array = []
-	for squad in int(fill.get("squads", 0)):
+	var squads := int(DataRegistry.new().load_file("res://data/match.json").get("squads", 0))
+	for squad in squads:
 		var missing := int(fill.get("squad_size", 0)) - int(humans_per_squad.get(squad, 0))
 		for i in maxi(missing, 0):
 			plan.append({"squad": squad, "class_id": str(rotation[plan.size() % rotation.size()])})

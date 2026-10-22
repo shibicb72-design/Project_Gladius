@@ -13,7 +13,10 @@
     "fire_rate_tolerance": 0.8,
     "fire_origin_max_error_m": 2.0,
     "move_speed_tolerance": 1.5,
-    "move_min_window_s": 0.05
+    "move_min_window_s": 0.05,
+    "move_vertical_tolerance": 1.5,
+    "max_fall_speed_mps": 60.0,
+    "_vertical_todo": "T-03 placeholders: move_vertical_tolerance scales the allowed vertical change per window; max_fall_speed_mps is a generous cap because the pawn has no terminal velocity. Not design values."
   },
   "_placeholder": true,
   "_todo": "T-01: port 7777, 5 s timeout and 15 Hz snapshots are default placeholders, not design values."

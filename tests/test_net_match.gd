@@ -155,6 +155,8 @@ func test_e2e_client_fire_damages_on_host_only() -> void:
 			if brain != null:
 				brain.set_physics_process(false)
 			b.set_physics_process(false)
+			if b.squad_id == host_copy.squad_id:
+				b.global_position += Vector3(0.0, 30.0, 0.0)  # teammates must not block the ray
 			if bot == null and b.squad_id != host_copy.squad_id:
 				bot = b
 		assert_true(bot != null, "an enemy bot exists")

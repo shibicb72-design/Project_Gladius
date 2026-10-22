@@ -64,6 +64,7 @@ func attach_bridge(net_session: NetSession, slots: Array) -> void:
 	session = net_session
 	bridge = session.bridge
 	bridge.setup(_director)
+	bridge.local_player_id = local_player_id
 	if session.is_host:
 		for s in slots:
 			if not bool(s["is_bot"]) and int(s["player_id"]) != local_player_id:

@@ -24,6 +24,8 @@ var last_frames: Dictionary = {}
 var replica: Dictionary = {}
 var scores: Dictionary = {}
 var last_snapshot_tick: int = -1
+## Client: player id of the locally driven pawn (set by MatchRoster).
+var local_player_id: int = -1
 
 var _clock: float = 0.0
 var _since_snapshot: float = 0.0
@@ -93,20 +95,93 @@ func send_fire(origin: Vector3, direction: Vector3, weapon_id: String) -> void:
 	request_fire.rpc_id(1, origin, direction, weapon_id, _tick)
 
 
+func send_reload() -> void:
+	if _online():
+		request_reload.rpc_id(1)
+
+
+## Sends the active slot (idempotent, so a repeated request cannot toggle the host weapon back).
+func send_weapon_slot(slot: int) -> void:
+	if _online():
+		request_weapon_slot.rpc_id(1, slot)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_reload() -> void:
+	if director != null and _is_host():
+		host_handle_reload(multiplayer.get_remote_sender_id())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_weapon_slot(slot: int) -> void:
+	if director != null and _is_host():
+		host_handle_weapon_slot(multiplayer.get_remote_sender_id(), slot)
+
+
+## Host: starts a reload on the host copy of the player's active weapon.
+func host_handle_reload(peer_id: int) -> bool:
+	var pawn: Pawn = director.player(peer_to_player.get(peer_id, -1)) if director != null else null
+	if pawn == null or not pawn.is_alive() or pawn.loadout.get_active() == null:
+		return false
+	var w := pawn.loadout.get_active()
+	w.update(_clock, false)
+	return w.start_reload(_clock)
+
+
+## Host: follows the client's active slot if that slot holds a weapon.
+func host_handle_weapon_slot(peer_id: int, slot: int) -> bool:
+	var pawn: Pawn = director.player(peer_to_player.get(peer_id, -1)) if director != null else null
+	if pawn == null or not pawn.is_alive() or slot < 0 or slot >= pawn.loadout.slots.size() \
+			or pawn.loadout.slots[slot] == null:
+		return false
+	if slot != pawn.loadout.active:
+		var old := pawn.loadout.get_active()
+		if old != null:
+			old.cancel_reload()
+		pawn.loadout.active = slot
+	return true
+
+
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func submit_input(frame_array: Array, pos: Vector3, yaw: float, _client_tick: int) -> void:
 	if director == null or not _is_host():
 		return
-	var pid: int = peer_to_player.get(multiplayer.get_remote_sender_id(), -1)
-	var pawn: Pawn = director.player(pid) if pid >= 0 else null
-	if pawn == null:
+	var peer_id := multiplayer.get_remote_sender_id()
+	var pid: int = peer_to_player.get(peer_id, -1)
+	if pid < 0 or director.player(pid) == null:
 		return
 	last_frames[pid] = InputFrame.from_array(frame_array)
+	host_handle_move(peer_id, pos, yaw)
+
+
+## Host: accepts a client position if plausible; otherwise the host position stays authoritative and the
+## client is snapped back. Returns whether the move was accepted.
+func host_handle_move(peer_id: int, pos: Vector3, yaw: float) -> bool:
+	var pid: int = peer_to_player.get(peer_id, -1)
+	var pawn: Pawn = director.player(pid) if director != null and pid >= 0 else null
+	if pawn == null or not pawn.is_alive():
+		return false
 	var dt := _clock - float(_last_move_s.get(pid, _clock - 0.1))
-	if pawn.is_alive() and validator.validate_move(pawn.global_position, pos, dt, pawn.get_move_speed()):
+	# Reset on every attempt so a repeated far position never ages into acceptance.
+	_last_move_s[pid] = _clock
+	if validator.validate_move(pawn.global_position, pos, dt, pawn.get_move_speed(),
+			float(registry.get_movement_cfg().get("jump_velocity", 0.0)), pawn.floor_max_angle):
 		pawn.global_position = pos
 		pawn.rotation.y = yaw
-		_last_move_s[pid] = _clock
+		return true
+	if _online():
+		correct_position.rpc_id(peer_id, pawn.global_position)
+	return false
+
+
+## Client: the host rejected a move; snap the local pawn to the host position.
+@rpc("authority", "call_remote", "reliable")
+func correct_position(pos: Vector3) -> void:
+	var pawn: Pawn = director.player(local_player_id) if director != null else null
+	if pawn == null:
+		return
+	pawn.global_position = pos
+	pawn.velocity = Vector3.ZERO
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -123,10 +198,18 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 	if pawn == null or not pawn.is_alive():
 		return {"ok": false, "reason": "no_pawn"}
 	var w := pawn.loadout.get_active()
-	var v := validator.validate_fire(pid, weapon_id, w.def if w != null else null, _clock, origin,
-			pawn.get_muzzle_position(), direction)
+	if w == null:
+		return {"ok": false, "reason": "wrong_weapon"}
+	# The host copy of the weapon is the ammo authority; rate stays with NetValidator (clock skew).
+	w.update(_clock, false)
+	if w.reloading:
+		return {"ok": false, "reason": "reloading"}
+	if w.ammo_in_mag <= 0:
+		return {"ok": false, "reason": "empty"}
+	var v := validator.validate_fire(pid, weapon_id, w.def, _clock, origin, pawn.get_muzzle_position(), direction)
 	if not v["ok"]:
 		return v
+	w.ammo_in_mag -= 1
 	var hit := Hitscan.fire(pawn.get_world_3d().direct_space_state, pawn, origin, direction, w.def,
 			pawn.hitscan_exclude(),
 			Callable(self, "_host_authority"), _rng)

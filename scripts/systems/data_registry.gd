@@ -7,6 +7,8 @@ const _WeaponDefScript := preload("res://scripts/weapons/weapon_def.gd")
 const STATS_PATH := "res://data/stats.json"
 const LOADOUTS_PATH := "res://data/loadouts.json"
 const CAMERA_PATH := "res://data/camera.json"
+const MATCH_PATH := "res://data/match.json"
+const MAP_PATH := "res://data/maps/alesia_section.json"
 
 var _cache: Dictionary = {}
 
@@ -83,4 +85,19 @@ func validate() -> PackedStringArray:
 	for k in ["shield_regen_delay_s", "shield_regen_rate_per_s", "overflow_to_health"]:
 		if not combat.has(k):
 			problems.append("combat.%s missing" % k)
+	problems.append_array(validate_squads(load_file(MATCH_PATH), load_file(MAP_PATH)))
+	return problems
+
+
+## Checks the single squad count (match.json "squads") against player cap and map spawn spots.
+static func validate_squads(match_cfg: Dictionary, map_def: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var squads := int(match_cfg.get("squads", 0))
+	var size := int(match_cfg.get("squad_size", 0))
+	if squads <= 0 or size <= 0:
+		problems.append("match.json squads and squad_size must be positive")
+	if squads * size > int(match_cfg.get("max_players", 0)):
+		problems.append("match.json squads * squad_size exceeds max_players")
+	if map_def.get("spawns", {}).size() < squads:
+		problems.append("map has fewer spawn spots than match.json squads")
 	return problems

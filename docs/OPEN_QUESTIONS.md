@@ -50,7 +50,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 ## Bots
 
-- **OQ-30: How many bots in milestone 1 ("a few bots").** Placeholder: fill to 2 squads of 3 (6 total). Configured in `data/bots.json` `match_fill` (S8).
+- **OQ-30: How many bots in milestone 1 ("a few bots").** Placeholder: fill to 2 squads of 3 (6 total). The number of squads is the single key `data/match.json` `squads` (read by the lobby, MatchRoot, NetLobby and bot fill; replaces `offline_squads` and `match_fill.squads`); `DataRegistry.validate()` checks squads * squad_size <= max_players and enough map spawn spots. Bot profile and squad size are in `data/bots.json` `match_fill` (S8).
 - **OQ-31: Bot difficulty in milestone 1, and numbers for Tiro/Miles/Centurion/Legatus** (accuracy, reaction time, damage, health...). Placeholder: one profile `tiro` with placeholder numbers; the other three listed with placeholder numbers, unused (S8). damage_mult, health_mult, aim_smartness and grenade_freq are stored in data/bots.json but not yet applied by the bot brain.
 - **OQ-32: Bot classes.** Placeholder: bots alternate Hastati / Sagittarii (S8).
 - **OQ-33: Bot squad commands in milestone 1?** (follow/attack/hold/rush hill). Not listed for milestone 1. Placeholder: out of milestone 1. Bots always play the hill. Command system provisioned in ARCHITECTURE.md (S8).
@@ -103,4 +103,4 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 - **T-01: Network port and tick/sync rates.** Default: port 7777, values in `data/net.json` (S9).
 - **T-02: Android SDK platform / build-tools version installed in CI.** Packages pinned via setup-android input; confirm on the first green run.
-- **T-03: Movement authority.** Milestone 1: clients own their own movement (the host sanity-checks speed); the host decides hits, damage, score and respawns. See ARCHITECTURE.md "Networking" (S9).
+- **T-03: Movement authority.** Milestone 1: clients own their own movement (the host sanity-checks speed and vertical change); the host decides hits, damage, score, respawns and ammo/reload. Placeholders in `data/net.json` `validation`: `move_vertical_tolerance` (1.5) and `max_fall_speed_mps` (60, generous because the pawn has no terminal velocity); upward allowance = (jump_velocity + max_speed * tan(floor_max_angle)) per second. A rejected move keeps the host position and the client is snapped back via a reliable `correct_position` RPC. See ARCHITECTURE.md "Networking" (S9).
