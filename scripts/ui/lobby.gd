@@ -145,6 +145,7 @@ func refresh() -> void:
 			rows_box.add_child(header)
 		var row := Button.new()
 		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.mouse_filter = Control.MOUSE_FILTER_PASS  # STOP would swallow touch drags before the ScrollContainer
 		row.text = "%s (%s)%s" % [s["name"], s["class_id"], "" if not s["is_bot"] else " [bot]"]
 		row.pressed.connect(on_slot_pressed.bind(int(s["player_id"])))
 		rows_box.add_child(row)

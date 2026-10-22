@@ -217,6 +217,62 @@ func test_lobby_buttons_inside_viewport_at_both_fold_sizes() -> void:
 	await tree.process_frame
 
 
+## Folded lobby: a touch drag that starts ON a slot row must scroll the roster (the row button must not swallow it).
+func test_lobby_roster_scrolls_by_touch_drag_from_a_row() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var prev := _root().size
+	PlatformServices.dpi_override = 420.0
+	_root().size = Vector2i(2520, 1080)
+	var lobby := _host_lobby()
+	for i in 4:
+		await tree.process_frame
+	var scroll := lobby.rows_box.get_parent() as ScrollContainer
+	var max_scroll := int(scroll.get_v_scroll_bar().max_value - scroll.get_v_scroll_bar().page)
+	assert_true(max_scroll > 0, "folded roster overflows so it can scroll (max %d)" % max_scroll)
+	assert_eq(scroll.scroll_vertical, 0, "starts at the top")
+	# The ScrollContainer only turns ScreenDrag into scrolling when the display reports a touchscreen
+	# (DisplayServer.is_touchscreen_available(): false on desktop/headless). So this test also asserts the part that
+	# does not depend on the host: the press and drags that start on a row REACH the ScrollContainer.
+	var seen := {"touch": 0, "drag": 0}
+	scroll.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventScreenTouch:
+			seen["touch"] += 1
+		elif e is InputEventScreenDrag:
+			seen["drag"] += 1)
+	var xf := _root().get_screen_transform()
+	var row: Button = lobby.slot_buttons[2]
+	var from := row.get_global_rect().get_center()
+	var press := InputEventScreenTouch.new()
+	press.index = 0
+	press.position = xf * from
+	press.pressed = true
+	Input.parse_input_event(press)
+	await tree.process_frame
+	var prev_pos := from
+	for step in 12:
+		var to := from + Vector2(0.0, -20.0 * float(step + 1))
+		var drag := InputEventScreenDrag.new()
+		drag.index = 0
+		drag.position = xf * to
+		drag.relative = xf * to - xf * prev_pos
+		Input.parse_input_event(drag)
+		prev_pos = to
+		await tree.process_frame
+	var release := InputEventScreenTouch.new()
+	release.index = 0
+	release.position = xf * prev_pos
+	release.pressed = false
+	Input.parse_input_event(release)
+	await tree.process_frame
+	assert_true(seen["touch"] >= 2 and seen["drag"] == 12, "row does not swallow touch: roster saw %s" % str(seen))
+	if DisplayServer.is_touchscreen_available():
+		assert_true(scroll.scroll_vertical > 0, "touch drag starting on a slot row scrolled the roster (scroll_vertical=%d)" % scroll.scroll_vertical)
+	_end_lobby(lobby)
+	PlatformServices.dpi_override = 0.0
+	_root().size = prev
+	await tree.process_frame
+
+
 func test_touch_hud_hidden_when_not_touch() -> void:
 	var n: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
 	_root().add_child(n)

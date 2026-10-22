@@ -16,6 +16,8 @@ var _tag: String = "shot"
 var _dpi: float = 0.0
 var _report: PackedStringArray = []
 var _label: Label
+var _real_mouse_swallowed: int = 0
+var _trace_events: bool = false
 
 
 func _ready() -> void:
@@ -64,8 +66,21 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
+## Capture-only: real desktop mouse events (device != DEVICE_ID_EMULATION) would move Godot's hover/press state
+## between an emulated touch press and release (BaseButton then drops the click). Swallow them before the GUI sees
+## them; emulated-from-touch mouse events pass, so buttons still react to the simulated finger.
+func _input(event: InputEvent) -> void:
+	if (event is InputEventMouseMotion or event is InputEventMouseButton) and event.device != InputEvent.DEVICE_ID_EMULATION:
+		_real_mouse_swallowed += 1
+		get_viewport().set_input_as_handled()
+	elif _trace_events:
+		_log("trace tap event: %s" % str(event))
+
+
 func _run() -> void:
 	var win := get_window()
+	# Park the OS cursor in the top-right corner (over the non-interactive overlay), away from every control.
+	Input.warp_mouse(Vector2(get_viewport().get_visible_rect().size.x - 1.0, 1.0))
 	_log("tag=%s window=%s viewport=%s dpi=%.0f (DisplayServer.screen_get_dpi()=%d; --dpi=N overrides, e.g. 420 folded / 373 unfolded)" % [
 			_tag, win.size, get_viewport().get_visible_rect().size, _dpi, DisplayServer.screen_get_dpi()])
 	await _frames(3)
@@ -185,7 +200,10 @@ func _lobby_shots() -> void:
 	_log("lobby keyboard prompts: %s" % str(_keyboard_prompts(lobby)))
 	await _shot("lobby_before")
 	var before_player := lobby.class_button.text
+	_trace_events = true  # log every event delivered during the first (Class) tap
 	await _tap(lobby.class_button.get_global_rect().get_center())
+	_trace_events = false
+	_log("real desktop mouse events swallowed so far: %d" % _real_mouse_swallowed)
 	var bot_idx := -1
 	for s in lobby.state.slots:
 		if bool(s["is_bot"]):
