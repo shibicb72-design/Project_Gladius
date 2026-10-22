@@ -26,12 +26,13 @@
   },
   "melee": {
     "_todo": "OQ-56 (DECIDED Oct 22 2026: Gladius Lux follows the DESIGN.md:15 melee rule). Only the entries listed in _placeholders are placeholders.",
-    "_placeholders": ["melee_back_angle_deg", "front_hit_no_shield_rule"],
+    "_placeholders": ["melee_back_angle_deg", "front_hit_no_shield_rule", "gladiator_front_hit_no_shield_rule"],
     "melee_front_shield_fraction": 0.7,
     "front_breaks_full_shield_classes": ["gladiator"],
     "melee_back_angle_deg": 90,
     "_back_angle_note": "PLACEHOLDER (OQ-56): a hit is from behind when the angle between the target's facing and the direction target->attacker is greater than this.",
-    "front_hit_no_shield_rule": "PLACEHOLDER (OQ-56), not a Shibi decision: the 70%-of-full-shield amount is applied to health through the normal shield-then-health path."
+    "front_hit_no_shield_rule": "PLACEHOLDER (OQ-56), not a Shibi decision: the 70%-of-full-shield amount is applied to health through the normal shield-then-health path.",
+    "gladiator_front_hit_no_shield_rule": "PLACEHOLDER (OQ-56 item 3), not a Shibi decision: with a Gladiator attacker, a front hit on a target with no shield left takes the full max_shield amount off health."
   },
   "aim_assist": {
     "_placeholder": true, "_todo": "OQ-19",

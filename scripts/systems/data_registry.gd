@@ -91,18 +91,30 @@ func validate() -> PackedStringArray:
 			problems.append("weapon %s has invalid stat" % id)
 		if w.headshot_multiplier < 1.0:
 			problems.append("weapon %s headshot_multiplier < 1" % id)
-	var melee: Dictionary = data.get("melee", {})
-	var frac: float = float(melee.get("melee_front_shield_fraction", 0.0))
-	if frac <= 0.0 or frac > 1.0:
-		problems.append("melee.melee_front_shield_fraction must be in (0, 1]")
-	var back: float = float(melee.get("melee_back_angle_deg", 0.0))
-	if back <= 0.0 or back >= 180.0:
-		problems.append("melee.melee_back_angle_deg must be in (0, 180)")
+	problems.append_array(validate_melee(data.get("melee", {})))
 	var combat: Dictionary = data.get("combat", {})
 	for k in ["shield_regen_delay_s", "shield_regen_rate_per_s", "overflow_to_health"]:
 		if not combat.has(k):
 			problems.append("combat.%s missing" % k)
 	problems.append_array(validate_squads(load_file(MATCH_PATH), load_file(MAP_PATH)))
+	return problems
+
+
+## Checks stats.json "melee" (a missing key is reported, never defaulted).
+static func validate_melee(melee: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	if not melee.has("melee_front_shield_fraction"):
+		problems.append("melee.melee_front_shield_fraction missing")
+	else:
+		var frac: float = float(melee["melee_front_shield_fraction"])
+		if frac <= 0.0 or frac > 1.0:
+			problems.append("melee.melee_front_shield_fraction must be in (0, 1]")
+	if not melee.has("melee_back_angle_deg"):
+		problems.append("melee.melee_back_angle_deg missing")
+	else:
+		var back: float = float(melee["melee_back_angle_deg"])
+		if back <= 0.0 or back >= 180.0:
+			problems.append("melee.melee_back_angle_deg must be in (0, 180)")
 	return problems
 
 

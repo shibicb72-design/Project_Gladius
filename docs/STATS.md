@@ -25,7 +25,7 @@ Reasoning for the starter numbers (short):
 | Field | Pilum BR | Gladius Lux (melee) | Sagittarii Rifle (PLACEHOLDER) |
 |---|---|---|---|
 | kind | hitscan burst | melee | hitscan single shot |
-| damage | 20 per bullet | 60 per swing | 90 |
+| damage | 20 per bullet | front 70 (Hastati), front 56 (Sagittarii); Gladiator attacker front 100 (Hastati), Gladiator attacker front 80 (Sagittarii); back instant kill | 90 |
 | headshot_multiplier | 1.5 | 1.0 (no head test) | 2.0 |
 | fire_interval_s | 0.5 | 0.6 (swing) | 1.2 |
 | burst_count / burst_interval_s | 3 / 0.07 | 1 / 0.05 | 1 / 0.05 |

@@ -62,6 +62,54 @@ func test_front_hit_with_no_shield_takes_70_percent_of_full_shield_from_health()
 	assert_eq(g.health, 120.0 - 60.0, "Gladiator attacker: same placeholder path, no special case here")
 
 
+func test_gladiator_front_hit_no_shield_takes_full_max_shield_from_health() -> void:
+	# PLACEHOLDER rule (OQ-56 item 3): not a Shibi decision.
+	assert_true("gladiator_front_hit_no_shield_rule" in _cfg().get("_placeholders", []), "marked placeholder")
+	var s := HealthState.create(80.0, 90.0)
+	s.shield = 0.0
+	var r := _hit(s, false, true)
+	assert_eq(s.health, 10.0, "full max_shield (80) comes off health, not 70%")
+	assert_eq(r.health_damage, 80.0, "reported as health damage")
+	var n := HealthState.create(80.0, 90.0)
+	n.shield = 0.0
+	_hit(n, false, false)
+	assert_eq(n.health, 90.0 - 56.0, "non-Gladiator attacker keeps the 70% amount")
+
+
+func test_missing_back_angle_is_an_error_and_hit_is_invalid() -> void:
+	var root: Node = (Engine.get_main_loop() as SceneTree).root
+	var attacker := Pawn.new()
+	attacker.setup("hastati", 0)
+	var victim := Pawn.new()
+	victim.setup("hastati", 1)
+	root.add_child(attacker)
+	root.add_child(victim)
+	attacker.global_position = Vector3(0, 80, 0)
+	victim.global_position = Vector3(0, 80, -1.0)
+	var errors: Array[String] = []
+	victim.melee_error_sink = func(msg: String) -> void: errors.append(msg)
+	victim.melee_cfg_override = {"melee_front_shield_fraction": 0.7}
+	var r := victim.receive_melee(attacker)
+	assert_eq(r.blocked_reason, "invalid_melee_cfg", "hit reported invalid")
+	assert_eq(r.damage_dealt, 0.0, "no damage reported")
+	assert_eq(victim.bridge.state.shield, 100.0, "shield untouched")
+	assert_eq(victim.bridge.state.health, 100.0, "health untouched")
+	assert_eq(errors.size(), 1, "one clear error reported")
+	assert_true(errors.size() == 1 and errors[0].contains("melee_back_angle_deg"), "error names the key")
+	attacker.free()
+	victim.free()
+
+
+func test_validate_melee_reports_missing_keys() -> void:
+	assert_eq(DataRegistry.validate_melee(_cfg()), PackedStringArray(), "real melee cfg is clean")
+	var no_back := DataRegistry.validate_melee({"melee_front_shield_fraction": 0.7})
+	assert_eq(no_back, PackedStringArray(["melee.melee_back_angle_deg missing"]), "missing back angle reported")
+	var no_frac := DataRegistry.validate_melee({"melee_back_angle_deg": 90})
+	assert_eq(no_frac, PackedStringArray(["melee.melee_front_shield_fraction missing"]), "missing fraction reported")
+	assert_true(DataRegistry.validate_melee({"melee_front_shield_fraction": 0.7, "melee_back_angle_deg": 200}).size() == 1,
+			"out-of-range angle still reported")
+
+
 func test_guards_still_apply_to_melee() -> void:
 	var s := HealthState.create(100.0, 100.0)
 	assert_eq(DamageRules.apply_melee(s, 1, 1, false, true, false, _cfg()).blocked_reason, "friendly", "friendly")

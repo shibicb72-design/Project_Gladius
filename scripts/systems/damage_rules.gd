@@ -12,7 +12,7 @@ class HitResult extends RefCounted:
 	var health_damage: float = 0.0
 	var shield_broken: bool = false
 	var killed: bool = false
-	## "", "friendly", "protected" or "dead" when no damage was applied.
+	## "", "friendly", "protected", "dead" or "invalid_melee_cfg" when no damage was applied.
 	var blocked_reason: String = ""
 
 

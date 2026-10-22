@@ -19,6 +19,10 @@ enum NetMode { LOCAL, HOST_REMOTE, REPLICA }
 
 var registry: DataRegistry = DataRegistry.new()
 var bridge: PawnRulesBridge
+## Test seam, unused at runtime: a non-empty dictionary replaces registry.get_melee_cfg(); a valid
+## melee_error_sink receives the error text instead of push_error (so tests stay free of ERROR: lines).
+var melee_cfg_override: Dictionary = {}
+var melee_error_sink: Callable = Callable()
 var loadout: Loadout
 var class_def: ClassDef
 ## Called as authority.call(attacker, target, weapon_def, is_headshot). Defaults to local resolution.
@@ -89,10 +93,21 @@ func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) 
 
 ## Melee hit from `attacker` (DESIGN.md:15): front/back from this pawn's facing, rule numbers from
 ## stats.json "melee". Called by the hit authority instead of receive_hit for melee weapons.
+## A missing melee_back_angle_deg is a data error: push_error and the hit is invalid (no damage,
+## blocked_reason "invalid_melee_cfg"); there is no default angle.
 func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
-	var cfg := registry.get_melee_cfg()
+	var cfg: Dictionary = melee_cfg_override if not melee_cfg_override.is_empty() else registry.get_melee_cfg()
+	if not cfg.has("melee_back_angle_deg"):
+		var bad := DamageRules.HitResult.new()
+		bad.blocked_reason = "invalid_melee_cfg"
+		var msg := "stats.json melee.melee_back_angle_deg is missing; melee hit ignored"
+		if melee_error_sink.is_valid():
+			melee_error_sink.call(msg)
+		else:
+			push_error(msg)
+		return bad
 	var behind := Melee.is_from_behind(global_position, -global_transform.basis.z, attacker.global_position,
-			float(cfg.get("melee_back_angle_deg", 90.0)))
+			float(cfg["melee_back_angle_deg"]))
 	var breaks: bool = attacker.class_id in cfg.get("front_breaks_full_shield_classes", [])
 	return bridge.take_melee(attacker.squad_id, behind, breaks, cfg)
 
