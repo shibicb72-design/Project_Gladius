@@ -5,6 +5,8 @@ extends RefCounted
 const _ClassDefScript := preload("res://scripts/classes/class_def.gd")
 const _WeaponDefScript := preload("res://scripts/weapons/weapon_def.gd")
 const STATS_PATH := "res://data/stats.json"
+const LOADOUTS_PATH := "res://data/loadouts.json"
+const CAMERA_PATH := "res://data/camera.json"
 
 var _cache: Dictionary = {}
 
@@ -39,6 +41,23 @@ func get_weapon_def(id: String) -> WeaponDef:
 
 func get_combat_cfg() -> Dictionary:
 	return load_file(STATS_PATH).get("combat", {})
+
+
+func get_movement_cfg() -> Dictionary:
+	return load_file(STATS_PATH).get("movement", {})
+
+
+func get_aim_assist_cfg() -> Dictionary:
+	return load_file(STATS_PATH).get("aim_assist", {})
+
+
+## Slot ids ("primary", "secondary", "sidearm") for a class, or {} if unknown.
+func get_loadout_ids(class_id: String) -> Dictionary:
+	return load_file(LOADOUTS_PATH).get("classes", {}).get(class_id, {})
+
+
+func get_camera_cfg() -> Dictionary:
+	return load_file(CAMERA_PATH)
 
 
 ## Returns a list of problems; empty means clean.

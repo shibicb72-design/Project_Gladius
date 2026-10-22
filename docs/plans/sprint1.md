@@ -316,7 +316,9 @@ Grep finds no `InputEventScreenTouch` or `InputEventScreenDrag` outside `scripts
 
 Placeholders: OQ-34, OQ-35, OQ-36.
 
-## S6: Player pawn, third-person camera and the two weapons
+## S6: Player pawn, third-person camera and the two weapons [DONE]
+
+Notes: Built pawn, rules bridge, weapon/loadout/hitscan, camera rig, weapon_range scene, data/loadouts.json, data/camera.json, stats.json movement/aim_assist and tests; all values are placeholders already covered by OQ-06–10, 17–19, 25, 37 (no new OQs).
 
 Goal: an offline test scene where a Hastati or Sagittarii pawn moves, aims, swaps between Pilum BR and
 Gladius Lux, and damages a target dummy through DamageRules.

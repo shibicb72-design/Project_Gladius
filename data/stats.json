@@ -15,6 +15,20 @@
     "shield_regen_rate_per_s": 25.0,
     "overflow_to_health": true
   },
+  "movement": {
+    "_placeholder": true, "_todo": "OQ-17 OQ-18",
+    "base_speed_mps": 5.0,
+    "gravity": 20.0,
+    "accel": 40.0,
+    "jump_enabled": true,
+    "jump_velocity": 7.0
+  },
+  "aim_assist": {
+    "_placeholder": true, "_todo": "OQ-19",
+    "friction": 0.0,
+    "follow": 0.0,
+    "magnetism": 0.0
+  },
   "weapons": {
     "pilum_br": {
       "display_name": "Pilum BR", "_placeholder": true, "_todo": "OQ-06 OQ-07 OQ-11",

@@ -1,0 +1,14 @@
+{
+  "_placeholder": true,
+  "_todo": "OQ-37: placeholder third-person camera, not design values",
+  "arm_length_m": 3.5,
+  "shoulder_offset_m": 0.6,
+  "height_m": 1.6,
+  "pitch_min_deg": -70.0,
+  "pitch_max_deg": 70.0,
+  "fov_table": [
+    {"name": "phone_19_5_9", "min_aspect": 1.6, "fov_deg": 75.0},
+    {"name": "tablet_4_3", "min_aspect": 1.2, "fov_deg": 85.0},
+    {"name": "fold_inner_near_square", "min_aspect": 0.0, "fov_deg": 95.0}
+  ]
+}

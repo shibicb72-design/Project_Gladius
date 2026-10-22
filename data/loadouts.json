@@ -1,0 +1,8 @@
+{
+  "_placeholder": true,
+  "_todo": "OQ-08 OQ-09 OQ-10: placeholder loadouts, not design values. Sidearm slot exists but is empty.",
+  "classes": {
+    "hastati":    {"primary": "pilum_br", "secondary": "gladius_lux", "sidearm": ""},
+    "sagittarii": {"primary": "pilum_br", "secondary": "gladius_lux", "sidearm": ""}
+  }
+}
