@@ -1,5 +1,6 @@
 extends Control
-## Touch HUD: floating move stick (left), look stick or drag with tap-to-fire (right), action buttons.
+## Touch HUD: always-visible move stick (bottom-left, re-centres under the thumb) and look stick (bottom
+## centre-right, drag with tap-to-fire), plus action buttons.
 ## Feeds TouchProvider; buttons press InputMap actions. Layout comes from data/input.json.
 
 const _DataRegistry := preload("res://scripts/systems/data_registry.gd")
@@ -22,6 +23,8 @@ var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> action
 var _buttons: Dictionary = {}  # action -> Control
+var move_stick: StickVisual
+var look_stick: StickVisual
 var _emulation_overridden: bool = false
 var _prev_emulation: bool = true
 
@@ -45,6 +48,14 @@ func _ready() -> void:
 		b.anchor_bottom = anchor[1]
 		add_child(b)
 		_buttons[action] = b
+	for s in ["move_stick", "look_stick"]:
+		var v := StickVisual.new()
+		v.name = s
+		v.ring_alpha = float(_layout.get("ring_alpha", 0.35))
+		v.knob_frac = float(_layout.get("knob_frac_of_radius", 0.4))
+		add_child(v)
+	move_stick = get_node("move_stick")
+	look_stick = get_node("look_stick")
 	resized.connect(relayout)
 	get_viewport().size_changed.connect(relayout)
 	relayout()
@@ -117,7 +128,38 @@ func relayout() -> void:
 		b.offset_bottom = b.offset_top + s
 		b.add_theme_font_size_override("font_size", int(s * float(_layout.get("button_font_frac_of_size", 0.24))))
 		_style_button(b, _button_touch.values().has(action))
-	queue_redraw()
+	_update_sticks()
+
+
+## Rest centre of a stick in HUD space, from data (x of width, y of height).
+func _rest_center(key: String, fallback: Array) -> Vector2:
+	var a: Array = _layout.get(key, fallback)
+	var s := _area()
+	return Vector2(float(a[0]) * s.x, float(a[1]) * s.y)
+
+
+func get_move_rest() -> Vector2:
+	return _rest_center("move_stick_rest", [0.15, 0.76])
+
+
+func get_look_rest() -> Vector2:
+	return _rest_center("look_stick_rest", [0.58, 0.76])
+
+
+## Places both stick rings: look is fixed at rest; move follows the thumb while held and returns to rest on release.
+func _update_sticks() -> void:
+	if move_stick == null:
+		return
+	var r := _radius()
+	var look_c := get_look_rest()
+	look_stick.place(look_c, r)
+	look_stick.set_knob_offset((_look_pos - _look_origin) if _look_touch != -1 else Vector2.ZERO)
+	if _move_touch != -1:
+		move_stick.place(_move_origin, r)
+		move_stick.set_knob_offset(_move_pos - _move_origin)
+	else:
+		move_stick.place(get_move_rest(), r)
+		move_stick.set_knob_offset(Vector2.ZERO)
 
 
 func _anchor_point() -> Vector2:
@@ -203,7 +245,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_move_touch = idx
 		_move_origin = pos
 		_move_pos = pos
-		queue_redraw()
+		_update_sticks()
 	elif _look_touch == -1 and _zone_rect("look_zone").has_point(pos):
 		_look_touch = idx
 		_look_origin = pos
@@ -212,7 +254,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_look_moved = false
 		_look_travel = 0.0
 		provider.clear_look()
-		queue_redraw()
+		_update_sticks()
 
 
 func _on_up(idx: int) -> void:
@@ -225,14 +267,14 @@ func _on_up(idx: int) -> void:
 	elif idx == _move_touch:
 		_move_touch = -1
 		provider.move_value = Vector2.ZERO
-		queue_redraw()
+		_update_sticks()
 	elif idx == _look_touch:
 		if not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
 			Input.action_press("fire")
 			_fire_pulse_s = float(_layout.get("fire_pulse_s", 0.08))
 		_look_touch = -1
 		provider.clear_look()
-		queue_redraw()
+		_update_sticks()
 
 
 func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
@@ -240,7 +282,7 @@ func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 	if idx == _move_touch:
 		_move_pos = pos
 		provider.move_value = _stick(pos, _move_origin, float(dz.get("touch_move", 0.1)))
-		queue_redraw()
+		_update_sticks()
 	elif idx == _look_touch:
 		_look_pos = pos
 		if provider.look_mode == "drag":
@@ -253,23 +295,4 @@ func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 			if v != Vector2.ZERO:
 				_look_moved = true
 			provider.look_value = v
-		queue_redraw()
-
-
-func _draw() -> void:
-	var r := _radius()
-	var alpha := float(_layout.get("ring_alpha", 0.35))
-	var knob_r := r * float(_layout.get("knob_frac_of_radius", 0.4))
-	var ring := Color(1, 1, 1, alpha)
-	var knob := Color(1, 1, 1, minf(1.0, alpha * 2.0))
-	if _move_touch != -1:
-		_draw_stick(_move_origin, _move_pos, r, knob_r, ring, knob)
-	if _look_touch != -1 and provider.look_mode != "drag":
-		_draw_stick(_look_origin, _look_pos, r, knob_r, ring, knob)
-
-
-func _draw_stick(origin: Vector2, pos: Vector2, r: float, knob_r: float, ring: Color, knob: Color) -> void:
-	draw_arc(origin, r, 0.0, TAU, 48, ring, 3.0, true)
-	draw_circle(origin, r, Color(ring.r, ring.g, ring.b, ring.a * 0.3))
-	var off := (pos - origin).limit_length(r)
-	draw_circle(origin + off, knob_r, knob)
+		_update_sticks()

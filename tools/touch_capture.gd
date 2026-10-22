@@ -36,7 +36,9 @@ func _ready() -> void:
 	add_child(layer)
 	_label = Label.new()
 	_label.text = "desktop render, not device - %s" % _tag
-	_label.position = Vector2(12, 8)
+	_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 8)
+	_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_label.add_theme_font_size_override("font_size", 28)
 	_label.add_theme_color_override("font_color", Color(1, 1, 0))
 	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))

@@ -372,6 +372,47 @@ func test_relayout_folded_and_unfolded() -> void:
 	hud.free()
 
 
+func _check_rest_sticks(sz: Vector2) -> void:
+	var hud := _new_hud()
+	hud.size = sz
+	hud.relayout()
+	var view := Rect2(Vector2.ZERO, sz)
+	var sticks := {"move": hud.move_stick, "look": hud.look_stick}
+	var rects: Array = []
+	for name in sticks:
+		var s: Control = sticks[name]
+		assert_true(s != null and s.is_visible_in_tree(), "%s stick visible at rest at %s" % [name, sz])
+		var r := s.get_global_rect()
+		assert_true(r.size.x > 0.0 and r.size.y > 0.0, "%s stick has size at %s" % [name, sz])
+		assert_true(view.encloses(r), "%s stick inside viewport %s, got %s" % [name, sz, r])
+		for action in BUTTON_LABELS:
+			assert_true(not r.intersects(hud.get_button_rect(action)), "%s stick clear of %s at %s" % [name, action, sz])
+		for other in rects:
+			assert_true(not r.intersects(other), "sticks overlap at %s" % sz)
+		rects.append(r)
+	assert_true(hud.move_stick.get_global_rect().get_center().x < hud.look_stick.get_global_rect().get_center().x, "move stick left of look stick at %s" % sz)
+	hud.free()
+
+
+func test_both_sticks_visible_at_rest_folded_2520x1080() -> void:
+	_check_rest_sticks(Vector2(2520, 1080))
+
+
+func test_both_sticks_visible_at_rest_unfolded_2176x1812() -> void:
+	_check_rest_sticks(Vector2(2176, 1812))
+
+
+func test_move_stick_recentres_on_touch_and_returns_to_rest() -> void:
+	var hud := _new_hud()
+	var rest: Vector2 = hud.move_stick.get_global_rect().get_center()
+	var p := Vector2(300, 400)
+	_touch(hud, 0, p, true)
+	assert_true(hud.move_stick.get_global_rect().get_center().is_equal_approx(p), "move stick centred under thumb")
+	_touch(hud, 0, p, false)
+	assert_true(hud.move_stick.get_global_rect().get_center().is_equal_approx(rest), "move stick back at rest")
+	hud.free()
+
+
 func test_mouse_emulation_off_while_hud_active_and_restored() -> void:
 	Input.emulate_mouse_from_touch = true
 	var hud := _new_hud()
