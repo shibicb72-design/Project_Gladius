@@ -224,7 +224,11 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 
 
 func _host_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_headshot: bool) -> void:
-	var res: DamageRules.HitResult = target.receive_hit(weapon_def, is_headshot, attacker.squad_id)
+	var res: DamageRules.HitResult
+	if weapon_def.is_melee() and attacker is Pawn and target.has_method("receive_melee"):
+		res = target.receive_melee(attacker)
+	else:
+		res = target.receive_hit(weapon_def, is_headshot, attacker.squad_id)
 	if res.killed:
 		var killer := _player_id_of(attacker)
 		var victim := _player_id_of(target)

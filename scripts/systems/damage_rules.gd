@@ -34,9 +34,47 @@ static func apply_hit(target_state: HealthState, weapon_def: WeaponDef, is_heads
 	var dmg: float = weapon_def.damage
 	if is_headshot:
 		dmg *= weapon_def.headshot_multiplier
+	_deal(target_state, dmg, r, combat_cfg)
+	return r
+
+
+## Melee per DESIGN.md:15. Back hit: instant kill. Front hit: melee_cfg.melee_front_shield_fraction of the
+## target's FULL (max) shield, or the whole max shield when the attacker's class breaks a full shield in
+## one hit (Gladiator). Goes through the normal shield-then-health path, so a target with no shield left
+## takes that amount on health (PLACEHOLDER, OQ-56). Friendly/protected/dead guards match apply_hit.
+static func apply_melee(target_state: HealthState, attacker_squad: int, target_squad: int,
+		target_protected: bool, from_behind: bool, attacker_breaks_full_shield: bool,
+		melee_cfg: Dictionary, combat_cfg: Dictionary = {}) -> HitResult:
+	var r := HitResult.new()
+	if target_state.is_dead():
+		r.blocked_reason = "dead"
+		return r
+	if attacker_squad == target_squad:
+		r.blocked_reason = "friendly"
+		return r
+	if target_protected:
+		r.blocked_reason = "protected"
+		return r
+	if from_behind:
+		r.damage_dealt = target_state.shield + target_state.health
+		r.shield_damage = target_state.shield
+		r.health_damage = target_state.health
+		r.shield_broken = target_state.shield > 0.0
+		target_state.shield = 0.0
+		target_state.health = 0.0
+		target_state.time_since_damage = 0.0
+		r.killed = true
+		return r
+	var dmg: float = target_state.max_shield * float(melee_cfg.get("melee_front_shield_fraction", 0.7))
+	if attacker_breaks_full_shield:
+		dmg = maxf(dmg, target_state.max_shield)
+	_deal(target_state, dmg, r, combat_cfg)
+	return r
+
+
+static func _deal(target_state: HealthState, dmg: float, r: HitResult, combat_cfg: Dictionary) -> void:
 	r.damage_dealt = dmg
 	target_state.time_since_damage = 0.0
-
 	var had_shield: bool = target_state.shield > 0.0
 	var to_shield: float = minf(dmg, target_state.shield)
 	target_state.shield -= to_shield
@@ -48,7 +86,6 @@ static func apply_hit(target_state: HealthState, weapon_def: WeaponDef, is_heads
 		target_state.health -= to_health
 		r.health_damage = to_health
 	r.killed = target_state.health <= 0.0
-	return r
 
 
 ## Advances the regen timer; shield (not health) refills after the delay.

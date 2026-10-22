@@ -45,6 +45,11 @@ func get_combat_cfg() -> Dictionary:
 	return load_file(STATS_PATH).get("combat", {})
 
 
+## DESIGN.md:15 melee rule numbers (stats.json "melee").
+func get_melee_cfg() -> Dictionary:
+	return load_file(STATS_PATH).get("melee", {})
+
+
 func get_movement_cfg() -> Dictionary:
 	return load_file(STATS_PATH).get("movement", {})
 
@@ -86,6 +91,13 @@ func validate() -> PackedStringArray:
 			problems.append("weapon %s has invalid stat" % id)
 		if w.headshot_multiplier < 1.0:
 			problems.append("weapon %s headshot_multiplier < 1" % id)
+	var melee: Dictionary = data.get("melee", {})
+	var frac: float = float(melee.get("melee_front_shield_fraction", 0.0))
+	if frac <= 0.0 or frac > 1.0:
+		problems.append("melee.melee_front_shield_fraction must be in (0, 1]")
+	var back: float = float(melee.get("melee_back_angle_deg", 0.0))
+	if back <= 0.0 or back >= 180.0:
+		problems.append("melee.melee_back_angle_deg must be in (0, 180)")
 	var combat: Dictionary = data.get("combat", {})
 	for k in ["shield_regen_delay_s", "shield_regen_rate_per_s", "overflow_to_health"]:
 		if not combat.has(k):

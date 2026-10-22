@@ -22,5 +22,11 @@ func take_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) -> 
 			spawn_protected, combat_cfg)
 
 
+func take_melee(attacker_squad: int, from_behind: bool, attacker_breaks_full_shield: bool,
+		melee_cfg: Dictionary) -> DamageRules.HitResult:
+	return DamageRules.apply_melee(state, attacker_squad, squad_id, spawn_protected, from_behind,
+			attacker_breaks_full_shield, melee_cfg, combat_cfg)
+
+
 func tick(delta: float) -> void:
 	DamageRules.tick_regen(state, delta, combat_cfg)

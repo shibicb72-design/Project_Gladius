@@ -27,6 +27,8 @@ var lobby_override: LobbyState
 var seed_override: int = 0
 ## Set when the host connection was lost during the match (tests read it; the real flow leaves the scene).
 var host_lost_handled: bool = false
+## Test hook: when valid, a host drop calls go_scene.call(menu_scene_path) instead of the AppFlow change.
+var go_scene: Callable
 
 var _client_bridge: NetMatchBridge
 var _input_accum_s: float = 0.0
@@ -195,6 +197,9 @@ static func _vec(a: Array) -> Vector3:
 ## OQ-27 placeholder: no 60 s reconnect pause yet; a host drop sends every client back to the menu.
 func _on_host_lost() -> void:
 	host_lost_handled = true
+	if go_scene.is_valid():
+		go_scene.call(AppFlow.MENU_SCENE)
+		return
 	if is_inside_tree() and session_override == null and lobby_override == null:
 		AppFlow.end_session()
 		AppFlow.go(get_tree(), AppFlow.MENU_SCENE)

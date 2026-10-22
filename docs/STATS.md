@@ -6,13 +6,14 @@ Shibi tunes them on the phone.
 
 <!--
 Reasoning for the starter numbers (short):
-- Shield + health is 200 for Hastati (100/100), so Pilum BR does 20 per bullet, 3-round bursts, about
-  30 bullets to empty a Hastati from body hits; headshot x1.5 trims that to about 20. Fire interval
-  0.5 s per burst gives about 120 damage/s at best, roughly a 2 s time-to-kill on body hits.
+- Shield + health is 200 for Hastati (100/100), so Pilum BR does 20 per bullet, 3-round bursts: 10 body hits
+  to empty a Hastati, about 7 with headshots (x1.5 = 30, 200/30 = 6.7). Fire interval 0.5 s per burst:
+  4 bursts = about 1.5 s on body hits (the 4th burst starts 3 x 0.5 s after the first). Derived from
+  data/stats.json by tests/test_stats_doc.gd, which also checks this text.
 - Pilum BR is the all-rounder: mid range 80 m, 1 degree spread, 30 round magazine, 2 s reload.
-- Gladius Lux is an ENERGY BLADE (OQ-07): melee swing, 60 damage per hit, 0.6 s between swings,
-  2.2 m reach, 100 degree arc. Four hits finish a Hastati. No ammo, so magazine, reload and spread
-  are zero/unused. It does not test the head, so its headshot_multiplier is 1.0.
+- Gladius Lux is an ENERGY BLADE (OQ-07): melee swing, 0.6 s between swings, 2.2 m reach, 100 degree
+  arc. Damage follows the DESIGN.md:15 melee rule (OQ-56, see below), not a flat number. No ammo, so
+  magazine, reload and spread are zero/unused. It does not test the head, so its headshot_multiplier is 1.0.
 - Sagittarii rifle: PLACEHOLDER "long-range single-shot" design, NOT a Shibi decision (working name,
   OQ-08/OQ-10). 90 damage, 1.2 s between shots, 200 m, near-zero spread, 5 round magazine, headshot
   x2.0 so a headshot (180) breaks a Sagittarii/Hastati shield and most of the health. Slow fire and a
@@ -38,6 +39,11 @@ Status:
   OQ-08/OQ-10 but its numbers, and the weapon's real name, are not a Shibi decision.
 - Not yet statted (no design numbers, outside milestone 1, OQ-16): Scorpio Rail, Onager Launcher,
   Ignis sticky, Scutum field, grenades. Add them to `data/stats.json` when they are built.
-- The generic melee rules from DESIGN.md (front hit = 70% of full shield, Gladiator breaks a full
-  shield, back hit = instant kill) are a separate class-level melee and are not implemented; the
-  Gladius Lux swing uses plain `damage` through the normal shield-then-health rules.
+- **Melee rule (DECIDED, OQ-56, DESIGN.md:15), implemented for the Gladius Lux swing** with the numbers in
+  `data/stats.json` `melee`: a front hit removes 70% of the target's FULL (max) shield
+  (`melee_front_shield_fraction`); a Gladiator attacker's front hit breaks a full shield in one hit; a hit
+  from behind is an instant kill. Front/back is the angle between the target's facing and the direction
+  target -> attacker; `melee_back_angle_deg` (90) is a PLACEHOLDER. A front hit on a target with no shield
+  left applies the same 70%-of-full-shield amount to health through the normal shield-then-health path:
+  also a PLACEHOLDER, not a Shibi decision. The `damage` key (60) is kept in data but no longer used
+  by this rule.

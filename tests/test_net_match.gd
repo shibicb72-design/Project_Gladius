@@ -115,6 +115,20 @@ func test_e2e_client_join_start_same_pawn_set() -> void:
 	await _teardown(p)
 
 
+func test_e2e_host_drop_runs_client_handler_and_goes_to_menu() -> void:
+	var p: Dictionary = await _start_pair("HD")
+	if p["ok"]:
+		var cm: MatchRoot = p["cm"]
+		var went := {"scene": ""}
+		cm.go_scene = func(path: String) -> void: went["scene"] = path
+		assert_true(not cm.host_lost_handled, "handler not yet run")
+		p["host"].leave()  # closes the loopback host
+		var ok: bool = await _wait_until(func() -> bool: return cm.host_lost_handled, TIMEOUT_S)
+		assert_true(ok, "client session.host_lost ran MatchRoot._on_host_lost")
+		assert_eq(went["scene"], AppFlow.MENU_SCENE, "host drop changes to the menu scene")
+	await _teardown(p)
+
+
 func test_e2e_client_input_moves_pawn_on_host() -> void:
 	var p: Dictionary = await _start_pair("2")
 	if p["ok"]:

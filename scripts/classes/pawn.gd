@@ -87,6 +87,16 @@ func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) 
 	return bridge.take_hit(weapon_def, is_headshot, attacker_squad)
 
 
+## Melee hit from `attacker` (DESIGN.md:15): front/back from this pawn's facing, rule numbers from
+## stats.json "melee". Called by the hit authority instead of receive_hit for melee weapons.
+func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
+	var cfg := registry.get_melee_cfg()
+	var behind := Melee.is_from_behind(global_position, -global_transform.basis.z, attacker.global_position,
+			float(cfg.get("melee_back_angle_deg", 90.0)))
+	var breaks: bool = attacker.class_id in cfg.get("front_breaks_full_shield_classes", [])
+	return bridge.take_melee(attacker.squad_id, behind, breaks, cfg)
+
+
 func get_aim_direction() -> Vector3:
 	return (global_transform.basis * Vector3(0.0, sin(pitch), -cos(pitch))).normalized()
 
@@ -129,7 +139,9 @@ func hitscan_exclude() -> Array[RID]:
 
 
 func _local_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_headshot: bool) -> void:
-	if target.has_method("receive_hit"):
+	if weapon_def.is_melee() and attacker is Pawn and target.has_method("receive_melee"):
+		target.receive_melee(attacker)
+	elif target.has_method("receive_hit"):
 		target.receive_hit(weapon_def, is_headshot, attacker.squad_id)
 
 

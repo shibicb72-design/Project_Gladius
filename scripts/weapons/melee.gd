@@ -17,6 +17,18 @@ static func in_swing(origin: Vector3, forward: Vector3, target_point: Vector3, d
 	return forward.normalized().angle_to(to_target) <= half_arc
 
 
+## DESIGN.md:15 front/back: the angle (flat, XZ) between the TARGET's facing and the direction from the
+## target to the attacker. Beyond `back_angle_deg` (stats.json melee.melee_back_angle_deg, placeholder
+## OQ-56) the hit counts as from behind; exactly at the threshold it is still a front hit.
+static func is_from_behind(target_pos: Vector3, target_forward: Vector3, attacker_pos: Vector3,
+		back_angle_deg: float) -> bool:
+	var facing := Vector3(target_forward.x, 0.0, target_forward.z)
+	var to_attacker := Vector3(attacker_pos.x - target_pos.x, 0.0, attacker_pos.z - target_pos.z)
+	if facing.length() < 0.0001 or to_attacker.length() < 0.0001:
+		return false
+	return rad_to_deg(facing.angle_to(to_attacker)) > back_angle_deg
+
+
 ## Pawns the swing reaches, skipping the attacker, dead pawns and targets behind world geometry
 ## (space may be null in pure tests).
 static func targets(space: PhysicsDirectSpaceState3D, attacker: Pawn, origin: Vector3, forward: Vector3,

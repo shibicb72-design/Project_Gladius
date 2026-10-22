@@ -18,10 +18,13 @@ var status_label: Label
 var start_button: Button
 var class_button: Button
 var is_host: bool = true
+## HudNumbers.roman_enabled() read once in _ready, not on every refresh.
+var roman_numerals: bool = false
 
 
 func _ready() -> void:
 	theme = _Theme
+	roman_numerals = HudNumbers.roman_enabled()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var cfg := DataRegistry.new().load_file("res://data/match.json")
 	var session := AppFlow.ensure_session(get_tree())
@@ -141,7 +144,7 @@ func refresh() -> void:
 		if int(s["squad_id"]) != last_squad:
 			last_squad = int(s["squad_id"])
 			var header := Label.new()
-			header.text = HudNumbers.squad_name(last_squad, HudNumbers.roman_enabled())
+			header.text = HudNumbers.squad_name(last_squad, roman_numerals)
 			rows_box.add_child(header)
 		var row := Button.new()
 		row.alignment = HORIZONTAL_ALIGNMENT_LEFT

@@ -103,11 +103,12 @@ func test_melee_swing_damages_enemy_in_front_only() -> void:
 	front.global_position = attacker.global_position + Vector3(0, 0, -def.melee_range_m * 0.5)
 	behind.global_position = attacker.global_position + Vector3(0, 0, def.melee_range_m * 0.5)
 	mate.global_position = front.global_position
+	front.rotation.y = PI  # faces the attacker (+Z), so the swing is a FRONT hit under DESIGN.md:15
 	var shield_before: float = front.bridge.state.shield
 	var dir := Vector3(0, 0, -1)
 	var hit := attacker.melee_swing(def, attacker.get_muzzle_position(), dir, attacker.hit_authority)
 	assert_eq(hit["targets"].size(), 2, "enemy in front and teammate are reached by the arc")
-	assert_eq(front.bridge.state.shield, shield_before - def.damage, "front enemy lost the blade damage")
+	assert_eq(front.bridge.state.shield, shield_before - front.bridge.state.max_shield * float(DataRegistry.new().get_melee_cfg()["melee_front_shield_fraction"]), "front enemy lost the blade damage")
 	assert_eq(behind.bridge.state.shield, behind.bridge.state.max_shield, "enemy behind untouched")
 	assert_eq(mate.bridge.state.shield, mate.bridge.state.max_shield, "no friendly fire")
 	for p in [attacker, front, behind, mate]:
@@ -124,6 +125,7 @@ func test_fire_shot_with_blade_does_a_melee_swing() -> void:
 	root.add_child(victim)
 	attacker.global_position = Vector3(0, 60, 0)
 	victim.global_position = attacker.global_position + Vector3(0, 0, -1.0)
+	victim.rotation.y = PI  # faces the attacker, so the swing is a FRONT hit
 	attacker.loadout.swap()
 	assert_eq(attacker.loadout.get_active().def.id, "gladius_lux", "blade active")
 	var res := attacker.fire_shot()

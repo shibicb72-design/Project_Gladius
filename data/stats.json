@@ -24,6 +24,15 @@
     "jump_velocity": 7.0,
     "muzzle_height_m": 1.3
   },
+  "melee": {
+    "_todo": "OQ-56 (DECIDED Oct 22 2026: Gladius Lux follows the DESIGN.md:15 melee rule). Only the entries listed in _placeholders are placeholders.",
+    "_placeholders": ["melee_back_angle_deg", "front_hit_no_shield_rule"],
+    "melee_front_shield_fraction": 0.7,
+    "front_breaks_full_shield_classes": ["gladiator"],
+    "melee_back_angle_deg": 90,
+    "_back_angle_note": "PLACEHOLDER (OQ-56): a hit is from behind when the angle between the target's facing and the direction target->attacker is greater than this.",
+    "front_hit_no_shield_rule": "PLACEHOLDER (OQ-56), not a Shibi decision: the 70%-of-full-shield amount is applied to health through the normal shield-then-health path."
+  },
   "aim_assist": {
     "_placeholder": true, "_todo": "OQ-19",
     "friction": 0.0,
@@ -48,7 +57,7 @@
       "burst_count": 1, "burst_interval_s": 0.05,
       "magazine": 0, "reserve_ammo": 0, "reload_s": 0.0,
       "range_m": 2.2, "spread_deg": 0.0,
-      "_note": "Energy blade: no ammo, magazine/reload/spread unused. range_m mirrors melee_range_m. Swings do not test the head, so headshot_multiplier stays 1.0."
+      "_note": "Energy blade: no ammo, magazine/reload/spread unused. damage is no longer used by the front/back melee rule (see top-level melee, DESIGN.md:15); the key stays for the data checks. range_m mirrors melee_range_m. Swings do not test the head, so headshot_multiplier stays 1.0."
     },
     "sagittarii_rifle": {
       "display_name": "Sagittarii Rifle (working name)", "_placeholder": true,
