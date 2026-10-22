@@ -1154,3 +1154,79 @@ VERDICT: ITERATE
 - Gates and every code item (1-3, 5, a-d) pass, and no assertion was weakened beyond the allowed flat-60 change.
 - G0 item 4 is missing: the repo `.claude/settings.json` deny block was never created (finding 1). It needs Shibi to
   create the file or grant the write. Findings 2-5 are minor and can ride along.
+
+## G0b review
+
+Reviewer: Opus (VG0b), Oct 22 2026. Target: commit f0d6725 ("fix: G0b review lows") against
+`cc_gladius/fixG/G0b.txt` a-d, using `fixG/VTEMPLATE.txt`.
+
+INPUTS: tests log/exit code = FOUND (full suite re-run in this review: `run_tests.gd` exit 0, "TESTS: 164 passed,
+0 failed"; `cc_gladius/tests_G0b.log` and `gate_G0b.log` also exist) ; apk = FOUND (`build/gladius-debug.apk`,
+re-exported in this review, exit 0, "Signed", "Verifying APK... DONE") ; shots = FOUND (n=60 in `build/shots/*.png`,
+including folded/unfolded and cover/inner portrait and landscape Fold sizes) ; step commit = FOUND (f0d6725, 8 files,
++127/-14)
+
+Gates run in this review, each as its own command from the repo root: `mkdir -p build`, `--import` exit 0,
+`--export-debug "Android" build/gladius-debug.apk` exit 0, `run_tests.gd` exit 0. No "SCRIPT ERROR", "Parse Error" or
+"ERROR:" lines in any of the three outputs.
+
+### What checks out
+- **a. STATS.md:28** no longer says "60 per swing". The cell now reads "front 70 (Hastati), front 56 (Sagittarii);
+  Gladiator attacker front 100 (Hastati), Gladiator attacker front 80 (Sagittarii); back instant kill". These are
+  0.7 x max shield and the full max shield for the enabled classes in `data/stats.json`.
+  `tests/test_stats_doc.gd:29 _derive_melee` derives them from `DataRegistry` (fraction from `get_melee_cfg()`,
+  classes filtered by `enabled`). `:43` pins the derived values, `:49-62` checks every figure in the doc text with
+  `text.contains`, and `:62` asserts "60 per swing" is gone. The gladius_lux `"damage": 60` key is still in
+  `stats.json:56`, so `MELEE_KEYS` (`test_decisions_oct22.gd:7`) still holds.
+- **b. OQ-56** (`OPEN_QUESTIONS.md:115`) has "(3) PLACEHOLDER: with a Gladiator attacker, a front hit on a target with
+  no shield left takes the full max_shield amount off health. DESIGN.md and STATS.md don't say this and it is not a
+  Shibi decision". The code already did this before G0b (`damage_rules.gd:69-71`, `maxf(dmg, max_shield)` then `_deal`;
+  existing assertion `test_melee_rule.gd:62`), so no code change was needed and none was made.
+  `gladiator_front_hit_no_shield_rule` is added to `stats.json` melee `_placeholders` with a PLACEHOLDER note.
+  `test_melee_rule.gd:65` checks the placeholder marker, the full 80 off health for a Gladiator attacker, and 56 for a
+  non-Gladiator attacker. No other rule was invented.
+- **c. pawn.gd receive_melee** (`:98-112`) has no back-angle fallback. `:100` checks `cfg.has("melee_back_angle_deg")`.
+  If the key is missing it returns a `HitResult` with `blocked_reason = "invalid_melee_cfg"` and no damage, and calls
+  `push_error` (`:107`). `:110` reads `cfg["melee_back_angle_deg"]` directly. The cfg comes from
+  `registry.get_melee_cfg()` (`:99`). The seam (`:22-25`, `melee_cfg_override` = {} and `melee_error_sink` = an
+  invalid Callable by default) is set nowhere in `scripts/`, so runtime behaviour is unchanged.
+  `DataRegistry.validate()` now calls the new static `validate_melee` (`data_registry.gd:94`, `:104-118`), which
+  reports a missing key instead of defaulting it to 0.0. Tests: `test_melee_rule.gd:79` (override without the key:
+  "invalid_melee_cfg", damage 0, shield and health stay 100, one error naming the key) and `:103` (real cfg is clean;
+  in-memory dicts missing the angle or the fraction each report exactly that key; out-of-range angle still reported).
+  `data/stats.json` was not edited for the tests.
+- **d. Assertions:** in `git show f0d6725 -- tests` both test hunks contain only added lines, so no existing assertion
+  was changed, weakened or removed. Added: `test_stats_doc.gd:28-64` (`_derive_melee`, two tests) and
+  `test_melee_rule.gd:65-112` (three tests). The unrelated 90.0 hits (`test_damage_rules.gd:84`,
+  `test_touch_controls.gd:294-295`) and `stats.json` melee `"melee_back_angle_deg": 90` are untouched. The G0b summary
+  (`cc_gladius/out/G0b.json`) correctly says every touched test is "added" and none are changed, and it names each
+  one. See minor finding 1 for the missing line numbers.
+- **.claude/settings.json** is present. Its only key is `permissions.deny`, with 128 entries (counted per line,
+  4-44). `git diff HEAD~1 -- .claude/settings.json` is empty, and the file is not in `git show --stat f0d6725`.
+- **iOS/Android:** the only "Android" strings in `scripts/` are the `"Android", "iOS"` switch arms in
+  `scripts/platform/platform_services.gd:37,53,68` (plus a comment at `:23`). The commit adds no plugin, GDExtension,
+  JavaClassWrapper or singleton.
+- **GODOT API RULE:** the commit relies on `push_error`, `Callable.is_valid`/`call`, `Dictionary.has`/`is_empty`,
+  `PackedStringArray.append_array` and `FileAccess.open`/`get_as_text`. None of them is listed in
+  `docs/engine-reference/godot/deprecated-apis.md`. `breaking-changes.md:91` covers only `FileAccess.store_*` return
+  types, which the commit doesn't use. `deprecated-apis.md:28` (Callable-based connections) is consistent with the
+  Callable sink.
+
+### Minor findings (non-blocking)
+1. The G0b summary lists the touched tests by function name, not by `file:line` as G0b d) asked. The content is
+   accurate (verified above against the diff). Next time, give line numbers.
+2. `damage_rules.gd:68` still has a hard-coded `0.7` fallback for `melee_front_shield_fraction`, and `pawn.gd:111`
+   defaults `front_breaks_full_shield_classes` to `[]`. Both predate G0b and are outside G0 finding 4, which was about
+   the 90.0 back angle. `validate_melee` now reports a missing fraction, but the hit path would still silently use
+   0.7. Suggest the same treatment as the back angle in a later step.
+3. The error-path test goes through `melee_error_sink`, so the `push_error` branch (`pawn.gd:107`) itself is never
+   executed by a test. This was deliberate, to keep the gate free of "ERROR:" lines, and the branch is trivial.
+4. OQ-56 (2) still ends "no special Gladiator case for health", right before (3) describes the Gladiator outcome. They
+   don't contradict each other (the same max-shield amount goes down the same path), but rewording (2) would read
+   more clearly.
+
+VERDICT: APPROVE
+- All gates pass in this review (import, Android export and 164/164 tests, all exit 0, with no error lines), and all
+  inputs are FOUND.
+- G0b a-d are delivered. No assertion was weakened or removed, settings.json is unchanged with 128 deny entries, and
+  no Android-only API is used outside the platform layer. Findings 1-4 are minor.
