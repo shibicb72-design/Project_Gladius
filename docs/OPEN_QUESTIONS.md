@@ -109,3 +109,8 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 ## Placeholder tunables (review L1)
 
 - **OQ-52: Placeholder tunables moved out of scripts (review L1).** Values unchanged, none are design values: `data/stats.json` movement `muzzle_height_m` (1.3); `data/bots.json` brain `eye_height_m` (1.3), `target_height_m` (1.0), `path_desired_distance_m` (1.0), `target_desired_distance_m` (1.0); `data/match.json` `squad_spacing_m` (1.5); `data/input.json` touch_layout `fire_pulse_s` (0.08); `data/ui.json` `end_screen_delay_s` (3.0, presentation timing). The pawn pitch clamp now uses `data/camera.json` `pitch_min_deg`/`pitch_max_deg` (OQ-37) as the single source.
+
+## Menus and lobby (T1c)
+
+- **OQ-54: Menu touch-target height and font size.** Placeholders in `data/ui.json`: `min_touch_target_frac_of_height` (0.09 of viewport height, about 64 dp on the Z Fold 7 per T1) and `font_size_frac_of_height` (0.035). Android guidance is at least 48 dp, T1 asked for about 64 dp. Not design values.
+- **OQ-55: Who may customize bots in the pre-match lobby?** Host only (placeholder), each human for their own squad's bots, or anyone? Current behaviour: only the host, before the match starts, host-authoritative (clients never send bot changes); bot class overrides live in `LobbyState.bot_classes` keyed by slot index. DESIGN.md only says "bot customization".

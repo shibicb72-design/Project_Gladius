@@ -27,6 +27,7 @@ func _ready() -> void:
 	b.text = "Main menu"
 	b.pressed.connect(_on_menu)
 	box.add_child(b)
+	UiScale.bind(self)
 	show_result(result if not result.is_empty() else AppFlow.last_result)
 
 

@@ -44,6 +44,7 @@ func _ready() -> void:
 		later_buttons.append(b)
 	status_label = Label.new()
 	box.add_child(status_label)
+	UiScale.bind(self)
 
 
 func _button(parent: Node, text: String, handler: Callable) -> Button:

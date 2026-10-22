@@ -10,7 +10,9 @@ const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
 var net_lobby: NetLobby
 var state := LobbyState.new()
-var list_label: Label
+var rows_box: VBoxContainer
+## One row button per slot, indexed by player_id (rebuilt in refresh()).
+var slot_buttons: Array[Button] = []
 var ips_label: Label
 var status_label: Label
 var start_button: Button
@@ -32,9 +34,13 @@ func _ready() -> void:
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(box)
-	list_label = Label.new()
-	list_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(list_label)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	rows_box = VBoxContainer.new()
+	rows_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(rows_box)
 	ips_label = Label.new()
 	box.add_child(ips_label)
 	status_label = Label.new()
@@ -62,6 +68,7 @@ func _ready() -> void:
 		status_label.text = "Connected. Waiting for the host to start."
 		net_lobby.submit_local(my_name, "hastati")
 	refresh()
+	UiScale.bind(self)
 
 
 func _profile() -> Dictionary:
@@ -83,19 +90,52 @@ func toggle_class() -> void:
 	if i < 0:
 		return
 	var cur := str(state.humans[i]["class_id"])
-	net_lobby.submit_local(str(state.humans[i]["name"]), CLASSES[(CLASSES.find(cur) + 1) % CLASSES.size()])
+	net_lobby.submit_local(str(state.humans[i]["name"]), _next_class(cur))
+
+
+## Tapping a row: the host cycles a bot's class (OQ-55), anyone cycles their own; other rows do nothing.
+func on_slot_pressed(player_id: int) -> void:
+	var s := _slot(player_id)
+	if s.is_empty():
+		return
+	if bool(s["is_bot"]):
+		if is_host:
+			net_lobby.set_bot_class(player_id, _next_class(str(s["class_id"])))
+	elif int(s["peer_id"]) == net_lobby.local_id():
+		toggle_class()
+
+
+func _slot(player_id: int) -> Dictionary:
+	for s in state.slots:
+		if int(s["player_id"]) == player_id:
+			return s
+	return {}
+
+
+static func _next_class(cur: String) -> String:
+	return CLASSES[(CLASSES.find(cur) + 1) % CLASSES.size()]
 
 
 func refresh() -> void:
 	var slots := state.assign()
-	var lines: Array[String] = []
+	for c in rows_box.get_children():
+		rows_box.remove_child(c)
+		c.queue_free()
+	slot_buttons.clear()
 	var last_squad := -1
 	for s in slots:
 		if int(s["squad_id"]) != last_squad:
 			last_squad = int(s["squad_id"])
-			lines.append("Squad %s" % RomanNumerals.to_roman(last_squad + 1))
-		lines.append("  %s (%s)%s" % [s["name"], s["class_id"], "" if not s["is_bot"] else " [bot]"])
-	list_label.text = "\n".join(lines)
+			var header := Label.new()
+			header.text = "Squad %s" % RomanNumerals.to_roman(last_squad + 1)
+			rows_box.add_child(header)
+		var row := Button.new()
+		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.text = "%s (%s)%s" % [s["name"], s["class_id"], "" if not s["is_bot"] else " [bot]"]
+		row.pressed.connect(on_slot_pressed.bind(int(s["player_id"])))
+		rows_box.add_child(row)
+		slot_buttons.append(row)
+	UiScale.apply_to(self)
 	var i := state.find_human(net_lobby.local_id())
 	class_button.text = "Class: %s" % (str(state.humans[i]["class_id"]) if i >= 0 else "-")
 

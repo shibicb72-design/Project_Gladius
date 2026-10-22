@@ -1,5 +1,7 @@
 {
 	"_placeholder": true,
-	"_todo": "OQ-38 (addendum) OQ-52: presentation timing, not design values",
-	"end_screen_delay_s": 3.0
+	"_todo": "OQ-38 (addendum) OQ-52: presentation timing, not design values. OQ-54: menu touch-target and font fractions are placeholders.",
+	"end_screen_delay_s": 3.0,
+	"min_touch_target_frac_of_height": 0.09,
+	"font_size_frac_of_height": 0.035
 }

@@ -51,6 +51,15 @@ func submit_local(player_name: String, class_id: String) -> void:
 		_request_update.rpc_id(1, player_name, class_id)
 
 
+## Host only (OQ-55 placeholder): sets a bot's class before the match and broadcasts. Clients never call this.
+func set_bot_class(slot: int, class_id: String) -> bool:
+	if not is_host() or not state.set_bot_class(slot, class_id):
+		return false
+	state_changed.emit()
+	_broadcast()
+	return true
+
+
 func start_match() -> bool:
 	if not is_host() or not state.start():
 		return false

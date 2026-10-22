@@ -104,6 +104,64 @@ func test_menus_instantiate() -> void:
 	AppFlow.lobby = null
 
 
+## Hosting lobby scene on an isolated loopback session (the way MainMenu hosts), added to the tree.
+func _host_lobby() -> Lobby:
+	var s := NetSession.new()
+	s.name = "UiTestSession"
+	s.isolated = true
+	_root().add_child(s)
+	AppFlow.session = s
+	s.host_game()
+	var lobby: Lobby = load("res://scenes/ui/lobby.tscn").instantiate()
+	_root().add_child(lobby)
+	return lobby
+
+
+func _end_lobby(lobby: Lobby) -> void:
+	lobby.free()
+	AppFlow.end_session()
+
+
+func test_lobby_bot_row_cycles_class() -> void:
+	var lobby := _host_lobby()
+	assert_true(lobby.is_host, "hosting")
+	assert_eq(lobby.slot_buttons.size(), lobby.state.squad_count * lobby.state.squad_size, "one row per slot")
+	var before := str(lobby.state.assign()[1]["class_id"])
+	lobby.slot_buttons[1].pressed.emit()
+	var after := str(lobby.state.assign()[1]["class_id"])
+	assert_true(after != before and after in Lobby.CLASSES, "bot class changed in state")
+	assert_true(lobby.slot_buttons[1].text.contains(after), "row shows the new class")
+	lobby.slot_buttons[1].pressed.emit()
+	assert_eq(str(lobby.state.assign()[1]["class_id"]), before, "second tap cycles back")
+	# Own row cycles the host's class; the player stays human.
+	var mine := str(lobby.state.humans[0]["class_id"])
+	lobby.slot_buttons[0].pressed.emit()
+	assert_true(str(lobby.state.humans[0]["class_id"]) != mine, "own row cycles own class")
+	_end_lobby(lobby)
+
+
+func test_menu_buttons_meet_touch_target_height() -> void:
+	var frac := float(DataRegistry.new().load_file("res://data/ui.json")["min_touch_target_frac_of_height"])
+	assert_true(frac > 0.0, "touch target fraction present")
+	var lobby := _host_lobby()
+	var menu: MainMenu = load("res://scenes/ui/main_menu.tscn").instantiate()
+	_root().add_child(menu)
+	var end: EndScreen = load("res://scenes/ui/end_screen.tscn").instantiate()
+	_root().add_child(end)
+	for h in [1000.0, 1968.0]:
+		for screen: Control in [lobby, menu, end]:
+			UiScale.apply_to(screen, h)
+			var n := 0
+			for b in screen.find_children("*", "Button", true, false):
+				n += 1
+				assert_true((b as Button).custom_minimum_size.y >= frac * h - 0.001, "%s button height at %d" % [screen.name, int(h)])
+			assert_true(n > 0, "%s has buttons" % screen.name)
+	menu.free()
+	end.free()
+	_end_lobby(lobby)
+	AppFlow.lobby = null
+
+
 func test_touch_hud_hidden_when_not_touch() -> void:
 	var n: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
 	_root().add_child(n)

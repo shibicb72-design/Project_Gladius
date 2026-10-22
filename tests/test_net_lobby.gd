@@ -94,6 +94,39 @@ func test_lobby_rejects_edit_of_other_player() -> void:
 	await _teardown(host, client)
 
 
+func test_bot_class_override_state() -> void:
+	var l := LobbyState.new()
+	l.setup(2, 3)
+	l.add_human(1, "Me")
+	var base := l.assign()
+	assert_true(l.set_bot_class(1, "sagittarii"), "override accepted")
+	var slots := l.assign()
+	assert_eq(slots[1]["class_id"], "sagittarii", "slot 1 overridden")
+	for i in [2, 3, 4, 5]:
+		assert_eq(slots[i]["class_id"], base[i]["class_id"], "rotation default for slot %d" % i)
+	var copy := LobbyState.from_dict(l.to_dict())
+	assert_eq(copy.assign()[1]["class_id"], "sagittarii", "override survives to_dict/from_dict")
+	assert_true(not l.set_bot_class(2, "emperor"), "invalid class refused")
+	assert_true(not l.set_bot_class(0, "sagittarii"), "human slot refused")
+	# A human joining into the overridden slot keeps their own class.
+	l.add_human(7, "Joiner")
+	assert_eq(l.assign()[1]["class_id"], "hastati", "joiner keeps own class")
+	assert_eq(l.assign()[1]["is_bot"], false, "slot now human")
+
+
+func test_bot_override_reaches_client() -> void:
+	var p: Dictionary = await _connect_pair("5")
+	var host: NetSession = p["host"]
+	var client: NetSession = p["client"]
+	var timeout := float(host.cfg["connect_timeout_s"])
+	assert_true(host.lobby.set_bot_class(3, "sagittarii"), "host sets bot class")
+	var ok: bool = await _wait_until(func() -> bool: return client.lobby.state.bot_classes.get(3, "") == "sagittarii", timeout)
+	assert_true(ok, "override reached client")
+	assert_eq(client.lobby.state.assign()[3]["class_id"], "sagittarii", "client assigns override")
+	assert_true(not client.lobby.set_bot_class(4, "sagittarii"), "client cannot change bots")
+	await _teardown(host, client)
+
+
 func test_start_match_delivers_same_lobby_and_seed() -> void:
 	var p: Dictionary = await _connect_pair("4")
 	var host: NetSession = p["host"]

@@ -11,6 +11,10 @@ var started: bool = false
 var humans: Array = []
 ## Result of assign(): {player_id, peer_id, name, class_id, squad_id, slot, is_bot}.
 var slots: Array = []
+## Host-chosen bot classes: slot index (player_id) -> class id. Ignored for slots held by a human (OQ-55).
+var bot_classes: Dictionary = {}
+## Class ids a bot override may take.
+const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
 
 func setup(squads: int, size: int, rotation: Array = [], human_default_class: String = "hastati") -> void:
@@ -42,6 +46,15 @@ func set_class(peer_id: int, class_id: String) -> bool:
 	return true
 
 
+## Host only: overrides the class of the bot in `slot`. Refused for unknown classes, out-of-range
+## slots, slots currently held by a human, and after the match started.
+func set_bot_class(slot: int, class_id: String) -> bool:
+	if started or class_id not in CLASSES or slot < humans.size() or slot >= squad_count * squad_size:
+		return false
+	bot_classes[slot] = class_id
+	return true
+
+
 func find_human(peer_id: int) -> int:
 	for i in humans.size():
 		if int(humans[i]["peer_id"]) == peer_id:
@@ -65,7 +78,7 @@ func assign() -> Array:
 			s["is_bot"] = false
 		else:
 			s["name"] = "Bot %d" % (bot_n + 1)
-			s["class_id"] = str(class_rotation[bot_n % class_rotation.size()])
+			s["class_id"] = str(bot_classes.get(i, class_rotation[bot_n % class_rotation.size()]))
 			bot_n += 1
 		slots.append(s)
 	return slots
@@ -82,7 +95,8 @@ func start() -> bool:
 func to_dict() -> Dictionary:
 	return {"squad_count": squad_count, "squad_size": squad_size, "default_class": default_class,
 			"class_rotation": class_rotation.duplicate(), "started": started,
-			"humans": humans.duplicate(true), "slots": slots.duplicate(true)}
+			"humans": humans.duplicate(true), "slots": slots.duplicate(true),
+			"bot_classes": bot_classes.duplicate()}
 
 
 static func from_dict(d: Dictionary) -> LobbyState:
@@ -92,6 +106,10 @@ static func from_dict(d: Dictionary) -> LobbyState:
 	l.default_class = str(d.get("default_class", "hastati"))
 	l.class_rotation = Array(d.get("class_rotation", [])).duplicate()
 	l.started = bool(d.get("started", false))
+	var bc: Dictionary = d.get("bot_classes", {})
+	for k in bc:
+		if str(bc[k]) in CLASSES:
+			l.bot_classes[int(k)] = str(bc[k])
 	for h in d.get("humans", []):
 		l.humans.append({"peer_id": int(h["peer_id"]), "name": str(h["name"]), "class_id": str(h["class_id"])})
 	for s in d.get("slots", []):
