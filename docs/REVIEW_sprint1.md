@@ -970,3 +970,90 @@ VERDICT: APPROVE
   proven by a test with a fake gyro reading at both provider and router level.
 - Items 2-6 are done, import/export/tests exit 0 (132 passed / 0 failed), and no test was weakened. The remaining Lows
   (OQ-36 wording, the offline class carry-over, the device gyro check) are not blocking.
+
+## E1 review
+
+Scope: E1 `e336bd3` ("feat: Oct 22 decisions (stats, energy blade, scoring, digits)"), checked against
+`fix3c/E1.txt` items 1-10 and ALSO a/b. 28 files, +576/-53. `docs/DESIGN.md`, `project.godot`,
+`export_presets.cfg` and `android/` are not in the commit.
+
+### Verification (run during this review)
+
+- `godot --headless --path . --import`: exit 0, no errors.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, no `ERROR:` lines, APK signed
+  with the shared debug key and verified.
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, **148 passed, 0 failed** (132 before + 16 new
+  in `tests/test_decisions_oct22.gd`). No `SCRIPT ERROR`, `Parse Error` or `ERROR:` lines.
+
+### Checklist
+
+| E1 item | Result | Evidence |
+|---|---|---|
+| 1. OQ-06 starter stats, all weapons, data-driven | yes | `data/stats.json` covers `pilum_br`, `gladius_lux` and `sagittarii_rifle` (damage, fire interval, burst, range, spread, magazine, reserve, reload, headshot_multiplier, plus melee fields for the blade), all `_placeholder: true`. `WeaponDef.from_dict` reads the new melee keys, and no script hard-codes a weapon number. `docs/STATS.md` has the reasoning comment block and marks the Sagittarii design as PLACEHOLDER, NOT a Shibi decision (also in the rifle's `_todo`, which a test asserts). |
+| 2. OQ-07 Gladius Lux energy blade | yes | `kind: "melee"`, `scripts/weapons/melee.gd` (range + arc hit test, world-occlusion ray, same authority Callable as Hitscan), `swing_visual.gd` placeholder sweep. `pawn.fire_shot()` and the host path `net_match_bridge.gd:213-217` both branch to `melee_swing`. `Weapon.has_ammo()` and `start_reload()` mean the blade never consumes ammo or reloads. Pilum BR stays hitscan, burst 3. |
+| 3. OQ-13 per-weapon headshot multiplier, shield = health | yes | Tested for Pilum and rifle on shield-only and health-only states. The weapons carry different multipliers. |
+| 4. OQ-20 independent squads, up to 6 | yes | `test_six_squads_score_independently`. |
+| 5. OQ-21/22 contested = no score, top tie = draw | yes | Contested test with 3 of 6 squads inside, 6-squad tie-at-top test, plus a clear-leader control. |
+| 6. OQ-38 plain digits behind `hud.roman_numerals:false` | yes | `HudNumbers` is the single formatter. HUD, end screen and lobby headers use it. `RomanNumerals` and `test_roman_numerals_1_to_100` are kept. Score 0 renders "0", squads read "Squad 1..6". |
+| 7. OQ-41/27 behaviour | yes | IP field pre-filled from `last_ip` (tested). Host IPs listed via `IP.get_local_addresses()` (`lobby.gd:95`, already there). Late join after `start()` is rejected (tested). A host drop sends a lobby client back (`lobby.gd:75`). New: an in-match client drop goes to the menu (`match_root.gd:108,196-201`). |
+| 8. OQ-42/43/46/47 starting set, OQ-48 open | yes | `traits.json` and `medals.json` status says STARTING SET, still data-driven. OQ-48 stays OPEN in both the data and the docs. |
+| 9. OPEN_QUESTIONS marked DECIDED | yes | OQ-06, 07, 13, 20, 21, 22, 27, 38, 41, 42, 43, 46 and 47 each have a one-line "DECIDED (Shibi, Oct 22 2026)" entry. |
+| 10. Tests | yes | All six requested areas are covered in `tests/test_decisions_oct22.gd`. |
+| ALSO a. OQ-36 covers gyro | yes | `OPEN_QUESTIONS.md:62` now names the `data/input.json` `gyro.sensitivity` placeholder. Closes D2 Low 1. |
+| ALSO b. No hard-coded `hastati` offline | yes | `match.json` `default_class`, then the profile's `last_class`, then the first enabled class (`MatchRoot.offline_class_id`). Disabled or unknown classes are skipped. Tested, including the fallbacks. Closes D1 Low 4 / D2 Low 2. |
+
+### Assertion audit (were any tests weakened?)
+
+Three existing test files changed. None of the changes weakens a check:
+- `test_stats_data.gd::test_weapons`: `gladius_lux` left the gun-key loop (magazine/reload/spread > 0 can't hold for a
+  blade by decision OQ-07), and `sagittarii_rifle` joined it. The blade's keys are now asserted > 0 against
+  `MELEE_KEYS`, with `_placeholder`, in `test_stats_json_loads_every_weapon`. That is net stronger, because every
+  weapon in the file is now checked.
+- `test_weapons.gd`: the fire-interval and reload tests switched their subject from `gladius_lux` to
+  `sagittarii_rifle`, with the same assertions. This is needed because the blade has no magazine.
+- `test_ui.gd`: the expected strings changed from Roman to digits, as OQ-38 directs. The Roman expectations are kept
+  as assertions with `roman_numerals = true`, and zero-score assertions were added.
+
+### CROSS-PLATFORM and iOS rules
+
+No plugin, GDExtension, Android-only API or `OS.get_name()` branch was added. Melee uses core physics queries, and
+the swing visual uses only `MeshInstance3D`/`StandardMaterial3D`/Tween, so it is renderer-agnostic. The host-drop
+path uses the ENet `server_disconnected` signal through `NetSession`. Settings stay in `res://data`, with no file
+paths. Input is still read only through the input layer (`_frame.fire` -> `fire_shot`). The renderer and the
+Android-only `export_presets.cfg` are unchanged.
+
+### Findings
+
+No Critical or Important findings.
+
+#### Medium (non-blocking, docs)
+
+1. **Blade vs the DESIGN.md melee rule is not logged as an open question.** DESIGN.md says "Melee every class: front =
+   70% of full shield; Gladiator front breaks full shield in one hit; from behind = instant kill". The Gladius Lux
+   swing deals flat `damage` (60) from any angle and never tests the head (`headshot_multiplier` 1.0). `docs/STATS.md:41-43`
+   and the `gladius_lux._note` in `stats.json` explain this choice, but `docs/OPEN_QUESTIONS.md` has no entry for
+   it, and the house rule requires undecided points to go there. OQ-16 also still says melee is OUT of milestone 1,
+   which is now stale against OQ-07. Fix: add an OQ ("Does a Gladius Lux swing follow the DESIGN melee rule (70%
+   front / back = instant kill / head)?"), and add a pointer from OQ-16 to OQ-07.
+
+#### Low
+
+1. `docs/STATS.md:9-10` arithmetic: with a 200 total for Hastati and 20 per bullet, a body-hit kill takes **10** bullets
+   (about 7 with headshots), not "about 30" (about 20). The 120 dmg/s and ~1.7 s TTK figures are right. Shibi tunes
+   from this file, so correct it.
+2. `test_lobby_start_blocks_late_joins_and_host_drop_goes_to_menu_handler` calls `_on_host_lost()` directly and only
+   checks the flag. It doesn't prove that `session.host_lost` is connected for clients (`match_root.gd:108`) or that the
+   menu change happens (that branch is skipped under `lobby_override`). Consider a loopback test that closes the host
+   and asserts the handler ran.
+3. `lobby.gd:144` calls `HudNumbers.roman_enabled()` for every squad header on every `refresh()`. It is cached by
+   `DataRegistry`, but it builds a new registry each time. Read it once into a member as `hud.gd` does.
+4. On-device check: the blade's swing feel and the visual on the Fold7 (headless tests can't judge feel or
+   readability).
+
+VERDICT: APPROVE
+- All 10 E1 items and both ALSO items are implemented and tested. Import, export and tests all exit 0 (148 passed / 0
+  failed), and no project errors were printed.
+- No existing assertion was weakened. The three edited test files keep or strengthen their checks, and every change
+  follows a Shibi decision (OQ-07, OQ-38).
+- The iOS and cross-platform rules hold. The Medium item (log the blade-vs-DESIGN melee question, refresh OQ-16) and
+  the Lows are docs/test polish for the next pass, not blockers.
