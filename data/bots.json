@@ -7,7 +7,7 @@
     "centurion": {"_placeholder": true, "accuracy": 0.7,  "reaction_time_s": 0.4,  "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.6, "grenade_freq": 0.0},
     "legatus":   {"_placeholder": true, "accuracy": 0.9,  "reaction_time_s": 0.25, "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.8, "grenade_freq": 0.0}
   },
-  "match_fill": {"_placeholder": true, "_note": "Number of squads comes from match.json squads (OQ-30).", "squad_size": 3, "profile": "tiro"},
+  "match_fill": {"_note": "DECIDED (Shibi, 2026-10-22, OQ-30/31): fill to 2 squads of 3 at Tiro. Number of squads comes from match.json squads.", "squad_size": 3, "profile": "tiro"},
   "class_rotation": ["hastati", "sagittarii"],
   "brain": {
     "_placeholder": true,

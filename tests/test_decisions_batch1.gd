@@ -56,6 +56,43 @@ func test_sagittarii_rifle_data() -> void:
 	assert_eq(int(reg.load_file("res://data/match.json").get("squads", 0)), 2, "2 squads")
 
 
+## Test double: pretends the device has a gyro and reports a fixed rate.
+class FakeGyroPlatform extends PlatformServices:
+	func has_gyro() -> bool:
+		return true
+
+	func get_gyro_rate() -> Vector3:
+		return Vector3(0.5, 0.25, 0.0)
+
+
+func test_gyro_sensor_enabled_in_project() -> void:
+	assert_eq(ProjectSettings.get_setting("input_devices/sensors/enable_gyroscope"), true, "engine gyro sensor on")
+
+
+func test_gyro_sensitivity_from_data() -> void:
+	var cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json")
+	assert_true(cfg.has("gyro") and cfg["gyro"].has("sensitivity"), "gyro.sensitivity in input.json")
+	assert_true(not cfg.has("gyro_mode"), "no dead gyro_mode in input.json")
+	var g := GyroProvider.new()
+	g.configure({"gyro_mode": "on", "sensitivity": 2.5})
+	assert_eq(g.sensitivity, 2.5, "sensitivity applied from config")
+
+
+func test_gyro_off_by_default_ignores_injected_reading() -> void:
+	var p := SaveService.new("user://test_profile_batch1_off.json").load_profile()
+	var g := GyroProvider.new()
+	g.configure({"gyro_mode": SaveService.gyro_mode(p)})
+	g._platform = FakeGyroPlatform.new()
+	assert_eq(g.get_look(), Vector2.ZERO, "off by default: provider returns zero despite fake gyro")
+	var router := InputRouter.new()
+	router.add_provider(g)
+	assert_eq(router.update_frame().look, Vector2.ZERO, "router adds no gyro look while off")
+	# Sanity: the fake reading really would flow if the profile toggle were on.
+	g.configure({"gyro_mode": "on"})
+	assert_eq(g.get_look(), Vector2(0.25, 0.5), "fake reading flows when toggled on")
+	router.free()
+
+
 func test_gyro_default_off_and_toggle_persists() -> void:
 	_remove_tmp()
 	var svc := SaveService.new(_TMP)

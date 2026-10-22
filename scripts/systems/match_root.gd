@@ -44,7 +44,8 @@ func _ready() -> void:
 	router.add_provider(gamepad)
 	var gyro := GyroProvider.new()
 	var profile: Dictionary = AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
-	gyro.configure({"gyro_mode": SaveService.gyro_mode(profile)})
+	var gyro_cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json").get("gyro", {})
+	gyro.configure({"gyro_mode": SaveService.gyro_mode(profile), "sensitivity": gyro_cfg.get("sensitivity", 1.0)})
 	router.add_provider(gyro)
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)

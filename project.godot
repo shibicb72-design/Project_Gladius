@@ -101,6 +101,10 @@ pause={
 ]
 }
 
+[input_devices]
+
+sensors/enable_gyroscope=true
+
 [rendering]
 
 renderer/rendering_method="mobile"

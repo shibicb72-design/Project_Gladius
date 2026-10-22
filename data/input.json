@@ -2,7 +2,12 @@
 	"_placeholder": true,
 	"_todo": "OQ-34, OQ-35, OQ-36: all values below are placeholders, not design values",
 	"invert_y": false,
-	"gyro_mode": "off",
+	"_gyro_note": "Gyro on/off is owned by the player profile (user://profile.json gyro_enabled, default off, OQ-34), not this file.",
+	"gyro": {
+		"_placeholder": true,
+		"_todo": "OQ-34, OQ-36: gyro sensitivity (look units per rad/s) is a placeholder, not a design value",
+		"sensitivity": 1.0
+	},
 	"force_touch_hud": false,
 	"sensitivity": {
 		"_placeholder": true,
