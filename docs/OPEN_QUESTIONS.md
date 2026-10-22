@@ -66,13 +66,15 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-37: Third-person camera offset/distance and FOV per aspect ratio** (including the wider Fold7 inner screen FOV). Placeholder: table in `data/camera.json` (S6).
 - **OQ-38: Which HUD numbers use Roman numerals** (score? timer? ammo?). Placeholder: hill scores in Roman numerals; timer as mm:ss; ammo as Arabic numerals (S10).
 - **OQ-38 (addendum, S10):** a score of 0 has no Roman numeral; placeholder shows `N` (`RomanNumerals.ZERO_TEXT`). Squad names are shown as "Squad I/II" and the end-screen delay (3 s) is a presentation constant; both are undecided.
-- **Wired (F2, review H1; was a TODO, not a design question):** lobby name/class sync, the start RPC, one pawn per lobby slot, the bridge under the NetSession, client input and fire to the host, and the replica on clients are all in. Clients send input at `input_rate_hz`, fire through `send_fire` (local hitscan is presentation only) and apply the host snapshot to every other pawn; their own pawn takes only shield, health and alive from it, and is snapped to the host position on spawn and respawn. Covered by `tests/test_net_match.gd`. Still open: M1/M2 in docs/REVIEW_sprint1.md (host ammo tracking, vertical move checks), the host's own kills do not send `ev_kill`, and quitter handling (OQ-27).
+- **Wired (F2, review H1; was a TODO, not a design question):** lobby name/class sync, the start RPC, one pawn per lobby slot, the bridge under the NetSession, client input and fire to the host, and the replica on clients are all in. Clients send input at `input_rate_hz`, fire through `send_fire` (local hitscan is presentation only) and apply the host snapshot to every other pawn; their own pawn takes only shield, health and alive from it, and is snapped to the host position on spawn and respawn. Covered by `tests/test_net_match.gd`. Still open: the host's own kills do not send `ev_kill`, and quitter handling (OQ-27).
 - **OQ-39: Gamertag entry in milestone 1.** Placeholder: an editable name field on the main menu, saved to `user://profile.json`, default `Player` (S10).
 - **OQ-40: Graphics quality presets and fps for milestone 1.** Placeholder: one preset `default` in `data/graphics_presets.json`, 60 fps cap; the 120 fps option is not exposed (S10).
 
 ## Networking
 
 - **OQ-41: LAN autodiscovery in milestone 1?** The UI flow says "Join (autodiscovery)"; milestone 1 says "hotspot". Placeholder: manual IP entry, pre-filled with the last-used address. The host screen shows its local IPs. No multicast, so `CHANGE_WIFI_MULTICAST_STATE` is not requested (S9).
+- **OQ-50: Maximum lobby display-name length.** Placeholder: 24 characters, `data/net.json` `max_name_length`; the host truncates longer names (F2). Not a design value.
+- **OQ-51: Client input send rate.** Placeholder: 30 Hz, `data/net.json` `input_rate_hz` (the snapshot rate is 15 Hz). Not a design value (F2).
 
 ## Traits and medals (DRAFT proposals from task T1)
 
@@ -96,12 +98,13 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
   banner per bad trait or one banner in total? Draft: TODO, not decided.
 - **OQ-49: Where the 10 Denarii per medal lives.** `medals.json` `denarii_per_medal` or
   `economy.json`. Keep one source of truth. Draft: medals.json, until economy.json exists.
-- **OQ-51: Client input send rate.** Placeholder: 30 Hz, `data/net.json` `input_rate_hz` (the snapshot rate is 15 Hz). Not a design value (F2).
-- **OQ-50: Maximum lobby display-name length.** Placeholder: 24 characters, `data/net.json` `max_name_length`; the host truncates longer names (F2). Not a design value.
 
 ## Technical defaults (not product decisions; listed for visibility)
 
 - **T-01: Network port and tick/sync rates.** Default: port 7777, values in `data/net.json` (S9).
 - **T-02: Android SDK platform / build-tools version installed in CI.** Packages pinned via setup-android input; confirm on the first green run.
 - **T-03: Movement authority.** Milestone 1: clients own their own movement (the host sanity-checks speed and vertical change); the host decides hits, damage, score, respawns and ammo/reload. Placeholders in `data/net.json` `validation`: `move_vertical_tolerance` (1.5) and `max_fall_speed_mps` (60, generous because the pawn has no terminal velocity); upward allowance = (jump_velocity + max_speed * tan(floor_max_angle)) per second. A rejected move keeps the host position and the client is snapped back via a reliable `correct_position` RPC. See ARCHITECTURE.md "Networking" (S9).
-- **OQ-50: Placeholder tunables moved out of scripts (review L1).** Values unchanged, none are design values: `data/stats.json` movement `muzzle_height_m` (1.3); `data/bots.json` brain `eye_height_m` (1.3), `target_height_m` (1.0), `path_desired_distance_m` (1.0), `target_desired_distance_m` (1.0); `data/match.json` `squad_spacing_m` (1.5); `data/input.json` touch_layout `fire_pulse_s` (0.08); `data/ui.json` `end_screen_delay_s` (3.0, presentation timing). The pawn pitch clamp now uses `data/camera.json` `pitch_min_deg`/`pitch_max_deg` (OQ-37) as the single source.
+
+## Placeholder tunables (review L1)
+
+- **OQ-52: Placeholder tunables moved out of scripts (review L1).** Values unchanged, none are design values: `data/stats.json` movement `muzzle_height_m` (1.3); `data/bots.json` brain `eye_height_m` (1.3), `target_height_m` (1.0), `path_desired_distance_m` (1.0), `target_desired_distance_m` (1.0); `data/match.json` `squad_spacing_m` (1.5); `data/input.json` touch_layout `fire_pulse_s` (0.08); `data/ui.json` `end_screen_delay_s` (3.0, presentation timing). The pawn pitch clamp now uses `data/camera.json` `pitch_min_deg`/`pitch_max_deg` (OQ-37) as the single source.

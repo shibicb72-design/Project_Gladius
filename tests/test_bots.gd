@@ -9,18 +9,18 @@ func _cfg() -> Dictionary:
 
 
 func test_fill_counts_from_data() -> void:
-	var plan := BotSpawner.plan_fill({0: 1}, _cfg())
+	var plan := BotSpawner.plan_fill({0: 1}, _cfg(), 2)
 	assert_eq(plan.size(), 5, "1 human -> 5 bots for 2x3")
 	var per_squad := {0: 0, 1: 0}
 	for e in plan:
 		per_squad[e["squad"]] += 1
 	assert_eq(per_squad[0], 2, "squad 0 bots")
 	assert_eq(per_squad[1], 3, "squad 1 bots")
-	assert_eq(BotSpawner.plan_fill({0: 3, 1: 3}, _cfg()).size(), 0, "full squads need no bots")
+	assert_eq(BotSpawner.plan_fill({0: 3, 1: 3}, _cfg(), 2).size(), 0, "full squads need no bots")
 
 
 func test_bots_alternate_classes() -> void:
-	var plan := BotSpawner.plan_fill({0: 1}, _cfg())
+	var plan := BotSpawner.plan_fill({0: 1}, _cfg(), 2)
 	var rotation: Array = _cfg()["class_rotation"]
 	for i in plan.size():
 		assert_eq(plan[i]["class_id"], rotation[i % rotation.size()], "class of bot %d" % i)

@@ -104,7 +104,7 @@ func begin() -> bool:
 		add_child(local_player)
 		director.add_player(0, local_player)
 		if fill_bots:
-			bots = BotSpawner.spawn_bots(self, director, {0: 1}, center, radius)
+			bots = BotSpawner.spawn_bots(self, director, {0: 1}, squads.size(), center, radius)
 	if local_player != null:
 		hud.bind(director, local_player)
 		var rig := _RigScene.instantiate()

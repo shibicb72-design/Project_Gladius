@@ -149,7 +149,7 @@ func test_squad_count_single_source() -> void:
 	assert_true(not reg.load_file("res://data/match.json").has("offline_squads"), "offline_squads removed")
 	assert_true(not reg.load_file("res://data/bots.json")["match_fill"].has("squads"), "bots.json has no squads")
 	var seen := {}
-	for e in BotSpawner.plan_fill({}, reg.load_file("res://data/bots.json")):
+	for e in BotSpawner.plan_fill({}, reg.load_file("res://data/bots.json"), squads):
 		seen[e["squad"]] = true
 	assert_eq(seen.size(), squads, "bot fill covers exactly match.json squads")
 	var src := FileAccess.get_file_as_string("res://scripts/ui/lobby.gd")

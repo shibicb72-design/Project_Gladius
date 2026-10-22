@@ -9,12 +9,11 @@ const _BrainScript := preload("res://scripts/systems/bot_brain.gd")
 
 ## humans_per_squad: squad id -> human count. Returns [{squad, class_id}] for each bot to add.
 ## Classes rotate through class_rotation across the whole fill.
-static func plan_fill(humans_per_squad: Dictionary, cfg: Dictionary) -> Array:
+static func plan_fill(humans_per_squad: Dictionary, cfg: Dictionary, squad_count: int) -> Array:
 	var fill: Dictionary = cfg.get("match_fill", {})
 	var rotation: Array = cfg.get("class_rotation", ["hastati"])
 	var plan: Array = []
-	var squads := int(DataRegistry.new().load_file("res://data/match.json").get("squads", 0))
-	for squad in squads:
+	for squad in squad_count:
 		var missing := int(fill.get("squad_size", 0)) - int(humans_per_squad.get(squad, 0))
 		for i in maxi(missing, 0):
 			plan.append({"squad": squad, "class_id": str(rotation[plan.size() % rotation.size()])})
@@ -34,11 +33,11 @@ static func attach_brain(pawn: Pawn, director: MatchDirector, hill_center: Vecto
 ## Adds bot pawns (and brains) under `parent`, registers them with the director.
 ## Player ids start at first_id. Returns the pawns.
 static func spawn_bots(parent: Node, director: MatchDirector, humans_per_squad: Dictionary,
-		hill_center: Vector3, hill_radius: float, first_id: int = 100) -> Array[Pawn]:
+		squad_count: int, hill_center: Vector3, hill_radius: float, first_id: int = 100) -> Array[Pawn]:
 	var cfg := DataRegistry.new().load_file(BOTS_PATH)
 	var profile: Dictionary = cfg.get("profiles", {}).get(cfg.get("match_fill", {}).get("profile", "tiro"), {})
 	var pawns: Array[Pawn] = []
-	for entry in plan_fill(humans_per_squad, cfg):
+	for entry in plan_fill(humans_per_squad, cfg, squad_count):
 		var pawn: Pawn = _PawnScene.instantiate()
 		pawn.class_id = entry["class_id"]
 		pawn.squad_id = entry["squad"]

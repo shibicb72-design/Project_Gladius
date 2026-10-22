@@ -7,5 +7,5 @@
 	"max_humans": 6,
 	"squads": 2,
 	"squad_spacing_m": 1.5,
-	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15). TODO: squads (the only source for the number of squads: lobby, match, bot fill; local player is squad 0) is a placeholder matching OQ-30, not a design value. TODO: squad_spacing_m (side-by-side spawn spacing of squad mates) is a placeholder (OQ-50)."
+	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15). TODO: squads (the only source for the number of squads: lobby, match, bot fill; local player is squad 0) is a placeholder matching OQ-30, not a design value. TODO: squad_spacing_m (side-by-side spawn spacing of squad mates) is a placeholder (OQ-52)."
 }
