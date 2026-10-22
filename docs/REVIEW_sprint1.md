@@ -373,3 +373,142 @@ docs/DESIGN.md. This review changed no code, data or tests.
 Every concern still open is Low, so this re-review approves.
 
 VERDICT: APPROVE
+
+## Touch review
+
+Scope: `git log --oneline aaded41..HEAD` (3 commits). Part 1 (T1) is `c7f94fc` "feat: touch move/look sticks, look rate cap,
+no stray touch fire". Part 2 (T1b) is `91a974c` "feat: touch buttons, canvas scaling, foldable relayout". Part 3 (T1c) is `b4ef0b2`
+"feat: touch-sized menus, lobby bot class choice". No part is missing. Checked against the task files
+C:\Users\shibi\cc_gladius\fix3\T1.txt, T1b.txt and T1c.txt, and against docs/DESIGN.md. This review changed no code, data or tests.
+
+### Verification (run during this review)
+
+| Step | Result |
+|---|---|
+| `mkdir -p build` | exit 0 |
+| `godot --headless --path . --import` | exit 0, no ERROR / SCRIPT ERROR / Parse Error lines |
+| `godot --headless --path . --export-debug "Android" build/gladius-debug.apk` | exit 0, "Signed" with the shared debug key, APK verified, `build/gladius-debug.apk` found by Glob, no ERROR lines |
+| `godot --headless --path . --script res://tests/run_tests.gd` | exit 0, `TESTS: 106 passed, 0 failed` (was 89; 17 new tests) |
+
+`godot` was not on the Bash PATH, so each command ran as `godot.cmd` with the same arguments. This session cannot delete
+files, so an older APK was already in build/. The export log shows a fresh sign and verify, and the orchestrator's own
+gate deletes the APK first. Headless tests cannot prove feel or on-device behaviour (see the Fold 7 checklist below).
+
+### T1 (part 1): move stick, look, stray fire
+
+| Item | Status | Where | Covering test |
+|---|---|---|---|
+| 1 Look units, rate cap | done | `scripts/input/look_math.gd:16-37`. `gamepad_provider.gd:22-28` and `touch_provider.gd:41-51` both use it. Placeholders are in `data/input.json:21-28` with `_placeholder`. Sensitivity, dead zone and invert_y still apply. `match_root.gd:42-44` now configures the gamepad. The pitch clamp stays only in pawn.gd. | `test_touch_controls.gd:106` `test_look_is_capped_in_both_modes`, `:137` `test_gamepad_obeys_cap` |
+| 2 Right-side look, stick (default) or drag | done | `data/input.json:24` sets `"mode": "stick"`. Drag accumulates in `touch_provider.gd:27-35` and is consumed in `get_look`. Viewport-height scaling is in `look_math.gd:34-38`. Tap-to-fire works in both modes (`touch_hud.gd:229-232`). Each finger is tracked by index, and a touch that starts on a button never starts move or look (`touch_hud.gd:196-216`). | `:119` `test_small_drag_is_small_and_directional`, `:152` `test_tap_in_look_zone_pulses_fire`, `:163` `test_look_drag_is_not_a_tap` |
+| 3 Floating move stick, drawn | done | Origin is where the finger lands (`touch_hud.gd:202-206`). Radius is a fraction of height (`:172-182`). `_draw` is at `:259-275`. The move zone is now the full-height left half (`data/input.json` `move_zone` top 0.0, was 0.4; placeholder OQ-35). | `:65` `test_move_stick_forward_and_release` |
+| 4 No stray fire | done | Emulation goes off when the HUD shows and is restored in `_exit_tree` (`touch_hud.gd:54-83`). The switch lives in `scripts/platform/platform_services.gd:16-19`. The project setting is unchanged. | `:248` `test_mouse_emulation_off_while_hud_active_and_restored`, `:172` `test_move_touch_never_fires_or_aims` |
+| 5 Behind InputProvider/Router | done | Only `touch_hud.gd:187,192` read ScreenTouch/ScreenDrag. `keyboard_mouse_provider.gd` is untouched. | the existing `test_input.gd` tests pass |
+| 6 OQ-53, numbers in data | done | `docs/OPEN_QUESTIONS.md:63`. There are no `# TUNE` comments. | docs, no test |
+| (a) Move forward/release + match e2e | done as T1 wrote it | `test_touch_controls.gd:65` covers the unit case. `:80` `test_move_stick_in_match_moves_pawn` covers the match, but offline only: it calls `_input` directly and gives the HUD a fixed size. | see T-MOVE below |
+| (b) Cap in both modes + gamepad | done | | `:106`, `:119`, `:137` |
+| (c) Tap fires/releases; move never fires/aims; emulation restored | done | | `:152`, `:172`, `:248` |
+
+**Root cause of "could not walk": partly given.** The commit message has no cause. The part-1 session summary
+(cc_gladius\out\T1.json) says the failure "couldn't be reproduced headless" and lists likely contributors: the stick was
+invisible, the old move zone ignored the top 40% of the screen, and the emulated left click held "fire". It suggests the
+touch coordinate space on the device as the next thing to check. That is allowed by T1:7, but no cause is confirmed.
+
+### T1b (part 2): buttons, scaling, foldable
+
+| Item | Status | Where | Covering test |
+|---|---|---|---|
+| 1 canvas_items / expand | done | `project.godot:13-14`. The renderer is unchanged. | the full suite passes |
+| 2 Five round, labelled buttons | done | `data/input.json:40-52` (`_placeholder_buttons`, OQ-35). Buttons are anchored right with grid cells (`touch_hud.gd:109-163`). They are round (corner radius = size/2), use mouse_filter IGNORE and focus NONE, and each touch index is tracked in `_button_touch`. There is no sprint or pause button. | `:186`, `:199`, `:213` |
+| 3 Detection in platform layer | done | `touch_hud.gd:63-65` → `platform_services.gd:6-12` | `test_ui.gd` `test_touch_hud_hidden_when_not_touch` |
+| 4 Foldable relayout | done | `touch_hud.gd:48-49` connects `resized` and `size_changed` to `relayout()` (`:109-121`). Zones and stick radius are worked out from `_area()` each time. No device sizes are in scripts. | `:228` `test_relayout_folded_and_unfolded` (calls `relayout()` directly; the signal wiring is not tested) |
+| 5 Gyro unchanged, no Settings | done | The diff does not touch the gyro provider, `main_menu.gd` Settings entries or DESIGN.md. | none |
+| 6 Numbers in data | done | `data/input.json:30-45` | none |
+| (c) Each button + multitouch | done | | `:186` `test_each_button_presses_and_releases_its_action`, `:199` `test_fire_button_works_with_move_finger_held` |
+| (d) Visible, five labels, no sprint | done | | `:213` |
+| (f) 2316x1000 and 2184x1968 | done | | `:228` |
+
+### T1c (part 3): lobby and menus
+
+| Item | Status | Where | Covering test |
+|---|---|---|---|
+| 1 Touch-sized menus | done | `scripts/ui/ui_scale.gd:8-40` sets the minimum Button height and theme font size from `data/ui.json` (placeholders, OQ-54). It is bound in `main_menu.gd:47`, `end_screen.gd:30` and `lobby.gd:71`, and re-applied in `refresh()`. Containers only. | `test_ui.gd` `test_menu_buttons_meet_touch_target_height` |
+| 2 Bot class choice | done | Overrides are in `lobby_state.gd:15-18,51-55`. They apply only to bot slots (`:81`) and are serialized (`:99,109-112`). Unknown classes, human slots and started matches are refused. The host-only path is `net_lobby.gd:55-60` (it uses `_broadcast`). Lobby rows are in `lobby.gd:97-141`. The match reads `class_id` from `assign()` (`match_roster.gd:41`). | `test_net_lobby.gd` `test_bot_class_override_state`, `test_bot_override_reaches_client`; `test_ui.gd` `test_lobby_bot_row_cycles_class` |
+| 3 OQ-54, OQ-55 | done | `docs/OPEN_QUESTIONS.md:115-116` | docs |
+| (e) LobbyState + UI row + client sync | done | The client-sync check was also done over loopback. | as above |
+| (g) Heights at 1000 and 1968 | done | The test passes the height to `apply_to` directly. The resize-signal path and font size are not tested. | `test_menu_buttons_meet_touch_target_height` |
+
+### DESIGN.md and rules
+
+- **No sprint (DESIGN.md:15): OK.** There is no sprint action in project.godot, data, scenes or scripts, and the test asserts it.
+- **Right-side aim stick, tap-to-fire, default (DESIGN.md:31): OK.** `look.mode` is `"stick"`, and tap-to-fire works in both modes.
+  Drag is an opt-in placeholder (OQ-53).
+- **No Settings screen or gyro behaviour (OQ-34): OK.** Neither changed.
+- **Numbers marked as placeholders: OK.** The `look` block has `"_placeholder": true`. `touch_layout` has `"_placeholder": true` and `"_placeholder_buttons": true`.
+  `data/ui.json` has `"_placeholder": true` and cites OQ-54. OQ-53 (`:63`), OQ-54 (`:115`) and OQ-55 (`:116`) exist.
+- **Screen events only in the HUD, platform checks in scripts/platform/: OK.** `OS.get_name`, `is_touchscreen_available`
+  and `emulate_mouse_from_touch` appear only in `platform_services.gd`. Keyboard/mouse is unchanged. The gamepad now goes
+  through the same rate cap. All input, router and match tests pass.
+- **emulate_mouse_from_touch restored when the match ends: OK.** When the match scene is freed (`AppFlow.go` to the end
+  screen, `match_root.gd:174`), `TouchHud._exit_tree` runs and restores the previous value (`touch_hud.gd:54-55,79-82`).
+  Tested at `test_touch_controls.gd:248`.
+- DESIGN.md is unchanged in this range.
+
+### Findings
+
+#### High
+
+- **T-MOVE: the required device-path walking test is missing.** No test sends touch events through
+  `Input.parse_input_event` (a grep for `parse_input_event` finds nothing in the repo).
+  `test_move_stick_in_match_moves_pawn` (`tests/test_touch_controls.gd:80-103`) has three gaps:
+  - it runs offline only;
+  - it calls `hud._input()` directly;
+  - it forces `hud.size = 1152x648` with a top-left preset, so it bypasses viewport event dispatch, the canvas_items
+    stretch transform and the HUD's real full-rect sizing.
+
+  Those are exactly the paths that could explain the unconfirmed "could not walk". On the Fold, a match is started from
+  the lobby as host (networked `match_root.gd:89-100`), and that path has no touch-move test at all.
+
+  Fix: add two integration tests, one offline and one as host with a lobby (an isolated `NetSession.host_game()` plus
+  `AppFlow.lobby`/`lobby_override`, as `test_match_roster.gd` does). Each test instantiates `scenes/match/match.tscn` and
+  forces the touch HUD on. Set the root window size instead of the HUD size: the headless root is 64x64, so use
+  `get_tree().root.size = Vector2i(1152, 648)` or a content-scale size. Then send `InputEventScreenTouch` and
+  `InputEventScreenDrag` with `Input.parse_input_event` in the left move zone, call `Input.flush_buffered_events()` and
+  await process and physics frames. Finally, assert that `local_player.global_position` changed horizontally.
+  (T1 told the engineer not to use `parse_input_event`, so this gap comes from the brief, not from the implementation.)
+
+#### Medium
+
+- **Tap-to-fire and the Fire button share one action** (`touch_hud.gd:88-91`, `:219-224` and `:229-232`). Say one finger holds
+  Fire and another taps the look zone: 0.08 s later the pulse calls `Input.action_release("fire")` while the Fire button
+  is still held, and firing stops. The reverse also happens: releasing the Fire finger during a pulse cuts the pulse
+  short. Fix: release "fire" only when neither the pulse nor any button finger holds it. Add a multitouch test for this.
+- **Root cause for walking not confirmed** (see T1 above). Close it with T-MOVE and the Fold 7 check below.
+
+#### Low
+
+- `ui_scale.gd:25-27` duplicates the theme on every call, and `lobby.gd` `refresh()` calls `apply_to` on every lobby
+  state change. Each call also reloads `data/ui.json` from disk. This is harmless at current sizes, but the theme copies pile up.
+- `look_math.gd:7-9` and the `get(..., default)` fallbacks in `touch_hud.gd` repeat the placeholder numbers in scripts.
+  data/input.json is still the source; the fallbacks only apply if a key is missing.
+- `UiScale.bind` and `TouchHud` resize wiring are untested. The tests call `apply_to(h)` and `relayout()` directly.
+
+### Shibi to check on the Galaxy Z Fold 7 (folded cover screen and unfolded inner screen)
+
+1. **Sticks visible:** a ring and knob appear under the left thumb wherever it lands on the left half, and under the
+   right thumb in stick mode. They disappear on release.
+2. **Walking:** drag the left thumb up, down, left and right. The gladiator walks forward, back and strafes, both offline
+   (if reachable) and in a hosted lobby match. Repeat after folding or unfolding mid-match.
+3. **Look speed:** a full right-stick push turns smoothly, with no spinning: about 180°/s, capped at 360°/s (placeholders).
+   Small pushes give fine aim. Report whether it is too slow or too fast (OQ-36, OQ-53).
+4. **Button sizes:** Fire, Aim, Reload, Swap and Jump are round, read as full words, sit bottom-right, do not overlap, and
+   are easy to hit on both screens. Menu and lobby buttons are thumb-sized and their text is readable.
+5. **Tap-to-fire:** a quick tap on the right half fires one shot. Holding the left stick never fires or aims. Holding
+   Fire while tapping the look area currently stops firing (the Medium finding above).
+6. **Lobby bot classes:** as host, tap a bot row to cycle Hastati ⇄ Sagittarii. The row updates, a joined phone sees the
+   change, and the bots spawn with those classes. Tapping your own row changes your class.
+7. Back in the menus after a match, taps still work (touch-to-mouse emulation restored).
+
+The acceptance test T-MOVE is missing, so this review iterates. Everything else in T1, T1b and T1c is done, the suite
+passes 106/0, and DESIGN.md is not contradicted.
+
+VERDICT: ITERATE
