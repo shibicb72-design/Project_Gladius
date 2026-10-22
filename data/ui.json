@@ -2,6 +2,10 @@
 	"_placeholder": true,
 	"_todo": "OQ-38 (addendum) OQ-52: presentation timing, not design values. OQ-54: menu touch-target and font fractions are placeholders; min_touch_target_dp is the Android 48 dp guideline floor, applied on top of the height fraction.",
 	"end_screen_delay_s": 3.0,
+	"hud": {
+		"_note": "OQ-38 DECIDED (Shibi, Oct 22 2026): no Roman numerals for now. Flip roman_numerals to true to bring them back (RomanNumerals code and tests are kept).",
+		"roman_numerals": false
+	},
 	"min_touch_target_frac_of_height": 0.09,
 	"min_touch_target_dp": 48.0,
 	"font_size_frac_of_height": 0.035,

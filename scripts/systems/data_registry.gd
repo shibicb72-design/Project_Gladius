@@ -77,7 +77,12 @@ func validate() -> PackedStringArray:
 	var weapons: Dictionary = data.get("weapons", {})
 	for id in weapons:
 		var w := WeaponDef.from_dict(id, weapons[id])
-		if w.damage <= 0.0 or w.fire_interval_s <= 0.0 or w.magazine <= 0 or w.burst_count <= 0:
+		if w.damage <= 0.0 or w.fire_interval_s <= 0.0 or w.burst_count <= 0:
+			problems.append("weapon %s has invalid stat" % id)
+		if w.is_melee():
+			if w.melee_range_m <= 0.0 or w.melee_arc_deg <= 0.0 or w.melee_arc_deg > 360.0:
+				problems.append("melee weapon %s needs melee_range_m > 0 and 0 < melee_arc_deg <= 360" % id)
+		elif w.magazine <= 0:
 			problems.append("weapon %s has invalid stat" % id)
 		if w.headshot_multiplier < 1.0:
 			problems.append("weapon %s headshot_multiplier < 1" % id)

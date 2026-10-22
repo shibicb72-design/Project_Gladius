@@ -1,7 +1,7 @@
 {
-  "status": "DRAFT - awaiting Shibi approval",
+  "status": "STARTING SET - approved by Shibi Oct 22 2026 (OQ-42, OQ-43, OQ-46); trait display OQ-48 still OPEN",
   "version": 1,
-  "_note": "DRAFT proposal (task T1); every name, rule and number here is a proposal, not a design value. Mirrors docs/design/traits.md. Do NOT wire into gameplay, UI or the economy until Shibi approves (OQ-42).",
+  "_note": "Starting set (was the T1 draft); stays data-driven, names and numbers remain tunable. Mirrors docs/design/traits.md. Not yet wired into gameplay, UI or the economy.",
   "counted_matches": {
     "_todo": "OQ-44",
     "modes": ["koth"],

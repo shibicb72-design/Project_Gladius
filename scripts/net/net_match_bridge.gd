@@ -205,13 +205,17 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 	w.update(_clock, false)
 	if w.reloading:
 		return {"ok": false, "reason": "reloading"}
-	if w.ammo_in_mag <= 0:
+	if not w.has_ammo():
 		return {"ok": false, "reason": "empty"}
 	var v := validator.validate_fire(pid, weapon_id, w.def, _clock, origin, pawn.get_muzzle_position(), direction)
 	if not v["ok"]:
 		return v
-	w.ammo_in_mag -= 1
 	pawn.fired.emit()  # ends spawn protection through MatchDirector, same as a local shot
+	if w.def.is_melee():
+		# Energy blade (OQ-07): no ammo; the host runs the swing on its own pawn states.
+		v["hit"] = pawn.melee_swing(w.def, origin, direction, Callable(self, "_host_authority"))
+		return v
+	w.ammo_in_mag -= 1
 	var hit := Hitscan.fire(pawn.get_world_3d().direct_space_state, pawn, origin, direction, w.def,
 			pawn.hitscan_exclude(),
 			Callable(self, "_host_authority"), _rng)

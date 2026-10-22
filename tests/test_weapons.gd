@@ -10,8 +10,9 @@ func _weapon(id: String) -> Weapon:
 	return _Weapon.new(_Registry.new().get_weapon_def(id))
 
 
+# Gladius Lux is an energy blade now (OQ-07, no ammo), so the gun-timing tests use the single-shot rifle.
 func test_fire_interval_respected() -> void:
-	var w := _weapon("gladius_lux")
+	var w := _weapon("sagittarii_rifle")
 	var interval: float = w.def.fire_interval_s
 	assert_eq(w.update(0.0, true), 1, "first shot")
 	assert_eq(w.update(interval * 0.5, true), 0, "too early")
@@ -32,7 +33,7 @@ func test_burst_fires_burst_count() -> void:
 
 
 func test_reload_refills_from_reserve() -> void:
-	var w := _weapon("gladius_lux")
+	var w := _weapon("sagittarii_rifle")
 	w.update(0.0, true)
 	var reserve_before := w.reserve
 	assert_true(w.start_reload(1.0), "reload started")

@@ -17,6 +17,14 @@ var reload_s: float = 1.0
 var range_m: float = 50.0
 var spread_deg: float = 0.0
 var is_placeholder: bool = false
+## Melee only (kind "melee"): swing reach, full arc in degrees and the visual swing time.
+var melee_range_m: float = 0.0
+var melee_arc_deg: float = 0.0
+var swing_duration_s: float = 0.2
+
+
+func is_melee() -> bool:
+	return kind == "melee"
 
 
 static func from_dict(weapon_id: String, d: Dictionary) -> WeaponDef:
@@ -36,4 +44,7 @@ static func from_dict(weapon_id: String, d: Dictionary) -> WeaponDef:
 	w.range_m = float(d.get("range_m", 50))
 	w.spread_deg = float(d.get("spread_deg", 0))
 	w.is_placeholder = bool(d.get("_placeholder", false))
+	w.melee_range_m = float(d.get("melee_range_m", 0))
+	w.melee_arc_deg = float(d.get("melee_arc_deg", 0))
+	w.swing_duration_s = float(d.get("swing_duration_s", 0.2))
 	return w

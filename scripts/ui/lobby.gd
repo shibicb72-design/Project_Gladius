@@ -141,7 +141,7 @@ func refresh() -> void:
 		if int(s["squad_id"]) != last_squad:
 			last_squad = int(s["squad_id"])
 			var header := Label.new()
-			header.text = "Squad %s" % RomanNumerals.to_roman(last_squad + 1)
+			header.text = HudNumbers.squad_name(last_squad, HudNumbers.roman_enabled())
 			rows_box.add_child(header)
 		var row := Button.new()
 		row.alignment = HORIZONTAL_ALIGNMENT_LEFT

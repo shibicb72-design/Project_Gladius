@@ -6,6 +6,8 @@ const _Theme := preload("res://scenes/ui/theme.tres")
 
 var director: MatchDirector
 var pawn: Pawn
+## data/ui.json hud.roman_numerals (OQ-38); tests may override.
+var roman_numerals: bool = HudNumbers.roman_enabled()
 
 var stats: VBoxContainer
 var shield_bar: ProgressBar
@@ -105,7 +107,7 @@ func _on_score_changed(scores: Dictionary) -> void:
 	var keys := scores.keys()
 	keys.sort()
 	for squad in keys:
-		parts.append("%s: %s" % [_squad_name(int(squad)), RomanNumerals.to_roman(int(scores[squad]))])
+		parts.append("%s: %s" % [_squad_name(int(squad)), HudNumbers.number(int(scores[squad]), roman_numerals)])
 	scores_label.text = "   ".join(parts)
 
 
@@ -130,7 +132,7 @@ func refresh_pawn() -> void:
 	var w: Weapon = pawn.loadout.get_active() if pawn.loadout != null else null
 	if w != null:
 		weapon_label.text = w.def.display_name
-		ammo_label.text = "%d / %d" % [w.ammo_in_mag, w.reserve]
+		ammo_label.text = "-" if w.def.is_melee() else "%d / %d" % [w.ammo_in_mag, w.reserve]
 	var waiting := not pawn.is_alive()
 	respawn_label.visible = waiting
 	if waiting and director != null and director.spawn_rules != null:
@@ -160,4 +162,4 @@ func _hill_text() -> String:
 
 
 func _squad_name(squad: int) -> String:
-	return "Squad %s" % RomanNumerals.to_roman(squad + 1)
+	return HudNumbers.squad_name(squad, roman_numerals)

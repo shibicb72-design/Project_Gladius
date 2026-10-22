@@ -34,6 +34,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	add_to_group("pawns")
 	setup(class_id, squad_id)
 
 
@@ -94,15 +95,28 @@ func get_muzzle_position() -> Vector3:
 	return global_position + Vector3(0.0, float(_movement.get("muzzle_height_m", 1.3)), 0.0)
 
 
-## Fires the active weapon once (one hitscan ray). Returns the Hitscan result.
+## Fires the active weapon once (one hitscan ray, or one melee swing). Returns the Hitscan result,
+## or {"melee": true, "targets": [...]} for a swing.
 func fire_shot() -> Dictionary:
 	var w := loadout.get_active()
 	if w == null:
 		return {}
 	fired.emit()
 	shot.emit(get_muzzle_position(), get_aim_direction(), w.def.id)
+	if w.def.is_melee():
+		return melee_swing(w.def, get_muzzle_position(), get_aim_direction(), hit_authority)
 	return Hitscan.fire(get_world_3d().direct_space_state, self, get_muzzle_position(),
 			get_aim_direction(), w.def, hitscan_exclude(), hit_authority, _rng)
+
+
+## One melee swing from `origin` along `direction`; shows the placeholder swing visual.
+func melee_swing(def: WeaponDef, origin: Vector3, direction: Vector3, authority: Callable) -> Dictionary:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state if is_inside_tree() else null
+	var candidates: Array = get_tree().get_nodes_in_group("pawns") if is_inside_tree() else []
+	var hit := Melee.swing(space, self, origin, direction, def, candidates, authority)
+	if is_inside_tree():
+		SwingVisual.spawn(self, def, direction)
+	return {"melee": true, "targets": hit}
 
 
 ## Own body and head hitbox, so steep upward shots cannot hit the shooter.

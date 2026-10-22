@@ -40,7 +40,8 @@ func test_weapons() -> void:
 	var data := _load()
 	if data.is_empty():
 		return
-	for id in ["pilum_br", "gladius_lux"]:
+	# gladius_lux is melee (OQ-07): its keys are checked in test_decisions_oct22.gd.
+	for id in ["pilum_br", "sagittarii_rifle"]:
 		assert_true(data["weapons"].has(id), "missing weapon " + id)
 		if not data["weapons"].has(id):
 			continue

@@ -5,6 +5,8 @@ extends Control
 const _Theme := preload("res://scenes/ui/theme.tres")
 
 var result: Dictionary = {}
+## data/ui.json hud.roman_numerals (OQ-38); tests may override.
+var roman_numerals: bool = HudNumbers.roman_enabled()
 var title_label: Label
 var scores_label: Label
 
@@ -40,13 +42,14 @@ func show_result(r: Dictionary) -> void:
 	elif r.get("winner") == null:
 		title_label.text = "Match over"
 	else:
-		title_label.text = "Squad %s wins" % RomanNumerals.to_roman(int(r["winner"]) + 1)
+		title_label.text = "%s wins" % HudNumbers.squad_name(int(r["winner"]), roman_numerals)
 	var scores: Dictionary = r.get("scores", {})
 	var keys := scores.keys()
 	keys.sort()
 	var lines: Array[String] = []
 	for squad in keys:
-		lines.append("Squad %s: %s" % [RomanNumerals.to_roman(int(squad) + 1), RomanNumerals.to_roman(int(scores[squad]))])
+		lines.append("%s: %s" % [HudNumbers.squad_name(int(squad), roman_numerals),
+				HudNumbers.number(int(scores[squad]), roman_numerals)])
 	scores_label.text = "\n".join(lines)
 
 

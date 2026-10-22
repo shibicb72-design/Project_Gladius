@@ -1,7 +1,7 @@
 {
-  "status": "DRAFT - awaiting Shibi approval",
+  "status": "STARTING SET - approved by Shibi Oct 22 2026 (OQ-42, OQ-47)",
   "version": 1,
-  "_note": "DRAFT proposal (task T1); every name, trigger and number here is a proposal, except denarii_per_medal (DESIGN.md). Mirrors docs/design/medals.md. Do NOT wire into gameplay, UI or the economy until Shibi approves (OQ-42).",
+  "_note": "Starting set (was the T1 draft); stays data-driven, names, triggers and numbers remain tunable except denarii_per_medal (DESIGN.md). Mirrors docs/design/medals.md. Not yet wired into gameplay, UI or the economy.",
   "denarii_per_medal": 10,
   "_denarii_per_medal_source": "DESIGN.md: 10/medal. No other medal rewards. Single source of truth vs economy.json: OQ-49.",
   "count_bot_victims": true,

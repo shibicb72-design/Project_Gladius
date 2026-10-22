@@ -11,6 +11,6 @@
 		"scoring_unit": "squad",
 		"tie_result": "draw",
 		"_placeholder": true,
-		"_note": "TODO: contest_rule (OQ-21), scoring_unit (OQ-20), tie_result (OQ-22) are placeholders, not design values. Other values come from DESIGN.md. moving_warn_s is unused in milestone 1."
+		"_note": "contest_rule (OQ-21), scoring_unit (OQ-20, up to 6 squads) and tie_result (OQ-22) are DECIDED (Shibi, Oct 22 2026). Other values come from DESIGN.md. moving_warn_s is unused in milestone 1."
 	}
 }

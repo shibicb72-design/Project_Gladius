@@ -17,8 +17,8 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 ## Weapons and loadouts
 
-- **OQ-06: Pilum BR and Gladius Lux numbers**: damage, headshot multiplier, fire interval, burst size, magazine, reserve ammo, reload time, range, spread. DESIGN.md gives none. Placeholder: values in `data/stats.json` under `weapons`, each entry `"_placeholder": true` (S1).
-- **OQ-07: What kind of weapon Gladius Lux is** (ranged gun, or an energy blade / melee weapon?). Pilum BR's "BR" suggests a battle rifle, but that isn't stated either. Placeholder: both are hitscan guns (`"kind": "hitscan"`). Pilum BR fires a burst; Gladius Lux fires single shots (S1/S6).
+- **OQ-06: Pilum BR and Gladius Lux numbers**: damage, headshot multiplier, fire interval, burst size, magazine, reserve ammo, reload time, range, spread. DECIDED (Shibi, Oct 22 2026): a full starter set of stats for every milestone-1 weapon (incl. the Sagittarii long-range single-shot rifle, a PLACEHOLDER design) in `data/stats.json`, reasoning in `docs/STATS.md`; Shibi tunes on the phone, so entries stay `"_placeholder": true`.
+- **OQ-07: What kind of weapon Gladius Lux is** (ranged gun, or an energy blade / melee weapon?). DECIDED (Shibi, Oct 22 2026): Gladius Lux is an energy blade (melee swing, arc and range from `stats.json`); Pilum BR stays a hitscan burst weapon.
 - **OQ-08: Spawn loadout per class in milestone 1.** DECIDED (Shibi, 2026-10-22): Hastati spawn with Pilum BR + Gladius Lux; Sagittarii spawn with a long-range single-shot rifle (`sagittarii_rifle`, working name, hitscan, all numbers placeholder `# TUNE`) + Gladius Lux (`data/loadouts.json`, `data/stats.json`). Previous placeholder: both spawn with Pilum BR (primary) + Gladius Lux (secondary) (S6, `data/loadouts.json`).
 - **OQ-09: Class sidearm.** DESIGN.md says "class sidearm" but names none. Placeholder: no sidearm in milestone 1 (S6).
 - **OQ-10: Sagittarii loadout and identity in milestone 1.** DECIDED (Shibi, 2026-10-22): long-range single-shot rifle (`sagittarii_rifle`, working name; numbers are placeholders) + Gladius Lux; see OQ-08. Earlier note: it is the counter-sniper class ("one-shot Gladiators"), but no sniper weapon is in milestone 1 (Scorpio Rail is not listed). Placeholder: same loadout as Hastati; only the class table stats differ (S6).
@@ -27,7 +27,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 ## Combat rules
 
 - **OQ-12: Shield regeneration delay and rate** ("Halo damage rules"). Placeholder: values in `data/stats.json` `combat`, marked placeholder (S3).
-- **OQ-13: Headshot bonus.** Does "headshots extra on all weapons" mean a multiplier, and how large is it? Does it bypass shields? Placeholder: per-weapon `headshot_multiplier`, applied the same way to shield and health (S3).
+- **OQ-13: Headshot bonus.** DECIDED (Shibi, Oct 22 2026): each weapon has its own `headshot_multiplier`, applied the same way to shield and health.
 - **OQ-14: Shield-break overflow.** Does damage that breaks the shield carry over into health in the same hit? Placeholder: yes, overflow carries over (S3).
 - **OQ-15: What spawn protection blocks.** Placeholder: all damage is blocked for 5 s; protection ends on firing (both from DESIGN.md) (S4).
 - **OQ-16: Which combat features are in milestone 1.** Milestone 1 lists only map, hill, two weapons, two classes, bots, input and hotspot. Placeholder: these are OUT of milestone 1: melee, grenades, crouch/prone, radar, scorestreaks, deployables, weapon pickups from the fallen, power weapons, killcam and vehicles. All are provisioned in ARCHITECTURE.md (S-none).
@@ -37,14 +37,14 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 ## Match / King of the Hill
 
-- **OQ-20: Teams in KotH.** Is each squad of 3 its own team (up to 6 squads scoring independently), or are squads grouped into two sides? Placeholder: each squad scores independently (S4).
-- **OQ-21: When is the hill contested?** Placeholder: if players from more than one squad are inside, nobody scores (S4).
-- **OQ-22: Result when the 10-minute timer ends.** Highest score wins; what about a tie? Placeholder: a tie at the top is a draw (S4).
+- **OQ-20: Teams in KotH.** DECIDED (Shibi, Oct 22 2026): each 3-player squad scores independently, up to 6 squads.
+- **OQ-21: When is the hill contested?** DECIDED (Shibi, Oct 22 2026): a contested zone (players from more than one squad inside) means no squad scores.
+- **OQ-22: Result when the 10-minute timer ends.** DECIDED (Shibi, Oct 22 2026): highest score wins; a tie at the top is a draw.
 - **OQ-23: Hill size and shape.** Placeholder: cylinder, radius and height in `data/maps/alesia_section.json` (S7).
 - **OQ-24: Which part of Alesia is the "rough section".** DECIDED (Shibi, 2026-10-22): the Alesia hilltop citadel section, in greybox. Earlier placeholder: the hilltop citadel (fixed hill) plus a slice of the inner wall and legion-camp ring, as greybox geometry (S7).
 - **OQ-25: Art assets for milestone 1.** DESIGN.md names CC0 packs (Kenney, Quaternius, Mixamo), but the build sessions cannot download them. DECIDED (Shibi, 2026-10-22): the map stays the Alesia hilltop citadel section in greybox. Earlier placeholder: greybox primitives (CSG/MeshInstance3D) and capsule characters until Shibi adds asset packs to the repo (S6/S7).
 - **OQ-26: Number and placement of squad spawn spots on the section.** Placeholder: 6 spots in `data/maps/alesia_section.json`, arranged evenly around the hill (S7).
-- **OQ-27: Join in progress and host-drop handling (60 s reconnect pause) in milestone 1?** Placeholder: out of milestone 1. Players join only in the pre-match lobby. If the host drops, clients return to the main menu (S9). Quitter handling mid-match: DESIGN.md says "Quitter replaced by bot", but that is not built. Placeholder (F2): the quitter's pawn is only marked inactive (MatchRoster._on_peer_left, TODO).
+- **OQ-27: Join in progress and host-drop handling (60 s reconnect pause) in milestone 1?** DECIDED (Shibi, Oct 22 2026): keep the placeholder: joining works only from the lobby and a host drop returns everyone to the menu (lobby and in-match, `MatchRoot._on_host_lost`). Detail: out of milestone 1. Players join only in the pre-match lobby. If the host drops, clients return to the main menu (S9). Quitter handling mid-match: DESIGN.md says "Quitter replaced by bot", but that is not built. Placeholder (F2): the quitter's pawn is only marked inactive (MatchRoster._on_peer_left, TODO).
 - **OQ-28: Pre-match lobby in milestone 1.** Placeholder: minimal. The host sees connected players, squads are auto-assigned (humans first, then bots fill), the host taps Start. Slot tapping, move/kick/lock, Advanced options and series are out (S9/S10). Undecided detail: `LobbyState.assign()` puts humans in the first slots, so they share squad 0 (co-op against bots) until the design says whether humans are split across squads. Net tolerances in `data/net.json` `validation` are placeholders (see T-03).
 - **OQ-29: Class selection in milestone 1.** Where and when does a player pick Hastati or Sagittarii? DECIDED (Shibi, 2026-10-22): a class toggle Hastati/Sagittarii in the lobby for each human player (large touch button, synced host-authoritative); applies at match start and next spawn. Earlier placeholder: a two-button toggle in the lobby; applies on the next spawn (S10).
 
@@ -59,32 +59,31 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 - **OQ-34: Gyro aim in milestone 1?** DECIDED (Shibi, 2026-10-22): gyro off by default, with an On/Off toggle in settings (main menu), saved to `user://profile.json` (`gyro_enabled`). Earlier note: milestone 1 says "touch + controller". Earlier placeholder: a gyro provider exists but is a no-op and the default mode is `Off` (S5).
 - **OQ-35: Default touch layout** (button positions and sizes, stick dead zones) and **default controller mapping**. Placeholder: values in `data/input.json`, marked placeholder (S5). Touch buttons (Fire, Aim, Reload, Swap, Jump): size, gap, font, anchor and grid cells are placeholders (`button_*` keys); layout is recomputed from the viewport size for foldables (T1b). Always-visible sticks: rest centres (`move_stick_rest`, `look_stick_rest`), radius and ring alpha are placeholders in `data/input.json`.
-- **OQ-36: Default look sensitivity (stick, touch) and invert Y default.** Placeholder: values in `data/input.json`, invert off (S5).
+- **OQ-36: Default look sensitivity (stick, touch), gyro sensitivity and invert Y default.** Placeholder: values in `data/input.json`, invert off (S5); this also covers the `data/input.json` `gyro.sensitivity` placeholder.
 - **OQ-53: Right-side touch look.** DESIGN.md says an aim stick (default `"stick"`); a drag-to-look option (`"drag"`) exists for Shibi to try after the Fold 7 test. Which should be the default, and what turn-rate cap and sensitivity? Placeholders in `data/input.json` `look`: `mode`, `max_turn_rate_deg_s`, `stick_rate_deg_s`, `drag_rad_per_screen_height` (also `touch_layout.stick_radius_frac_of_height`, OQ-35). T1 also asked for a "pilum" button, but there is no such action (Pilum BR is the rifle, fired with `fire`). If a thrown pilum or grenade was meant, that is later than milestone 1.
 
 ## Camera, HUD, presentation
 
 - **OQ-37: Third-person camera offset/distance and FOV per aspect ratio** (including the wider Fold7 inner screen FOV). Placeholder: table in `data/camera.json` (S6).
-- **OQ-38: Which HUD numbers use Roman numerals** (score? timer? ammo?). Placeholder: hill scores in Roman numerals; timer as mm:ss; ammo as Arabic numerals (S10).
-- **OQ-38 (addendum, S10):** a score of 0 has no Roman numeral; placeholder shows `N` (`RomanNumerals.ZERO_TEXT`). Squad names are shown as "Squad I/II" and the end-screen delay (3 s) is a presentation constant; both are undecided.
+- **OQ-38: Which HUD numbers use Roman numerals** (score? timer? ammo?). DECIDED (Shibi, Oct 22 2026): no Roman numerals for now. All HUD numbers and scores are plain digits (0 shows "0"), squads are "Squad 1", "Squad 2"... The `RomanNumerals` code and tests are kept behind `data/ui.json` `hud.roman_numerals` (false) so they can come back.
+- **OQ-38 (addendum, S10):** the end-screen delay (3 s) is a presentation constant and stays undecided (OQ-52).
 - **Wired (F2, review H1; was a TODO, not a design question):** lobby name/class sync, the start RPC, one pawn per lobby slot, the bridge under the NetSession, client input and fire to the host, and the replica on clients are all in. Clients send input at `input_rate_hz`, fire through `send_fire` (local hitscan is presentation only) and apply the host snapshot to every other pawn; their own pawn takes only shield, health and alive from it, and is snapped to the host position on spawn and respawn. Covered by `tests/test_net_match.gd`. Still open: the host's own kills do not send `ev_kill`, and quitter handling (OQ-27).
 - **OQ-39: Gamertag entry in milestone 1.** Placeholder: an editable name field on the main menu, saved to `user://profile.json`, default `Player` (S10).
 - **OQ-40: Graphics quality presets and fps for milestone 1.** Placeholder: one preset `default` in `data/graphics_presets.json`, 60 fps cap; the 120 fps option is not exposed (S10).
 
 ## Networking
 
-- **OQ-41: LAN autodiscovery in milestone 1?** The UI flow says "Join (autodiscovery)"; milestone 1 says "hotspot". Placeholder: manual IP entry, pre-filled with the last-used address. The host screen shows its local IPs. No multicast, so `CHANGE_WIFI_MULTICAST_STATE` is not requested (S9).
+- **OQ-41: LAN autodiscovery in milestone 1?** DECIDED (Shibi, Oct 22 2026): keep the placeholder (manual IP field pre-filled with the last address, host shows its IPs). The UI flow says "Join (autodiscovery)"; milestone 1 says "hotspot". Placeholder: manual IP entry, pre-filled with the last-used address. The host screen shows its local IPs. No multicast, so `CHANGE_WIFI_MULTICAST_STATE` is not requested (S9).
 - **OQ-50: Maximum lobby display-name length.** Placeholder: 24 characters, `data/net.json` `max_name_length`; the host truncates longer names (F2). Not a design value.
 - **OQ-51: Client input send rate.** Placeholder: 30 Hz, `data/net.json` `input_rate_hz` (the snapshot rate is 15 Hz). Not a design value (F2).
 
 ## Traits and medals (DRAFT proposals from task T1)
 
-- **OQ-42: APPROVAL NEEDED: draft traits and medals.** Shibi asked for draft proposals.
+- **OQ-42: draft traits and medals.** DECIDED (Shibi, Oct 22 2026): the draft traits and medals are the starting set and stay data-driven.
   docs/design/traits.md + `data/traits.json` (15 good, 6 bad traits) and docs/design/medals.md +
-  `data/medals.json` (27 medals) are DRAFT, `"status": "DRAFT - awaiting Shibi approval"`.
-  Names, rules and numbers are all proposals. Until Shibi approves, no build step wires them into
-  gameplay, UI or the economy.
-- **OQ-43: Do good traits stay forever once earned, or can they lapse?** Draft: permanent
+  `data/medals.json` (27 medals). Names and numbers can still be tuned in the data files; no build step
+  wires them into gameplay, UI or the economy yet.
+- **OQ-43: Do good traits stay forever once earned, or can they lapse?** DECIDED (Shibi, Oct 22 2026): the draft stands: permanent
   (`good_traits_permanent: true`).
 - **OQ-44: Which matches count toward traits, and what counts as quitting?** Draft: multiplayer
   matches only (`koth` now; never tutorial or campaign). Only a deliberate leave counts as quitting;
@@ -92,9 +91,8 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-45: What behavior earns "Carthaginian"?** DESIGN.md names it but gives no rule, and there is no
   friendly fire. Draft: a host who abandons matches (the match closes because the host left), read
   as "Punic faith". Deserter covers players who quit.
-- **OQ-46: Do bot victims count as kills for medals and traits?** Draft: yes (`count_bot_victims: true`).
-- **OQ-47: Medal stacking.** Does a higher multi-kill/spree tier also award the lower tiers, and
-  is there a per-match cap? Draft: lower tiers are also awarded (each pays 10 Denarii); no cap.
+- **OQ-46: Do bot victims count as kills for medals and traits?** DECIDED (Shibi, Oct 22 2026): the draft stands: yes (`count_bot_victims: true`).
+- **OQ-47: Medal stacking.** DECIDED (Shibi, Oct 22 2026): the draft stands: lower tiers are also awarded (each pays 10 Denarii); no cap.
 - **OQ-48: Trait display.** How many traits show per player in the lobby, and is there one in-game
   banner per bad trait or one banner in total? Draft: TODO, not decided.
 - **OQ-49: Where the 10 Denarii per medal lives.** `medals.json` `denarii_per_medal` or

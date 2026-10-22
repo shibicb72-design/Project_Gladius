@@ -33,13 +33,13 @@ func update(now: float, trigger_held: bool) -> int:
 		return 0
 	var shots := 0
 	# Finish a running burst.
-	while _burst_left > 0 and ammo_in_mag > 0 and now >= _next_burst_time:
+	while _burst_left > 0 and has_ammo() and now >= _next_burst_time:
 		shots += _shoot()
 		_next_burst_time += def.burst_interval_s
-	if ammo_in_mag <= 0:
+	if not has_ammo():
 		_burst_left = 0
 	# Start a new burst.
-	if _burst_left == 0 and trigger_held and ammo_in_mag > 0 and now >= _next_fire_time:
+	if _burst_left == 0 and trigger_held and has_ammo() and now >= _next_fire_time:
 		_next_fire_time = now + def.fire_interval_s
 		_burst_left = def.burst_count
 		_next_burst_time = now
@@ -48,15 +48,21 @@ func update(now: float, trigger_held: bool) -> int:
 	return shots
 
 
+## Melee weapons never run dry.
+func has_ammo() -> bool:
+	return def != null and (def.is_melee() or ammo_in_mag > 0)
+
+
 func _shoot() -> int:
-	ammo_in_mag -= 1
+	if not def.is_melee():
+		ammo_in_mag -= 1
 	_burst_left -= 1
 	return 1
 
 
 ## Starts a reload if one is useful. Returns true if it started.
 func start_reload(now: float) -> bool:
-	if def == null or reloading or ammo_in_mag >= def.magazine or reserve <= 0:
+	if def == null or def.is_melee() or reloading or ammo_in_mag >= def.magazine or reserve <= 0:
 		return false
 	reloading = true
 	_reload_end = now + def.reload_s

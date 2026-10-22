@@ -25,6 +25,8 @@ var roster: MatchRoster
 var session_override: NetSession
 var lobby_override: LobbyState
 var seed_override: int = 0
+## Set when the host connection was lost during the match (tests read it; the real flow leaves the scene).
+var host_lost_handled: bool = false
 
 var _client_bridge: NetMatchBridge
 var _input_accum_s: float = 0.0
@@ -103,10 +105,11 @@ func begin() -> bool:
 			roster.attach_bridge(session, slots)
 			if not session.is_host:
 				_wire_client(roster.bridge)
+				session.host_lost.connect(_on_host_lost)
 	else:
 		# Offline / standalone: the local player is the only human in squad 0.
 		local_player = _PawnScene.instantiate()
-		local_player.class_id = "hastati"
+		local_player.class_id = offline_class_id(DataRegistry.new(), profile_cfg())
 		local_player.squad_id = 0
 		add_child(local_player)
 		director.add_player(0, local_player)
@@ -121,6 +124,26 @@ func begin() -> bool:
 	if seed_value == 0:
 		seed_value = randi()
 	return director.start(squads, xforms, zone, seed_value)
+
+
+## Class for the offline / no-lobby player: data/match.json default_class, else the profile's
+## last_class, else the first enabled class in stats.json. Only enabled classes qualify.
+static func offline_class_id(registry: DataRegistry, profile: Dictionary) -> String:
+	var wanted: Array[String] = [str(registry.load_file(DataRegistry.MATCH_PATH).get("default_class", "")),
+			str(profile.get("last_class", ""))]
+	for cid in wanted:
+		var def := registry.get_class_def(cid) if cid != "" else null
+		if def != null and def.enabled:
+			return cid
+	var classes: Dictionary = registry.load_file(DataRegistry.STATS_PATH).get("classes", {})
+	for cid in classes:
+		if bool(classes[cid].get("enabled", false)):
+			return str(cid)
+	return ""
+
+
+func profile_cfg() -> Dictionary:
+	return AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
 
 
 func _exit_tree() -> void:
@@ -167,6 +190,14 @@ func _on_local_respawn_event(player_id: int) -> void:
 
 static func _vec(a: Array) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
+
+
+## OQ-27 placeholder: no 60 s reconnect pause yet; a host drop sends every client back to the menu.
+func _on_host_lost() -> void:
+	host_lost_handled = true
+	if is_inside_tree() and session_override == null and lobby_override == null:
+		AppFlow.end_session()
+		AppFlow.go(get_tree(), AppFlow.MENU_SCENE)
 
 
 ## Started from the menu flow: show the end screen after a short pause. Standalone runs stay put.

@@ -6,6 +6,7 @@
 	"min_humans": 2,
 	"max_humans": 6,
 	"squads": 2,
+	"default_class": "hastati",
 	"squad_spacing_m": 1.5,
-	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15). squads (the only source for the number of squads: lobby, match, bot fill; local player is squad 0) is 2, DECIDED (Shibi, 2026-10-22, OQ-30). TODO: squad_spacing_m (side-by-side spawn spacing of squad mates) is a placeholder (OQ-52)."
+	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15). squads (the only source for the number of squads: lobby, match, bot fill; local player is squad 0) is 2, DECIDED (Shibi, 2026-10-22, OQ-30). default_class is the offline / no-lobby player's class (milestone 1 starts on Hastati); the profile's last_class is the fallback. TODO: squad_spacing_m (side-by-side spawn spacing of squad mates) is a placeholder (OQ-52)."
 }

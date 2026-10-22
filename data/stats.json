@@ -30,9 +30,10 @@
     "follow": 0.0,
     "magnetism": 0.0
   },
+  "_weapons_comment": "Starter set, see docs/STATS.md. Shibi tunes these on the phone. Kinds: hitscan (burst/single, uses magazine) and melee (swing: melee_range_m, melee_arc_deg; no ammo).",
   "weapons": {
     "pilum_br": {
-      "display_name": "Pilum BR", "_placeholder": true, "_todo": "OQ-06 OQ-07 OQ-11",
+      "display_name": "Pilum BR", "_placeholder": true, "_todo": "OQ-06 (DECIDED: starter set, tune on phone) OQ-11",
       "kind": "hitscan", "tier": "standard",
       "damage": 20, "headshot_multiplier": 1.5, "fire_interval_s": 0.5,
       "burst_count": 3, "burst_interval_s": 0.07,
@@ -40,16 +41,18 @@
       "range_m": 80, "spread_deg": 1.0
     },
     "gladius_lux": {
-      "display_name": "Gladius Lux", "_placeholder": true, "_todo": "OQ-06 OQ-07 OQ-11",
-      "kind": "hitscan", "tier": "standard",
-      "damage": 35, "headshot_multiplier": 1.5, "fire_interval_s": 0.3,
+      "display_name": "Gladius Lux", "_placeholder": true, "_todo": "OQ-06 (DECIDED: starter set, tune on phone) OQ-07 (DECIDED: energy blade, melee) OQ-11",
+      "kind": "melee", "tier": "standard",
+      "damage": 60, "headshot_multiplier": 1.0, "fire_interval_s": 0.6,
+      "melee_range_m": 2.2, "melee_arc_deg": 100, "swing_duration_s": 0.2,
       "burst_count": 1, "burst_interval_s": 0.05,
-      "magazine": 12, "reserve_ammo": 60, "reload_s": 1.5,
-      "range_m": 60, "spread_deg": 1.5
+      "magazine": 0, "reserve_ammo": 0, "reload_s": 0.0,
+      "range_m": 2.2, "spread_deg": 0.0,
+      "_note": "Energy blade: no ammo, magazine/reload/spread unused. range_m mirrors melee_range_m. Swings do not test the head, so headshot_multiplier stays 1.0."
     },
     "sagittarii_rifle": {
       "display_name": "Sagittarii Rifle (working name)", "_placeholder": true,
-      "_todo": "OQ-08 OQ-10 OQ-06 OQ-07: working name; every number below is a placeholder (# TUNE). Long-range single-shot hitscan.",
+      "_todo": "OQ-08 OQ-10 OQ-06: working name; PLACEHOLDER long-range single-shot design, NOT a Shibi decision. Every number below is a placeholder (# TUNE).",
       "# TUNE": "all numbers are placeholders",
       "kind": "hitscan", "tier": "standard",
       "damage": 90, "headshot_multiplier": 2.0, "fire_interval_s": 1.2,
