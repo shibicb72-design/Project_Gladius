@@ -1230,3 +1230,94 @@ VERDICT: APPROVE
   inputs are FOUND.
 - G0b a-d are delivered. No assertion was weakened or removed, settings.json is unchanged with 128 deny entries, and
   no Android-only API is used outside the platform layer. Findings 1-4 are minor.
+
+## G1 review
+
+Reviewer: Opus (VG1), Oct 22 2026. Target: commit 982448a ("feat: switch to Jolt physics", 12 files, +451/-17)
+against `cc_gladius/fixG/G1.txt`, using `fixG/VTEMPLATE.txt`.
+
+INPUTS: G1 commit = FOUND (982448a, non-empty diff) ; tests log/exit code = FOUND (`cc_gladius/tests_G1.log`;
+`cc_gladius/fixG.log:4` "GATE G1 apk=True tests=0 shots=70"; full suite also re-run in this review, exit 0,
+"TESTS: 173 passed, 0 failed") ; apk = FOUND (`build/gladius-debug.apk`, re-exported in this review, exit 0, "Signed",
+"Verifying APK... DONE") ; shots = FOUND (Fold-size `build/shots/{cover,inner}_*.png` n=30: cover 2520x1080 and inner
+2184x1968, landscape and portrait sets; 70 PNGs in `build/shots/` in total) ; docs/PHYSICS_JOLT.md = FOUND (55 lines)
+
+Gates run in this review, each as its own command from the repo root: `mkdir -p build`, `--import` exit 0,
+`--export-debug "Android" build/gladius-debug.apk` exit 0, `run_tests.gd` exit 0. No "SCRIPT ERROR", "Parse Error" or
+"ERROR:" lines in any of the three outputs.
+
+### What checks out
+- **Engine setting.** `project.godot:108-110` `[physics] 3d/physics_engine="Jolt Physics"`. Before G1 the key was
+  absent (`git grep physics b02e610 -- project.godot`: no match), as PHYSICS_JOLT.md:6 says.
+  `tests/test_physics_baseline.gd:50-51` asserts the value is exactly "Jolt Physics".
+- **Baseline is measured, not typed in.** `data/physics_baseline.json` holds full-precision values ("engine":
+  "GodotPhysics3D", tolerance_pct 5.0). `test_physics_baseline.gd:32-47` reads it, asserts 0 < tolerance <= 5
+  (`MAX_TOLERANCE_PCT` :10, so the 5% cannot be widened in data), measures every metric and asserts each is within
+  tolerance. I re-ran it both ways in this review:
+  - Jolt (committed setting): `PHYSICS_METRICS {"jump_air_time_s":0.716666666666667,"jump_apex_m":1.28420352935791,
+    "max_slope_deg":45.5,"max_step_up_m":0.12,"walk_speed_mps":5.000004529953}`, matching the Jolt column of
+    PHYSICS_JOLT.md:17-23.
+  - GodotPhysics3D (project.godot temporarily edited to `"GodotPhysics3D"`, `--only=test_physics_baseline`, then
+    restored; `git status` clean afterwards): `"jump_apex_m":1.28415989875793`, all other metrics as above. This is
+    byte-identical to `physics_baseline.json:6-10`. In that run `test_physics_engine_is_jolt` FAILED as it should.
+  So the GodotPhysics column comes from a real GodotPhysics3D run of this test. Largest difference: jump apex
+  0.003%. No metric is over 5%, so no root cause or fix was required, and none of `floor_snap_length`, `safe_margin`,
+  the collision shape or step logic was changed. No tolerance was loosened.
+- **Before/after table** (metric, GodotPhysics, Jolt, % diff) for walk speed, jump apex, jump-to-land time, step-up
+  and slope limit is in PHYSICS_JOLT.md:17-23 and in the G1 summary (`cc_gladius/out/G1.json`). The pawn is driven
+  through `InputFrame` / `Pawn.set_frame` at the fixed physics tick (`test_physics_baseline.gd:102,124,189`
+  `await physics_frame`).
+- **Breaking changes (my own grep of `scenes/` and `scripts/`).** `WorldBoundaryShape3D` (:25), `SoftBody3D` (:26)
+  and `HingeJoint3D` (:50): no matches. `Area3D` (:27): `scenes/player/pawn.tscn:33` (Head), `scripts/classes/pawn.gd:159`,
+  `scripts/weapons/hitscan.gd:3,30`, `scripts/systems/hill_zone.gd:2`. Head is layer 4, mask 0 (`pawn.tscn:35-36`);
+  hill is layer 0, mask 2 (`hill_zone.gd:9-10`). With no SoftBody3D in the project, :27 has no effect. Both are
+  pinned by `tests/test_physics_collisions.gd:79-90`. Walls, pawn-pawn, hitscan body/head/world/miss/self-exclusion
+  and hill occupancy are retested in `test_physics_collisions.gd` and pass on Jolt.
+- **Carry-over (melee defaults).** No silent default is left: `grep` of `scripts/` finds only direct reads
+  (`pawn.gd:108-109`, `damage_rules.gd:73`). `pawn.gd:18-19` `MELEE_REQUIRED_KEYS` is in the required order (back
+  angle, fraction, classes); `receive_melee` stops at the first missing key and `_invalid_melee` returns
+  `invalid_melee_cfg` with no damage, reporting through `melee_error_sink` else `push_error`. `damage_rules.gd:68-71`
+  returns `invalid_melee_cfg` with `push_error` if apply_melee is reached without the fraction.
+  `data_registry.gd:118-119` reports a missing `front_breaks_full_shield_classes`. New tests use in-memory dicts
+  only (`test_melee_rule.gd:117-150`, `_check_missing_melee_key` for each key: invalid, 0 damage, shield/health
+  100, exactly one error naming the key) and `:109-110` (validate_melee reports the missing classes key).
+  `test_melee_rule.gd:91` is unchanged and passes (one error naming `melee_back_angle_deg`, thanks to the key
+  order). `data/stats.json` was not edited. The unrelated `0.7` and `get(..., [])` hits outside `test_melee_rule.gd`
+  are not in the diff.
+- **OQ-56** (`OPEN_QUESTIONS.md:115`): (2) now says "for a non-Gladiator attacker ... the Gladiator case is (3).
+  There is still no overflow multiplier and no headshot rule for the blade." Same meaning; both PLACEHOLDER markers
+  for (2) and (3) are kept. The G1 summary says no test pins the old wording; the suite passes.
+- **Assertions.** `git show 982448a -- tests` touches existing lines only in `test_validate_melee_reports_missing_keys`
+  (old `test_melee_rule.gd:105,107,109`, now `:105,107,111-112`): `"front_breaks_full_shield_classes": []` was
+  added to the input dicts. The expected values (exact `PackedStringArray` for :106/:108, `size() == 1` for
+  :111-113) and the `0.7` literals are unchanged. Without the added key each case would now report two problems, so
+  this keeps every case isolating one key; nothing is weakened. The G1 summary lists these lines old -> new plus the
+  added tests, and flags the conflict (see minor 4 on its numbering). Everything else in the test diff is added.
+- **.claude/settings.json** is not in `git show --stat 982448a`.
+- **iOS/Android:** Jolt is core Godot (no plugin, GDExtension or Android-only API). The commit adds no platform
+  code.
+- **GODOT API RULE:** the commit relies on `ProjectSettings.get_setting`, `CharacterBody3D`/`move_and_slide`
+  (`modules/physics.md:51-69`, "API unchanged across engines"), `StaticBody3D`, `BoxShape3D`, `SceneTree.physics_frame`,
+  `Engine.physics_ticks_per_second`, `JSON.parse_string`/`stringify`, `FileAccess.get_file_as_string`, `Area3D`
+  (`breaking-changes.md:27`). None is listed in `deprecated-apis.md`; `breaking-changes.md:25-27,50` are the only
+  physics entries and are covered above.
+
+### Minor findings (non-blocking)
+1. `test_melee_rule.gd:105,109` were listed in G1.txt as "unrelated 0.7 hits stay unchanged", but G1.txt also asked
+   validate_melee to report the classes key, which forces those inputs to change. The 0.7 stays and the expected
+   values are unchanged, and the summary disclosed it, so this is accepted. The summary's "I did not touch any
+   assertion" is slightly loose: `:109` is an `assert_true` line whose input dict changed.
+2. PHYSICS_JOLT.md:27 says step heights are swept "at 0.005 m up to 0.20 m", but `STEP_HEIGHTS_M`
+   (`test_physics_baseline.gd:23-26`) is 0.005 m only up to 0.15, then 0.01 to 0.20 and coarser to 0.50. The
+   0.12 m result is in the 0.005 m band, so the figure stands.
+3. The `push_error` fallback in `damage_rules.gd:68-71` is not reached by any test (pawn validation stops first).
+   As in G0b minor 3 this keeps the gate free of "ERROR:" lines; the branch is trivial.
+4. The G1 summary's touched-line list gives the out-of-range case as ":109-110"; that is the old line 109, which is
+   now `:111-112` (new `:109-110` are the added `no_classes` check). The content of the list is correct.
+
+VERDICT: APPROVE
+- All inputs are FOUND and all gates pass in this review (import, Android export, 173/173 tests, exit 0, no error lines).
+- Jolt is set and asserted. The baseline was re-measured here under both engines and matches the recorded numbers
+  exactly (max difference 0.003%), the 5% cap is enforced in code, the breaking-change audit holds, the melee
+  carry-over and OQ-56 rewording are done as specified, no assertion was weakened, and settings.json is untouched.
+  Findings 1-4 are minor.
