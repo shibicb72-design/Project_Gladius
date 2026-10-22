@@ -2,6 +2,8 @@
   "port": 7777,
   "connect_timeout_s": 5.0,
   "snapshot_rate_hz": 15,
+  "input_rate_hz": 30,
+  "_input_rate_hz_todo": "Placeholder (OQ-51): client input/position send rate; not a design value.",
   "max_name_length": 24,
   "_max_name_length_todo": "Placeholder (OQ-50): host-side cap on a lobby display name; not a design value.",
   "_max_clients_note": "max_clients = match.json max_humans - 1 (the host is one of the humans); computed by NetSession.",

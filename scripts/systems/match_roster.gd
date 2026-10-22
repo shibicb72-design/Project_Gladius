@@ -29,7 +29,7 @@ static func local_slot(slots: Array, peer_id: int) -> int:
 ## One pawn per slot under `parent`, registered with the director under the lobby's player id.
 ## Only the local pawn is left without a brain; bots get one when `bot_brains` (host / offline).
 func build(parent: Node, director: MatchDirector, slots: Array, local_peer: int, bot_brains: bool,
-		include_bots: bool, hill_center: Vector3, hill_radius: float) -> void:
+		include_bots: bool, hill_center: Vector3, hill_radius: float, networked: bool = false) -> void:
 	_director = director
 	var local_i := local_slot(slots, local_peer)
 	for i in slots.size():
@@ -50,6 +50,12 @@ func build(parent: Node, director: MatchDirector, slots: Array, local_peer: int,
 		elif i == local_i:
 			local_pawn = pawn
 			local_player_id = int(s["player_id"])
+			if networked and not bot_brains:
+				# Client: local hitscan is presentation only; damage comes from the host.
+				pawn.hit_authority = Callable()
+		if networked and i != local_i and (not is_bot or not bot_brains):
+			# bot_brains is true exactly on the host / offline; host bots keep their brains (LOCAL).
+			pawn.net_mode = Pawn.NetMode.HOST_REMOTE if bot_brains else Pawn.NetMode.REPLICA
 
 
 ## Wires the session's bridge to the director. Host registers every remote human; a client replays

@@ -3,6 +3,13 @@ extends CharacterBody3D
 ## Driven only by an InputFrame, so humans, bots and network peers share it.
 
 signal fired
+## Every shot of the active weapon, for the network layer: a client forwards it to the host.
+signal shot(origin: Vector3, direction: Vector3, weapon_id: String)
+
+## LOCAL: full simulation (offline, host, own pawn on a client).
+## HOST_REMOTE: remote human on the host; moved only by accepted net input, never fires by itself.
+## REPLICA: client copy of a pawn simulated elsewhere; state comes from snapshots.
+enum NetMode { LOCAL, HOST_REMOTE, REPLICA }
 
 const MUZZLE_HEIGHT_M := 1.3
 
@@ -16,6 +23,7 @@ var class_def: ClassDef
 ## Called as authority.call(attacker, target, weapon_def, is_headshot). Defaults to local resolution.
 var hit_authority: Callable = Callable(self, "_local_authority")
 var pitch: float = 0.0
+var net_mode: NetMode = NetMode.LOCAL
 
 var _frame: InputFrame = InputFrame.new()
 var _movement: Dictionary = {}
@@ -89,6 +97,7 @@ func fire_shot() -> Dictionary:
 	if w == null:
 		return {}
 	fired.emit()
+	shot.emit(get_muzzle_position(), get_aim_direction(), w.def.id)
 	return Hitscan.fire(get_world_3d().direct_space_state, self, get_muzzle_position(),
 			get_aim_direction(), w.def, hitscan_exclude(), hit_authority, _rng)
 
@@ -108,8 +117,12 @@ func _local_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_he
 
 
 func _physics_process(delta: float) -> void:
+	if net_mode == NetMode.REPLICA:
+		return
 	_clock += delta
 	bridge.tick(delta)
+	if net_mode == NetMode.HOST_REMOTE:
+		return
 	_apply_look()
 	_apply_movement(delta)
 	_apply_weapon()

@@ -497,6 +497,10 @@ Placeholders: OQ-28, OQ-29, OQ-38, OQ-39, OQ-40, OQ-41.
 Manual (Shibi, outside the gate): install the APK on two phones, start a hotspot on one, host there,
 join from the other by IP, and play to 100 points.
 
+Note (F2): this two-phone acceptance is now testable. Lobby sync, match start on clients, per-human
+pawns, client input and fire to the host, and the snapshot replica are wired and covered by
+`tests/test_net_match.gd` (loopback host and client). Not yet run on real devices.
+
 ## Out of milestone 1 (provisioned in ARCHITECTURE.md, not built)
 
 - Moving hill

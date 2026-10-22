@@ -66,7 +66,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-37: Third-person camera offset/distance and FOV per aspect ratio** (including the wider Fold7 inner screen FOV). Placeholder: table in `data/camera.json` (S6).
 - **OQ-38: Which HUD numbers use Roman numerals** (score? timer? ammo?). Placeholder: hill scores in Roman numerals; timer as mm:ss; ammo as Arabic numerals (S10).
 - **OQ-38 (addendum, S10):** a score of 0 has no Roman numeral; placeholder shows `N` (`RomanNumerals.ZERO_TEXT`). Squad names are shown as "Squad I/II" and the end-screen delay (3 s) is a presentation constant; both are undecided.
-- **TODO (S10 gap, not a design question):** the lobby shows the host and joined peers with placeholder names ("Player <id>"); gamertag/class sync from remote peers and starting the networked match on clients (wiring `NetMatchBridge` into the match scene) are not built. Host Start currently launches the match locally with bots filling the squads.
+- **Wired (F2, review H1; was a TODO, not a design question):** lobby name/class sync, the start RPC, one pawn per lobby slot, the bridge under the NetSession, client input and fire to the host, and the replica on clients are all in. Clients send input at `input_rate_hz`, fire through `send_fire` (local hitscan is presentation only) and apply the host snapshot to every other pawn; their own pawn takes only shield, health and alive from it, and is snapped to the host position on spawn and respawn. Covered by `tests/test_net_match.gd`. Still open: M1/M2 in docs/REVIEW_sprint1.md (host ammo tracking, vertical move checks), the host's own kills do not send `ev_kill`, and quitter handling (OQ-27).
 - **OQ-39: Gamertag entry in milestone 1.** Placeholder: an editable name field on the main menu, saved to `user://profile.json`, default `Player` (S10).
 - **OQ-40: Graphics quality presets and fps for milestone 1.** Placeholder: one preset `default` in `data/graphics_presets.json`, 60 fps cap; the 120 fps option is not exposed (S10).
 
@@ -96,6 +96,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
   banner per bad trait or one banner in total? Draft: TODO, not decided.
 - **OQ-49: Where the 10 Denarii per medal lives.** `medals.json` `denarii_per_medal` or
   `economy.json`. Keep one source of truth. Draft: medals.json, until economy.json exists.
+- **OQ-51: Client input send rate.** Placeholder: 30 Hz, `data/net.json` `input_rate_hz` (the snapshot rate is 15 Hz). Not a design value (F2).
 - **OQ-50: Maximum lobby display-name length.** Placeholder: 24 characters, `data/net.json` `max_name_length`; the host truncates longer names (F2). Not a design value.
 
 ## Technical defaults (not product decisions; listed for visibility)

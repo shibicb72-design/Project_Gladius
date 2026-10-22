@@ -21,6 +21,14 @@ var local_player: Pawn
 var bots: Array[Pawn] = []
 var zone: HillZone
 var roster: MatchRoster
+## Tests running two peers in one process inject these instead of the AppFlow globals.
+var session_override: NetSession
+var lobby_override: LobbyState
+var seed_override: int = 0
+
+var _client_bridge: NetMatchBridge
+var _input_accum_s: float = 0.0
+var _spawn_synced: bool = false
 
 @onready var director: MatchDirector = $Director
 @onready var hud: GameHud = $Hud/GameHud
@@ -69,19 +77,25 @@ func begin() -> bool:
 
 	var radius := float(hill.get("radius_m", 8.0))
 	var squads: Array = range(int(director.match_cfg.get("offline_squads", 2)))
-	var session := AppFlow.session if AppFlow.session != null and is_instance_valid(AppFlow.session) else null
+	var session := session_override
+	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
+		session = AppFlow.session
+	var lobby := lobby_override if lobby_override != null else AppFlow.lobby
 	var local_peer := session.get_unique_id() if session != null else 0
 	var networked := local_peer != 0
 	director.authoritative = not networked or session.is_host
-	if AppFlow.lobby != null:
-		var slots := AppFlow.lobby.assign()
-		squads = range(AppFlow.lobby.squad_count)
+	if lobby != null:
+		var slots := lobby.assign()
+		squads = range(lobby.squad_count)
 		roster = MatchRoster.new()
-		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, center, radius)
+		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, center, radius,
+				networked)
 		local_player = roster.local_pawn
 		bots = roster.bots
 		if networked:
 			roster.attach_bridge(session, slots)
+			if not session.is_host:
+				_wire_client(roster.bridge)
 	else:
 		# Offline / standalone: the local player is the only human in squad 0.
 		local_player = _PawnScene.instantiate()
@@ -96,7 +110,9 @@ func begin() -> bool:
 		var rig := _RigScene.instantiate()
 		rig.name = "CameraRig"
 		local_player.add_child(rig)
-	var seed_value := AppFlow.match_seed if AppFlow.match_seed != 0 else randi()
+	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
+	if seed_value == 0:
+		seed_value = randi()
 	return director.start(squads, xforms, zone, seed_value)
 
 
@@ -105,9 +121,39 @@ func _exit_tree() -> void:
 		roster.detach_bridge()
 
 
-func _physics_process(_delta: float) -> void:
-	if local_player != null and router != null:
-		local_player.set_frame(router.get_frame())
+func _physics_process(delta: float) -> void:
+	if local_player == null or router == null:
+		return
+	var frame := router.get_frame()
+	local_player.set_frame(frame)
+	if _client_bridge != null and director.running:
+		_input_accum_s += delta
+		if _input_accum_s >= _client_bridge.input_interval_s:
+			_input_accum_s = 0.0
+			_client_bridge.send_input(frame, local_player.global_position, local_player.rotation.y)
+
+
+## Client only: input and fire go to the host; the host's snapshots and events come back.
+func _wire_client(bridge: NetMatchBridge) -> void:
+	_client_bridge = bridge
+	if local_player != null:
+		local_player.shot.connect(bridge.send_fire)
+	bridge.snapshot_received.connect(_on_snapshot)
+	bridge.respawn_event.connect(_on_local_respawn_event)
+
+
+func _on_snapshot() -> void:
+	var id := roster.local_player_id
+	if not _spawn_synced and _client_bridge.replica.has(id):
+		_spawn_synced = true
+		_client_bridge.snap_local_to_replica(id)
+	_client_bridge.apply_replica(id)
+	_client_bridge.apply_local_vitals(id)
+
+
+func _on_local_respawn_event(player_id: int) -> void:
+	if player_id == roster.local_player_id:
+		_client_bridge.snap_local_to_replica(player_id)
 
 
 static func _vec(a: Array) -> Vector3:
@@ -117,7 +163,7 @@ static func _vec(a: Array) -> Vector3:
 ## Started from the menu flow: show the end screen after a short pause. Standalone runs stay put.
 func _on_match_over(result: Dictionary) -> void:
 	AppFlow.last_result = result
-	if AppFlow.lobby != null and is_inside_tree():
+	if AppFlow.lobby != null and lobby_override == null and is_inside_tree():
 		await get_tree().create_timer(END_SCREEN_DELAY_S).timeout
 		if is_inside_tree():
 			AppFlow.go(get_tree(), AppFlow.END_SCENE)

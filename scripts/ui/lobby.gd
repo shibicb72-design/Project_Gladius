@@ -1,6 +1,8 @@
 class_name Lobby
 extends Control
 ## Pre-match lobby: players by squad, Hastati/Sagittarii toggle (OQ-29), host Start, host IPs.
+## H1 is wired: Start goes through NetLobby on every peer, MatchRoot then sends client input and fire
+## to the host and applies its snapshots (see MatchRoot, NetMatchBridge, tests/test_net_match.gd).
 ## All networking goes through NetLobby (session.lobby); this UI only calls it and listens to its signals.
 
 const _Theme := preload("res://scenes/ui/theme.tres")

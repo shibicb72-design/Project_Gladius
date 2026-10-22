@@ -14,6 +14,8 @@ var director: MatchDirector
 var validator: NetValidator
 var registry: DataRegistry = DataRegistry.new()
 var snapshot_interval_s: float = 1.0 / 15.0
+## Client: seconds between input packets (data/net.json input_rate_hz).
+var input_interval_s: float = 1.0 / 15.0
 ## Host: peer id -> player id.
 var peer_to_player: Dictionary = {}
 ## Host: latest InputFrame per player id.
@@ -37,6 +39,7 @@ func setup(match_director: MatchDirector) -> void:
 	var cfg := registry.load_file("res://data/net.json")
 	validator = NetValidator.new(cfg.get("validation", {}))
 	snapshot_interval_s = 1.0 / maxf(float(cfg.get("snapshot_rate_hz", 15)), 1.0)
+	input_interval_s = 1.0 / maxf(float(cfg.get("input_rate_hz", cfg.get("snapshot_rate_hz", 15))), 1.0)
 	_rng.randomize()
 	director.match_over.connect(_host_match_over)
 	director.score_changed.connect(_host_score_changed)
@@ -55,6 +58,13 @@ func _is_host() -> bool:
 	return multiplayer.multiplayer_peer != null and multiplayer.is_server()
 
 
+## False before connecting and after leaving (the tree then holds an offline peer).
+func _online() -> bool:
+	var peer := multiplayer.multiplayer_peer
+	return peer != null and not peer is OfflineMultiplayerPeer \
+			and peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
+
 func register_peer(peer_id: int, player_id: int) -> void:
 	peer_to_player[peer_id] = player_id
 
@@ -70,11 +80,15 @@ func unregister_peer(peer_id: int) -> void:
 # ---- client -> host -------------------------------------------------------------------------
 
 func send_input(frame: InputFrame, pos: Vector3, yaw: float) -> void:
+	if not _online():
+		return
 	_tick += 1
 	submit_input.rpc_id(1, frame.to_array(), pos, yaw, _tick)
 
 
 func send_fire(origin: Vector3, direction: Vector3, weapon_id: String) -> void:
+	if not _online():
+		return
 	_tick += 1
 	request_fire.rpc_id(1, origin, direction, weapon_id, _tick)
 
@@ -185,6 +199,30 @@ func apply_replica(local_player_id: int) -> void:
 		pawn.set_active(r["alive"])
 
 
+## Client: shield, health and alive of the local pawn come from the host; its position stays its own.
+func apply_local_vitals(local_player_id: int) -> void:
+	var pawn: Pawn = director.player(local_player_id) if director != null else null
+	if pawn == null or not replica.has(local_player_id) or not replica[local_player_id].has("alive"):
+		return
+	var r: Dictionary = replica[local_player_id]
+	pawn.bridge.state.shield = r["shield"]
+	pawn.bridge.state.health = r["health"]
+	if bool(r["alive"]) != pawn.visible:
+		pawn.set_active(r["alive"])
+
+
+## Client: puts the local pawn on the host's position for it (spawn / respawn), so the host's
+## movement check accepts the next input.
+func snap_local_to_replica(local_player_id: int) -> void:
+	var pawn: Pawn = director.player(local_player_id) if director != null else null
+	if pawn == null or not replica.has(local_player_id) or not replica[local_player_id].has("pos"):
+		return
+	var r: Dictionary = replica[local_player_id]
+	pawn.global_position = r["pos"]
+	pawn.rotation.y = r["yaw"]
+	pawn.velocity = Vector3.ZERO
+
+
 func _host_score_changed(new_scores: Dictionary) -> void:
 	if _is_host():
 		ev_score.rpc(new_scores)
@@ -192,7 +230,8 @@ func _host_score_changed(new_scores: Dictionary) -> void:
 
 func _host_respawned(player_id: int) -> void:
 	if _is_host():
-		ev_respawn.rpc(player_id)
+		var pawn := director.player(player_id)
+		ev_respawn.rpc(player_id, pawn.global_position, pawn.rotation.y)
 
 
 func _host_match_over(result: Dictionary) -> void:
@@ -206,7 +245,13 @@ func ev_kill(killer_id: int, victim_id: int) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func ev_respawn(player_id: int) -> void:
+func ev_respawn(player_id: int, pos: Vector3 = Vector3.INF, yaw: float = 0.0) -> void:
+	if pos.is_finite():
+		# The spawn position rides on the event so the client can snap to it before the next snapshot.
+		var r: Dictionary = replica.get(player_id, {})
+		r["pos"] = pos
+		r["yaw"] = yaw
+		replica[player_id] = r
 	respawn_event.emit(player_id)
 
 
