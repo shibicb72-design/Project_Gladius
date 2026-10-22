@@ -387,7 +387,9 @@ Acceptance: Definition of done passes. Named tests pass:
 
 Placeholders: OQ-23, OQ-24, OQ-25, OQ-26.
 
-## S8: Bots that play the hill
+## S8: Bots that play the hill [DONE]
+
+Notes: Built data/bots.json (all placeholder, OQ-30–33), BotTargeting (pure), BotSpawner (fill plan + spawn), BotBrain (nav to hill, nearest visible enemy, reaction/aim error), BotCommands stub, MatchDirector.all_players(), MatchRoot fill_bots; damage_mult/health_mult/aim_smartness/grenade_freq are stored but not applied yet (OQ-31); no new OQs.
 
 Goal: "a few bots" fill the squads, move to the hill and fight using the same pawn and weapons.
 

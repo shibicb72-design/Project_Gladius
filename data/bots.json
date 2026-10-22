@@ -1,0 +1,23 @@
+{
+  "_placeholder": true,
+  "_todo": "OQ-30 OQ-31 OQ-32 OQ-33: every number in this file is a placeholder, not a design value. Only the profile names tiro/miles/centurion/legatus come from the design. damage_mult, health_mult, aim_smartness and grenade_freq are stored but not yet applied by the bot brain (OQ-31).",
+  "profiles": {
+    "tiro":      {"_placeholder": true, "accuracy": 0.35, "reaction_time_s": 0.8,  "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.2, "grenade_freq": 0.0},
+    "miles":     {"_placeholder": true, "accuracy": 0.5,  "reaction_time_s": 0.6,  "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.4, "grenade_freq": 0.0},
+    "centurion": {"_placeholder": true, "accuracy": 0.7,  "reaction_time_s": 0.4,  "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.6, "grenade_freq": 0.0},
+    "legatus":   {"_placeholder": true, "accuracy": 0.9,  "reaction_time_s": 0.25, "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.8, "grenade_freq": 0.0}
+  },
+  "match_fill": {"_placeholder": true, "squads": 2, "squad_size": 3, "profile": "tiro"},
+  "class_rotation": ["hastati", "sagittarii"],
+  "brain": {
+    "_placeholder": true,
+    "_todo": "OQ-31: bot behaviour tuning, not design values.",
+    "max_aim_error_deg": 12.0,
+    "turn_rate_rad_s": 6.0,
+    "sight_range_m": 60.0,
+    "fire_cone_deg": 6.0,
+    "aim_error_refresh_s": 0.5,
+    "hill_hold_fraction": 0.5
+  },
+  "commands": {"_todo": "OQ-33: no squad commands in milestone 1; bots always play the hill.", "enabled": []}
+}

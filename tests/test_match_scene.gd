@@ -8,6 +8,7 @@ func _new_match() -> MatchRoot:  # call with await
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = false
+	m.fill_bots = false
 	var tree: SceneTree = Engine.get_main_loop()
 	tree.root.add_child(m)
 	# The tree may not run _ready (and so resolve @onready nodes) until the next frame.

@@ -51,7 +51,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 ## Bots
 
 - **OQ-30: How many bots in milestone 1 ("a few bots").** Placeholder: fill to 2 squads of 3 (6 total). Configured in `data/bots.json` `match_fill` (S8).
-- **OQ-31: Bot difficulty in milestone 1, and numbers for Tiro/Miles/Centurion/Legatus** (accuracy, reaction time, damage, health...). Placeholder: one profile `tiro` with placeholder numbers; the other three listed with placeholder numbers, unused (S8).
+- **OQ-31: Bot difficulty in milestone 1, and numbers for Tiro/Miles/Centurion/Legatus** (accuracy, reaction time, damage, health...). Placeholder: one profile `tiro` with placeholder numbers; the other three listed with placeholder numbers, unused (S8). damage_mult, health_mult, aim_smartness and grenade_freq are stored in data/bots.json but not yet applied by the bot brain.
 - **OQ-32: Bot classes.** Placeholder: bots alternate Hastati / Sagittarii (S8).
 - **OQ-33: Bot squad commands in milestone 1?** (follow/attack/hold/rush hill). Not listed for milestone 1. Placeholder: out of milestone 1. Bots always play the hill. Command system provisioned in ARCHITECTURE.md (S8).
 

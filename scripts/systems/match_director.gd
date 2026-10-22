@@ -57,6 +57,10 @@ func start(squad_ids: Array, spawn_xforms: Dictionary, zone: HillZone, seed_valu
 	return true
 
 
+func all_players() -> Dictionary:
+	return _players
+
+
 func player(player_id: int) -> Pawn:
 	return _players.get(player_id)
 

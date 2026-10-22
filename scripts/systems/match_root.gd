@@ -10,11 +10,14 @@ const _RigScene := preload("res://scenes/player/camera_rig.tscn")
 ## Tests turn this off to override director config before calling begin().
 @export var auto_start: bool = true
 @export var bake_navmesh: bool = true
+## Fill empty squad slots with bots (data/bots.json match_fill). Existing tests turn it off.
+@export var fill_bots: bool = true
 
 var map_def: Dictionary = {}
 var map: Node3D
 var router: InputRouter
 var local_player: Pawn
+var bots: Array[Pawn] = []
 var zone: HillZone
 var _remaining_s: float = 0.0
 
@@ -73,6 +76,9 @@ func begin() -> bool:
 	rig.name = "CameraRig"
 	local_player.add_child(rig)
 	director.add_player(0, local_player)
+	if fill_bots:
+		# Host-only: the local player is the only human in squad 0.
+		bots = BotSpawner.spawn_bots(self, director, {0: 1}, center, float(hill.get("radius_m", 8.0)))
 
 	var squads: Array = range(int(director.match_cfg.get("offline_squads", 2)))
 	return director.start(squads, xforms, zone, randi())
