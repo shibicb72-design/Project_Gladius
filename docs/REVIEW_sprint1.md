@@ -828,3 +828,86 @@ VERDICT: APPROVE
 - The cause is confirmed by the per-event trace. The fix is in `tools/` only, and the PNGs show no hover artefact.
 - Product change `lobby.gd:148` verified necessary: removing it makes the new test fail with 0 touch / 0 drag events.
 - Left for the on-device check, not blocking: real scrolling on a touchscreen, and drag-on-row not triggering a class change (Low 1-2).
+
+## D1 review
+
+Scope: D1 `cd633af` ("feat: apply Shibi decisions OQ batch 1"), checked against `fix3c/D1.txt` (Shibi's 8 decisions of
+2026-10-22). The commit changes `data/loadouts.json`, `data/stats.json`, `docs/OPEN_QUESTIONS.md`, `export_presets.cfg`,
+`scripts/systems/match_root.gd`, `scripts/systems/save_service.gd` and `scripts/ui/main_menu.gd`, and adds
+`tests/test_decisions_batch1.gd` (+ `.uid`).
+
+### Verification (run during this review)
+
+- `godot --headless --path . --import`: exit 0, no errors.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, no `ERROR:` lines, APK exists.
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, **129 passed, 0 failed** (124 before + the 5 new
+  D1 tests). No `SCRIPT ERROR`, `Parse Error`, `ERROR:` or `WARNING` lines.
+- `git show cd633af --stat -- tests/`: only the new test file was added. No existing test was edited, so no assertion was
+  removed or weakened. `docs/DESIGN.md` is not in the commit.
+- Probe (`build/vd_probe.gd`, not committed): in Godot 4.7.2, `input_devices/sensors/enable_gyroscope` exists and
+  defaults to `false`. `project.godot` does not set it.
+
+### Checklist
+
+| D1 item | Result | Evidence |
+|---|---|---|
+| 1. OQ-01/02: package id `com.shibibabu.gladius` (preset and CI), launcher name "Project Gladius" | yes | `export_presets.cfg:38` `package/unique_name="com.shibibabu.gladius"`, `:39` `package/name="Project Gladius"`. `project.godot` `config/name` is "Project Gladius". `.github/workflows/android.yml` has no package id (it only exports `build/gladius-debug.apk`), so CI needed no change. No `com.placeholder` is left outside the OQ history. |
+| 2. OQ-04: sensor landscape, preset matches | yes | `project.godot:15` `window/handheld/orientation=4` (= `SCREEN_SENSOR_LANDSCAPE`, checked by the test). Godot 4.7's Android preset has no orientation key of its own. It exports the project setting, so the preset matches by construction. |
+| 3. OQ-29: lobby class toggle per human, large touch button, host-authoritative, applies at match start and next spawn | yes (already built in S10/C6; D1 adds a test) | `scripts/ui/lobby.gd:59-62,101-107` Class button in the full-width action bar, sized by `UiScale` (48 dp floor, measured 48.3/70.5 dp in touch re-check 3). Clients send `_request_update` to the host (`net_lobby.gd:51,72-78`), and the host applies it and syncs. `match_roster.gd:41` spawns with the slot's `class_id`. `pawn.gd:72` rebuilds the loadout from `class_id` on respawn. |
+| 4. OQ-08/10: Hastati Pilum BR + Gladius Lux; Sagittarii long-range single-shot rifle + Gladius Lux; rifle in stats.json, placeholder and `# TUNE` | yes | `data/loadouts.json` sagittarii primary is `sagittarii_rifle`. `data/stats.json` adds `sagittarii_rifle`: `kind` hitscan, `burst_count` 1, `range_m` 200, `"_placeholder": true`, `"# TUNE": "all numbers are placeholders"`, `_todo` naming OQ-06/07/08/10. The markers are entry-level, not per number. That is how every other weapon entry is marked, so I accept it. |
+| 5. OQ-17: jump stays in, OQ marker removed, numbers still placeholder | yes | `stats.json` movement `_todo` now cites only OQ-18. `jump_enabled` is true and `_placeholder` is kept. |
+| 6. OQ-30/31: fill to 2 squads of 3 at Tiro | yes (no code change needed) | `data/match.json` `squads: 2`, `squad_size: 3`. `data/bots.json` `match_fill.profile: "tiro"`, read by `bot_spawner.gd:26,38`. |
+| 7. OQ-24/25: Alesia hilltop citadel section, greybox | yes (no code change needed) | OQ entries updated. Map data unchanged. |
+| 8. OQ-34: gyro off by default, On/Off toggle in settings, saved to user:// | **partly** | Default off: `save_service.gd:18`. Toggle: `main_menu.gd:43-45,64-71` (the disabled "Settings (later)" entry was swapped for a real gyro button, so the button count is unchanged). Saved to `user://profile.json` (`save_service.gd:41,52`). The match reads it: `match_root.gd:45-48`. **But the On state can't work on a device**, see Important 1. |
+| OPEN_QUESTIONS.md: the 12 OQs marked DECIDED, others untouched | yes | The diff touches exactly OQ-01, 02, 04, 08, 10, 17, 24, 25, 29, 30, 31 and 34. Each says "DECIDED (Shibi, 2026-10-22): ..." and keeps the old placeholder text as history. |
+| Required tests | yes | `test_decisions_batch1.gd`: package id and name read from `export_presets.cfg` and ProjectSettings; orientation; the lobby toggle changes the class and the spawned `Pawn` loadout matches (both directions); the Sagittarii loadout contains the rifle; gyro is off by default, the menu toggle persists On and back Off through a fresh `SaveService`, and the temp file is cleaned up. |
+
+### CROSS-PLATFORM and iOS rules
+
+- Gyro reads go through `scripts/platform/platform_services.gd:51-63` (`OS.get_name()` switch, Android/iOS only, no-op
+  elsewhere and on headless). `GyroProvider` is a swappable provider in `scripts/input/providers/`. No gameplay code reads
+  raw touch or sensors.
+- The save goes to `user://` through `SaveService`. There are no hard-coded paths.
+- No plugin, GDExtension or Android-only API was added. Both the gyro path and the new menu button have an iOS/desktop
+  path. `export_presets.cfg` still has only the Android preset. The renderer is unchanged (Mobile).
+- The new menu button uses the existing `_button()`/`UiScale` path (containers, touch-target floor).
+
+### Findings
+
+#### Important
+
+1. **Gyro "On" gives no input on Android (or iOS), because the engine never turns the sensor on.** In Godot 4.7.2,
+   `input_devices/sensors/enable_gyroscope` defaults to `false` (confirmed by the probe), and `project.godot` doesn't set
+   it. With it off, the engine never registers the gyroscope listener, so `Input.get_gyroscope()` stays at zero and
+   `GyroProvider.get_look()` (`gyro_provider.gd:16-20`) returns `Vector2.ZERO` even when the player picks On. Decision 8
+   asks for a working On/Off toggle. As shipped, On saves and shows "On" but does nothing, and the headless tests can't
+   catch it. **Fix:** set `input_devices/sensors/enable_gyroscope=true` in `project.godot`. The profile toggle still
+   gates gyro use in `GyroProvider`, so default-off behaviour is unchanged. The setting is cross-platform, and it is
+   ignored where there is no gyro. Add a test that asserts the setting is true. Include a gyro On check on the Fold7 in
+   Shibi's device pass.
+
+#### Low
+
+1. `GyroProvider.sensitivity` is hard-coded `1.0` (`gyro_provider.gd:8`). Now that gyro can be switched on, this is a
+   tunable number outside `data/`. Move it to `data/input.json` as a placeholder (OQ-34/OQ-36) when fixing Important 1.
+   This is a carry-over, not introduced by D1.
+2. `data/input.json:5` `"gyro_mode": "off"` is now dead. `match_root.gd:47` builds the gyro config only from the profile,
+   so the file value is never read. Remove it, or note that the profile owns the setting.
+3. Stale labels left over after decision 6: `data/match.json:10` `_note` still calls `squads` "a placeholder matching
+   OQ-30, not a design value", and `data/bots.json` `match_fill` (squad_size 3, profile tiro) still has
+   `"_placeholder": true`. The values are right and now decided. Only the labels are out of date. They err on the safe
+   side, so this is not blocking.
+4. The offline/standalone branch hard-codes `local_player.class_id = "hastati"` (`match_root.gd:108`). That branch runs
+   only without a lobby (tests, standalone scene). Every real match goes through the lobby, so the toggle applies there.
+   This is a carry-over.
+
+D1 applies decisions 1-7 as stated and the OQ log exactly as asked. Nothing outside the brief was invented, the
+placeholders are clearly marked, no test was weakened, and the suite is green at 129/0. Decision 8 is wired end to end
+in data and UI, but the engine sensor switch is missing, so the On setting does nothing on the target devices.
+
+VERDICT: ITERATE
+- Important 1: set `input_devices/sensors/enable_gyroscope=true` in `project.godot` (with a test). Otherwise gyro "On"
+  (decision 8, OQ-34) never produces input on Android/iOS.
+- Everything else passes: decisions 1-7, the OPEN_QUESTIONS.md update, the required tests, import/export/tests exit 0
+  with 129 passed / 0 failed, no weakened assertions, and the CROSS-PLATFORM and iOS rules hold. The Low items can go in
+  the same small fix.
