@@ -11,12 +11,13 @@ const MASK_HEAD := 4
 
 ## Returns {} on a miss, else {position, target (Pawn or null), is_headshot}.
 static func cast(space: PhysicsDirectSpaceState3D, origin: Vector3, direction: Vector3,
-		weapon_def: WeaponDef, exclude: Array[RID], rng: RandomNumberGenerator = null) -> Dictionary:
+		weapon_def: WeaponDef, exclude: Array[RID], rng: RandomNumberGenerator = null,
+		spread_mult: float = 1.0) -> Dictionary:
 	var dir := direction.normalized()
 	if rng != null and weapon_def.spread_deg > 0.0:
 		var basis := Basis.looking_at(dir)
 		var ang := rng.randf() * TAU
-		var r := tan(deg_to_rad(weapon_def.spread_deg)) * sqrt(rng.randf())
+		var r := tan(deg_to_rad(weapon_def.spread_deg * spread_mult)) * sqrt(rng.randf())
 		dir = (dir + basis.x * cos(ang) * r + basis.y * sin(ang) * r).normalized()
 	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * weapon_def.range_m,
 			MASK_WORLD | MASK_BODY | MASK_HEAD)
@@ -39,8 +40,8 @@ static func cast(space: PhysicsDirectSpaceState3D, origin: Vector3, direction: V
 ## Casts and forwards a pawn hit to the authority. Returns the cast result.
 static func fire(space: PhysicsDirectSpaceState3D, attacker: Node, origin: Vector3, direction: Vector3,
 		weapon_def: WeaponDef, exclude: Array[RID], authority: Callable,
-		rng: RandomNumberGenerator = null) -> Dictionary:
-	var res := cast(space, origin, direction, weapon_def, exclude, rng)
+		rng: RandomNumberGenerator = null, spread_mult: float = 1.0) -> Dictionary:
+	var res := cast(space, origin, direction, weapon_def, exclude, rng, spread_mult)
 	if not res.is_empty() and res["target"] != null and authority.is_valid():
 		authority.call(attacker, res["target"], weapon_def, res["is_headshot"])
 	return res

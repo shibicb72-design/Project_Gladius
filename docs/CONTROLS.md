@@ -4,6 +4,24 @@ Phone controls follow PUBG Mobile's layout design (source: `cc_gladius/staging/p
 That source gives layouts only; it has no official numbers for dead zones, sizes or curves, so no value below is
 labelled as PUBG's.
 
+## Action buttons and their feedback
+
+All feedback numbers are placeholders in `data/ui.json` (`shot_fx`, `feedback`); aim numbers are in
+`data/stats.json` `aim`. None are design or PUBG values. Tests: `tests/test_action_buttons.gd`.
+
+| Button | Effect | Visible feedback |
+|---|---|---|
+| Fire | One burst/shot of the active weapon (hold = repeat). Hitscan ranged weapons spend ammo. | Muzzle flash and tracer from the weapon mesh toward the hit point (others see it from the host's shot report); hit marker on a hit; "Empty" cue when pressed on an empty mag; button highlight while held. |
+| Reload | Starts a reload if the mag is not full and reserve ammo exists. | "Reloading" text and progress bar while reloading; "Full" cue on a full mag, "No reserve" cue with no reserve. |
+| Swap | Switches the active weapon slot. | Toast with the new weapon name; the weapon label also changes. |
+| Aim | Hold: camera FOV zooms (`aim_fov_mult`, eased by `aim_zoom_s`) and spread tightens (`aim_spread_mult`). Release restores. | FOV change. Aim state is read from `InputFrame.aim_pressed` in `pawn.gd`; clients send it with the shot so the host applies the same spread. |
+| Jump | Jumps when on the floor. | Camera hop. |
+
+A placeholder weapon box is drawn on the pawn (the camera is third-person).
+
+Touch debug overlay: set `data/ui.json` `touch_debug_overlay.enabled` to `true` to list each held touch with its
+index, position and the button/stick it hit (OQ-DEVICE-TOUCH). Default off.
+
 ## Move-stick modes
 
 | `move_stick` | What it is |

@@ -58,6 +58,11 @@ func get_aim_assist_cfg() -> Dictionary:
 	return load_file(STATS_PATH).get("aim_assist", {})
 
 
+## Aim-down-sights numbers (stats.json "aim"): aim_fov_mult, aim_zoom_s, aim_spread_mult.
+func get_aim_cfg() -> Dictionary:
+	return load_file(STATS_PATH).get("aim", {})
+
+
 ## Slot ids ("primary", "secondary", "sidearm") for a class, or {} if unknown.
 func get_loadout_ids(class_id: String) -> Dictionary:
 	return load_file(LOADOUTS_PATH).get("classes", {}).get(class_id, {})

@@ -23,6 +23,8 @@ var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> action
 var _buttons: Dictionary = {}  # action -> Control
+var debug_label: Label  # null unless the touch debug overlay is enabled in data/ui.json
+var _debug_touches: Dictionary = {}  # touch index -> overlay line
 ## Test-only hook ("" = use data/input.json touch_layout.move_stick): forces "virtual" or "custom".
 static var move_stick_override: String = ""
 const _VJOY_ACTIONS := ["vjoy_move_left", "vjoy_move_right", "vjoy_move_up", "vjoy_move_down"]
@@ -55,6 +57,11 @@ func _ready() -> void:
 		b.anchor_bottom = anchor[1]
 		add_child(b)
 		_buttons[action] = b
+	if bool(_DataRegistry.new().load_file("res://data/ui.json")["touch_debug_overlay"]["enabled"]):
+		debug_label = Label.new()
+		debug_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		debug_label.position = Vector2(8, 8)
+		add_child(debug_label)
 	look_stick = _make_stick_visual("look_stick")
 	add_child(look_stick)
 	rebuild_move_stick()
@@ -356,6 +363,7 @@ func _input(event: InputEvent) -> void:
 			_on_down(event.index, event.position)
 		else:
 			_on_up(event.index)
+		_debug_touch(event.index, event.pressed, event.position)
 	elif event is InputEventScreenDrag:
 		_on_drag(event.index, event.position, event.relative)
 
@@ -380,6 +388,28 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_look_travel = 0.0
 		provider.clear_look()
 		_update_sticks()
+
+
+## Debug overlay (data/ui.json touch_debug_overlay.enabled, default off): one line per held touch with its
+## index, position and what it hit (button action, "move", "look" or "none").
+func _debug_touch(idx: int, pressed: bool, pos: Vector2) -> void:
+	if debug_label == null:
+		return
+	if pressed:
+		var hit := "none"
+		if _button_touch.has(idx):
+			hit = String(_button_touch[idx])
+		elif idx == _move_touch:
+			hit = "move"
+		elif idx == _look_touch:
+			hit = "look"
+		_debug_touches[idx] = "touch %d at (%d, %d) -> %s" % [idx, int(pos.x), int(pos.y), hit]
+	else:
+		_debug_touches.erase(idx)
+	var lines: Array[String] = []
+	for k in _debug_touches:
+		lines.append(_debug_touches[k])
+	debug_label.text = "\n".join(lines)
 
 
 func _on_up(idx: int) -> void:

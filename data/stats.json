@@ -42,6 +42,12 @@
     "follow": 0.0,
     "magnetism": 0.0
   },
+  "aim": {
+    "_placeholder": true, "_todo": "OQ-AIM (GBTN): holding Aim zooms the camera and tightens spread. No weapon has its own aim spread in the data yet, so one global multiplier applies. Not PUBG values, not design values.",
+    "aim_fov_mult": 0.6,
+    "aim_zoom_s": 0.15,
+    "aim_spread_mult": 0.5
+  },
   "_weapons_comment": "Starter set, see docs/STATS.md. Shibi tunes these on the phone. Kinds: hitscan (burst/single, uses magazine) and melee (swing: melee_range_m, melee_arc_deg; no ammo).",
   "weapons": {
     "pilum_br": {

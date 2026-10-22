@@ -8,6 +8,12 @@ signal shot(origin: Vector3, direction: Vector3, weapon_id: String)
 ## A local reload started / the active slot changed, for the network layer (reliable host sync).
 signal reload_started
 signal weapon_switched(slot: int)
+## Presentation signals (HUD, shot visuals). `hit` is the Hitscan result ({} on a miss).
+signal shot_resolved(origin: Vector3, end: Vector3, hit: Dictionary)
+## Reload tapped but not started: reason "full" or "no_reserve".
+signal reload_rejected(reason: String)
+## Fire pressed with an empty magazine.
+signal fire_empty
 
 ## LOCAL: full simulation (offline, host, own pawn on a client).
 ## HOST_REMOTE: remote human on the host; moved only by accepted net input, never fires by itself.
@@ -33,8 +39,14 @@ var class_def: ClassDef
 var hit_authority: Callable = Callable(self, "_local_authority")
 var pitch: float = 0.0
 var net_mode: NetMode = NetMode.LOCAL
+## True while the Aim button is held (InputFrame.aim_pressed); read by the shot code and the zoom.
+var aiming: bool = false
+## 0..1 aim zoom blend, eased by stats.json aim.aim_zoom_s.
+var aim_blend: float = 0.0
+var shot_fx: ShotFx
 
 var _frame: InputFrame = InputFrame.new()
+var _aim: Dictionary = {}
 var _movement: Dictionary = {}
 var _camera: Dictionary = {}
 var _clock: float = 0.0
@@ -43,6 +55,9 @@ var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	add_to_group("pawns")
+	shot_fx = ShotFx.new()
+	shot_fx.name = "ShotFx"
+	add_child(shot_fx)
 	setup(class_id, squad_id)
 
 
@@ -52,6 +67,7 @@ func setup(new_class_id: String, new_squad_id: int) -> void:
 	class_def = registry.get_class_def(class_id)
 	_movement = registry.get_movement_cfg()
 	_camera = registry.get_camera_cfg()
+	_aim = registry.get_aim_cfg()
 	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
 	loadout = Loadout.from_class(class_id, registry)
 	_rng.randomize()
@@ -59,6 +75,11 @@ func setup(new_class_id: String, new_squad_id: int) -> void:
 
 func set_frame(frame: InputFrame) -> void:
 	_frame = frame
+
+
+## Pawn simulation clock (s); the time base of Weapon reload progress.
+func get_clock() -> float:
+	return _clock
 
 
 func is_alive() -> bool:
@@ -139,8 +160,25 @@ func fire_shot() -> Dictionary:
 	shot.emit(get_muzzle_position(), get_aim_direction(), w.def.id)
 	if w.def.is_melee():
 		return melee_swing(w.def, get_muzzle_position(), get_aim_direction(), hit_authority)
-	return Hitscan.fire(get_world_3d().direct_space_state, self, get_muzzle_position(),
-			get_aim_direction(), w.def, hitscan_exclude(), hit_authority, _rng)
+	var origin := get_muzzle_position()
+	var dir := get_aim_direction()
+	var res := Hitscan.fire(get_world_3d().direct_space_state, self, origin, dir, w.def, hitscan_exclude(),
+			hit_authority, _rng, get_spread_mult())
+	var end: Vector3 = res["position"] if res.has("position") else origin + dir * w.def.range_m
+	show_shot_fx(origin, end)
+	shot_resolved.emit(origin, end, res)
+	return res
+
+
+## Spread multiplier for the next shot: stats.json aim.aim_spread_mult while aiming, else 1.
+func get_spread_mult() -> float:
+	return float(_aim["aim_spread_mult"]) if aiming else 1.0
+
+
+## Muzzle flash and tracer; also called for shots replicated from other peers.
+func show_shot_fx(origin: Vector3, end: Vector3) -> void:
+	if shot_fx != null:
+		shot_fx.show_shot(origin, end)
 
 
 ## One melee swing from `origin` along `direction`; shows the placeholder swing visual.
@@ -177,6 +215,7 @@ func _physics_process(delta: float) -> void:
 	if net_mode == NetMode.HOST_REMOTE:
 		return
 	_apply_look()
+	_apply_aim(delta)
 	_apply_movement(delta)
 	_apply_weapon()
 
@@ -188,6 +227,17 @@ func _apply_look() -> void:
 	var rig := get_node_or_null("CameraRig")
 	if rig != null:
 		rig.set_pitch(pitch)
+
+
+## Aim button held (InputFrame.aim_pressed): zooms the camera FOV and tightens spread; release eases back.
+func _apply_aim(delta: float) -> void:
+	aiming = _frame.aim_pressed
+	var zoom_s: float = _aim["aim_zoom_s"]
+	var target := 1.0 if aiming else 0.0
+	aim_blend = target if zoom_s <= 0.0 else move_toward(aim_blend, target, delta / zoom_s)
+	var rig := get_node_or_null("CameraRig")
+	if rig != null:
+		rig.set_aim_blend(aim_blend, float(_aim["aim_fov_mult"]))
 
 
 func _apply_movement(delta: float) -> void:
@@ -222,8 +272,13 @@ func _apply_weapon() -> void:
 	var w := loadout.get_active()
 	if w == null:
 		return
-	if _frame.reload_just_pressed and w.start_reload(_clock):
-		reload_started.emit()
+	if _frame.reload_just_pressed:
+		if w.start_reload(_clock):
+			reload_started.emit()
+		elif not w.def.is_melee() and not w.reloading:
+			reload_rejected.emit("full" if w.ammo_in_mag >= w.def.magazine else "no_reserve")
+	if _frame.fire_just_pressed and not w.has_ammo() and not w.reloading:
+		fire_empty.emit()
 	var shots := w.update(_clock, _frame.fire_pressed)
 	for i in shots:
 		fire_shot()

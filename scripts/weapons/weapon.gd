@@ -11,6 +11,7 @@ var _next_fire_time: float = 0.0
 var _burst_left: int = 0
 var _next_burst_time: float = 0.0
 var _reload_end: float = 0.0
+var _reload_start: float = 0.0
 
 
 func _init(weapon_def: WeaponDef = null) -> void:
@@ -65,9 +66,17 @@ func start_reload(now: float) -> bool:
 	if def == null or def.is_melee() or reloading or ammo_in_mag >= def.magazine or reserve <= 0:
 		return false
 	reloading = true
+	_reload_start = now
 	_reload_end = now + def.reload_s
 	_burst_left = 0
 	return true
+
+
+## 0..1 progress of a running reload at `now` (0 when not reloading).
+func reload_fraction(now: float) -> float:
+	if not reloading or _reload_end <= _reload_start:
+		return 0.0
+	return clampf((now - _reload_start) / (_reload_end - _reload_start), 0.0, 1.0)
 
 
 func cancel_reload() -> void:

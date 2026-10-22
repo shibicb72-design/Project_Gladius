@@ -6,6 +6,10 @@ extends Node3D
 @onready var _camera: Camera3D = $SpringArm3D/Camera3D
 
 var _cfg: Dictionary = {}
+## FOV from the aspect table, before any aim zoom.
+var base_fov: float = 75.0
+var _aim_blend: float = 0.0
+var _aim_fov_mult: float = 1.0
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -31,7 +35,23 @@ func apply_fov() -> void:
 	var size := get_viewport().get_visible_rect().size
 	if size.y <= 0.0:
 		return
-	_camera.fov = fov_for_aspect(_cfg, size.x / size.y)
+	base_fov = fov_for_aspect(_cfg, size.x / size.y)
+	_apply_zoom()
+
+
+## Aim zoom: `blend` 0..1 moves the FOV from the aspect-table base toward base * fov_mult.
+func set_aim_blend(blend: float, fov_mult: float) -> void:
+	_aim_blend = clampf(blend, 0.0, 1.0)
+	_aim_fov_mult = fov_mult
+	_apply_zoom()
+
+
+func get_fov() -> float:
+	return _camera.fov
+
+
+func _apply_zoom() -> void:
+	_camera.fov = base_fov * lerpf(1.0, _aim_fov_mult, _aim_blend)
 
 
 ## Orients the rig; pitch in radians, clamped by data.

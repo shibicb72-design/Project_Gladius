@@ -108,6 +108,11 @@ func begin() -> bool:
 			if not session.is_host:
 				_wire_client(roster.bridge)
 				session.host_lost.connect(_on_host_lost)
+			else:
+				# The host's own pawn shoots locally; clients learn about it from the host.
+				var host_bridge: NetMatchBridge = roster.bridge
+				local_player.shot_resolved.connect(func(o: Vector3, e: Vector3, _h: Dictionary) -> void:
+						host_bridge.announce_pawn_shot(local_player, o, e))
 	else:
 		# Offline / standalone: the local player is the only human in squad 0.
 		local_player = _PawnScene.instantiate()
@@ -169,11 +174,20 @@ func _physics_process(delta: float) -> void:
 func _wire_client(bridge: NetMatchBridge) -> void:
 	_client_bridge = bridge
 	if local_player != null:
-		local_player.shot.connect(bridge.send_fire)
+		local_player.shot.connect(func(o: Vector3, d: Vector3, wid: String) -> void:
+				bridge.send_fire(o, d, wid, local_player.aiming))
+		bridge.shot_event.connect(_on_remote_shot)
 		local_player.reload_started.connect(bridge.send_reload)
 		local_player.weapon_switched.connect(bridge.send_weapon_slot)
 	bridge.snapshot_received.connect(_on_snapshot)
 	bridge.respawn_event.connect(_on_local_respawn_event)
+
+
+## Client: draws another player's shot from the host's report (the local pawn drew its own at once).
+func _on_remote_shot(player_id: int, origin: Vector3, end: Vector3) -> void:
+	var p: Pawn = director.player(player_id)
+	if p != null and p != local_player:
+		p.show_shot_fx(origin, end)
 
 
 func _on_snapshot() -> void:

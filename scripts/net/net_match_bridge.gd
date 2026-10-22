@@ -5,6 +5,8 @@ extends Node
 ## Add as a child named "Bridge" of the NetSession so RPC paths match on every peer.
 
 signal snapshot_received
+## Client: the host reports a shot (any shooter) so the flash and tracer can be drawn.
+signal shot_event(player_id: int, origin: Vector3, end: Vector3)
 signal kill_event(killer_id: int, victim_id: int)
 signal respawn_event(player_id: int)
 signal match_over_event(result: Dictionary)
@@ -87,11 +89,11 @@ func send_input(frame: InputFrame, pos: Vector3, yaw: float) -> void:
 	submit_input.rpc_id(1, frame.to_array(), pos, yaw, _tick)
 
 
-func send_fire(origin: Vector3, direction: Vector3, weapon_id: String) -> void:
+func send_fire(origin: Vector3, direction: Vector3, weapon_id: String, aimed: bool = false) -> void:
 	if not _online():
 		return
 	_tick += 1
-	request_fire.rpc_id(1, origin, direction, weapon_id, _tick)
+	request_fire.rpc_id(1, origin, direction, weapon_id, _tick, aimed)
 
 
 func send_reload() -> void:
@@ -186,14 +188,17 @@ func correct_position(pos: Vector3) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func request_fire(origin: Vector3, direction: Vector3, weapon_id: String, _client_tick: int) -> void:
+func request_fire(origin: Vector3, direction: Vector3, weapon_id: String, _client_tick: int,
+		aimed: bool = false) -> void:
 	if director == null or not _is_host():
 		return
-	host_handle_fire(multiplayer.get_remote_sender_id(), origin, direction, weapon_id)
+	host_handle_fire(multiplayer.get_remote_sender_id(), origin, direction, weapon_id, aimed)
 
 
 ## Host: validate, raycast on host state and apply DamageRules. Returns {ok, reason, hit}.
-func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_id: String) -> Dictionary:
+## `aimed` is the shooter's Aim button state; it only tightens spread (stats.json aim.aim_spread_mult).
+func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_id: String,
+		aimed: bool = false) -> Dictionary:
 	var pid: int = peer_to_player.get(peer_id, -1)
 	var pawn: Pawn = director.player(pid) if director != null and pid >= 0 else null
 	if pawn == null or not pawn.is_alive():
@@ -216,11 +221,30 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 		v["hit"] = pawn.melee_swing(w.def, origin, direction, Callable(self, "_host_authority"))
 		return v
 	w.ammo_in_mag -= 1
+	var spread_mult: float = float(DataRegistry.new().get_aim_cfg()["aim_spread_mult"]) if aimed else 1.0
 	var hit := Hitscan.fire(pawn.get_world_3d().direct_space_state, pawn, origin, direction, w.def,
 			pawn.hitscan_exclude(),
-			Callable(self, "_host_authority"), _rng)
+			Callable(self, "_host_authority"), _rng, spread_mult)
 	v["hit"] = hit
+	var end: Vector3 = hit["position"] if hit.has("position") else origin + direction.normalized() * w.def.range_m
+	pawn.show_shot_fx(origin, end)
+	announce_shot(pid, origin, end)
 	return v
+
+
+## Host: tells every client about a shot so they draw the flash and tracer (the shooter ignores its own).
+func announce_shot(player_id: int, origin: Vector3, end: Vector3) -> void:
+	if multiplayer.multiplayer_peer != null and _is_host():
+		ev_shot.rpc(player_id, origin, end)
+
+
+func announce_pawn_shot(pawn: Pawn, origin: Vector3, end: Vector3) -> void:
+	announce_shot(_player_id_of(pawn), origin, end)
+
+
+@rpc("authority", "call_remote", "unreliable")
+func ev_shot(player_id: int, origin: Vector3, end: Vector3) -> void:
+	shot_event.emit(player_id, origin, end)
 
 
 func _host_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_headshot: bool) -> void:
