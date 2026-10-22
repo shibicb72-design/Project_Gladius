@@ -1716,3 +1716,113 @@ All 9 G2b3 items are met:
 - the M2/M3/M4 mutations are each caught;
 - 3/3 full runs are green;
 - the locked files are untouched.
+
+## GBTN review
+
+Opus check of dd07615 "fix: GBTN aim, action feedback, button tests" against cc_gladius/fixG/GBTN.txt, run on Oct 22 2026.
+Prev commit = 140ca8f (G2b3 review), the parent of dd07615.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_GBTN.log exists; the gate line is in cc_gladius/fixG.log:51, not
+fix3c.log: "GATE GBTN apk=True tests=0 shots=78". I also ran the suite myself: exit 0, "TESTS: 209 passed, 0 failed") ;
+apk = FOUND (build/gladius-debug.apk, re-exported in this review: exit 0, "Signed", "[ DONE ] export") ; shots = FOUND
+(n=78 in build/shots/*.png, incl. buttons_fire_cover_landscape, buttons_reload_inner_landscape,
+buttons_aim_cover_landscape, buttons_swap_inner_landscape) ; step commit = FOUND (dd07615, 20 files, +789/-17)
+
+Verification (all run in this review from the repo root):
+- `godot --headless --path . --import` exited 0. `--export-debug "Android" build/gladius-debug.apk` exited 0. Neither
+  printed a SCRIPT ERROR, Parse Error or ERROR: line. Glob finds build/gladius-debug.apk.
+- Full suite: exit 0, "TESTS: 209 passed, 0 failed". The output has no SCRIPT ERROR or ERROR: lines.
+- `-- --only=action_buttons --move-stick=virtual`: "TESTS: 8 passed, 0 failed".
+- `-- --only=action_buttons --move-stick=custom`: "TESTS: 8 passed, 0 failed".
+
+1. Root causes: confirmed.
+   - Aim is now consumed. scripts/classes/pawn.gd:234 `aiming = _frame.aim_pressed` (in `_apply_aim`, called from
+     `_physics_process` at :218). The FOV goes through camera_rig.gd `set_aim_blend`, and the spread through
+     pawn.gd `get_spread_mult` into hitscan.gd `cast(..., spread_mult)`.
+   - Each button has a visible effect node or HUD element:
+     - Fire: shot_fx.gd tracer and flash (:71-72) and hud.gd hit_marker. Empty mag shows hud.gd cue_label "Empty".
+     - Reload: hud.gd reload_box/reload_bar, shown while `w.reloading` (`refresh_pawn`). A full mag shows cue_label "Full"
+       via pawn.gd `reload_rejected`.
+     - Swap: hud.gd toast_label via `weapon_switched`.
+     - Aim: camera FOV.
+   - Gameplay reads no HUD nodes. pawn.gd only emits signals; hud.gd connects to them in `bind`.
+2. Tests: real, and delivered through the viewport.
+   - tests/test_action_buttons.gd:27-28 `func _deliver(e: InputEvent) -> void: _root().push_input(e, true)`.
+   - :31-36 builds the InputEventScreenTouch. :83-88 taps `get_button_rect(action).get_center()`.
+   - Each button test loops 2 sizes x 2 modes x stick held/not held (:92-99). The two-finger case: move stick index 0
+     is pressed and dragged (:66-70), then the button is pressed with index 1 (:11, :84).
+   - Effects are asserted, not just input state:
+     - ammo drop plus tracer/flash visible (:110-112);
+     - reloading, reload_box visible, then refill and hidden (:128-134);
+     - Full cue and ammo unchanged (:146-148);
+     - Empty cue (:160);
+     - slot change and toast text (:172-175);
+     - `pawn.aiming`, FOV < base, spread < 1, then back to base (:187-193);
+     - velocity.y > 0 (:202).
+3. Mutations: each is caught. I could not make a scratch clone: the allowed shell commands are godot, mkdir, git
+   add/commit/status/diff/log, so no clone or rm. Instead I applied each mutation in place with Edit, ran the test,
+   reverted it, and confirmed `git status --porcelain` was empty afterwards.
+   - (a) pawn.gd:234 changed to `aiming = false`: test_aim_button_zooms_and_releases FAILS in all 8 combos ("pawn
+     aiming", "FOV zoomed (75.0 < 75.0)", "aim tightens spread").
+   - (b) shot_fx.gd:71 changed to `tracer.visible = false`: test_fire_button_spends_ammo_and_shows_tracer FAILS in all 8
+     combos ("tracer visible").
+   - (c) touch_hud.gd:342 changed to return "" for fire: test_fire_button FAILS ("fire spent ammo (30 -> 30)", tracer,
+     flash) and test_fire_on_empty_mag FAILS ("Empty cue shown, got ''").
+   - Note on (c): test_reload_button still passed. The missed tap falls into the look zone, and the look-tap fire pulse
+     (touch_hud.gd:429) spends ammo anyway, so its "mag not full after firing" precondition is not proof that the Fire
+     button works. This is acceptable because the fire tests cover that.
+4. Data: OK.
+   - New values are in data/stats.json `aim` and data/ui.json `shot_fx`, `feedback` and `touch_debug_overlay`. Every
+     block has `"_placeholder": true` and a `_todo` naming OQ-AIM, OQ-FEEDBACK or OQ-DEVICE-TOUCH, plus "Not design
+     values" (stats.json also says "Not PUBG values").
+   - No value is labelled as PUBG's. The new code reads them without numeric fallbacks (e.g. pawn.gd:235
+     `_aim["aim_zoom_s"]`).
+   - OPEN_QUESTIONS.md adds OQ-DEVICE-TOUCH and OQ-AIM / OQ-FEEDBACK.
+5. Touch targets and HUD bars: OK.
+   - `git diff 140ca8f dd07615 -- tests/test_touch_controls.gd` is empty, so :470-477 are unchanged.
+   - test_hud_clear_of_sticks_and_buttons_folded and _unfolded PASS, and
+     test_touch_virtual.gd::test_move_stick_touch_target_at_least_48dp_at_fold_sizes PASSES.
+   - data/ui.json `min_touch_target_dp` is still 48.0.
+6. Debug touch overlay: OK. data/ui.json `touch_debug_overlay.enabled: false`. touch_hud.gd creates `debug_label` only
+   when it is true. `_debug_touch` returns early otherwise.
+7. Hygiene: OK.
+   - `git diff 140ca8f dd07615 -U0 -G "[Hh][Aa][Ll][Oo]" --stat` is empty.
+   - `git diff 140ca8f dd07615 -- .claude/settings.json tests/test_physics_baseline.gd data/physics_baseline.json
+     tests/run_tests.gd tests/test_case.gd` is empty.
+   - No existing test file was touched; tests/test_action_buttons.gd is entirely new.
+   - iOS: the only OS-name checks in scripts/ are scripts/platform/platform_services.gd:36/52/67. GBTN adds no
+     platform code.
+8. Shots (opened and viewed):
+   - buttons_fire_cover_landscape (2520x1080): ammo reads 29 / 120. The Fire button is highlighted. A small dark
+     weapon box and a small orange flash are left of the capsule's chest. **No tracer line is visible anywhere.**
+   - buttons_reload_inner_landscape (2176x1812): ammo reads 27 / 120. The Reload button is highlighted. Yellow
+     "Reloading" text and a thin progress bar (just started) sit at about 70% height, at the capsule's waist. The bar
+     overlaps the top-left of the look-stick ring. It is display-only (mouse_filter ignore), but it is hard to read there.
+   - buttons_aim_cover_landscape (2520x1080): the view is clearly zoomed compared with the fire shot (the capsule and
+     the wall are larger). The Aim button is highlighted.
+   - buttons_swap_inner_landscape (2176x1812): the weapon label reads "Gladius Lux" and the ammo reads "-". A white
+     "Gladius Lux" toast is at about 55% height, on the capsule. The Swap button is highlighted.
+9. Other (minor, not blocking on their own):
+   - Bots' shots on the host are not announced to clients. match_root.gd wires only `local_player.shot_resolved` to
+     `announce_pawn_shot`, so clients do not see bot tracers.
+   - net_match_bridge.gd `request_fire(..., aimed)` trusts a client-sent flag for tighter spread. The host already gets
+     `aim_pressed` in the replicated InputFrame (input_frame.gd:5, :10) and could use that instead.
+   - test_hit_marker_shows_on_a_hit_only (:206-214) emits `shot_resolved` by hand rather than hitting a target.
+
+VERDICT: ITERATE
+1. build/shots/buttons_fire_cover_landscape.png, scripts/weapons/shot_fx.gd:55-74: no tracer is visible in the
+   fire shot. GBTN item 5 requires "(tracer visible)", and Shibi's bug is that Fire shows nothing. The GBTN summary
+   admits this: the tracer is seen end-on from the third-person camera. The test passes only because it checks the
+   node's `visible` flag, not whether the tracer can be seen on screen. Fix: make the tracer readable from the shipped
+   camera, e.g. start it at the weapon box and end it at the hit point, offset from the view axis, or capture the shot
+   against a near target. Then re-shoot.
+2. GBTN summary, first-person weapon mesh: no first-person weapon mesh was added. ShotFx adds a third-person box
+   beside the pawn (shot_fx.gd:27-29, data/ui.json shot_fx.weapon_mesh_offset_m). The summary describes "a box placed
+   left of the pawn" but never says explicitly that no first-person weapon mesh was added, which this check requires.
+3. GODOT API RULE not met: the GBTN summary says it "did not check breaking-changes.md or deprecated-apis.md" and
+   gives no file:line. I grepped both for push_input, ProgressBar, top_level, Basis.looking_at, move_toward and
+   SubViewport and found no matches. None of them is listed as changed or deprecated, but the summary must say that
+   with the cites.
+4. Minor: scripts/ui/hud.gd `_build_feedback` with data/ui.json `feedback.reload_anchor_y_frac` 0.7 puts the
+   "Reloading" bar over the look-stick ring on the inner screen (buttons_reload_inner_landscape.png). Move the anchor
+   or extend tests/test_touch_controls.gd-style clearance checks to the new feedback widgets.
