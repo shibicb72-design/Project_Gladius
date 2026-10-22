@@ -103,6 +103,95 @@ func test_move_stick_in_match_moves_pawn() -> void:
 	m.queue_free()
 
 
+## Delivers an event through the root viewport's input path (all nodes' _input, as on a device).
+## Local coordinates: the headless root window is 64x64, so window->canvas stretching would otherwise
+## scale positions out of the HUD zones. Input.parse_input_event is not used: under
+## `--headless --script` it never reaches the scene tree (HUD stays at _move_touch == -1).
+func _deliver(e: InputEvent) -> void:
+	_root().push_input(e, true)
+
+
+## T-MOVE: touch events through the viewport input path into the full HUD -> provider -> router -> pawn chain.
+func _inject_move_walk(m: MatchRoot) -> float:
+	var tree: SceneTree = Engine.get_main_loop()
+	await _frames(3)
+	var hud: Control = m.get_node("Hud/TouchHud")
+	hud.cfg["force_touch_hud"] = true
+	hud.refresh_visibility()
+	_fix_size(hud)
+	var zone: Rect2 = hud._zone_rect("move_zone")
+	var start := zone.get_center()
+	var before := m.local_player.global_position
+	var down := InputEventScreenTouch.new()
+	down.index = 0
+	down.position = start
+	down.pressed = true
+	_deliver(down)
+	await tree.process_frame
+	assert_eq(hud._move_touch, 0, "touch-down in the move zone reached the HUD via Input")
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.position = start + Vector2(0, -hud._radius())
+	drag.relative = Vector2(0, -hud._radius())
+	_deliver(drag)
+	await _frames(20)
+	var after := m.local_player.global_position
+	var up := InputEventScreenTouch.new()
+	up.index = 0
+	up.position = drag.position
+	up.pressed = false
+	_deliver(up)
+	await tree.process_frame
+	return Vector2(after.x - before.x, after.z - before.z).length()
+
+
+func test_move_touch_events_move_pawn_offline() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var m: MatchRoot = _MatchScene.instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.fill_bots = false
+	tree.root.add_child(m)
+	await tree.physics_frame
+	m.director.load_config()
+	assert_true(m.begin(), "offline match begins")
+	var d: float = await _inject_move_walk(m)
+	assert_true(d > 0.05, "offline: injected touch drag moved the pawn, delta %s" % d)
+	m.queue_free()
+	await tree.process_frame
+
+
+func test_move_touch_events_move_pawn_as_host() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var s := NetSession.new()
+	s.name = "TMoveHost"
+	s.isolated = true
+	tree.root.add_child(s)
+	s.host_game()
+	s.lobby.host_open(2, 3, "Host")
+	assert_true(s.lobby.start_match(), "host lobby starts")
+	var m: MatchRoot = _MatchScene.instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.session_override = s
+	m.lobby_override = s.lobby.state
+	m.seed_override = s.lobby.match_seed
+	tree.root.add_child(m)
+	await tree.physics_frame
+	m.director.load_config()
+	m.director.match_cfg["spawn_protection_s"] = 0.0
+	assert_true(m.begin(), "host match begins")
+	var d: float = await _inject_move_walk(m)
+	assert_true(d > 0.05, "host: injected touch drag moved the pawn, delta %s" % d)
+	m.queue_free()
+	s.leave()
+	s.queue_free()
+	AppFlow.lobby = null
+	AppFlow.match_seed = 0
+	await tree.process_frame
+	await tree.process_frame
+
+
 func test_look_is_capped_in_both_modes() -> void:
 	for mode in ["stick", "drag"]:
 		var hud := _new_hud(mode)
