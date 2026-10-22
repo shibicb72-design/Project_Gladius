@@ -195,7 +195,8 @@ Acceptance (static, because CI cannot run locally):
 
 Placeholders: T-02.
 
-## S3: Data registry and damage rules
+## S3: Data registry and damage rules [DONE]
+Notes: Added DataRegistry, ClassDef, WeaponDef, HealthState, DamageRules plus tests; `combat` placeholders in data/stats.json (OQ-12/13/14, already listed in OPEN_QUESTIONS.md; regen numbers 5 s / 25 per s are placeholders; only shield regenerates, health does not).
 
 Goal: one typed way to load data/*.json, plus the pure, tested Halo-style damage rules.
 

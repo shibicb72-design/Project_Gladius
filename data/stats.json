@@ -9,6 +9,12 @@
     "equites":    {"display_name": "Equites",    "shield": 90,  "health": 100, "speed_pct": 100, "enabled": false, "vehicle_speed_pct": 200, "role": "mobile support: vehicle, heal, ammo, cover"},
     "gladiator":  {"display_name": "Gladiator",  "shield": 60,  "health": 120, "speed_pct": 110, "enabled": false, "role": "melee"}
   },
+  "combat": {
+    "_placeholder": true, "_todo": "OQ-12 OQ-13 OQ-14",
+    "shield_regen_delay_s": 5.0,
+    "shield_regen_rate_per_s": 25.0,
+    "overflow_to_health": true
+  },
   "weapons": {
     "pilum_br": {
       "display_name": "Pilum BR", "_placeholder": true, "_todo": "OQ-06 OQ-07 OQ-11",
