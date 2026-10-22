@@ -911,3 +911,62 @@ VERDICT: ITERATE
 - Everything else passes: decisions 1-7, the OPEN_QUESTIONS.md update, the required tests, import/export/tests exit 0
   with 129 passed / 0 failed, no weakened assertions, and the CROSS-PLATFORM and iOS rules hold. The Low items can go in
   the same small fix.
+
+## D2 review
+
+Scope: D2 `beddc7c` ("fix: enable gyro sensor, D1 review lows"), checked against `fix3c/D2.txt` items 1-6 and the
+"## D1 review" findings above. The commit changes `data/bots.json`, `data/input.json`, `data/match.json`, `project.godot`,
+`scripts/input/providers/gyro_provider.gd`, `scripts/systems/match_root.gd` and `tests/test_decisions_batch1.gd`.
+
+### Verification (run during this review)
+
+- `godot --headless --path . --import`: exit 0, no errors.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, no `ERROR:` lines, APK exists.
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, **132 passed, 0 failed** (129 before + 3 new).
+  No `SCRIPT ERROR`, `Parse Error`, `ERROR:` or `WARNING` lines.
+- `git show beddc7c --stat`: the 5 deleted lines are all in `data/` and `scripts/`. `tests/test_decisions_batch1.gd` has
+  insertions only (+37) and no other test file is touched, so no assertion was removed or weakened. `docs/DESIGN.md` is
+  not in the commit.
+
+### Checklist
+
+| D2 item | Result | Evidence |
+|---|---|---|
+| 1. `enable_gyroscope=true` + test (D1 Important 1) | yes | `project.godot:104-106` `[input_devices] sensors/enable_gyroscope=true`. `test_gyro_sensor_enabled_in_project` asserts the ProjectSettings value is `true`. |
+| 2. Gyro sensitivity to `data/input.json` as placeholder (D1 Low 1) | yes | `input.json` `gyro: {"_placeholder": true, "_todo": "OQ-34, OQ-36 ...", "sensitivity": 1.0}`. `match_root.gd:47-48` reads it and passes it to `GyroProvider.configure()`, which applies it (`gyro_provider.gd:17-18`). The field default `1.0` stays only as a fallback, and the comment points to the data file. `test_gyro_sensitivity_from_data` checks the key exists and that configure applies it. |
+| 3. Dead `gyro_mode` (D1 Low 2) | yes | Removed from `input.json` and replaced by `_gyro_note` saying the profile (`gyro_enabled`, default off) owns it. The test asserts the key is gone. No code reads it from data (grep). |
+| 4. Stale labels (D1 Low 3) | yes | `match.json` `_note` now says squads = 2 is DECIDED (OQ-30), while `squad_spacing_m` keeps its TODO (OQ-52). `bots.json` `match_fill` loses `_placeholder` and cites the decision (OQ-30/31). Values unchanged. The `profiles` and `brain` placeholders are untouched, which is correct. |
+| 5. Gyro off by default, with sensor on and fake reading injected | yes | `test_gyro_off_by_default_ignores_injected_reading`: default profile -> `gyro_mode` "off"; a `FakeGyroPlatform` (has_gyro true, rate (0.5, 0.25, 0)) is injected; `get_look()` == ZERO and `InputRouter.update_frame().look` == ZERO. A sanity step then toggles On and gets `(0.25, 0.5)`, which proves the fake really flows and the off result is not vacuous. Runs with the project setting true (item 1 test, same suite). |
+| 6. iOS NSMotionUsageDescription comment | yes | `gyro_provider.gd:4-6`. |
+
+### CROSS-PLATFORM and iOS rules
+
+- `enable_gyroscope` is an engine-wide setting with no platform tie and is ignored on devices without a gyro. Gyro reads
+  still go only through `PlatformServices` (`OS.get_name()` switch, no-op on desktop/headless). No plugin, GDExtension
+  or Android-only API was added. The iOS permission string is noted for the port. Renderer (Mobile) and
+  `export_presets.cfg` (Android only) are unchanged.
+- Gyro stays off by default: the gate is `GyroProvider.enabled`, fed only from the profile (`save_service.gd:22`,
+  default `gyro_enabled` false).
+
+### Findings
+
+No Critical or Important findings.
+
+#### Low
+
+1. `docs/OPEN_QUESTIONS.md` OQ-36 still reads "Default look sensitivity (stick, touch)". The new `gyro.sensitivity`
+   placeholder cites OQ-34/OQ-36 in the data file, but OQ-36 doesn't mention gyro. Add "gyro" to OQ-36 in the next docs
+   pass so the open question covers the new placeholder. Not blocking: the value is clearly marked `_placeholder`.
+2. D1 Low 4 (offline branch hard-codes `class_id = "hastati"`, `match_root.gd`) is still open. It wasn't in the D2 brief
+   and only affects the no-lobby path. Carry-over.
+3. On-device check is still needed: gyro On on the Fold7 in Shibi's device pass (headless tests can't read a real
+   sensor).
+
+D2 does all 6 brief items and closes D1 Important 1 and Lows 1-3. The suite is green at 132/0, gyro stays off by default
+with the sensor enabled (now tested with an injected reading), and no assertion was weakened.
+
+VERDICT: APPROVE
+- D1 Important 1 is fixed and tested (`enable_gyroscope=true`). Gyro stays off by default through the profile gate,
+  proven by a test with a fake gyro reading at both provider and router level.
+- Items 2-6 are done, import/export/tests exit 0 (132 passed / 0 failed), and no test was weakened. The remaining Lows
+  (OQ-36 wording, the offline class carry-over, the device gyro check) are not blocking.
