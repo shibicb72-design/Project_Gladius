@@ -273,7 +273,9 @@ Acceptance: Definition of done passes. Named tests pass:
 
 Placeholders: OQ-15, OQ-20, OQ-21, OQ-22.
 
-## S5: Input abstraction, providers and touch HUD
+## S5: Input abstraction, providers and touch HUD [DONE]
+
+Notes: Built InputMap actions, InputFrame/Router/4 providers, PlatformServices, touch HUD scene and tests; all values in data/input.json are placeholders already listed as OQ-34/35/36.
 
 Goal: all input flows through InputMap actions and one router; touch and gamepad work; the touch HUD is
 its own layer.

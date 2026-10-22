@@ -1,0 +1,35 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-34, OQ-35, OQ-36: all values below are placeholders, not design values",
+	"invert_y": false,
+	"gyro_mode": "off",
+	"force_touch_hud": false,
+	"sensitivity": {
+		"_placeholder": true,
+		"_todo": "OQ-36",
+		"stick_look": 1.0,
+		"touch_look": 1.0,
+		"mouse_look": 0.002
+	},
+	"dead_zones": {
+		"_placeholder": true,
+		"_todo": "OQ-35",
+		"gamepad_look": 0.15,
+		"touch_move": 0.1,
+		"touch_look": 0.1
+	},
+	"touch_layout": {
+		"_placeholder": true,
+		"_todo": "OQ-35",
+		"stick_radius_px": 120.0,
+		"move_zone": {"left": 0.0, "top": 0.4, "right": 0.5, "bottom": 1.0},
+		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
+		"tap_fire_max_s": 0.2,
+		"buttons": {
+			"aim": {"anchor": [0.88, 0.62], "size_px": 96.0},
+			"reload": {"anchor": [0.76, 0.84], "size_px": 80.0},
+			"swap_weapon": {"anchor": [0.64, 0.84], "size_px": 80.0},
+			"jump": {"anchor": [0.92, 0.84], "size_px": 80.0}
+		}
+	}
+}
