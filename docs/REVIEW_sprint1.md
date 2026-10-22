@@ -755,3 +755,76 @@ VERDICT: ITERATE
 - `player_class_toggled=false` on both runs (folded 420 dpi, unfolded 373 dpi). The capture reports `RESULT FAILED` and
   exits 1. Make the first capture tap independent of the desktop cursor (finding 1), then re-run each size 3 times.
 - Add a touch-drag scroll assertion for the folded roster (Low, but item 5 asks for it).
+
+## Touch proof re-check 3
+
+Scope: C6 `7943ce8` ("fix: cursor-independent capture taps, roster drag-scroll test"), checked against `fix3c/C6.txt`
+items 1-4. The commit changes `tools/touch_capture.gd` (+18), `tests/test_ui.gd` (+56/−0) and one line of product code,
+`scripts/ui/lobby.gd:148`.
+
+### Verification (run during this re-check)
+
+- `godot --headless --path . --import`: no errors. `--export-debug "Android" build/gladius-debug.apk`: no errors, and the
+  APK exists.
+- `godot --headless --path . --script res://tests/run_tests.gd`: **124 passed, 0 failed**, with no `SCRIPT ERROR`,
+  `Parse Error` or `ERROR:` lines.
+- `git diff 4b84062 HEAD -- tests/`: +56/−0, all in the new test. No assertion was removed or weakened.
+- Capture, run 3 times per size, windowed, output in `build/shots_v4/`: `--resolution 2520x1080 --dpi=420` (tags
+  `folded1-3`) and `--resolution 2176x1812 --dpi=373` (tags `unfolded1-3`). All six runs exited 0 with no
+  `RESULT FAILED` line.
+
+| RESULT line | folded / 420, runs 1-3 | unfolded / 373, runs 1-3 |
+|---|---|---|
+| `lobby_buttons_min_48dp` | true ×3 (48.3 dp) | true ×3 (70.5 dp) |
+| `lobby_action_buttons_inside_viewport` | true ×3 | true ×3 |
+| `player_class_toggled` | **true ×3** (`hastati -> sagittarii`) | **true ×3** |
+| `bot_class_cycled` | true ×3 | true ×3 |
+| `touch_on_by_default` | true ×3 (not forced) | true ×3 (not forced) |
+| `walk_moved / look_changed / pitch_bounded` | true ×3 (4.64-4.71 m; pitch 70°, inside the ±70° clamp) | true ×3 |
+
+### Checklist
+
+| C6 item | Result | Evidence |
+|---|---|---|
+| 1. Probe that logs every event during the first tap, to confirm the cause | yes, built into the capture | `touch_capture.gd:72-77` swallows non-emulated mouse events and, while `_trace_events` is set (`:203-206`), logs every event the first Class tap delivers. On every run the trace shows exactly the expected four events (emulated mouse press, ScreenTouch press, emulated mouse release, ScreenTouch release), all at the button centre. It also logs 5-6 real desktop mouse events swallowed. That count is the stray OS input that re-check 2 inferred from the hover highlight. A separate `build/` probe was not kept, but the in-capture trace is the stronger evidence. |
+| 2. Capture independent of the desktop cursor | yes | `touch_capture.gd:83` parks the OS cursor at the top-right (over the non-interactive overlay). `:72-75` drops real mouse events, so only emulated touch reaches the GUI. In the `*_lobby_before.png` shots, no row shows the hover style any more (re-check 2 saw one hovered row in each). This is capture-only code. No lobby or input code changed for it. |
+| 3. Touch-drag scroll test from a slot row, with a product fix if the drag is swallowed | yes, with one limitation (Low 1) | `test_ui.gd:220-274`. The product fix is `scripts/ui/lobby.gd:148` (`row.mouse_filter = MOUSE_FILTER_PASS`). **Real cause, confirmed:** I temporarily removed that line and re-ran the suite. The new test failed with `roster saw { "touch": 0, "drag": 0 }`, meaning the default `MOUSE_FILTER_STOP` on the row `Button` stopped every touch and drag from reaching the `ScrollContainer`. With the line restored, the suite is back to 124/0 and `git diff` is clean. |
+| 4. 3 runs per size, every RESULT true, all tests pass | yes | See the table above. |
+
+### PNGs
+
+I opened `folded1_lobby_before/after`, `unfolded2_lobby_before/after`, `folded3_hud_walk` and `unfolded3_hud_look`.
+- Lobby: before, the Player row reads `hastati`. After the taps it reads `sagittarii`, with `Class: sagittarii` on the
+  button and Bot 1 changed `hastati -> sagittarii`. No row is hover-highlighted. In the folded shots, Class / Start / Back
+  are one full-width bar at the bottom, and the roster scrolls (scrollbar visible, Bot 5 partly below the fold). In the
+  unfolded shots, the whole roster fits.
+- HUD: both sticks are visible. The move knob is deflected in `hud_walk`, and the look knob is deflected in `hud_look`.
+  The five labelled buttons are bottom-right. The stat bars, weapon and ammo text are uncovered, and the overlay sits
+  top-right below the timer row.
+
+### Findings
+
+#### Low
+
+1. **On desktop and headless hosts the test never checks that the roster scrolls.** `test_ui.gd:268-269` asserts
+   `scroll_vertical > 0` only when `DisplayServer.is_touchscreen_available()`, which is false on desktop and headless. So
+   on this machine, and in CI, it proves only that the events reach the `ScrollContainer` (`:267`). That still catches the
+   bug C6 fixed (shown above), but not the scrolling itself. C6 asked for the scroll assertion. The comment states the
+   limitation honestly, and nothing was weakened. Shibi's device check should include a drag on the folded roster.
+2. **A drag that starts on a row could also count as a tap.** With `MOUSE_FILTER_PASS`, the row `Button` still receives
+   the press. Nothing tests that a drag-then-release on a bot row does not also emit `pressed`, which would cycle that
+   bot's class. Add this to the device check. If it happens on hardware, cancel the press once the drag passes a
+   threshold.
+3. The capture's `_input` filter (`touch_capture.gd:72-75`) drops all real mouse input for the whole run, including the
+   match phase. This is acceptable for a capture tool, but it means the PNGs say nothing about mouse/keyboard play.
+   (Unchanged carry-over: the overlay still overlaps the right end of the Player row in the lobby PNGs, debug shots only.)
+
+C6 does what `fix3c/C6.txt` asked. The first-tap failure is now explained by a logged trace and removed by a capture-only
+change. All RESULT lines are true on all six runs at both fold sizes and DPIs. The one product change has a demonstrated
+cause at `scripts/ui/lobby.gd:148`. No assertion was weakened, and the suite is green.
+
+VERDICT: APPROVE
+- `player_class_toggled=true` and every other RESULT true on 3/3 folded (420 dpi) and 3/3 unfolded (373 dpi) runs, exit 0.
+- The cause is confirmed by the per-event trace. The fix is in `tools/` only, and the PNGs show no hover artefact.
+- Product change `lobby.gd:148` verified necessary: removing it makes the new test fail with 0 touch / 0 drag events.
+- Left for the on-device check, not blocking: real scrolling on a touchscreen, and drag-on-row not triggering a class change (Low 1-2).
