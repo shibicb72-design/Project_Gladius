@@ -1,6 +1,10 @@
 name: Android debug build
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,14 +29,20 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # The default packages input ("tools platform-tools") fails on current
+      # cmdline-tools because the obsolete "tools" package no longer exists.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools build-tools;36.0.0 platforms;android-36"
 
       # T-02: these versions must be confirmed on the first CI run; they must match
       # what Godot 4.7.2 targets (see docs/OPEN_QUESTIONS.md).
-      - name: Install Android SDK packages
+      - name: Check Android SDK packages
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "build-tools;36.0.0" "platforms;android-36"
+          sdkmanager --list_installed | tee installed.txt
+          grep -q "build-tools;36.0.0" installed.txt
+          grep -q "platforms;android-36" installed.txt
+          rm installed.txt
 
       - name: Cache Godot downloads
         id: godot-cache

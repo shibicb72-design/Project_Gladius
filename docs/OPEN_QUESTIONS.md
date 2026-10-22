@@ -100,5 +100,5 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 ## Technical defaults (not product decisions; listed for visibility)
 
 - **T-01: Network port and tick/sync rates.** Default: port 7777, values in `data/net.json` (S9).
-- **T-02: Android SDK platform / build-tools version installed in CI.** Must match what Godot 4.7.2 targets. Verify on the first real CI run (S2).
+- **T-02: Android SDK platform / build-tools version installed in CI.** Packages pinned via setup-android input; confirm on the first green run.
 - **T-03: Movement authority.** Milestone 1: clients own their own movement (the host sanity-checks speed); the host decides hits, damage, score and respawns. See ARCHITECTURE.md "Networking" (S9).
