@@ -512,3 +512,99 @@ The acceptance test T-MOVE is missing, so this review iterates. Everything else 
 passes 106/0, and DESIGN.md is not contradicted.
 
 VERDICT: ITERATE
+
+## Touch proof review
+
+Scope: C1 `1040044` (T-MOVE and touch capture tool), C2 `bd5f304` (T-MOVE at Fold resolutions, touch default), and C3
+`d7f54a4` (always-visible touch sticks). I read `build/shots/{folded,unfolded}_report.txt` and looked at all ten PNGs.
+
+### Verification (run during this review)
+
+- `godot --headless --path . --import`: no errors.
+- `godot --headless --path . --script res://tests/run_tests.gd`: **115 passed, 0 failed**. All six T-MOVE tests pass
+  (offline and host, each at the default size, 2520x1080 and 2176x1812). So do both rest-stick tests, the recentre test and
+  `test_ui.gd::test_lobby_bot_row_cycles_class`.
+- I did not re-run the APK export; this review changes only this document.
+
+### Checklist
+
+| Check | Result | Evidence |
+|---|---|---|
+| T-MOVE uses real `InputEventScreenTouch`/`InputEventScreenDrag` | yes | `test_touch_controls.gd:117-153` builds the events, delivers them, and the HUD's `_input` turns them into stick state |
+| at 2520x1080 and 2176x1812 | yes | It resizes the real root window, then asserts the viewport aspect and that the HUD fills the viewport (`:124-129`) |
+| offline and as host | yes | `_move_offline` and `_move_host` (`:200`), with the host on an isolated ENet session through `NetSession.host_game()` |
+| asserts a real position change | yes | It measures the XZ delta of `m.local_player.global_position` and asserts it is above 0.05 m |
+| no assertion weakened or deleted | yes | `git diff 9bf9671 d7f54a4 -- tests/` only adds tests. `run_tests.gd` gains `--only`/`--repeat` (filtering only). `test_net_match.gd` parks non-bot pawns out of the line of fire and adds a diagnostic suffix. The shield assertion is unchanged. |
+| touch HUD not forced in capture | yes | `touch_capture.gd:56` sets `PlatformServices.simulate_touchscreen`, which `is_touch_device()` reads (`platform_services.gd:16`, desktop branch only). Report: `force_touch_hud=false ... HUD visible=true`. |
+| lobby buttons >= 48 dp | **not proven** | See finding 1 |
+| camera clamp holds | yes | Both reports show pitch 0 → 70.0 against the data clamp [-70, 70], `within clamp: true`. `folded_hud_look.png` shows the camera stopped at the limit. |
+| every PNG labelled "desktop render, not device" | yes | All 10 PNGs carry the yellow label with the tag (`touch_capture.gd:38`) |
+| C3: both sticks visible at rest, both sizes | yes | `folded_hud_rest.png` and `unfolded_hud_rest.png` show the left and right rings with centred knobs and no buttons overlapping. The walk shot shows the move stick recentred under the thumb, and the look shot shows the look knob deflected. Tests at `:375-417`. |
+| C3: debug label at bottom-centre | yes | `PRESET_CENTER_BOTTOM` with grow-both (`touch_capture.gd:39-41`). It is bottom-centre in every PNG. |
+| C3: bot class change from the host lobby (OQ-55) | **code and unit test yes; touch proof no** | See finding 2 |
+| C3: T-MOVE's `push_input` counts as real touch input | **partly** | See finding 3 |
+
+### Findings
+
+#### High
+
+1. **The 48 dp lobby result uses the desktop's DPI, not the device's.** Both reports say `dpi=168 (desktop-reported; pass
+   --dpi=N for the device)`, and the capture was not re-run with a device DPI. Folded, a lobby button is 98 window px
+   tall: 0.09 of 1080, from the OQ-54 placeholder. A 2520x1080 cover screen of about 6.5" is about 420 ppi, and Android
+   density is typically 2.625 (420 dpi) at that ppi. That gives about **37 dp**. The button reaches 48 dp only if the
+   density is at or below about 2.0 (≤ 323 dpi), which is unlikely for this panel. Unfolded, 163 px at that density is
+   about 62 dp, which matches the "about 64 dp" note in OQ-54. OQ-54's figure only holds unfolded. The HUD buttons pass
+   either way: 173 px folded is about 66 dp.
+   Fix: re-run `tools/touch_capture` with `--dpi=<value from the Fold 7>` (or log `DisplayServer.screen_get_dpi()` on the
+   device). If folded is under 48 dp, make `UiScale` enforce a dp floor (48 dp × `screen_get_scale`/DPI via the platform
+   layer) on top of the height fraction, and update OQ-54. Shibi's device check 4 covers this by eye. The report should
+   not claim `lobby_buttons_min_48dp=true` until the number is real.
+
+#### Medium
+
+2. **The capture never shows a host lobby, so bot class cycling (OQ-55) has no touch proof.** `touch_capture.gd:149-151`
+   instantiates the lobby without hosting. `AppFlow.ensure_session` creates a bare `NetSession`, so `is_host=false`. The
+   lobby PNGs show "Connected. Waiting for the host to start.", a state a player never sees, with no Start button. Both
+   taps are no-ops in both reports: `'Class: hastati' -> 'Class: hastati'` and `'Bot 1 (hastati) [bot]' -> 'Bot 1
+   (hastati) [bot]'`. The feature itself works. `lobby.gd:97-105` is host-gated, and `test_ui.gd:125-140` passes on a
+   hosted lobby, but only through `pressed.emit()`, not a tap.
+   Fix: in the capture, host first, as `test_ui.gd:_host_lobby` does (`AppFlow.session = s; s.host_game()`). Then tap the
+   bot row and the class button through `Input.parse_input_event`, and log a `RESULT bot_class_cycled=` line that must
+   read true.
+
+3. **T-MOVE's `push_input(e, true)` is the real dispatch, but not the full Android path.** On Android, the OS event goes
+   through `Input.parse_input_event` (input state, touch-to-mouse emulation, drag accumulation), then
+   `Window._window_input`, then `Viewport.push_input(e, false)`. The last step maps window pixels into canvas space
+   through the stretch transform (×1/1.667 folded, ×1/1.889 unfolded), then dispatches to every node's `_input`.
+   T-MOVE (`test_touch_controls.gd:110-111`) enters at that last step with `in_local_coords=true`. It hands canvas
+   coordinates straight in, so it skips the Input singleton and the window-to-canvas transform. Everything after that is
+   real: real event classes, the real viewport dispatch, and the HUD → provider → router → pawn chain. A bug in the
+   coordinate space, which is exactly what differs between the folded and unfolded screens, would not fail T-MOVE.
+   The capture tool covers that gap. It sends window-pixel events through `Input.parse_input_event`
+   (`touch_capture.gd:246-272`) and walked 4.64 m folded and 4.71 m unfolded. That is a report, not an assertion,
+   though. The message at `:141` ("reached the HUD via Input") is also inaccurate.
+   Fix: add a T-MOVE variant that converts the zone centre with `get_screen_transform()` and delivers it with
+   `push_input(e, false)`, so an asserting test covers the stretch transform. Reword the message at `:141`.
+
+#### Low
+
+- Capture overlays sit on top of lobby content. The green "touch auto-detected" note covers the "Player (hastati)" row,
+  and the bottom label covers the "Back" text (both lobby PNGs). Fine for debug shots, but keep this in mind before
+  judging layout from them.
+- Folded, the shield and health bars draw across the bottom of the move-stick ring (`folded_hud_rest.png`). Unfolded,
+  the look ring overlaps the third-person pawn. Both are cosmetic. The stick-to-button overlap test does not cover the
+  stat bars.
+- Godot imports the PNGs (`build/shots/*.png.import`) because `build/` has no `.gdignore`. Git ignores them, but a
+  `build/.gdignore` would keep the import step quiet.
+- The Medium finding on tap-to-fire and the Fire button sharing one action, from the touch review above, was outside
+  C1-C3 and is not re-checked here.
+
+C1 and C2 are honest work. No assertion was weakened, T-MOVE drives real touch event objects into the full gameplay
+chain at both Fold sizes, offline and hosted, and C3's sticks and label are right. Three required checks do not hold:
+48 dp on the folded screen is unproven and arithmetically likely to fail, the host-lobby bot change has no touch proof,
+and T-MOVE skips the window-to-canvas step of the Android input path.
+
+VERDICT: ITERATE
+- Re-run the capture with the device DPI, and add a dp floor if folded lobby buttons are under 48 dp (finding 1, OQ-54).
+- Host the lobby in the capture and prove that tapping a bot row cycles its class (finding 2, OQ-55).
+- Add a T-MOVE variant that enters through `push_input(e, false)` with window coordinates (finding 3).
