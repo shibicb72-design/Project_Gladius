@@ -127,7 +127,9 @@ Acceptance:
 
 Placeholders: OQ-01, OQ-02, OQ-03, OQ-04, OQ-05, OQ-06, OQ-07, OQ-11.
 
-## S2: CI workflow (GitHub Actions Android debug build)
+## S2: CI workflow (GitHub Actions Android debug build) [DONE]
+
+Notes: Added `.github/workflows/android.yml` (static acceptance checked; local gate passes). SDK packages set to build-tools 36.0.0 / android-36 (matches local apksigner), still unconfirmed by a CI run (T-02, already in OPEN_QUESTIONS).
 
 Goal: every push/PR builds the debug APK in CI with the same commands as the local gate.
 
