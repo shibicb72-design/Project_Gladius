@@ -17,6 +17,9 @@ var rules: KothRules
 var spawn_rules: SpawnRules = SpawnRules.new()
 var hill_zone: HillZone
 var running: bool = false
+## False on a network client: no KotH ticking, respawn decisions or match_over of its own. Scores,
+## respawns and the result arrive from the host through the apply_remote_* methods.
+var authoritative: bool = true
 
 var _players: Dictionary = {}  # player id -> Pawn
 var _spawn_xforms: Dictionary = {}  # spot id -> Transform3D
@@ -67,7 +70,7 @@ func player(player_id: int) -> Pawn:
 
 
 func _physics_process(delta: float) -> void:
-	if not running:
+	if not running or not authoritative:
 		return
 	for id in spawn_rules.tick(delta):
 		_place(id)
@@ -87,6 +90,21 @@ func _physics_process(delta: float) -> void:
 				match_over.emit(rules.result())
 	var remaining := maxf(float(mode_cfg.get("time_limit_s", 600)) - rules.elapsed_s, 0.0)
 	time_changed.emit(remaining)
+
+
+## Client side: host events replayed here so HUD and end screen listen to one set of signals.
+func apply_remote_score(scores: Dictionary) -> void:
+	score_changed.emit(scores)
+
+
+func apply_remote_respawn(player_id: int) -> void:
+	if _players.has(player_id) and not authoritative and running:
+		_place(player_id)
+
+
+func apply_remote_match_over(result: Dictionary) -> void:
+	running = false
+	match_over.emit(result)
 
 
 func _place(player_id: int) -> void:

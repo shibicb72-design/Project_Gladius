@@ -8,6 +8,7 @@ signal snapshot_received
 signal kill_event(killer_id: int, victim_id: int)
 signal respawn_event(player_id: int)
 signal match_over_event(result: Dictionary)
+signal score_event(new_scores: Dictionary)
 
 var director: MatchDirector
 var validator: NetValidator
@@ -29,7 +30,9 @@ var _last_move_s: Dictionary = {}  # player id -> time of last accepted position
 var _rng := RandomNumberGenerator.new()
 
 
+## Called by MatchRoot when the match begins. Until then (and after detach) every handler ignores packets.
 func setup(match_director: MatchDirector) -> void:
+	detach()
 	director = match_director
 	var cfg := registry.load_file("res://data/net.json")
 	validator = NetValidator.new(cfg.get("validation", {}))
@@ -38,6 +41,14 @@ func setup(match_director: MatchDirector) -> void:
 	director.match_over.connect(_host_match_over)
 	director.score_changed.connect(_host_score_changed)
 	director.player_respawned.connect(_host_respawned)
+
+
+func detach() -> void:
+	if director != null:
+		director.match_over.disconnect(_host_match_over)
+		director.score_changed.disconnect(_host_score_changed)
+		director.player_respawned.disconnect(_host_respawned)
+	director = null
 
 
 func _is_host() -> bool:
@@ -52,7 +63,8 @@ func unregister_peer(peer_id: int) -> void:
 	var pid: int = peer_to_player.get(peer_id, -1)
 	peer_to_player.erase(peer_id)
 	last_frames.erase(pid)
-	validator.forget(pid)
+	if validator != null:
+		validator.forget(pid)
 
 
 # ---- client -> host -------------------------------------------------------------------------
@@ -69,7 +81,7 @@ func send_fire(origin: Vector3, direction: Vector3, weapon_id: String) -> void:
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func submit_input(frame_array: Array, pos: Vector3, yaw: float, _client_tick: int) -> void:
-	if not _is_host():
+	if director == null or not _is_host():
 		return
 	var pid: int = peer_to_player.get(multiplayer.get_remote_sender_id(), -1)
 	var pawn: Pawn = director.player(pid) if pid >= 0 else null
@@ -85,7 +97,7 @@ func submit_input(frame_array: Array, pos: Vector3, yaw: float, _client_tick: in
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_fire(origin: Vector3, direction: Vector3, weapon_id: String, _client_tick: int) -> void:
-	if not _is_host():
+	if director == null or not _is_host():
 		return
 	host_handle_fire(multiplayer.get_remote_sender_id(), origin, direction, weapon_id)
 
@@ -93,7 +105,7 @@ func request_fire(origin: Vector3, direction: Vector3, weapon_id: String, _clien
 ## Host: validate, raycast on host state and apply DamageRules. Returns {ok, reason, hit}.
 func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_id: String) -> Dictionary:
 	var pid: int = peer_to_player.get(peer_id, -1)
-	var pawn: Pawn = director.player(pid) if pid >= 0 else null
+	var pawn: Pawn = director.player(pid) if director != null and pid >= 0 else null
 	if pawn == null or not pawn.is_alive():
 		return {"ok": false, "reason": "no_pawn"}
 	var w := pawn.loadout.get_active()
@@ -159,6 +171,8 @@ func snapshot(tick: int, entries: Array) -> void:
 
 ## Client: copies the replicated state onto pawns that are not driven locally.
 func apply_replica(local_player_id: int) -> void:
+	if director == null:
+		return
 	for id in replica:
 		var pawn: Pawn = director.player(id)
 		if pawn == null or id == local_player_id:
@@ -199,6 +213,7 @@ func ev_respawn(player_id: int) -> void:
 @rpc("authority", "call_remote", "reliable")
 func ev_score(new_scores: Dictionary) -> void:
 	scores = new_scores
+	score_event.emit(new_scores)
 
 
 @rpc("authority", "call_remote", "reliable")

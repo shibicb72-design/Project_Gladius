@@ -20,6 +20,7 @@ var router: InputRouter
 var local_player: Pawn
 var bots: Array[Pawn] = []
 var zone: HillZone
+var roster: MatchRoster
 
 @onready var director: MatchDirector = $Director
 @onready var hud: GameHud = $Hud/GameHud
@@ -66,21 +67,42 @@ func begin() -> bool:
 		to_hill.y = 0.0
 		xforms[spot_id] = Transform3D(Basis.looking_at(to_hill.normalized()), pos)
 
-	local_player = _PawnScene.instantiate()
-	local_player.class_id = _lobby_class()
-	local_player.squad_id = 0
-	add_child(local_player)
-	hud.bind(director, local_player)
-	var rig := _RigScene.instantiate()
-	rig.name = "CameraRig"
-	local_player.add_child(rig)
-	director.add_player(0, local_player)
-	if fill_bots:
-		# Host-only: the local player is the only human in squad 0.
-		bots = BotSpawner.spawn_bots(self, director, {0: 1}, center, float(hill.get("radius_m", 8.0)))
-
+	var radius := float(hill.get("radius_m", 8.0))
 	var squads: Array = range(int(director.match_cfg.get("offline_squads", 2)))
-	return director.start(squads, xforms, zone, randi())
+	var session := AppFlow.session if AppFlow.session != null and is_instance_valid(AppFlow.session) else null
+	var local_peer := session.get_unique_id() if session != null else 0
+	var networked := local_peer != 0
+	director.authoritative = not networked or session.is_host
+	if AppFlow.lobby != null:
+		var slots := AppFlow.lobby.assign()
+		squads = range(AppFlow.lobby.squad_count)
+		roster = MatchRoster.new()
+		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, center, radius)
+		local_player = roster.local_pawn
+		bots = roster.bots
+		if networked:
+			roster.attach_bridge(session, slots)
+	else:
+		# Offline / standalone: the local player is the only human in squad 0.
+		local_player = _PawnScene.instantiate()
+		local_player.class_id = "hastati"
+		local_player.squad_id = 0
+		add_child(local_player)
+		director.add_player(0, local_player)
+		if fill_bots:
+			bots = BotSpawner.spawn_bots(self, director, {0: 1}, center, radius)
+	if local_player != null:
+		hud.bind(director, local_player)
+		var rig := _RigScene.instantiate()
+		rig.name = "CameraRig"
+		local_player.add_child(rig)
+	var seed_value := AppFlow.match_seed if AppFlow.match_seed != 0 else randi()
+	return director.start(squads, xforms, zone, seed_value)
+
+
+func _exit_tree() -> void:
+	if roster != null:
+		roster.detach_bridge()
 
 
 func _physics_process(_delta: float) -> void:
@@ -90,13 +112,6 @@ func _physics_process(_delta: float) -> void:
 
 static func _vec(a: Array) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
-
-
-## The class the host picked in the lobby; Hastati when the match was not started from the menu.
-func _lobby_class() -> String:
-	if AppFlow.lobby != null and not AppFlow.lobby.humans.is_empty():
-		return str(AppFlow.lobby.humans[0]["class_id"])
-	return "hastati"
 
 
 ## Started from the menu flow: show the end screen after a short pause. Standalone runs stay put.

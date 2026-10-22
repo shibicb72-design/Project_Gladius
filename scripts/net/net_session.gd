@@ -17,6 +17,7 @@ var isolated: bool = false
 var cfg: Dictionary = {}
 var is_host: bool = false
 var lobby: NetLobby
+var bridge: NetMatchBridge
 
 var _mp: SceneMultiplayer
 var _peer: ENetMultiplayerPeer
@@ -43,6 +44,10 @@ func _enter_tree() -> void:
 		lobby = NetLobby.new()
 		lobby.name = "Lobby"
 		add_child(lobby)
+	if bridge == null:
+		bridge = NetMatchBridge.new()
+		bridge.name = "Bridge"
+		add_child(bridge)
 
 
 func max_clients() -> int:

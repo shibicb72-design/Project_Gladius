@@ -132,13 +132,9 @@ func test_host_authoritative_damage() -> void:
 	var client_dir := MatchDirector.new()
 	host.add_child(host_dir)
 	client.add_child(client_dir)
-	var hb := NetMatchBridge.new()
-	hb.name = "Bridge"
-	host.add_child(hb)
+	var hb := host.bridge  # created by the session so the RPC paths match on every peer
 	hb.setup(host_dir)
-	var cb := NetMatchBridge.new()
-	cb.name = "Bridge"
-	client.add_child(cb)
+	var cb := client.bridge
 	cb.setup(client_dir)
 
 	var shooter: Pawn = _PawnScene.instantiate()

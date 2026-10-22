@@ -20,6 +20,16 @@ static func plan_fill(humans_per_squad: Dictionary, cfg: Dictionary) -> Array:
 	return plan
 
 
+## Gives `pawn` a BotBrain configured from data/bots.json (match_fill profile).
+static func attach_brain(pawn: Pawn, director: MatchDirector, hill_center: Vector3, hill_radius: float) -> void:
+	var cfg := DataRegistry.new().load_file(BOTS_PATH)
+	var profile: Dictionary = cfg.get("profiles", {}).get(cfg.get("match_fill", {}).get("profile", "tiro"), {})
+	var brain: Node = _BrainScript.new()
+	brain.name = "Brain"
+	brain.setup(pawn, director, profile, cfg.get("brain", {}), hill_center, hill_radius)
+	pawn.add_child(brain)
+
+
 ## Adds bot pawns (and brains) under `parent`, registers them with the director.
 ## Player ids start at first_id. Returns the pawns.
 static func spawn_bots(parent: Node, director: MatchDirector, humans_per_squad: Dictionary,
