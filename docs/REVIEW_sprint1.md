@@ -608,3 +608,77 @@ VERDICT: ITERATE
 - Re-run the capture with the device DPI, and add a dp floor if folded lobby buttons are under 48 dp (finding 1, OQ-54).
 - Host the lobby in the capture and prove that tapping a bot row cycles its class (finding 2, OQ-55).
 - Add a T-MOVE variant that enters through `push_input(e, false)` with window coordinates (finding 3).
+
+## Touch proof re-check
+
+Scope: C4 `48fc25e` ("fix: dp floor, host-lobby capture, window-coord T-MOVE"), checked against the three ITERATE items above.
+
+### Verification (run during this re-check)
+
+- `godot --headless --path . --import`: no errors. `--export-debug "Android" build/gladius-debug.apk`: no errors, and the
+  APK exists.
+- `godot --headless --path . --script res://tests/run_tests.gd`: **122 passed, 0 failed**, with no `SCRIPT ERROR`,
+  `Parse Error` or `ERROR:` lines. The seven new tests pass: four window-coordinate T-MOVE tests, two HUD-clearance tests
+  and `test_dp_floor_holds_at_420_and_373_dpi`.
+- I re-ran the capture myself: `tools/touch_capture.tscn` at `--resolution 2520x1080 --dpi=420` (twice) and at
+  `2176x1812 --dpi=373` (once). Then I looked at all ten regenerated PNGs.
+- I ran two throwaway probes, kept in the gitignored `build/` and not committed. `probe_xf.gd` prints the headless root
+  screen transform. `probe_tap.gd` taps a freshly hosted lobby's class button three ways.
+
+### Checklist
+
+| Check | Result | Evidence |
+|---|---|---|
+| Lobby/menu buttons >= 48 dp, folded at 420 dpi | yes | `UiScale.min_button_height` = max(height fraction, `min_touch_target_dp` × dp_scale / px_scale). Report: 76.0 canvas = 126.7 window px = **48.3 dp**, all 9 lobby buttons pass. The floor drives the height (fraction alone = 58.3 canvas ≈ 37 dp). |
+| Lobby/menu buttons >= 48 dp, unfolded at 373 dpi | yes | 87.0 canvas = 164.4 px = **70.5 dp**. The fraction drives the height here. |
+| dp floor is data-driven and honest | yes | `min_touch_target_dp: 48.0` in `data/ui.json`, labelled as the Android guideline, not a design value. OQ-54 says 420/373 dpi are assumptions until the device run. `boot.gd` logs `[display] ... screen_get_dpi=` for that run. DPI comes from `PlatformServices` (no Android assumption, 160 fallback). |
+| Hosted-lobby capture: `bot_class_cycled=true` by tap | yes | `lobby hosted: is_host=true`. The bot row goes `hastati -> sagittarii` in all three of my runs, and `*_lobby_after.png` shows "Bot 1 (sagittarii)". |
+| Hosted-lobby capture: `player_class_toggled=true` by tap | **no, not reproducible** | See finding 1. In all 3 of my runs: `'Class: hastati' -> 'Class: hastati'`, `RESULT player_class_toggled=false`. Both `*_lobby_after.png` still read "Class: hastati". |
+| Window-coord `push_input(e, false)` T-MOVE, offline + host, both sizes | yes | Four tests pass. `_deliver(e, true)` maps canvas to window with `get_screen_transform()` and delivers with `push_input(e, false)`, so the viewport's own inverse brings it back to canvas space. The probe shows the transform is not identity in headless: ×1.667 at 2520x1080 (visible 1512x648) and ×1.889 at 2176x1812 (1152x959). The test therefore exercises the stretch step. |
+| Nothing overlaps sticks or buttons | yes | Stat bars, weapon and ammo moved top-left (`hud_layout.stat_block_pos`, placeholder, OQ-35/OQ-54). `_check_hud_clear` asserts no HUD rect intersects either stick or any button, all inside the viewport, at both canvas and window sizes. In all six HUD PNGs nothing overlaps the stick rings or buttons. The deflected look knob in `unfolded_hud_look.png` comes close to Reload but does not touch it. |
+| No assertion weakened (`git diff 1db000f HEAD -- tests/`) | yes | +103/−13 lines. The 13 removed lines are signature changes (`window_coords` parameter added) and one message re-worded ("via Input" → "via Viewport.push_input (… coordinates)", fixing the earlier finding 3 wording). All thresholds (`> 0.05`, aspect `< 0.01`, size match) are unchanged. Only tests were added. |
+
+### Findings
+
+#### Medium
+
+1. **The capture's "tap" is a synthetic mouse click, and the first one after the lobby opens is dropped, so
+   `player_class_toggled` depends on where the desktop cursor happens to be.** `touch_capture.gd:132-147` (`_mouse`/`_tap`)
+   sends `InputEventMouseButton` press/release through `Input.parse_input_event` with no preceding motion. The committed C4
+   reports said `true`, but every one of my three re-runs (folded twice, unfolded once) logged
+   `player_class_toggled=false`. The bot-row tap, which comes second, worked every time. `build/probe_tap.gd` isolates the
+   cause on a freshly hosted lobby:
+   - mouse button only: tap 1 and tap 2 both no-op;
+   - mouse motion to the point, then button: tap 1 `hastati -> sagittarii`, tap 2 back;
+   - `InputEventScreenTouch` press/release (what Android delivers, mouse emulated by Godot): tap 1 `hastati -> sagittarii`,
+     tap 2 back.
+   So **the product works on a real tap**. The defect is in the proof tool. It is not a real touch, and it is not
+   reproducible, so the required "player_class_toggled=true by tap" result is not proven.
+   Fix: make `_tap` send `InputEventScreenTouch` (index 0, window coordinates, press, 2 frames, release) instead of mouse
+   buttons, as the HUD drags already do. Make the capture exit non-zero, or print `RESULT ... FAILED`, when any RESULT line
+   is false. Re-run both sizes and commit nothing from `build/`.
+
+#### Low
+
+- `test_dp_floor_holds_at_420_and_373_dpi` checks the formula with hard-coded px_scale values. It does not lay out a lobby
+  at those sizes. The capture covers that end to end, so this is acceptable.
+- `test_move_window_coords_*` does not assert that `get_screen_transform()` is non-identity. The probe shows it is today
+  (×1.667 / ×1.889). An `assert_true(absf(xf.get_scale().y - 1.0) > 0.1)` would stop a future headless or stretch change
+  from silently turning the variant back into the canvas-coordinate test.
+- Capture overlays still cover content. Folded, the green note sits on the shield and health bars (they are at 0.08 ×
+  648 ≈ 52 canvas px). In the lobby PNGs the bottom label covers "Back". This affects debug shots only.
+- Folded, the lobby slot list shows about 3.5 rows before scrolling (Squad II is below the fold). This is expected with
+  48 dp rows on a 648-unit-tall canvas. Shibi's device check should confirm the list scrolls by drag.
+- `hud.gd:_place_stats` reloads `data/ui.json` on every `resized`. This is cheap but could use the cached config.
+
+C4 fixes all three ITERATE items in code. The dp floor is real, data-driven and correctly flagged as an assumption until
+the device reports its DPI. The window-coordinate T-MOVE runs through a non-identity stretch transform offline and as
+host at both Fold sizes. The HUD is now clear of the sticks and buttons, and an assertion guards that. No assertion was
+weakened. The remaining gap is in the evidence, not the game: the capture's tap is a cursor-dependent mouse click, so one
+of the two required lobby RESULT lines fails on re-run.
+
+VERDICT: ITERATE
+- `tools/touch_capture.gd`: tap with `InputEventScreenTouch` instead of motionless mouse clicks, so
+  `player_class_toggled=true` and `bot_class_cycled=true` are reproducible by touch on every run (finding 1).
+- Make the capture fail loudly on any false RESULT, then re-run folded (`--dpi=420`) and unfolded (`--dpi=373`).
+- Optional: assert the window-coords T-MOVE transform is non-identity.
