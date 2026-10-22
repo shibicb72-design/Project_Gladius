@@ -12,6 +12,8 @@ var sensitivity: float = 1.0
 var invert_y: bool = false
 var look_mode: String = "stick"
 var shape_move: bool = true  # off for the custom stick, which has its own dead zone
+var move_feel_errors: int = 0  # times the missing-move_feel error was reported (0 or 1)
+var error_sink: Callable = Callable()  # tests capture the error here instead of push_error
 var _feel: Dictionary = {}
 var _cfg: Dictionary = {}
 var _drag_accum: Vector2 = Vector2.ZERO  # pixels since the last tick (drag mode)
@@ -40,7 +42,12 @@ func clear_look() -> void:
 ## Radial dead zone on the vector's length (no diagonal snapping), then the response curve:
 ## out = dir * pow(remapped_len, exponent). An unconfigured provider passes the raw value through.
 func get_move() -> Vector2:
-	if not shape_move or _feel.is_empty():
+	if not shape_move:
+		return move_value
+	if _feel.is_empty():
+		# A provider that was never configured has nothing to shape with; a configured one is missing data.
+		if not _cfg.is_empty():
+			_report_missing_feel()
 		return move_value
 	var length := move_value.length()
 	var dead: float = _feel["radial_deadzone"]["value"]
@@ -48,6 +55,18 @@ func get_move() -> Vector2:
 		return Vector2.ZERO
 	var remapped := minf(1.0, (length - dead) / (1.0 - dead))
 	return move_value / length * pow(remapped, float(_feel["response_exponent"]["value"]))
+
+
+## Fail loudly, once per provider: shaping is on but data/input.json has no touch_layout.move_feel.
+func _report_missing_feel() -> void:
+	if move_feel_errors > 0:
+		return
+	move_feel_errors += 1
+	var msg := "TouchProvider: shape_move is true but data/input.json move_feel (the touch move-feel block, next to touch_layout) is missing; move stick shaping is off"
+	if error_sink.is_valid():
+		error_sink.call(msg)
+	else:
+		push_error(msg)
 
 
 func get_look() -> Vector2:

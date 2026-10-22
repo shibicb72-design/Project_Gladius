@@ -88,6 +88,10 @@ func _run() -> void:
 			_tag, win.size, get_viewport().get_visible_rect().size, _dpi, DisplayServer.screen_get_dpi()])
 	await _frames(3)
 	if _vjoy_shot_name != "":
+		if _vjoy_shot_name.contains("portrait"):
+			_log("skipped %s: portrait is out of scope (OQ-PORTRAIT); the project is landscape only" % _vjoy_shot_name)
+			get_tree().quit(0)
+			return
 		await _vjoy_rest_shot()
 		get_tree().quit(0)
 		return

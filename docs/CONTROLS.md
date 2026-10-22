@@ -32,7 +32,7 @@ A DYNAMIC `VirtualJoystick` moves its base inside a fixed Control (the whole lef
 | Key | Unit | Value | Used by |
 |---|---|---|---|
 | `vjoy_deadzone_ratio` | ratio of joystick radius | 0.0 (engine default) | `VirtualJoystick.deadzone_ratio` |
-| `vjoy_clampzone_ratio` | ratio | 1.0 (engine default) | `VirtualJoystick.clampzone_ratio` |
+| `vjoy_clampzone_ratio` | ratio | 1.0 (engine default) | `VirtualJoystick.clampzone_ratio`. Only acts in `JOYSTICK_FOLLOWING` (`class_virtualjoystick.md:8`); the shipped modes do not use FOLLOWING, so today it has no visible effect |
 | `radial_deadzone` | stick length 0..1 | 0.1 | `TouchProvider.get_move`: on the vector length (no diagonal snapping), remainder rescaled to 0..1 |
 | `response_exponent` | exponent | 1.0 (linear) | `out = dir * pow(remapped_length, exponent)` |
 
@@ -44,4 +44,8 @@ A DYNAMIC `VirtualJoystick` moves its base inside a fixed Control (the whole lef
 | `ground_decel.time_s` | seconds, full speed to stop | 0.125 (placeholder) | same as today's behaviour; 0 = instant |
 | `strafe_back_ratio.value` | ratio of forward speed | 0.889 (NOT a placeholder) | sideways and backward; `_source`: "TSG Forge Wiki community tag data: sideways 2 / forward 2.25, backward 2" |
 
-Speed scales continuously with stick length (full analog, no walk/run step). Forward walk speed (`base_speed_mps`) is unchanged.
+Speed scales continuously with stick length (full analog, no walk/run step). Forward walk speed (`base_speed_mps`) is unchanged. The ramp rate is `base_speed_mps / time_s` (40 m/s^2 with the shipped data) for every class, applied per horizontal axis.
+
+## Rest-state screenshots (landscape only)
+
+The project is landscape only (`window/handheld/orientation=4`, sensor_landscape). `tools/touch_capture.gd --vjoy-shot=<name>` saves the move stick at rest; the shots kept are `vjoy_rest_cover_landscape.png` and `vjoy_rest_inner_landscape.png` (Fold inner landscape 2176x1812). Portrait is out of scope (OQ-PORTRAIT in OPEN_QUESTIONS.md); the tool skips any `--vjoy-shot` name containing "portrait".
