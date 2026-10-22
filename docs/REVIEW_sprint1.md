@@ -1456,3 +1456,144 @@ VERDICT: ITERATE
    the left edge and overlaps the look stick (cover), and the look stick overlaps Reload/Swap/Fire. That fails "clear at
    each size and orientation". Fix the portrait layout and add a portrait clearance size, or get an EL decision that
    portrait is out of scope (OPEN_QUESTIONS).
+
+## G2b2 review
+
+Reviewer: Opus (VG2b2), Oct 22 2026. Target: 2d309c2 "fix: G2b2 ramp rate, diagonal ramp, runner safety" (parent
+f942a69). Checked against cc_gladius\fixG\G2b2.txt.
+
+INPUTS: G2b2 commit = FOUND (2d309c2, parent f942a69, 15 files, +265/-25) ; tests = FOUND (I ran them myself:
+`--import` exit 0, `--export-debug "Android" build/gladius-debug.apk` exit 0, "Signed", no SCRIPT ERROR/Parse Error/ERROR:
+lines; full suite `TESTS: 200 passed, 0 failed`, exit 0) ; apk = FOUND (build/gladius-debug.apk, Glob after my export) ;
+landscape shots = FOUND (build/shots/cover_landscape_*.png x5 and inner_landscape_*.png x5, plus folded*/unfolded*) ;
+vjoy_rest_cover_landscape.png = FOUND ; vjoy_rest_inner_landscape.png = FOUND. Portrait shots are not required (OQ-PORTRAIT).
+
+1. Ramp rate: OK. `scripts/classes/pawn.gd:216`:
+   `return move_toward(cur, target, float(_movement["base_speed_mps"]) / ramp_s * delta)`. The rate does not call
+   get_move_speed() and has no numeric fallback (`_movement[...]` indexes the key directly). get_move_speed() at
+   pawn.gd:198 only scales the wish vector, as at 8ffb2da.
+2. Per-axis: OK.
+   - Before, at 8ffb2da pawn.gd:195-197: `var accel: float = float(_movement.get("accel", 40.0))`,
+     `velocity.x = move_toward(velocity.x, wish.x, accel * delta)`, `velocity.z = move_toward(velocity.z, wish.z, accel * delta)`.
+   - After, at pawn.gd:199-200: `velocity.x = _ramp_axis(velocity.x, wish.x, delta)` and the same for z.
+   - `_ramp_axis` (pawn.gd:211-216) picks decel per axis when `absf(target) < absf(cur) or cur * target < 0.0`. It keeps
+     "0 = instant" per axis at :214-215.
+   - `--only=test_shipped_ramp_per_axis_for_every_enabled_class` gave
+     `PASS test_move_feel.gd::test_shipped_ramp_per_axis_for_every_enabled_class_forward`,
+     `PASS test_move_feel.gd::test_shipped_ramp_per_axis_for_every_enabled_class_diagonal` and `TESTS: 2 passed, 0 failed`.
+   - `--only=0_889` gave `PASS test_move_feel.gd::test_shipped_strafe_and_backpedal_are_0_889_of_forward`. That test
+     (test_move_feel.gd:176) is unchanged in the diff.
+
+   My curves use the 8ffb2da formula v[n] = move_toward(v[n-1], wish, 40/60 = 0.6667) per axis:
+   - Sagittarii (stats.json:8, 95%, 0.95 x 5.0 = 4.75 m/s). Up: 0.667, 1.333, 2.0, 2.667, 3.333, 4.0, 4.667, then 4.75
+     at tick 8. Down: 4.083, 3.417, 2.75, 2.083, 1.417, 0.75, 0.083, then 0 at tick 8.
+   - Hastati (stats.json:4, 100%, 5.0 m/s). Up: 0.667 ... 4.667, then 5.0 at tick 8. Down: 4.333, 3.667, 3.0, 2.333,
+     1.667, 1.0, 0.333, then 0 at tick 8.
+   - Diagonal (0.707, 0.707): both axes use the ratio (x strafe, +z back). The target is 0.707 x 0.889 x 5 = 3.1426,
+     reached at tick 5 (Sagittarii: 2.9855, tick 5).
+   - Diagonal (-0.707, -0.707): x uses the strafe ratio, -3.1426 at tick 5. z is forward with no ratio, -3.535 at tick 6
+     (Sagittarii: -2.9855 at tick 5 and -3.3583 at tick 6), so the axes finish on different ticks.
+
+   How the tests match:
+   - The tests build the same per-tick expectation (test_move_feel.gd:225-252, `rate := 40.0 * DT`, 1% or 0.001 m/s
+     tolerance). The forward test asserts `reached.y == ceil(speed / 0.6667)`, which is 8 for both classes.
+   - The mutation runs below printed the tests' expected values: Sagittarii up -0.6667, -1.3333, -2.0 ... -4.6667 and
+     down -3.4167, -2.75, -2.0833, -1.4167, -0.75, -0.0833; diagonal targets 3.1426, -3.535, 2.9855, -3.3583. They are
+     identical to mine.
+   - Both tests loop over `_enabled_class_ids()` (test_move_feel.gd:213-219, read from stats.json "enabled"), not a
+     hard-coded list. :266 only asserts that hastati and sagittarii are in the set.
+3. Test integrity: OK.
+   - `git diff 8ffb2da -- tests/test_touch_controls.gd` is still exactly 7 added lines, each
+     `load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick`, at
+     the starts of test_move_stick_forward_and_release, test_move_stick_in_match_moves_pawn,
+     test_fire_button_works_with_move_finger_held, test_both_sticks_visible_at_rest_unfolded_2176x1812,
+     test_hud_clear_of_sticks_and_buttons_folded, test_hud_clear_of_sticks_and_buttons_unfolded and
+     test_move_stick_recentres_on_touch_and_returns_to_rest. There are no removed lines.
+   - `git diff f942a69 -- tests/test_physics_baseline.gd data/physics_baseline.json` is empty, and both baseline tests
+     PASS in the full run.
+   - No assertion was changed or removed: the test_move_feel.gd diff has no `-` lines. The only edits to an existing
+     test are 3 added setup lines, `p.velocity = Vector3.ZERO` at test_move_feel.gd:163, :166 and :169 in
+     test_full_analog_speed_and_strafe_ratio_injected. They are justified: accel is forced to 0 there, but with per-axis
+     choice an axis left over from the previous case (z -2.5 -> 0) now counts as a decel and would use the 0.125 s
+     decel time. The asserted values are unchanged.
+4. Portrait: OK.
+   - docs/OPEN_QUESTIONS.md:118 has the OQ-PORTRAIT text verbatim.
+   - tools/touch_capture.gd:91-94 skips any `--vjoy-shot` name containing "portrait" and logs the skip. Only
+     `_vjoy_rest_shot` writes vjoy shots, so no portrait vjoy file is produced.
+   - docs/CONTROLS.md "Rest-state screenshots (landscape only)" lists only the two landscape shots and cites OQ-PORTRAIT.
+     The old portrait PNGs remain in build/ (allowed).
+   - vjoy_rest_cover_landscape.png (2520x1080): both stick bases are fully on screen at rest, with nothing touching them.
+     The move base is lower-left and the look base is near mid-bottom. Aim, Reload, Fire, Swap and Jump are stacked
+     bottom-right, clear of the look stick. The banner reads "desktop render, not device - folded" and "touch
+     auto-detected ... not forced".
+   - vjoy_rest_inner_landscape.png (2176x1812): same layout scaled up. The look base sits about 40 px left of Reload
+     with no overlap, and nothing is clipped at any edge.
+5. Minors: OK.
+   - touch_provider.gd:47-50 calls `_report_missing_feel()` when shape_move is on, the provider is configured and
+     move_feel is missing. :61-70 push_errors once, or uses `error_sink` in tests.
+   - The test is test_move_feel.gd:56-76: it checks that the shipped input.json has move_feel, that the error is
+     reported exactly once with a message naming move_feel, and that there is no error with shaping off.
+   - CONTROLS.md:35 cites `class_virtualjoystick.md:8` (confirmed: "clampzone_ratio in FOLLOWING sets how far the
+     finger moves before the base follows").
+   - Wording nit: move_feel is top-level in data/input.json:35, a sibling of touch_layout (:41). The runtime message
+     says so correctly, but the doc comment at touch_provider.gd:60 says "touch_layout.move_feel".
+6. Runner and mutations: PARTLY FAILS. I used the in-place fallback because `git clone` is not in this session's
+   shell set and there is no `rm` to delete a clone.
+   - Code: run_tests.gd:58 is
+     `if inst.completed and inst.failures.is_empty() and err_logger.errors.is_empty():`. `completed` is set by
+     test_case.gd:10-12 (`await call(method)`, `completed = true`). tests/script_error_logger.gd is an
+     `OS.add_logger` Logger that records ERROR_TYPE_SCRIPT errors.
+   - The subprocess test PASSes in the full suite.
+   - The normal scan does not run the fixture: run_tests.gd:25-29 lists only the files directly in res://tests, the
+     fixture is under tests/fixtures/runner_error/, and test_runner_safety.gd:22 checks this. The full-run output has
+     no test_runtime_error line.
+   - M1, the required mutation: removing `inst.completed and ` gave `PASS
+     test_runner_safety.gd::test_runtime_script_error_is_reported_as_fail_with_nonzero_exit` and `TESTS: 2 passed, 0
+     failed`. The required result ("fixture counts as PASS, so the safety test FAILs") did NOT occur.
+   - M2, extra probe: keeping `inst.completed and inst.failures.is_empty()` but dropping the logger check gave, inside
+     the subprocess, `SCRIPT ERROR: Cannot call method 'call' on a null value. ... [1] run_test
+     (res://tests/test_case.gd:11)`, then `PASS test_runtime_error.gd::test_null_call_before_the_end`, `TESTS: 1
+     passed, 0 failed` and exit 0. Outer: `FAIL test_runner_safety.gd::test_runtime_script_error_is_reported_as_fail_with_nonzero_exit:
+     ... fixture test must not PASS; runner exit code is non-zero, got 0`.
+   - So in Godot 4.7.2 a runtime script error aborts only the called test body; `run_test` resumes and sets
+     `completed = true`. The completion flag can never catch this case. The real guard is the logger, and the safety
+     test does protect it (M2 fails). The runner is therefore safe, but the flag and the "did not complete" reason text
+     (run_tests.gd:65-66) are misleading, and the requested mutation check cannot pass as specified.
+   - M3: reverting the rate to `get_move_speed() / ramp_s` gave `FAIL ...for_every_enabled_class_forward: sagittarii
+     forward up tick 1 z: -0.6333 vs -0.6667; ... down tick 7 z: -0.3167 vs -0.0833`. Required result met.
+   - M4: reverting to the G2b `Vector2.move_toward` block gave `FAIL ...for_every_enabled_class_diagonal: hastati
+     (0.707, 0.707) up tick 1 x: 0.4714 vs 0.6667; ...` for every class and both diagonals. Required result met.
+   - All mutations were reverted with Edit. `git status --porcelain` afterwards printed nothing (empty).
+6b. Paths: OK. The Grep tool with the same pattern, case-insensitive (`C:\\|cc_gladius|/Users/|/home/`, over tests/),
+   found no matches; `git grep` is not in this session's allowed shell set.
+   - test_runner_safety.gd:11 passes `"--path", ProjectSettings.globalize_path("res://")`. :14 is
+     `var code := OS.execute(OS.get_executable_path(), args, output, true)`. The script and fixture are res:// paths
+     (:5, :12).
+   - Both the binary and the project root are resolved at runtime from the running engine. On CI, or with a different
+     Godot install or checkout path, the subprocess uses whichever Godot binary and checkout launched the suite, so no
+     machine path is baked in.
+   - CI green is checked by EL after the push; not pushed here.
+7. docs/LESSONS.md: OK. It has the "G2b ITERATE, Oct 22 2026" entry with 5 Whys for both causes, and the prevention
+   rule verbatim: "Ramp/feel equivalence tests must cover every enabled class and a diagonal input."
+8. Hygiene: OK.
+   - `git diff f942a69 -U0 -G "[Hh][Aa][Ll][Oo]"` finds nothing.
+   - `git diff f942a69 -- .claude/settings.json` is empty.
+   - `git diff f942a69 --diff-filter=D --name-only` is empty.
+   - The only OS-name checks in *.gd are in scripts/platform/platform_services.gd:37/53/68 (`"Android", "iOS"`). No
+     JNISingleton or Android permission calls.
+   - API cites: docs/engine-reference/godot has no entry for move_toward, Logger/OS.add_logger, OS.execute,
+     OS.get_executable_path or ProjectSettings.globalize_path. breaking-changes.md:92 covers only
+     OS.execute_with_pipe, which is not used. VirtualJoystick clampzone: class_virtualjoystick.md:8.
+
+VERDICT: ITERATE
+1. tests/run_tests.gd:58 and :65-66, tests/test_case.gd:5-12: the per-test completion flag cannot detect a runtime
+   script error in Godot 4.7.2, because the caller resumes after the aborted call (mutation M2 above). Removing the flag
+   check therefore changes nothing (M1), and the required mutation result was not met. The script-error logger
+   (tests/script_error_logger.gd) is the real guard. Fix:
+   - Say this in the runner and test_case comments, and keep `completed` only as a secondary check, documented as such.
+   - Change the FAIL reason to name the logged script error rather than claim the test "did not complete". Add the new
+     wording alongside the existing text, without removing the asserted substring at test_runner_safety.gd:16.
+   - EL should change the mutation check to "remove `err_logger.errors.is_empty()` from run_tests.gd:58, so
+     test_runner_safety FAILs". That mutation already fails today (M2).
+2. Minor: scripts/input/providers/touch_provider.gd:60: the doc comment says "touch_layout.move_feel", but move_feel is
+   top-level in data/input.json:35. Correct the comment.
