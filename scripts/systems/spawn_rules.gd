@@ -50,6 +50,11 @@ func is_waiting_respawn(player_id: Variant) -> bool:
 	return _respawn_left.has(player_id)
 
 
+## Seconds until the player respawns; 0 if not waiting.
+func respawn_remaining(player_id: Variant) -> float:
+	return float(_respawn_left.get(player_id, 0.0))
+
+
 ## Immediate (re)spawn, e.g. at match start or killcam timeout; grants protection.
 func spawn_now(player_id: Variant) -> void:
 	_respawn_left.erase(player_id)

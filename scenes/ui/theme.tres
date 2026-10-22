@@ -1,0 +1,25 @@
+[gd_resource type="Theme" load_steps=3 format=3]
+
+[sub_resource type="StyleBoxFlat" id="panel"]
+bg_color = Color(0.35, 0.05, 0.05, 0.85)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.68, 0.2, 1)
+
+[sub_resource type="StyleBoxFlat" id="button"]
+bg_color = Color(0.5, 0.08, 0.08, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.68, 0.2, 1)
+
+[resource]
+default_font_size = 22
+Button/colors/font_color = Color(0.95, 0.85, 0.45, 1)
+Button/colors/font_disabled_color = Color(0.6, 0.5, 0.4, 0.8)
+Button/styles/normal = SubResource("button")
+Label/colors/font_color = Color(0.95, 0.85, 0.45, 1)
+PanelContainer/styles/panel = SubResource("panel")

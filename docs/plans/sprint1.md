@@ -456,7 +456,9 @@ Grep finds no Android-only APIs and no `OS.get_name() == "Android"` outside `scr
 
 Placeholders: OQ-27, OQ-28, OQ-41, T-01, T-03.
 
-## S10: Main menu, lobby, gameplay HUD and end screen (first-playable wrap-up)
+## S10: Main menu, lobby, gameplay HUD and end screen (first-playable wrap-up) [DONE]
+Notes: built menu, lobby, HUD, end screen, theme, RomanNumerals, SaveService, GraphicsPresets (data/graphics_presets.json, placeholder OQ-40), AppFlow navigation, boot routing, tests/test_ui.gd (61 tests green, export OK). Placeholders in OPEN_QUESTIONS (OQ-38 addendum). Gap: remote-peer lobby sync and networked match start for clients are not wired (TODO in OPEN_QUESTIONS); host Start runs the match locally with bots.
+
 
 Goal: a complete loop on device: main menu → Host or Join → lobby → match → end screen → main menu.
 

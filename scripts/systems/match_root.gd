@@ -3,6 +3,7 @@ extends Node3D
 ## Offline match scene glue: loads the map from data, wires the director, the local player
 ## and a debug label (the real HUD is S10).
 
+const END_SCREEN_DELAY_S := 3.0  # presentation pause, not a design value
 const MAP_PATH := "res://data/maps/alesia_section.json"
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
@@ -19,10 +20,9 @@ var router: InputRouter
 var local_player: Pawn
 var bots: Array[Pawn] = []
 var zone: HillZone
-var _remaining_s: float = 0.0
 
 @onready var director: MatchDirector = $Director
-@onready var _label: Label = $Hud/DebugLabel
+@onready var hud: GameHud = $Hud/GameHud
 @onready var _touch_hud: Control = $Hud/TouchHud
 
 
@@ -33,8 +33,6 @@ func _ready() -> void:
 	router.add_provider(GamepadProvider.new())
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
-	director.score_changed.connect(_on_score_changed)
-	director.time_changed.connect(_on_time_changed)
 	director.match_over.connect(_on_match_over)
 	if auto_start:
 		begin()
@@ -69,9 +67,10 @@ func begin() -> bool:
 		xforms[spot_id] = Transform3D(Basis.looking_at(to_hill.normalized()), pos)
 
 	local_player = _PawnScene.instantiate()
-	local_player.class_id = "hastati"
+	local_player.class_id = _lobby_class()
 	local_player.squad_id = 0
 	add_child(local_player)
+	hud.bind(director, local_player)
 	var rig := _RigScene.instantiate()
 	rig.name = "CameraRig"
 	local_player.add_child(rig)
@@ -93,24 +92,17 @@ static func _vec(a: Array) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
 
 
-func _on_score_changed(_scores: Dictionary) -> void:
-	_refresh_label()
+## The class the host picked in the lobby; Hastati when the match was not started from the menu.
+func _lobby_class() -> String:
+	if AppFlow.lobby != null and not AppFlow.lobby.humans.is_empty():
+		return str(AppFlow.lobby.humans[0]["class_id"])
+	return "hastati"
 
 
-func _on_time_changed(remaining_s: float) -> void:
-	_remaining_s = remaining_s
-	_refresh_label()
-
-
+## Started from the menu flow: show the end screen after a short pause. Standalone runs stay put.
 func _on_match_over(result: Dictionary) -> void:
-	_label.text = "MATCH OVER  winner: %s  draw: %s" % [result["winner"], result["draw"]]
-
-
-func _refresh_label() -> void:
-	if not director.running or director.rules == null:
-		return
-	var parts: Array[String] = []
-	for squad in director.rules.scores:
-		parts.append("Squad %s: %d" % [squad, int(director.rules.scores[squad])])
-	var t := int(_remaining_s)
-	_label.text = "%s   %d:%02d" % ["  ".join(parts), t / 60, t % 60]
+	AppFlow.last_result = result
+	if AppFlow.lobby != null and is_inside_tree():
+		await get_tree().create_timer(END_SCREEN_DELAY_S).timeout
+		if is_inside_tree():
+			AppFlow.go(get_tree(), AppFlow.END_SCENE)
