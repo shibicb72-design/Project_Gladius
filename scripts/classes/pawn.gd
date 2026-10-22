@@ -14,8 +14,6 @@ signal weapon_switched(slot: int)
 ## REPLICA: client copy of a pawn simulated elsewhere; state comes from snapshots.
 enum NetMode { LOCAL, HOST_REMOTE, REPLICA }
 
-const MUZZLE_HEIGHT_M := 1.3
-
 @export var class_id: String = "hastati"
 @export var squad_id: int = 0
 
@@ -30,6 +28,7 @@ var net_mode: NetMode = NetMode.LOCAL
 
 var _frame: InputFrame = InputFrame.new()
 var _movement: Dictionary = {}
+var _camera: Dictionary = {}
 var _clock: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -43,6 +42,7 @@ func setup(new_class_id: String, new_squad_id: int) -> void:
 	squad_id = new_squad_id
 	class_def = registry.get_class_def(class_id)
 	_movement = registry.get_movement_cfg()
+	_camera = registry.get_camera_cfg()
 	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
 	loadout = Loadout.from_class(class_id, registry)
 	_rng.randomize()
@@ -91,7 +91,7 @@ func get_aim_direction() -> Vector3:
 
 
 func get_muzzle_position() -> Vector3:
-	return global_position + Vector3(0.0, MUZZLE_HEIGHT_M, 0.0)
+	return global_position + Vector3(0.0, float(_movement.get("muzzle_height_m", 1.3)), 0.0)
 
 
 ## Fires the active weapon once (one hitscan ray). Returns the Hitscan result.
@@ -133,7 +133,8 @@ func _physics_process(delta: float) -> void:
 
 func _apply_look() -> void:
 	rotate_y(-_frame.look.x)
-	pitch = clampf(pitch - _frame.look.y, deg_to_rad(-80.0), deg_to_rad(80.0))
+	pitch = clampf(pitch - _frame.look.y, deg_to_rad(float(_camera.get("pitch_min_deg", -70.0))),
+			deg_to_rad(float(_camera.get("pitch_max_deg", 70.0))))
 	var rig := get_node_or_null("CameraRig")
 	if rig != null:
 		rig.set_pitch(pitch)

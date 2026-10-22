@@ -5,7 +5,6 @@ extends Control
 const _DataRegistry := preload("res://scripts/systems/data_registry.gd")
 const _Platform := preload("res://scripts/platform/platform_services.gd")
 const _TouchProvider := preload("res://scripts/input/providers/touch_provider.gd")
-const FIRE_PULSE_S := 0.08
 
 var provider: TouchProvider = _TouchProvider.new()
 var cfg: Dictionary = {}
@@ -121,7 +120,7 @@ func _on_up(idx: int) -> void:
 	elif idx == _look_touch:
 		if not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
 			Input.action_press("fire")
-			_fire_pulse_s = FIRE_PULSE_S
+			_fire_pulse_s = float(_layout.get("fire_pulse_s", 0.08))
 		_look_touch = -1
 		provider.look_value = Vector2.ZERO
 

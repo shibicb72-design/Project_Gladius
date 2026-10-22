@@ -3,9 +3,6 @@ extends Node
 ## Child of a bot Pawn. Builds an InputFrame each physics tick from perception; never reads
 ## player input. Moves to the hill via NavigationAgent3D and shoots the nearest visible enemy.
 
-const EYE_HEIGHT_M := 1.3
-const TARGET_HEIGHT_M := 1.0
-
 var pawn: Pawn
 var director: MatchDirector
 var profile: Dictionary = {}
@@ -34,8 +31,8 @@ func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary,
 
 func _ready() -> void:
 	_agent = NavigationAgent3D.new()
-	_agent.path_desired_distance = 1.0
-	_agent.target_desired_distance = 1.0
+	_agent.path_desired_distance = float(cfg.get("path_desired_distance_m", 1.0))
+	_agent.target_desired_distance = float(cfg.get("target_desired_distance_m", 1.0))
 	pawn.add_child(_agent)
 
 
@@ -57,8 +54,8 @@ func build_frame(delta: float) -> InputFrame:
 			_error = BotTargeting.aim_error(float(profile.get("accuracy", 0.3)),
 					float(cfg.get("max_aim_error_deg", 12.0)), _rng)
 			_error_age_s = float(cfg.get("aim_error_refresh_s", 0.5))
-		var aim_pt: Vector3 = enemy.global_position + Vector3(0.0, TARGET_HEIGHT_M, 0.0)
-		want_dir = (aim_pt - (pawn.global_position + Vector3(0.0, EYE_HEIGHT_M, 0.0))).normalized()
+		var aim_pt: Vector3 = enemy.global_position + Vector3(0.0, _target_height(), 0.0)
+		want_dir = (aim_pt - (pawn.global_position + Vector3(0.0, _eye_height(), 0.0))).normalized()
 	else:
 		_seen_for_s = 0.0
 		_error_age_s = 0.0
@@ -81,8 +78,16 @@ func build_frame(delta: float) -> InputFrame:
 	return frame
 
 
+func _eye_height() -> float:
+	return float(cfg.get("eye_height_m", 1.3))
+
+
+func _target_height() -> float:
+	return float(cfg.get("target_height_m", 1.0))
+
+
 func _find_target() -> Pawn:
-	var origin := pawn.global_position + Vector3(0.0, EYE_HEIGHT_M, 0.0)
+	var origin := pawn.global_position + Vector3(0.0, _eye_height(), 0.0)
 	var cands: Array = []
 	var space := pawn.get_world_3d().direct_space_state
 	var players := director.all_players()
@@ -93,7 +98,7 @@ func _find_target() -> Pawn:
 		var pos := other.global_position
 		var visible := false
 		if other.is_alive() and other.visible:
-			var q := PhysicsRayQueryParameters3D.create(origin, pos + Vector3(0.0, TARGET_HEIGHT_M, 0.0), Hitscan.MASK_WORLD)
+			var q := PhysicsRayQueryParameters3D.create(origin, pos + Vector3(0.0, _target_height(), 0.0), Hitscan.MASK_WORLD)
 			visible = space.intersect_ray(q).is_empty()
 		cands.append({"id": id, "pos": pos, "squad": other.squad_id, "alive": other.is_alive(), "visible": visible})
 	target_id = BotTargeting.pick_target(pawn.global_position, pawn.squad_id, cands,

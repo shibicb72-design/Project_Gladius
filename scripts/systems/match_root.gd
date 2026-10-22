@@ -3,7 +3,7 @@ extends Node3D
 ## Offline match scene glue: loads the map from data, wires the director, the local player
 ## and a debug label (the real HUD is S10).
 
-const END_SCREEN_DELAY_S := 3.0  # presentation pause, not a design value
+const UI_PATH := "res://data/ui.json"
 const MAP_PATH := "res://data/maps/alesia_section.json"
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
@@ -166,6 +166,7 @@ static func _vec(a: Array) -> Vector3:
 func _on_match_over(result: Dictionary) -> void:
 	AppFlow.last_result = result
 	if AppFlow.lobby != null and lobby_override == null and is_inside_tree():
-		await get_tree().create_timer(END_SCREEN_DELAY_S).timeout
+		var delay_s := float(DataRegistry.new().load_file(UI_PATH).get("end_screen_delay_s", 3.0))
+		await get_tree().create_timer(delay_s).timeout
 		if is_inside_tree():
 			AppFlow.go(get_tree(), AppFlow.END_SCENE)

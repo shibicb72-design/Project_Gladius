@@ -3,7 +3,10 @@ extends GameModeRules
 ## Fixed-hill King of the Hill. Scoring unit, contest rule and tie result are
 ## placeholders read from data/modes.json (OQ-20, OQ-21, OQ-22).
 
-var scores: Dictionary = {}
+## Float error tolerance when moving whole points out of the carry (not a tunable).
+const CARRY_EPSILON := 1e-6
+
+var scores: Dictionary = {}  # squad id -> int score
 var elapsed_s: float = 0.0
 var _over: bool = false
 var _winner: int = -1
@@ -24,7 +27,8 @@ func setup(p_cfg: Dictionary) -> void:
 func register_squads(squad_ids: Array) -> void:
 	for id in squad_ids:
 		if not scores.has(id):
-			scores[id] = 0.0
+			scores[id] = 0
+			_fraction[id] = 0.0
 
 
 func tick(delta: float, occupancy: Dictionary) -> Array[Dictionary]:
@@ -34,10 +38,14 @@ func tick(delta: float, occupancy: Dictionary) -> Array[Dictionary]:
 	elapsed_s += delta
 	var holder := _scoring_squad(occupancy)
 	if holder != -1:
-		var gained: float = float(cfg.get("points_per_second", 1)) * delta
-		scores[holder] = float(scores.get(holder, 0.0)) + gained
+		# Integer score plus a float carry, so reaching score_to_win is exact, never a tick late.
+		var carry: float = float(_fraction.get(holder, 0.0)) + float(cfg.get("points_per_second", 1)) * delta
+		var whole := int(floor(carry + CARRY_EPSILON))
+		carry -= float(whole)
+		_fraction[holder] = maxf(carry, 0.0)
+		scores[holder] = int(scores.get(holder, 0)) + whole
 		events.append({"type": "score", "squad": holder, "score": scores[holder]})
-		if scores[holder] >= float(cfg.get("score_to_win", 100)):
+		if scores[holder] >= int(cfg.get("score_to_win", 100)):
 			_finish(holder, false, events)
 			return events
 	if elapsed_s >= float(cfg.get("time_limit_s", 600)):
@@ -66,10 +74,10 @@ func _scoring_squad(occupancy: Dictionary) -> int:
 
 
 func _finish_on_timer(events: Array[Dictionary]) -> void:
-	var best := -INF
+	var best := -1
 	var leaders: Array[int] = []
 	for squad in scores:
-		var s: float = scores[squad]
+		var s: int = scores[squad]
 		if s > best:
 			best = s
 			leaders = [int(squad)]

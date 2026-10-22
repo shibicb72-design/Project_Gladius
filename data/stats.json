@@ -21,7 +21,8 @@
     "gravity": 20.0,
     "accel": 40.0,
     "jump_enabled": true,
-    "jump_velocity": 7.0
+    "jump_velocity": 7.0,
+    "muzzle_height_m": 1.3
   },
   "aim_assist": {
     "_placeholder": true, "_todo": "OQ-19",

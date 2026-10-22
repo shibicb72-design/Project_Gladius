@@ -106,7 +106,7 @@ func test_bridge_handlers_ignore_missing_director() -> void:
 	b.apply_replica(0)
 	b.unregister_peer(2)
 	b.ev_respawn(0)
-	b.ev_score({0: 1.0})
+	b.ev_score({0: 1})
 	await tree.physics_frame
 	assert_true(b.director == null, "still no director, no error")
 	b.queue_free()

@@ -111,8 +111,9 @@ func _place(player_id: int) -> void:
 	var pawn: Pawn = _players[player_id]
 	var spot: Variant = spawn_rules.squad_spot(pawn.squad_id)
 	var xform: Transform3D = _spawn_xforms[spot]
-	# Squad mates stand side by side, 1.5 m apart.
-	xform.origin += xform.basis.x * 1.5 * float(_slot_in_squad.get(player_id, 0))
+	# Squad mates stand side by side (match.json squad_spacing_m, placeholder).
+	var spacing := float(match_cfg.get("squad_spacing_m", 1.5))
+	xform.origin += xform.basis.x * spacing * float(_slot_in_squad.get(player_id, 0))
 	pawn.respawn_at(xform)
 	spawn_rules.spawn_now(player_id)
 	pawn.bridge.spawn_protected = true

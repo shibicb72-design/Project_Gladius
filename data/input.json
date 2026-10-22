@@ -25,6 +25,7 @@
 		"move_zone": {"left": 0.0, "top": 0.4, "right": 0.5, "bottom": 1.0},
 		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
 		"tap_fire_max_s": 0.2,
+		"fire_pulse_s": 0.08,
 		"buttons": {
 			"aim": {"anchor": [0.88, 0.62], "size_px": 96.0},
 			"reload": {"anchor": [0.76, 0.84], "size_px": 80.0},
