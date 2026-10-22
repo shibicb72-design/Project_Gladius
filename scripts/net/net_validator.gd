@@ -3,7 +3,7 @@ extends RefCounted
 ## Pure host-side checks of client requests. No scene or network dependency.
 
 var cfg: Dictionary = {}
-var _last_fire_s: Dictionary = {}  # player id -> time of last accepted fire request
+var _last_fire_s: Dictionary = {}  # player id -> times of accepted fire requests in the last fire interval
 
 
 func _init(validation_cfg: Dictionary = {}) -> void:
@@ -19,11 +19,19 @@ func validate_fire(player_id: int, claimed_weapon_id: String, active_weapon: Wea
 		return {"ok": false, "reason": "bad_vector"}
 	if claimed_origin.distance_to(host_muzzle) > float(cfg.get("fire_origin_max_error_m", 2.0)):
 		return {"ok": false, "reason": "bad_origin"}
-	var gap: float = active_weapon.burst_interval_s if active_weapon.burst_count > 1 else active_weapon.fire_interval_s
-	gap *= float(cfg.get("fire_rate_tolerance", 0.8))
-	if _last_fire_s.has(player_id) and now_s - float(_last_fire_s[player_id]) < gap:
+	# At most burst_count shots per fire interval, each at least one burst gap apart.
+	var tol := float(cfg.get("fire_rate_tolerance", 0.8))
+	var burst := maxi(active_weapon.burst_count, 1)
+	var window: float = active_weapon.fire_interval_s * tol
+	var gap: float = active_weapon.burst_interval_s * tol if burst > 1 else window
+	var recent: Array = []
+	for t in _last_fire_s.get(player_id, []):
+		if now_s - float(t) < window:
+			recent.append(t)
+	if not recent.is_empty() and (now_s - float(recent[-1]) < gap or recent.size() >= burst):
 		return {"ok": false, "reason": "rate"}
-	_last_fire_s[player_id] = now_s
+	recent.append(now_s)
+	_last_fire_s[player_id] = recent
 	return {"ok": true, "reason": ""}
 
 

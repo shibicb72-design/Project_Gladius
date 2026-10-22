@@ -101,8 +101,8 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 			pawn.get_muzzle_position(), direction)
 	if not v["ok"]:
 		return v
-	var exclude: Array[RID] = [pawn.get_rid()]
-	var hit := Hitscan.fire(pawn.get_world_3d().direct_space_state, pawn, origin, direction, w.def, exclude,
+	var hit := Hitscan.fire(pawn.get_world_3d().direct_space_state, pawn, origin, direction, w.def,
+			pawn.hitscan_exclude(),
 			Callable(self, "_host_authority"), _rng)
 	v["hit"] = hit
 	return v

@@ -70,6 +70,21 @@ func test_fire_request_validation_rejects_wrong_weapon_or_rate() -> void:
 	assert_true(not v.validate_move(Vector3.ZERO, Vector3(30, 0, 0), 0.1, 5.0), "teleport rejected")
 
 
+func test_fire_validation_caps_burst_per_interval() -> void:
+	var v := NetValidator.new(_registry().load_file("res://data/net.json")["validation"])
+	var w := WeaponDef.new()
+	w.id = "pilum_br"
+	w.fire_interval_s = 0.5
+	w.burst_count = 3
+	w.burst_interval_s = 0.07
+	var o := Vector3(0, 1.3, 0)
+	var d := Vector3(0, 0, -1)
+	for t in [0.0, 0.07, 0.14]:
+		assert_true(v.validate_fire(1, "pilum_br", w, t, o, o, d)["ok"], "burst shot at %s ok" % t)
+	assert_eq(v.validate_fire(1, "pilum_br", w, 0.21, o, o, d)["reason"], "rate", "4th shot in interval rejected")
+	assert_true(v.validate_fire(1, "pilum_br", w, 0.5, o, o, d)["ok"], "next burst ok")
+
+
 # ---- loopback -----------------------------------------------------------------------------
 
 func _wait_until(cond: Callable, timeout_s: float) -> bool:

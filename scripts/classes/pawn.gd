@@ -89,9 +89,17 @@ func fire_shot() -> Dictionary:
 	if w == null:
 		return {}
 	fired.emit()
-	var exclude: Array[RID] = [get_rid()]
 	return Hitscan.fire(get_world_3d().direct_space_state, self, get_muzzle_position(),
-			get_aim_direction(), w.def, exclude, hit_authority, _rng)
+			get_aim_direction(), w.def, hitscan_exclude(), hit_authority, _rng)
+
+
+## Own body and head hitbox, so steep upward shots cannot hit the shooter.
+func hitscan_exclude() -> Array[RID]:
+	var out: Array[RID] = [get_rid()]
+	var head := get_node_or_null("Head") as Area3D
+	if head != null:
+		out.append(head.get_rid())
+	return out
 
 
 func _local_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_headshot: bool) -> void:
