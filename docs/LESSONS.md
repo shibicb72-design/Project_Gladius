@@ -39,3 +39,21 @@ Review of G2b2 (docs/REVIEW_sprint1.md "## G2b2 review", M1/M2) found that the t
 ### Prevention rule
 
 Verify an engine's error semantics with a probe before specifying a guard.
+
+## GBTN ITERATE, Oct 22 2026
+
+**Problem:** GBTN.txt item 4 asked for "the tracer/muzzle node becomes visible". The test asserted `tracer.visible`, it passed, and the Fold screenshot (buttons_fire_cover_landscape.png) showed no tracer.
+
+**5 Whys**
+
+1. Why did the shot show nothing although the test passed? The tracer node was `visible` and correctly placed (GBTN2 measurement: 116 px long on screen at 2520x1080), but it was drawn behind the pawn capsule, which hid its whole screen span.
+2. Why was it hidden? In the third-person view the tracer runs almost along the camera axis, starting beside the pawn and heading past it, and its material was depth-tested, so the closer body occluded it.
+3. Why did the test not notice? It asserted a node property (`visible`), which says "the engine may draw this", not "a player can see this". Nothing projected the segment to the screen or checked occlusion.
+4. Why was a node property accepted as proof? The item text named the node ("becomes visible"), and the test mirrored the wording of the requirement instead of the player-facing outcome (a readable line on screen).
+5. Why did review not catch it? The reviewer read the test against the item text, which matched, and the screenshot was produced but not compared against the claim until the ITERATE review looked at the pixels.
+
+**Fix:** the tracer and flash draw on top (data/ui.json `shot_fx.tracer_draw_on_top`), and tests/test_tracer_visibility.gd projects both endpoints with `Camera3D.unproject_position` and asserts the pixel length is above `tracer_min_screen_px`.
+
+### Prevention rule
+
+Visual feedback tests assert on-screen projection/size, not just visible.

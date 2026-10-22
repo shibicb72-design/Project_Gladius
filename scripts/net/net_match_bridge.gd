@@ -7,6 +7,8 @@ extends Node
 signal snapshot_received
 ## Client: the host reports a shot (any shooter) so the flash and tracer can be drawn.
 signal shot_event(player_id: int, origin: Vector3, end: Vector3)
+## Host: emitted for every shot it reports to the clients (ev_shot payload), whether or not a peer is connected.
+signal shot_announced(player_id: int, origin: Vector3, end: Vector3)
 signal kill_event(killer_id: int, victim_id: int)
 signal respawn_event(player_id: int)
 signal match_over_event(result: Dictionary)
@@ -33,6 +35,9 @@ var _tick: int = 0
 var _last_move_s: Dictionary = {}  # player id -> time of last accepted position
 var _last_correction_s: Dictionary = {}  # player id -> _clock of the last correct_position
 var _rng :=RandomNumberGenerator.new()
+var _last_aim: Dictionary = {}  # player id -> aim_pressed of the last InputFrame received from that peer
+## Spread multiplier used by the most recent host_handle_fire (read by tests).
+var last_spread_mult: float = 1.0
 
 
 ## Called by MatchRoot when the match begins. Until then (and after detach) every handler ignores packets.
@@ -151,7 +156,15 @@ func submit_input(frame_array: Array, pos: Vector3, yaw: float, _client_tick: in
 	var pid: int = peer_to_player.get(peer_id, -1)
 	if pid < 0 or director.player(pid) == null:
 		return
+	host_note_input(peer_id, frame_array)
 	host_handle_move(peer_id, pos, yaw)
+
+
+## Host: remembers the peer's latest InputFrame Aim state. It is the only aim source for host_handle_fire.
+func host_note_input(peer_id: int, frame_array: Array) -> void:
+	var pid: int = peer_to_player.get(peer_id, -1)
+	if pid >= 0:
+		_last_aim[pid] = InputFrame.from_array(frame_array).aim_pressed
 
 
 ## Host: accepts a client position if plausible; otherwise the host position stays authoritative and the
@@ -189,16 +202,17 @@ func correct_position(pos: Vector3) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_fire(origin: Vector3, direction: Vector3, weapon_id: String, _client_tick: int,
-		aimed: bool = false) -> void:
+		_aimed: bool = false) -> void:
 	if director == null or not _is_host():
 		return
-	host_handle_fire(multiplayer.get_remote_sender_id(), origin, direction, weapon_id, aimed)
+	host_handle_fire(multiplayer.get_remote_sender_id(), origin, direction, weapon_id)
 
 
 ## Host: validate, raycast on host state and apply DamageRules. Returns {ok, reason, hit}.
-## `aimed` is the shooter's Aim button state; it only tightens spread (stats.json aim.aim_spread_mult).
+## Spread tightens (stats.json aim.aim_spread_mult) from the Aim state of the host's latest received InputFrame
+## for this peer; a client-claimed aim flag is ignored (the RPC keeps its signature for compatibility).
 func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_id: String,
-		aimed: bool = false) -> Dictionary:
+		_aimed: bool = false) -> Dictionary:
 	var pid: int = peer_to_player.get(peer_id, -1)
 	var pawn: Pawn = director.player(pid) if director != null and pid >= 0 else null
 	if pawn == null or not pawn.is_alive():
@@ -221,7 +235,9 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 		v["hit"] = pawn.melee_swing(w.def, origin, direction, Callable(self, "_host_authority"))
 		return v
 	w.ammo_in_mag -= 1
-	var spread_mult: float = float(DataRegistry.new().get_aim_cfg()["aim_spread_mult"]) if aimed else 1.0
+	var spread_mult: float = float(DataRegistry.new().get_aim_cfg()["aim_spread_mult"]) \
+			if _last_aim.get(pid, false) else 1.0
+	last_spread_mult = spread_mult
 	var hit := Hitscan.fire(pawn.get_world_3d().direct_space_state, pawn, origin, direction, w.def,
 			pawn.hitscan_exclude(),
 			Callable(self, "_host_authority"), _rng, spread_mult)
@@ -234,6 +250,7 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 
 ## Host: tells every client about a shot so they draw the flash and tracer (the shooter ignores its own).
 func announce_shot(player_id: int, origin: Vector3, end: Vector3) -> void:
+	shot_announced.emit(player_id, origin, end)
 	if multiplayer.multiplayer_peer != null and _is_host():
 		ev_shot.rpc(player_id, origin, end)
 

@@ -10,6 +10,8 @@ var weapon_mesh: MeshInstance3D
 var _cfg: Dictionary = {}
 var _tracer_left_s: float = 0.0
 var _flash_left_s: float = 0.0
+var _tracer_start: Vector3 = Vector3.ZERO
+var _tracer_end: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -19,6 +21,12 @@ func _ready() -> void:
 	flash = _make_mesh(SphereMesh.new(), _color("flash_color"))
 	tracer.top_level = true
 	flash.top_level = true
+	# The tracer runs almost along the third-person view axis, behind the pawn body; drawing it without depth
+	# test keeps it readable instead of hidden by the capsule (GBTN2 measurement).
+	var tmat := (tracer.mesh as BoxMesh).material as StandardMaterial3D
+	tmat.no_depth_test = bool(_cfg["tracer_draw_on_top"])
+	tmat.render_priority = int(_cfg["tracer_render_priority"])
+	(flash.mesh as SphereMesh).material.set("no_depth_test", bool(_cfg["tracer_draw_on_top"]))
 	var s: float = _cfg["flash_size_m"]
 	(flash.mesh as SphereMesh).radius = s * 0.5
 	(flash.mesh as SphereMesh).height = s
@@ -67,11 +75,21 @@ func show_shot(origin: Vector3, end: Vector3) -> void:
 		var w: float = _cfg["tracer_width_m"]
 		(tracer.mesh as BoxMesh).size = Vector3(w, w, length)
 		tracer.global_transform = Transform3D(Basis.looking_at(dir, up), origin + dir * length * 0.5)
+		_tracer_start = origin
+		_tracer_end = origin + dir * length
+	else:
+		_tracer_start = origin
+		_tracer_end = origin
 	flash.global_position = origin
 	tracer.visible = length > 0.001
 	flash.visible = true
 	_tracer_left_s = _cfg["tracer_duration_s"]
 	_flash_left_s = _cfg["flash_duration_s"]
+
+
+## World-space start and end of the tracer segment drawn by the last show_shot (equal when nothing was drawn).
+func get_tracer_endpoints() -> PackedVector3Array:
+	return PackedVector3Array([_tracer_start, _tracer_end])
 
 
 func is_tracer_visible() -> bool:

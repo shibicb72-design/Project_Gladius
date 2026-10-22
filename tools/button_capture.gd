@@ -10,6 +10,7 @@ const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
 ## [action, viewport size, file name]
 const SHOTS: Array = [
 	["fire", Vector2i(2520, 1080), "buttons_fire_cover_landscape"],
+	["fire", Vector2i(2176, 1812), "buttons_fire_inner_landscape"],
 	["reload", Vector2i(2176, 1812), "buttons_reload_inner_landscape"],
 	["aim", Vector2i(2520, 1080), "buttons_aim_cover_landscape"],
 	["swap_weapon", Vector2i(2176, 1812), "buttons_swap_inner_landscape"],
@@ -58,6 +59,17 @@ func _save(svp: SubViewport, name: String) -> bool:
 	return err == OK
 
 
+## Prints the on-screen pixel length of the tracer (Camera3D.unproject_position of both endpoints).
+func _measure(svp: SubViewport, pawn: Pawn, name: String) -> bool:
+	var cam := svp.get_camera_3d()
+	var ep := pawn.shot_fx.get_tracer_endpoints()
+	var a := cam.unproject_position(ep[0])
+	var b := cam.unproject_position(ep[1])
+	print("[button_capture] MEASURE %s fov=%.1f world_a=%s world_b=%s px_a=%s px_b=%s len_px=%.1f" % [name,
+			cam.fov, ep[0], ep[1], a, b, a.distance_to(b)])
+	return true
+
+
 func _one(action: String, size: Vector2i, name: String) -> bool:
 	_TouchHud.move_stick_override = "custom"
 	var svp := SubViewport.new()
@@ -85,7 +97,7 @@ func _one(action: String, size: Vector2i, name: String) -> bool:
 			# Capture on a frame that really draws the tracer (it only lives ~0.08 s).
 			for i in 120:
 				await RenderingServer.frame_post_draw
-				if pawn.shot_fx.is_tracer_visible():
+				if pawn.shot_fx.is_tracer_visible() and _measure(svp, pawn, name):
 					ok = await _save(svp, name)
 					break
 			_tap(svp, touch, "fire", false)

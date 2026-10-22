@@ -93,8 +93,9 @@ func _build_feedback() -> void:
 
 
 func _anchor_row(c: Control, y_frac: float) -> void:
-	c.anchor_left = 0.0
-	c.anchor_right = 1.0
+	# A centred band, not the full width, so the row rect never reaches the buttons or sticks.
+	c.anchor_left = float(_fb["row_x_frac"][0])
+	c.anchor_right = float(_fb["row_x_frac"][1])
 	c.anchor_top = y_frac
 	c.anchor_bottom = y_frac
 	c.grow_vertical = Control.GROW_DIRECTION_BOTH

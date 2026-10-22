@@ -11,8 +11,8 @@ All feedback numbers are placeholders in `data/ui.json` (`shot_fx`, `feedback`);
 
 | Button | Effect | Visible feedback |
 |---|---|---|
-| Fire | One burst/shot of the active weapon (hold = repeat). Hitscan ranged weapons spend ammo. | Muzzle flash and tracer from the weapon mesh toward the hit point (others see it from the host's shot report); hit marker on a hit; "Empty" cue when pressed on an empty mag; button highlight while held. |
-| Reload | Starts a reload if the mag is not full and reserve ammo exists. | "Reloading" text and progress bar while reloading; "Full" cue on a full mag, "No reserve" cue with no reserve. |
+| Fire | One burst/shot of the active weapon (hold = repeat). Hitscan ranged weapons spend ammo. | Muzzle flash and tracer from the weapon mesh toward the hit point or max range, drawn on top of the pawn body so the near-axis third-person view still shows it (`shot_fx.tracer_draw_on_top`, tested on screen against `tracer_min_screen_px`; others, including bots, see it from the host's shot report); hit marker on a hit; "Empty" cue when pressed on an empty mag; button highlight while held. |
+| Reload | Starts a reload if the mag is not full and reserve ammo exists. | "Reloading" text and progress bar while reloading (feedback rows now sit in a centre band, `feedback.row_x_frac`, above the stick tops and button column, so none overlaps a stick or button; checked by tests/test_feedback_clearance.gd); "Full" cue on a full mag, "No reserve" cue with no reserve. |
 | Swap | Switches the active weapon slot. | Toast with the new weapon name; the weapon label also changes. |
 | Aim | Hold: camera FOV zooms (`aim_fov_mult`, eased by `aim_zoom_s`) and spread tightens (`aim_spread_mult`). Release restores. | FOV change. Aim state is read from `InputFrame.aim_pressed` in `pawn.gd`; clients send it with the shot so the host applies the same spread. |
 | Jump | Jumps when on the floor. | Camera hop. |

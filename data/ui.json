@@ -15,6 +15,10 @@
 		"tracer_width_m": 0.08,
 		"tracer_duration_s": 0.08,
 		"tracer_max_length_m": 60.0,
+		"_gbtn2_note": "GBTN2 placeholders (not design values): the tracer measured 116 px on-screen at 2520x1080 but was hidden behind the pawn body, so tracer and flash draw on top; tracer_min_screen_px is the test floor for the projected length.",
+		"tracer_draw_on_top": true,
+		"tracer_render_priority": 10,
+		"tracer_min_screen_px": 60.0,
 		"tracer_color": [1.0, 0.9, 0.4, 1.0],
 		"flash_size_m": 0.25,
 		"flash_duration_s": 0.06,
@@ -39,9 +43,11 @@
 		"toast_duration_s": 1.2,
 		"cue_color": [1.0, 0.85, 0.3, 1.0],
 		"toast_color": [1.0, 1.0, 1.0, 1.0],
-		"cue_anchor_y_frac": 0.62,
-		"reload_anchor_y_frac": 0.7,
-		"toast_anchor_y_frac": 0.55
+		"_layout_note": "GBTN2: rows sit in the centre band row_x_frac and above the stick tops / button column tops so they never overlap a stick or action button.",
+		"row_x_frac": [0.35, 0.65],
+		"cue_anchor_y_frac": 0.26,
+		"reload_anchor_y_frac": 0.32,
+		"toast_anchor_y_frac": 0.2
 	},
 	"touch_debug_overlay": {
 		"_placeholder": true,

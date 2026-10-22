@@ -5,6 +5,7 @@ extends "res://tests/test_case.gd"
 
 const _MatchScene := preload("res://scenes/match/match.tscn")
 const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
+const _Rig := preload("res://tests/button_rig.gd")
 
 const SIZES: Array[Vector2i] = [Vector2i(2520, 1080), Vector2i(2176, 1812)]
 const MODES: Array[String] = ["virtual", "custom"]
@@ -204,11 +205,21 @@ func test_jump_button_lifts_pawn() -> void:
 
 
 func test_hit_marker_shows_on_a_hit_only() -> void:
-	var ctx: Dictionary = await _setup(SIZES[0], "custom", false)
-	var pawn: Pawn = ctx["pawn"]
-	var hud: GameHud = ctx["hud"]
-	pawn.shot_resolved.emit(Vector3.ZERO, Vector3.FORWARD, {})
-	assert_true(not hud.hit_marker.visible, "miss shows no hit marker")
-	pawn.shot_resolved.emit(Vector3.ZERO, Vector3.FORWARD, {"target": pawn})
-	assert_true(hud.hit_marker.visible, "hit shows the hit marker")
-	await _teardown(ctx)
+	# GBTN2: real hitscan through the Fire button. Hit: an enemy pawn 4 m ahead. Miss: the only enemy is behind.
+	for case in ["hit", "miss"]:
+		var ctx: Dictionary = await _setup(SIZES[0], "custom", false)
+		var hud: GameHud = ctx["hud"]
+		var target: Pawn = await _Rig.add_target(ctx, 4.0 if case == "hit" else -4.0)
+		var resolved: Array = []
+		(ctx["pawn"] as Pawn).shot_resolved.connect(func(_o: Vector3, _e: Vector3, h: Dictionary) -> void: resolved.append(h))
+		assert_true(not hud.hit_marker.visible, "%s: no marker before firing" % case)
+		_press(ctx, "fire")
+		await _frames(2)
+		if case == "hit":
+			assert_true(hud.hit_marker.visible, "hit shows the hit marker")
+			assert_true(resolved.size() > 0 and resolved[0].get("target") == target, "the real hitscan hit the target pawn")
+		else:
+			assert_true(resolved.size() > 0 and resolved[0].get("target") == null, "the real hitscan hit no pawn")
+			assert_true(not hud.hit_marker.visible, "miss shows no hit marker")
+		_release(ctx, "fire")
+		await _teardown(ctx)
