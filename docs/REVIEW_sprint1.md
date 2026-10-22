@@ -682,3 +682,76 @@ VERDICT: ITERATE
   `player_class_toggled=true` and `bot_class_cycled=true` are reproducible by touch on every run (finding 1).
 - Make the capture fail loudly on any false RESULT, then re-run folded (`--dpi=420`) and unfolded (`--dpi=373`).
 - Optional: assert the window-coords T-MOVE transform is non-identity.
+
+## Touch proof re-check 2
+
+Scope: C5 `6e24522` ("fix: touch taps in capture, fail on false RESULT"), checked against `fix3c/C5.txt` items 1-5.
+
+### Verification (run during this re-check)
+
+- `godot --headless --path . --import`: no errors. `--export-debug "Android" build/gladius-debug.apk`: no errors, and the
+  APK exists.
+- `godot --headless --path . --script res://tests/run_tests.gd`: **123 passed, 0 failed**, with no `SCRIPT ERROR`,
+  `Parse Error` or `ERROR:` lines.
+- `git diff c29a2b3 HEAD -- tests/`: +40/−0 lines. No assertion was removed or weakened.
+- Capture, run once per size, windowed: `tools/touch_capture.tscn` at `--resolution 2520x1080 --dpi=420` (folded) and
+  `--resolution 2176x1812 --dpi=373` (unfolded). I looked at all ten PNGs.
+
+| RESULT line | folded / 420 | unfolded / 373 |
+|---|---|---|
+| `lobby_buttons_min_48dp` | true (48.3 dp) | true (70.5 dp) |
+| `lobby_action_buttons_inside_viewport` | true | true |
+| `player_class_toggled` | **false** | **false** |
+| `bot_class_cycled` | true | true |
+| `touch_on_by_default` | true (not forced) | true (not forced) |
+| `walk_moved / look_changed / pitch_bounded` | true | true |
+| final line | `RESULT FAILED: 1 false RESULT line(s)` | `RESULT FAILED: 1 false RESULT line(s)` |
+
+### Checklist
+
+| C5 item | Result | Evidence |
+|---|---|---|
+| 1. `_tap` sends `InputEventScreenTouch` (index 0, window coords, press, 2 frames, release) | yes in code | `touch_capture.gd:145-149` calls `_touch_event`, which maps canvas to window with `get_screen_transform()` (`:271-276`). The mouse helper is gone. |
+| 2. Fail loudly on any false RESULT | yes | `touch_capture.gd:74-86` logs `RESULT FAILED: ...` and calls `quit(1)`. It fired on both of my runs. |
+| 3. Window-coords T-MOVE asserts a non-identity transform | yes | `test_touch_controls.gd:140-142`: `absf(scale.y - 1.0) > 0.1`, only in the window-coords variant. |
+| 4. Overlays clear of stat bars and Back | yes | Notes are top-right, below the timer row. In all six HUD PNGs the stat bars, weapon and ammo text are uncovered. In the lobby PNGs Back is uncovered. |
+| 5. Folded lobby: action bar always on screen, >= 48 dp, roster scrolls in the rest | yes for layout; drag-scroll not proven | `folded_lobby_before.png`: Class / Start / Back are one full-width row at the bottom, fully visible. The roster shows Squad I, Squad II and Bots 1-5 with a scrollbar on the right, with Bot 5 partly below the fold. Unfolded shows the whole roster with no scrolling. `test_lobby_buttons_inside_viewport_at_both_fold_sizes` asserts every non-row button is inside the viewport and >= 48 dp, the bar is inside, the roster ends above the bar and is taller than two rows, at both sizes and DPIs. |
+| `player_class_toggled=true` and `bot_class_cycled=true` on every run | **no** | `player_class_toggled=false` on both runs, folded and unfolded (`'Class: hastati' -> 'Class: hastati'`). The bot-row tap, the second tap, worked both times. |
+
+### Findings
+
+#### High
+
+1. **The first tap after the lobby opens is still dropped, so `player_class_toggled` fails at both sizes.** Item 1 was
+   implemented as specified, but the symptom from re-check 1 is unchanged: the first tap (Class) is a no-op and the second
+   (bot row) works. The PNGs point at the cause. In each `*_lobby_before.png` exactly one row shows the hover style,
+   wherever the real desktop cursor sits over the window: the Player row folded, the Bot 2 row unfolded. So the windowed
+   capture still receives real OS mouse motion. That motion most likely moves Godot's mouse/hover state between the
+   emulated press and release. `BaseButton` then sees the release as outside the button and does not emit `pressed`.
+   Once the first emulated touch has moved Godot's mouse position, the next tap works. This is an inference from the PNGs
+   and the log, not a confirmed trace. C5 asked for this RESULT to be true on every run, and it is false on every run I made.
+   Fix: first confirm with a throwaway probe in `build/` that logs every `InputEvent` the class button gets between press
+   and release. Then make the capture independent of the cursor, for example by parking the OS cursor outside the lobby
+   (`Input.warp_mouse` to a corner) before the first tap. Any such change belongs in `tools/` only, not in the lobby or
+   input code, and must not weaken the RESULT check. Re-run each size 3 times.
+
+#### Low
+
+- Drag-to-scroll on the roster (item 5, "scrolls by touch drag") has no assertion. The roster is a `ScrollContainer`
+  with `rows_box` set to `MOUSE_FILTER_PASS`, but the slot `Button`s keep the default filter. Nothing shows that a drag
+  starting on a row scrolls instead of being swallowed by the button. Add a test, or a capture step, that drags from
+  a row in the folded lobby and asserts `scroll_vertical` increased. Shibi's device check should also cover this.
+- Item 5 says "every lobby button" inside the viewport. The test and the capture exempt slot rows. That is reasonable,
+  because rows are scroll content, but nothing asserts that rows are clipped to the scroll rect.
+- The capture overlay still sits over the right end of the Player row in both lobby PNGs. The row text is left-aligned
+  and stays readable. This affects debug shots only.
+
+C5 does items 1-4 as specified. The folded lobby rework (item 5) fixes the clipped Back button and the squeezed list.
+The action bar is fully on screen and >= 48 dp at both sizes, and a test guards that. No assertion was weakened, and
+the suite is green. But the acceptance condition was "every RESULT line true on every run", and the capture itself now
+exits non-zero with `RESULT FAILED` at both sizes. The player-class tap is still not proven by touch.
+
+VERDICT: ITERATE
+- `player_class_toggled=false` on both runs (folded 420 dpi, unfolded 373 dpi). The capture reports `RESULT FAILED` and
+  exits 1. Make the first capture tap independent of the desktop cursor (finding 1), then re-run each size 3 times.
+- Add a touch-drag scroll assertion for the folded roster (Low, but item 5 asks for it).
