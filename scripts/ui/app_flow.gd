@@ -9,6 +9,7 @@ const END_SCENE := "res://scenes/ui/end_screen.tscn"
 
 static var session: NetSession
 static var lobby: LobbyState
+static var match_seed: int = 0
 static var last_result: Dictionary = {}
 static var profile: Dictionary = {}
 
@@ -28,6 +29,7 @@ static func end_session() -> void:
 		session.queue_free()
 	session = null
 	lobby = null
+	match_seed = 0
 
 
 static func go(tree: SceneTree, scene_path: String) -> void:

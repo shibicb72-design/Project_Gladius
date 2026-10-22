@@ -16,6 +16,7 @@ const MATCH_PATH := "res://data/match.json"
 var isolated: bool = false
 var cfg: Dictionary = {}
 var is_host: bool = false
+var lobby: NetLobby
 
 var _mp: SceneMultiplayer
 var _peer: ENetMultiplayerPeer
@@ -37,6 +38,11 @@ func _enter_tree() -> void:
 	_mp.connected_to_server.connect(_on_connected)
 	_mp.connection_failed.connect(_on_failed)
 	_mp.server_disconnected.connect(func() -> void: host_lost.emit())
+	# Same node path on every peer, before anyone connects (RPC target must exist on the receiver).
+	if lobby == null:
+		lobby = NetLobby.new()
+		lobby.name = "Lobby"
+		add_child(lobby)
 
 
 func max_clients() -> int:

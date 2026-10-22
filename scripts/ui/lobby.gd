@@ -1,11 +1,12 @@
 class_name Lobby
 extends Control
 ## Pre-match lobby: players by squad, Hastati/Sagittarii toggle (OQ-29), host Start, host IPs.
-## TODO: peer name/class sync and match start for remote peers are not wired yet (see OPEN_QUESTIONS).
+## All networking goes through NetLobby (session.lobby); this UI only calls it and listens to its signals.
 
 const _Theme := preload("res://scenes/ui/theme.tres")
 const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
+var net_lobby: NetLobby
 var state := LobbyState.new()
 var list_label: Label
 var ips_label: Label
@@ -19,11 +20,12 @@ func _ready() -> void:
 	theme = _Theme
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var cfg := DataRegistry.new().load_file("res://data/match.json")
-	state.setup(2, int(cfg.get("squad_size", 3)))
-	var session := AppFlow.session
-	is_host = session == null or session.is_host
+	var session := AppFlow.ensure_session(get_tree())
+	net_lobby = session.lobby
+	is_host = session.is_host
+	state = net_lobby.state
 	AppFlow.lobby = state
-	state.add_human(1, str(_profile().get("gamertag", SaveService.DEFAULT_GAMERTAG)))
+	var my_name := str(_profile().get("gamertag", SaveService.DEFAULT_GAMERTAG))
 
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -48,14 +50,15 @@ func _ready() -> void:
 	back.pressed.connect(_on_back)
 	box.add_child(back)
 
-	if session != null:
-		session.peer_joined.connect(_on_peer_joined)
-		session.peer_left.connect(_on_peer_left)
-		session.host_lost.connect(_on_back)
+	session.host_lost.connect(_on_back)
+	net_lobby.state_changed.connect(_on_state_changed)
+	net_lobby.match_starting.connect(_on_match_starting)
 	if is_host:
 		ips_label.text = "Your IP: " + ", ".join(local_ipv4())
+		net_lobby.host_open(2, int(cfg.get("squad_size", 3)), my_name)
 	else:
 		status_label.text = "Connected. Waiting for the host to start."
+		net_lobby.submit_local(my_name, "hastati")
 	refresh()
 
 
@@ -73,12 +76,12 @@ static func local_ipv4() -> Array[String]:
 
 
 func toggle_class() -> void:
-	var i := state.find_human(1)
+	var me := net_lobby.local_id()
+	var i := state.find_human(me)
 	if i < 0:
 		return
 	var cur := str(state.humans[i]["class_id"])
-	state.set_class(1, CLASSES[(CLASSES.find(cur) + 1) % CLASSES.size()])
-	refresh()
+	net_lobby.submit_local(str(state.humans[i]["name"]), CLASSES[(CLASSES.find(cur) + 1) % CLASSES.size()])
 
 
 func refresh() -> void:
@@ -91,23 +94,22 @@ func refresh() -> void:
 			lines.append("Squad %s" % RomanNumerals.to_roman(last_squad + 1))
 		lines.append("  %s (%s)%s" % [s["name"], s["class_id"], "" if not s["is_bot"] else " [bot]"])
 	list_label.text = "\n".join(lines)
-	var i := state.find_human(1)
+	var i := state.find_human(net_lobby.local_id())
 	class_button.text = "Class: %s" % (str(state.humans[i]["class_id"]) if i >= 0 else "-")
 
 
-func _on_peer_joined(peer_id: int) -> void:
-	if is_host and state.add_human(peer_id, "Player %d" % peer_id):
-		refresh()
-
-
-func _on_peer_left(peer_id: int) -> void:
-	state.remove_human(peer_id)
+func _on_state_changed() -> void:
+	state = net_lobby.state
+	AppFlow.lobby = state
 	refresh()
 
 
+func _on_match_starting() -> void:
+	AppFlow.go(get_tree(), AppFlow.MATCH_SCENE)
+
+
 func _on_start() -> void:
-	if state.start():
-		AppFlow.go(get_tree(), AppFlow.MATCH_SCENE)
+	net_lobby.start_match()
 
 
 func _on_back() -> void:

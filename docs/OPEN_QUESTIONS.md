@@ -96,6 +96,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
   banner per bad trait or one banner in total? Draft: TODO, not decided.
 - **OQ-49: Where the 10 Denarii per medal lives.** `medals.json` `denarii_per_medal` or
   `economy.json`. Keep one source of truth. Draft: medals.json, until economy.json exists.
+- **OQ-50: Maximum lobby display-name length.** Placeholder: 24 characters, `data/net.json` `max_name_length`; the host truncates longer names (F2). Not a design value.
 
 ## Technical defaults (not product decisions; listed for visibility)
 
