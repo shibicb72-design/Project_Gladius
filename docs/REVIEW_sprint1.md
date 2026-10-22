@@ -1057,3 +1057,100 @@ VERDICT: APPROVE
   follows a Shibi decision (OQ-07, OQ-38).
 - The iOS and cross-platform rules hold. The Medium item (log the blade-vs-DESIGN melee question, refresh OQ-16) and
   the Lows are docs/test polish for the next pass, not blockers.
+
+## G0 review
+
+Reviewer: Opus (VG0), Oct 22 2026. Target: commit a1e3182 against `cc_gladius/fixG/G0.txt` items 1-5 and a-d,
+using `fixG/VTEMPLATE.txt`.
+
+INPUTS: tests log/exit code = FOUND (`cc_gladius/tests_G0.log`; `fix3c.log:84` "GATE G0 apk=True tests=0 shots=60";
+re-run here: 159 passed / 0 failed, exit 0) ; apk = FOUND (`build/gladius-debug.apk`, re-exported here, exit 0) ;
+shots = FOUND (n=60 in `build/shots/*.png`, including cover/inner portrait and landscape Fold sizes) ; step commit =
+FOUND (a1e3182, 31 files, +1467/-17)
+
+Gates run in this review, each as its own command: `--import` exit 0, `--export-debug "Android"` exit 0 (signed with
+the shared debug key), `run_tests.gd` exit 0 (159 passed, 0 failed). No "SCRIPT ERROR", "Parse Error" or "ERROR:"
+lines in any of the three outputs.
+
+### What checks out
+- **1. Engine reference:** `git diff --no-index` of the staged
+  `Claude-Code-Game-Studios-1.2.0/docs/engine-reference/godot/` against `docs/engine-reference/godot/` shows no
+  differences except the added `LICENSE`, and that `LICENSE` is identical to the staged source `LICENSE`.
+  `THIRD_PARTY.md` records the repo, tag v1.2.0, commit 05ad7c8a..., zip SHA-256 031BE54B..., the vendored path and MIT.
+- **2.** `cc_gladius/common.txt:13` has the GODOT API RULE word for word.
+- **3.** `fixG/VTEMPLATE.txt` has the FOUND/ABSENT input table (tests log/exit code, APK, shots >= 4, step commit),
+  NOT ASSESSED when any input is ABSENT ("FAILS the step... never treated as approve"), and APPROVE/ITERATE otherwise.
+  `fixG/orch_notassessed.diff` is a valid unified diff of `fix3corch.ps1`: the hunk `@@ -5,6 +5,9 @@` context and `-`
+  lines match `fix3corch.ps1:5-10` exactly, and the line counts add up. It changes the regex to
+  `VERDICT: (APPROVE|ITERATE|NOT ASSESSED)`, logs it, and pings "blocked" then exits on NOT ASSESSED, ITERATE or a
+  missing verdict. `fix3corch.ps1` still has the old `(\w+)` regex (not applied), and `run_step.ps1:14` still has no
+  `--settings` (not edited).
+- **5.** Nothing else from CCGS was imported: the commit has no hooks, statusLine, agents, skills or CLAUDE.md
+  protocol (`git show --stat a1e3182`).
+- **a. STATS.md:9-12** now says 10 body hits, about 7 with headshots (200/30 = 6.7), 4 bursts = about 1.5 s.
+  `tests/test_stats_doc.gd` derives those numbers from `data/stats.json` through `DataRegistry` and checks that the doc
+  text contains them.
+- **b. Host drop:** `test_net_match.gd:118-129` builds a real loopback ENet pair (`_start_pair`, which appends a
+  failure rather than skipping if the pair does not come up). It closes the host with `host.leave()`
+  (`net_session.gd:87-92`, `_peer.close()`), waits for `cm.host_lost_handled` (set only by
+  `match_root.gd:198 _on_host_lost`, connected at `match_root.gd:110` from `net_session.gd:41`
+  `server_disconnected`), and asserts the menu path `AppFlow.MENU_SCENE`. It passed in this run.
+- **c.** `lobby.gd:27` caches `HudNumbers.roman_enabled()` in `roman_numerals` in `_ready`. `lobby.gd:147` uses the
+  member, and there is no per-refresh call.
+- **d. Melee vs DESIGN.md:15** ("front = 70% of full shield; Gladiator front breaks full shield in one hit; from
+  behind = instant kill"):
+  - `damage_rules.gd apply_melee`: the front hit is `max_shield * melee_front_shield_fraction`, so it uses the FULL
+    shield, not the current one. For classes in `front_breaks_full_shield_classes` (["gladiator"]) it is at least
+    `max_shield`. A hit from behind zeroes shield and health and sets `killed`. The friendly, protected and dead guards
+    are the same as in `apply_hit`. Both cases go through the shared shield-then-health `_deal`, and no further rule
+    was invented.
+  - Front/back: `melee.gd is_from_behind` takes the flat angle between the TARGET's facing and target -> attacker.
+    `pawn.gd receive_melee` reads `melee_back_angle_deg` from `registry.get_melee_cfg()` on every hit, so it is read at
+    runtime. `data_registry.gd:94-100` validates both new keys next to the weapon checks.
+  - Both hit authorities route melee there: local `pawn.gd:142` and host `net_match_bridge.gd:227-231`. No other
+    `receive_hit` caller exists in `scripts/`.
+  - `stats.json` `melee` lists `melee_back_angle_deg` and `front_hit_no_shield_rule` in `_placeholders`, with
+    PLACEHOLDER/OQ-56 notes. The gladius_lux `damage` key is kept and only its `_note` changed, so `MELEE_KEYS` at
+    `test_decisions_oct22.gd:7` still holds.
+  - Tests (`tests/test_melee_rule.gd`, all PASS): front 70% of full (including a damaged shield), Gladiator front
+    breaks a full Triarii shield, back hit is an instant kill, the no-shield front hit takes 70 off health
+    (PLACEHOLDER), angle just inside and just outside the threshold on both sides, plus a Pawn-level test using real
+    facing.
+  - Changed assertions: only `test_decisions_oct22.gd:111` (was `:109`), whose expected value changes from
+    `shield_before - def.damage` (the old flat-60 blade) to `shield_before - max_shield * melee_front_shield_fraction`.
+    In the `:88` and `:117` tests only setup lines were added (`front.rotation.y = PI`, `victim.rotation.y = PI`).
+    Their assertions and the outside-arc, friendly-fire and `:131` checks are unchanged, and nothing was removed.
+  - `OPEN_QUESTIONS.md`: OQ-56 is DECIDED (Shibi, Oct 22 2026) with the wording from G0 plus a clearly marked
+    no-shield PLACEHOLDER. OQ-16 now puts melee IN milestone 1 and points to OQ-07 and OQ-56.
+- **iOS/Android:** the only "Android" strings in `scripts/` are in `scripts/platform/platform_services.gd`
+  (`"Android", "iOS"` switch arms). The commit adds no plugin, GDExtension, JavaClassWrapper or singleton.
+- **GODOT API RULE (APIs this commit relies on):** `docs/engine-reference/godot/breaking-changes.md:91` covers only
+  `FileAccess.store_*` return types. `test_stats_doc.gd` uses `FileAccess.open`/`get_as_text`, which are not affected.
+  `Vector3.angle_to`, `ENetMultiplayerPeer.close` and `server_disconnected` do not appear in `breaking-changes.md` or
+  `deprecated-apis.md`.
+
+### Open findings
+1. **Critical (item 4 not delivered): `.claude/settings.json` does not exist in the repo.** It is not on disk (Read:
+   file does not exist) and not in a1e3182. `fixG/settings_proposal.md:8-11` says the Write tool refused because the
+   harness protects `.claude/`. The proposed content in `settings_proposal.md:24-71` is correct: it has only
+   `permissions.deny`, covering rm -rf variants, force-push, reset --hard, clean -f, sudo, chmod 777, Read/Edit `.env`
+   and PowerShell `Remove-Item -Recurse`/`-r`, with no hooks, agents or statusLine. The deny rules are not active,
+   though, so the item is not done. Fix: Shibi creates the file from `settings_proposal.md` (or grants the write and
+   re-runs that sub-step), or chooses the `--settings` alternative in `run_step.ps1`. This needs a human decision or
+   permission, so a code iteration alone cannot close it.
+2. Minor: `docs/STATS.md:28` table still shows Gladius Lux damage "60 per swing", which contradicts `STATS.md:14-15`
+   and `:42-49`. G0 named only lines 13-14 and 41-43, but the table now misleads anyone tuning from it. Suggest
+   "DESIGN.md:15 rule (60 unused)".
+3. Minor: with a Gladiator attacker, a front hit on a target with no shield left takes the full `max_shield` off
+   health (`apply_melee` `maxf(dmg, max_shield)` then `_deal`; tested at `test_melee_rule.gd:59-62`), not 70%. This
+   follows the same placeholder path, but the OQ-56 PLACEHOLDER text only mentions "the 70%-of-full-shield amount".
+   Add one line to OQ-56 so Shibi sees this consequence. No code change is needed.
+4. Minor: `pawn.gd receive_melee` falls back to hard-coded `90.0` if the key is missing. `validate()` catches a missing
+   key, so this is only belt-and-braces, but the data file should stay the single source.
+5. Minor: the host-drop test asserts the menu change through the `go_scene` test hook (`match_root.gd:200-202`), not
+   the real `AppFlow.go`. This is acceptable for headless tests, but the real scene change remains an on-device check.
+
+VERDICT: ITERATE
+- Gates and every code item (1-3, 5, a-d) pass, and no assertion was weakened beyond the allowed flat-60 change.
+- G0 item 4 is missing: the repo `.claude/settings.json` deny block was never created (finding 1). It needs Shibi to
+  create the file or grant the write. Findings 2-5 are minor and can ride along.
