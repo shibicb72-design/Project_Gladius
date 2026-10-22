@@ -6,4 +6,5 @@ build/
 *.jks
 *.keystore
 !android/debug.keystore
+android/build/
 

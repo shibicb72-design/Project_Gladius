@@ -38,7 +38,9 @@ method named `test_*` is a test and may `await`. The runner prints `PASS <file>:
 `FAIL <file>::<test>: <msg>` lines and a final `TESTS: <n> passed, <m> failed`. It exits 1 on any
 failure, or if it finds zero tests.
 
-## S1: Project scaffold, data table, test runner, Android preset
+## S1: Project scaffold, data table, test runner, Android preset [DONE]
+
+Notes: built project.godot, icon, boot scene, folders, data/stats.json (weapon numbers are placeholders, OQ-06/07/11 already listed), test runner and Android preset; import, export and tests pass.
 
 Goal: an empty but importable, exportable Godot 4.7.2 project with the modular folder layout, the
 core class table as data, a headless test runner and the Android debug export preset.

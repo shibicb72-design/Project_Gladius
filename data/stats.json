@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "classes": {
+    "hastati":    {"display_name": "Hastati",    "shield": 100, "health": 100, "speed_pct": 100, "enabled": true},
+    "principes":  {"display_name": "Principes",  "shield": 110, "health": 110, "speed_pct": 100, "enabled": false},
+    "triarii":    {"display_name": "Triarii",    "shield": 140, "health": 130, "speed_pct": 85,  "enabled": false},
+    "velites":    {"display_name": "Velites",    "shield": 70,  "health": 80,  "speed_pct": 115, "enabled": false, "skill": "mark"},
+    "sagittarii": {"display_name": "Sagittarii", "shield": 80,  "health": 90,  "speed_pct": 95,  "enabled": true},
+    "equites":    {"display_name": "Equites",    "shield": 90,  "health": 100, "speed_pct": 100, "enabled": false, "vehicle_speed_pct": 200, "role": "mobile support: vehicle, heal, ammo, cover"},
+    "gladiator":  {"display_name": "Gladiator",  "shield": 60,  "health": 120, "speed_pct": 110, "enabled": false, "role": "melee"}
+  },
+  "weapons": {
+    "pilum_br": {
+      "display_name": "Pilum BR", "_placeholder": true, "_todo": "OQ-06 OQ-07 OQ-11",
+      "kind": "hitscan", "tier": "standard",
+      "damage": 20, "headshot_multiplier": 1.5, "fire_interval_s": 0.5,
+      "burst_count": 3, "burst_interval_s": 0.07,
+      "magazine": 30, "reserve_ammo": 120, "reload_s": 2.0,
+      "range_m": 80, "spread_deg": 1.0
+    },
+    "gladius_lux": {
+      "display_name": "Gladius Lux", "_placeholder": true, "_todo": "OQ-06 OQ-07 OQ-11",
+      "kind": "hitscan", "tier": "standard",
+      "damage": 35, "headshot_multiplier": 1.5, "fire_interval_s": 0.3,
+      "burst_count": 1, "burst_interval_s": 0.05,
+      "magazine": 12, "reserve_ammo": 60, "reload_s": 1.5,
+      "range_m": 60, "spread_deg": 1.5
+    }
+  }
+}
