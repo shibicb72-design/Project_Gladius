@@ -180,6 +180,43 @@ func test_menu_buttons_meet_touch_target_height() -> void:
 	AppFlow.lobby = null
 
 
+## Fold 7 sizes: every lobby button fully on screen, action bar >= 48 dp, roster scrolls in the rest.
+func test_lobby_buttons_inside_viewport_at_both_fold_sizes() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var prev := _root().size
+	for case in [[Vector2i(2520, 1080), 420.0], [Vector2i(2176, 1812), 373.0]]:
+		var size: Vector2i = case[0]
+		var dpi: float = case[1]
+		PlatformServices.dpi_override = dpi
+		_root().size = size
+		var lobby := _host_lobby()
+		for i in 4:
+			await tree.process_frame
+		var vp := _root().get_visible_rect()
+		var px_scale := _root().get_screen_transform().get_scale().y
+		var dp_scale := PlatformServices.new().get_dp_scale()
+		var n := 0
+		for b: Button in lobby.find_children("*", "Button", true, false):
+			if not b.is_visible_in_tree():
+				continue
+			n += 1
+			var r := b.get_global_rect()
+			var is_row := b in lobby.slot_buttons
+			if not is_row:
+				assert_true(vp.encloses(r), "%s fully inside viewport at %s/%d dpi: %s in %s" % [b.text, size, int(dpi), r, vp])
+				assert_true(r.size.y * px_scale / dp_scale >= 48.0 - 0.5, "%s >= 48 dp at %s/%d dpi" % [b.text, size, int(dpi)])
+		assert_true(n >= 3, "lobby action buttons present")
+		var bar: Control = lobby.find_child("ActionBar", true, false)
+		assert_true(vp.encloses(bar.get_global_rect()), "action bar inside viewport at %s" % size)
+		var scroll := lobby.rows_box.get_parent() as ScrollContainer
+		assert_true(scroll.get_global_rect().end.y <= bar.get_global_rect().position.y + 0.5, "roster ends above the action bar")
+		assert_true(scroll.size.y > lobby.slot_buttons[0].size.y * 2.0, "roster is not squeezed into a strip at %s: %s" % [size, scroll.size])
+		_end_lobby(lobby)
+	PlatformServices.dpi_override = 0.0
+	_root().size = prev
+	await tree.process_frame
+
+
 func test_touch_hud_hidden_when_not_touch() -> void:
 	var n: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
 	_root().add_child(n)

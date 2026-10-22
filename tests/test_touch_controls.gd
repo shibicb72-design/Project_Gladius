@@ -137,6 +137,9 @@ func _inject_move_walk(m: MatchRoot, window_size: Vector2i = Vector2i.ZERO, wind
 		var want := float(window_size.x) / float(window_size.y)
 		assert_true(absf(vp.x / vp.y - want) < 0.01, "viewport aspect matches window %s, got %s" % [window_size, vp])
 		assert_true(hud.size.is_equal_approx(vp), "HUD fills the viewport at %s: hud %s vp %s" % [window_size, hud.size, vp])
+		if window_coords:
+			var xf_scale := _root().get_screen_transform().get_scale()
+			assert_true(absf(xf_scale.y - 1.0) > 0.1, "window-coords variant runs through a non-identity screen transform at %s, scale %s" % [window_size, xf_scale])
 	else:
 		_fix_size(hud)
 	var zone: Rect2 = hud._zone_rect("move_zone")

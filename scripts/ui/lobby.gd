@@ -41,22 +41,36 @@ func _ready() -> void:
 	rows_box = VBoxContainer.new()
 	rows_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows_box)
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	rows_box.mouse_filter = Control.MOUSE_FILTER_PASS
+	# One info line, then one always-visible action row (Class, Start, Back): the roster takes the rest.
+	var info := HBoxContainer.new()
+	box.add_child(info)
 	ips_label = Label.new()
-	box.add_child(ips_label)
+	ips_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ips_label.clip_text = true
+	info.add_child(ips_label)
 	status_label = Label.new()
-	box.add_child(status_label)
+	status_label.clip_text = true
+	info.add_child(status_label)
+	var actions := HBoxContainer.new()
+	actions.name = "ActionBar"
+	box.add_child(actions)
 	class_button = Button.new()
+	class_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	class_button.pressed.connect(toggle_class)
-	box.add_child(class_button)
+	actions.add_child(class_button)
 	start_button = Button.new()
 	start_button.text = "Start"
+	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	start_button.visible = is_host
 	start_button.pressed.connect(_on_start)
-	box.add_child(start_button)
+	actions.add_child(start_button)
 	var back := Button.new()
 	back.text = "Back"
+	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	back.pressed.connect(_on_back)
-	box.add_child(back)
+	actions.add_child(back)
 
 	session.host_lost.connect(_on_back)
 	net_lobby.state_changed.connect(_on_state_changed)

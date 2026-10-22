@@ -35,24 +35,30 @@ func _ready() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 100
 	add_child(layer)
+	# Overlay notes sit in the top-right corner: clear of the stat bars (top-left), the sticks and buttons
+	# (bottom) and the lobby action bar (bottom); lobby rows are left-aligned so their right side is empty.
+	var notes := VBoxContainer.new()
+	notes.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	notes.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 8)
+	notes.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	notes.offset_top = 56.0  # below the match timer / hill text in the HUD's top row
+	layer.add_child(notes)
 	_label = Label.new()
 	_label.text = "desktop render, not device - %s" % _tag
-	_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 8)
-	_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_label.add_theme_font_size_override("font_size", 28)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_label.add_theme_font_size_override("font_size", 18)
 	_label.add_theme_color_override("font_color", Color(1, 1, 0))
 	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	_label.add_theme_constant_override("outline_size", 8)
-	layer.add_child(_label)
+	_label.add_theme_constant_override("outline_size", 6)
+	notes.add_child(_label)
 	var note := Label.new()
 	note.text = "touch auto-detected (simulated touchscreen), not forced"
-	note.position = Vector2(12, 52)
-	note.add_theme_font_size_override("font_size", 22)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	note.add_theme_font_size_override("font_size", 14)
 	note.add_theme_color_override("font_color", Color(0.6, 1, 0.6))
 	note.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	note.add_theme_constant_override("outline_size", 6)
-	layer.add_child(note)
+	note.add_theme_constant_override("outline_size", 4)
+	notes.add_child(note)
 	# Simulate a touchscreen device through the real auto-detect path (PlatformServices.is_touch_device).
 	_Platform.simulate_touchscreen = true
 	_run.call_deferred()
@@ -65,13 +71,19 @@ func _run() -> void:
 	await _frames(3)
 	await _lobby_shots()
 	await _match_shots()
+	var failed: PackedStringArray = []
+	for line in _report:
+		if line.begins_with("RESULT ") and line.contains("=false"):
+			failed.append(line)
+	if not failed.is_empty():
+		_log("RESULT FAILED: %d false RESULT line(s): %s" % [failed.size(), " | ".join(failed)])
 	var f := FileAccess.open(_out.path_join("%s_report.txt" % _tag), FileAccess.WRITE)
 	if f != null:
 		f.store_string("\n".join(_report) + "\n")
 		f.close()
 	else:
 		push_error("cannot write report in %s" % _out)
-	get_tree().quit()
+	get_tree().quit(1 if not failed.is_empty() else 0)
 
 
 func _buttons_under(node: Node) -> Array[Button]:
@@ -129,21 +141,11 @@ func _to_window(canvas_pos: Vector2) -> Vector2:
 	return get_viewport().get_screen_transform() * canvas_pos
 
 
-func _mouse(pos: Vector2, pressed: bool) -> void:
-	var e := InputEventMouseButton.new()
-	e.button_index = MOUSE_BUTTON_LEFT
-	e.position = pos
-	e.global_position = pos
-	e.pressed = pressed
-	e.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
-	Input.parse_input_event(e)
-
-
+## A real tap: ScreenTouch index 0 in window coordinates (as Android delivers it), press, 2 frames, release.
 func _tap(canvas_pos: Vector2) -> void:
-	var p := _to_window(canvas_pos)
-	_mouse(p, true)
+	_touch_event(0, canvas_pos, true)
 	await _frames(2)
-	_mouse(p, false)
+	_touch_event(0, canvas_pos, false)
 	await _frames(3)
 
 
@@ -174,6 +176,12 @@ func _lobby_shots() -> void:
 	_log("lobby buttons checked: %d, all >= %.0f dp tall: %s%s" % [checked, MIN_TOUCH_DP,
 			str(too_small.is_empty() and checked > 0), "" if too_small.is_empty() else " TOO SMALL: " + ", ".join(too_small)])
 	_log("RESULT lobby_buttons_min_%.0fdp=%s" % [MIN_TOUCH_DP, str(too_small.is_empty() and checked > 0)])
+	var vp_rect := get_viewport().get_visible_rect()
+	var outside: PackedStringArray = []
+	for b in _buttons_under(lobby):
+		if b.is_visible_in_tree() and b not in lobby.slot_buttons and not vp_rect.encloses(b.get_global_rect()):
+			outside.append("'%s' %s" % [b.text, b.get_global_rect()])
+	_log("RESULT lobby_action_buttons_inside_viewport=%s%s" % [str(outside.is_empty()), "" if outside.is_empty() else " OUTSIDE: " + ", ".join(outside)])
 	_log("lobby keyboard prompts: %s" % str(_keyboard_prompts(lobby)))
 	await _shot("lobby_before")
 	var before_player := lobby.class_button.text
