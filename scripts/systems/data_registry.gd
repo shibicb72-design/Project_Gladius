@@ -115,6 +115,8 @@ static func validate_melee(melee: Dictionary) -> PackedStringArray:
 		var back: float = float(melee["melee_back_angle_deg"])
 		if back <= 0.0 or back >= 180.0:
 			problems.append("melee.melee_back_angle_deg must be in (0, 180)")
+	if not melee.has("front_breaks_full_shield_classes"):
+		problems.append("melee.front_breaks_full_shield_classes missing")
 	return problems
 
 

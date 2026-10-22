@@ -65,7 +65,12 @@ static func apply_melee(target_state: HealthState, attacker_squad: int, target_s
 		target_state.time_since_damage = 0.0
 		r.killed = true
 		return r
-	var dmg: float = target_state.max_shield * float(melee_cfg.get("melee_front_shield_fraction", 0.7))
+	if not melee_cfg.has("melee_front_shield_fraction"):
+		# Data error, never computed with a default (Pawn.receive_melee reports it through its sink first).
+		push_error("stats.json melee.melee_front_shield_fraction is missing; melee hit ignored")
+		r.blocked_reason = "invalid_melee_cfg"
+		return r
+	var dmg: float = target_state.max_shield * float(melee_cfg["melee_front_shield_fraction"])
 	if attacker_breaks_full_shield:
 		dmg = maxf(dmg, target_state.max_shield)
 	_deal(target_state, dmg, r, combat_cfg)

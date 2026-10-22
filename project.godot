@@ -105,6 +105,10 @@ pause={
 
 sensors/enable_gyroscope=true
 
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
 [rendering]
 
 renderer/rendering_method="mobile"

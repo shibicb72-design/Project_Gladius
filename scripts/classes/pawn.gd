@@ -14,6 +14,10 @@ signal weapon_switched(slot: int)
 ## REPLICA: client copy of a pawn simulated elsewhere; state comes from snapshots.
 enum NetMode { LOCAL, HOST_REMOTE, REPLICA }
 
+## stats.json "melee" keys receive_melee needs, checked in this order (first missing one is reported).
+const MELEE_REQUIRED_KEYS: Array[String] = ["melee_back_angle_deg", "melee_front_shield_fraction",
+		"front_breaks_full_shield_classes"]
+
 @export var class_id: String = "hastati"
 @export var squad_id: int = 0
 
@@ -93,23 +97,28 @@ func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) 
 
 ## Melee hit from `attacker` (DESIGN.md:15): front/back from this pawn's facing, rule numbers from
 ## stats.json "melee". Called by the hit authority instead of receive_hit for melee weapons.
-## A missing melee_back_angle_deg is a data error: push_error and the hit is invalid (no damage,
-## blocked_reason "invalid_melee_cfg"); there is no default angle.
+## A missing melee key is a data error: the first one missing (in MELEE_REQUIRED_KEYS order) is
+## reported, and the hit is invalid (no damage, blocked_reason "invalid_melee_cfg"); there are no defaults.
 func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
 	var cfg: Dictionary = melee_cfg_override if not melee_cfg_override.is_empty() else registry.get_melee_cfg()
-	if not cfg.has("melee_back_angle_deg"):
-		var bad := DamageRules.HitResult.new()
-		bad.blocked_reason = "invalid_melee_cfg"
-		var msg := "stats.json melee.melee_back_angle_deg is missing; melee hit ignored"
-		if melee_error_sink.is_valid():
-			melee_error_sink.call(msg)
-		else:
-			push_error(msg)
-		return bad
+	for key in MELEE_REQUIRED_KEYS:
+		if not cfg.has(key):
+			return _invalid_melee(key)
 	var behind := Melee.is_from_behind(global_position, -global_transform.basis.z, attacker.global_position,
 			float(cfg["melee_back_angle_deg"]))
-	var breaks: bool = attacker.class_id in cfg.get("front_breaks_full_shield_classes", [])
+	var breaks: bool = attacker.class_id in cfg["front_breaks_full_shield_classes"]
 	return bridge.take_melee(attacker.squad_id, behind, breaks, cfg)
+
+
+func _invalid_melee(key: String) -> DamageRules.HitResult:
+	var bad := DamageRules.HitResult.new()
+	bad.blocked_reason = "invalid_melee_cfg"
+	var msg := "stats.json melee.%s is missing; melee hit ignored" % key
+	if melee_error_sink.is_valid():
+		melee_error_sink.call(msg)
+	else:
+		push_error(msg)
+	return bad
 
 
 func get_aim_direction() -> Vector3:

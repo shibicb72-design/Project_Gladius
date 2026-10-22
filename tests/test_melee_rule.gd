@@ -102,12 +102,51 @@ func test_missing_back_angle_is_an_error_and_hit_is_invalid() -> void:
 
 func test_validate_melee_reports_missing_keys() -> void:
 	assert_eq(DataRegistry.validate_melee(_cfg()), PackedStringArray(), "real melee cfg is clean")
-	var no_back := DataRegistry.validate_melee({"melee_front_shield_fraction": 0.7})
+	var no_back := DataRegistry.validate_melee({"melee_front_shield_fraction": 0.7, "front_breaks_full_shield_classes": []})
 	assert_eq(no_back, PackedStringArray(["melee.melee_back_angle_deg missing"]), "missing back angle reported")
-	var no_frac := DataRegistry.validate_melee({"melee_back_angle_deg": 90})
+	var no_frac := DataRegistry.validate_melee({"melee_back_angle_deg": 90, "front_breaks_full_shield_classes": []})
 	assert_eq(no_frac, PackedStringArray(["melee.melee_front_shield_fraction missing"]), "missing fraction reported")
-	assert_true(DataRegistry.validate_melee({"melee_front_shield_fraction": 0.7, "melee_back_angle_deg": 200}).size() == 1,
+	var no_classes := DataRegistry.validate_melee({"melee_front_shield_fraction": 0.7, "melee_back_angle_deg": 90})
+	assert_eq(no_classes, PackedStringArray(["melee.front_breaks_full_shield_classes missing"]), "missing classes reported")
+	assert_true(DataRegistry.validate_melee({"melee_front_shield_fraction": 0.7, "melee_back_angle_deg": 200,
+			"front_breaks_full_shield_classes": []}).size() == 1,
 			"out-of-range angle still reported")
+
+
+## A melee cfg override that lacks `missing_key` (all others present): the hit is invalid, one error names the key.
+func _check_missing_melee_key(missing_key: String) -> void:
+	var root: Node = (Engine.get_main_loop() as SceneTree).root
+	var attacker := Pawn.new()
+	attacker.setup("hastati", 0)
+	var victim := Pawn.new()
+	victim.setup("hastati", 1)
+	root.add_child(attacker)
+	root.add_child(victim)
+	attacker.global_position = Vector3(0, 80, 0)
+	victim.global_position = Vector3(0, 80, -1.0)
+	var errors: Array[String] = []
+	victim.melee_error_sink = func(msg: String) -> void: errors.append(msg)
+	var cfg := {"melee_back_angle_deg": 90.0, "melee_front_shield_fraction": 0.7,
+			"front_breaks_full_shield_classes": ["gladiator"]}
+	cfg.erase(missing_key)
+	victim.melee_cfg_override = cfg
+	var r := victim.receive_melee(attacker)
+	assert_eq(r.blocked_reason, "invalid_melee_cfg", missing_key + ": hit reported invalid")
+	assert_eq(r.damage_dealt, 0.0, missing_key + ": no damage reported")
+	assert_eq(victim.bridge.state.shield, 100.0, missing_key + ": shield untouched")
+	assert_eq(victim.bridge.state.health, 100.0, missing_key + ": health untouched")
+	assert_eq(errors.size(), 1, missing_key + ": one clear error reported")
+	assert_true(errors.size() == 1 and errors[0].contains(missing_key), missing_key + ": error names the key")
+	attacker.free()
+	victim.free()
+
+
+func test_missing_front_fraction_is_an_error_and_hit_is_invalid() -> void:
+	_check_missing_melee_key("melee_front_shield_fraction")
+
+
+func test_missing_front_breaks_classes_is_an_error_and_hit_is_invalid() -> void:
+	_check_missing_melee_key("front_breaks_full_shield_classes")
 
 
 func test_guards_still_apply_to_melee() -> void:
