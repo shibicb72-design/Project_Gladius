@@ -57,3 +57,21 @@ Verify an engine's error semantics with a probe before specifying a guard.
 ### Prevention rule
 
 Visual feedback tests assert on-screen projection/size, not just visible.
+
+## GBTN2 ITERATE, Oct 22 2026
+
+**Problem:** GBTN2 added `MatchRoot.wire_bot_shots` and called it from `begin()` (match_root.gd:116), but the test (tests/test_host_aim_and_bot_tracers.gd:75) called the helper itself. The review replaced :116 with `pass` (mutation iv-a) and the suite stayed green at 214 passed.
+
+**5 Whys**
+
+1. Why did the mutation survive? No test ran `begin()` on a hosted match with bots, so nothing depended on the call at :116; the only caller in tests was the test itself.
+2. Why did the test call the helper directly? The helper is a static function taking a bridge and a pawn array, which is easy to build in a small rig (`_host_rig()`), while `begin()` needs sessions, a lobby, a SubViewport world and a map scene.
+3. Why was the cheap rig chosen over the real setup? tests/test_net_match.gd already had the heavy setup, but it was not reused; the work item named "the bot shot announces with the bot's id", and the helper satisfied that sentence.
+4. Why did the helper-level result count as proof of wiring? The test checked that the helper works, and "wired" was assumed to follow from "the helper exists and is called somewhere"; nobody asked which line makes the production path call it.
+5. Why did review not catch it before the ITERATE review? The reviewer compared the test to the item text, which matched, and did not mutate the call site; only the mutation pass (replace :116 with `pass`) exposed the gap.
+
+**Fix:** tests/test_bot_shot_wiring.gd builds a hosted match through `MatchRoot.begin()` and asserts one `shot_announced` with the bot's player id when a bot fires; with :116 replaced by `pass` it fails.
+
+### Prevention rule
+
+Wiring tests go through the real entry point, not the helper.

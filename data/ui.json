@@ -27,6 +27,11 @@
 		"weapon_mesh_offset_m": [-0.55, 1.15, -0.35],
 		"weapon_mesh_color": [0.25, 0.25, 0.3, 1.0]
 	},
+	"capture": {
+		"_placeholder": true,
+		"_todo": "GBTN3: dev-tool only (tools/button_capture.gd). Distance of the target pawn placed ahead of the player, along the chord to the neighbouring spawn spot (past the central hill, which blocks the straight line), for the far tracer screenshots. Not a design value.",
+		"far_target_distance_m": 35.0
+	},
 	"feedback": {
 		"_placeholder": true,
 		"_todo": "OQ-FEEDBACK (GBTN): HUD feedback for the action buttons (hit marker, reload bar, cues, swap toast). Not design values.",

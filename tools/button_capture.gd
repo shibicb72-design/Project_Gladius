@@ -6,6 +6,7 @@ extends Node
 
 const _MatchScene := preload("res://scenes/match/match.tscn")
 const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
+const _PawnScene := preload("res://scenes/player/pawn.tscn")
 
 ## [action, viewport size, file name]
 const SHOTS: Array = [
@@ -14,6 +15,8 @@ const SHOTS: Array = [
 	["reload", Vector2i(2176, 1812), "buttons_reload_inner_landscape"],
 	["aim", Vector2i(2520, 1080), "buttons_aim_cover_landscape"],
 	["swap_weapon", Vector2i(2176, 1812), "buttons_swap_inner_landscape"],
+	["fire_far", Vector2i(2520, 1080), "buttons_fire_far_cover_landscape"],
+	["fire_far", Vector2i(2176, 1812), "buttons_fire_far_inner_landscape"],
 ]
 
 var _out: String = "build/shots"
@@ -70,6 +73,23 @@ func _measure(svp: SubViewport, pawn: Pawn, name: String) -> bool:
 	return true
 
 
+## Puts a target pawn straight ahead of the player at data/ui.json capture.far_target_distance_m, so the
+## shot's hit point is far away (no fallback: a missing key is a loud error).
+func _place_far_target(m: MatchRoot, pawn: Pawn) -> void:
+	var dist := float(DataRegistry.new().load_file("res://data/ui.json")["capture"]["far_target_distance_m"])
+	var target: Pawn = _PawnScene.instantiate()
+	target.squad_id = 1
+	m.add_child(target)
+	target.set_physics_process(false)
+	# The hill blocks the spawn-to-hill line, so aim along the chord to the neighbouring spawn spot.
+	var from := pawn.global_position
+	from.y = 0.0
+	var chord := (from.rotated(Vector3.UP, PI / 3.0) - from).normalized()
+	target.global_position = pawn.global_position + chord * dist
+	pawn.rotation.y = atan2(-chord.x, -chord.z)
+	pawn.pitch = 0.0
+
+
 func _one(action: String, size: Vector2i, name: String) -> bool:
 	_TouchHud.move_stick_override = "custom"
 	var svp := SubViewport.new()
@@ -92,7 +112,10 @@ func _one(action: String, size: Vector2i, name: String) -> bool:
 	var pawn: Pawn = m.local_player
 	var ok := false
 	match action:
-		"fire":
+		"fire", "fire_far":
+			if action == "fire_far":
+				_place_far_target(m, pawn)
+				await _frames(3)
 			_tap(svp, touch, "fire", true)
 			# Capture on a frame that really draws the tracer (it only lives ~0.08 s).
 			for i in 120:
