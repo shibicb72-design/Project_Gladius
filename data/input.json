@@ -37,11 +37,18 @@
 		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
 		"tap_fire_max_s": 0.2,
 		"fire_pulse_s": 0.08,
+		"_buttons_todo": "OQ-35: button size, gap, anchor, font and grid cells are placeholders, not design values. Cells count from the anchor corner (col from the right, row from the bottom). Keys of buttons are InputMap actions.",
+		"_placeholder_buttons": true,
+		"button_size_frac_of_height": 0.16,
+		"button_gap_frac_of_height": 0.02,
+		"button_font_frac_of_size": 0.24,
+		"button_anchor": [0.98, 0.96],
 		"buttons": {
-			"aim": {"anchor": [0.88, 0.62], "size_px": 96.0},
-			"reload": {"anchor": [0.76, 0.84], "size_px": 80.0},
-			"swap_weapon": {"anchor": [0.64, 0.84], "size_px": 80.0},
-			"jump": {"anchor": [0.92, 0.84], "size_px": 80.0}
+			"jump": {"label": "Jump", "col": 0, "row": 0},
+			"swap_weapon": {"label": "Swap", "col": 1, "row": 0},
+			"fire": {"label": "Fire", "col": 0, "row": 1},
+			"reload": {"label": "Reload", "col": 1, "row": 1},
+			"aim": {"label": "Aim", "col": 0, "row": 2}
 		}
 	}
 }

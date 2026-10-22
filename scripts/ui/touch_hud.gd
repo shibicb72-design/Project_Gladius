@@ -32,24 +32,22 @@ func _ready() -> void:
 	provider.configure(cfg)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var anchor: Array = _layout.get("button_anchor", [1.0, 1.0])
 	for action in _layout.get("buttons", {}):
+		var spec: Dictionary = _layout["buttons"][action]
 		var b := Button.new()
-		b.text = String(action).substr(0, 1).to_upper()
+		b.text = String(spec.get("label", action))
 		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.focus_mode = Control.FOCUS_NONE
-		var spec: Dictionary = _layout["buttons"][action]
-		var s := float(spec.get("size_px", 80.0))
-		var a: Array = spec.get("anchor", [0.5, 0.5])
-		b.anchor_left = a[0]
-		b.anchor_right = a[0]
-		b.anchor_top = a[1]
-		b.anchor_bottom = a[1]
-		b.offset_left = -s * 0.5
-		b.offset_right = s * 0.5
-		b.offset_top = -s * 0.5
-		b.offset_bottom = s * 0.5
+		b.anchor_left = anchor[0]
+		b.anchor_right = anchor[0]
+		b.anchor_top = anchor[1]
+		b.anchor_bottom = anchor[1]
 		add_child(b)
 		_buttons[action] = b
+	resized.connect(relayout)
+	get_viewport().size_changed.connect(relayout)
+	relayout()
 	refresh_visibility()
 
 
@@ -105,9 +103,68 @@ func _zone_rect(key: String) -> Rect2:
 	return Rect2(l, t, float(z.get("right", 1.0)) * s.x - l, float(z.get("bottom", 1.0)) * s.y - t)
 
 
+## Recomputes button sizes and positions from the current area (called on viewport/HUD resize,
+## e.g. a foldable switching between cover and inner screen). Stick radius and zones are derived
+## from the area on demand, so they follow automatically; this redraws any active stick.
+func relayout() -> void:
+	var s := _button_size()
+	for action in _buttons:
+		var b: Button = _buttons[action]
+		var cell := _cell_rect(_layout["buttons"][action])
+		b.offset_left = cell.position.x - _anchor_point().x
+		b.offset_top = cell.position.y - _anchor_point().y
+		b.offset_right = b.offset_left + s
+		b.offset_bottom = b.offset_top + s
+		b.add_theme_font_size_override("font_size", int(s * float(_layout.get("button_font_frac_of_size", 0.24))))
+		_style_button(b, _button_touch.values().has(action))
+	queue_redraw()
+
+
+func _anchor_point() -> Vector2:
+	var a: Array = _layout.get("button_anchor", [1.0, 1.0])
+	var area := _area()
+	return Vector2(float(a[0]) * area.x, float(a[1]) * area.y)
+
+
+func _button_size() -> float:
+	return float(_layout.get("button_size_frac_of_height", 0.16)) * _area().y
+
+
+func _cell_rect(spec: Dictionary) -> Rect2:
+	var s := _button_size()
+	var step := s + float(_layout.get("button_gap_frac_of_height", 0.02)) * _area().y
+	var corner := _anchor_point()
+	return Rect2(corner.x - s - int(spec.get("col", 0)) * step, corner.y - s - int(spec.get("row", 0)) * step, s, s)
+
+
+## Screen rect of the button for an action (the HUD is full-screen, so this is viewport space).
+func get_button_rect(action: String) -> Rect2:
+	var r := _cell_rect(_layout["buttons"][action])
+	r.position += global_position
+	return r
+
+
+func get_button_label(action: String) -> String:
+	return (_buttons[action] as Button).text
+
+
+func get_button_actions() -> Array:
+	return _buttons.keys()
+
+
+func _style_button(b: Button, held: bool) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, 0.5 if held else 0.22)
+	sb.border_color = Color(1, 1, 1, 0.6)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(int(ceil(_button_size() * 0.5)))
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(state, sb)
+
+
 func _button_at(pos: Vector2) -> String:
 	for action in _buttons:
-		if (_buttons[action] as Control).get_global_rect().has_point(pos):
+		if get_button_rect(action).has_point(pos):
 			return action
 	return ""
 
@@ -141,6 +198,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 	if action != "":
 		_button_touch[idx] = action
 		Input.action_press(action)
+		_style_button(_buttons[action], true)
 	elif _move_touch == -1 and _zone_rect("move_zone").has_point(pos):
 		_move_touch = idx
 		_move_origin = pos
@@ -159,8 +217,11 @@ func _on_down(idx: int, pos: Vector2) -> void:
 
 func _on_up(idx: int) -> void:
 	if _button_touch.has(idx):
-		Input.action_release(_button_touch[idx])
+		var action: String = _button_touch[idx]
 		_button_touch.erase(idx)
+		if not _button_touch.values().has(action):
+			Input.action_release(action)
+			_style_button(_buttons[action], false)
 	elif idx == _move_touch:
 		_move_touch = -1
 		provider.move_value = Vector2.ZERO

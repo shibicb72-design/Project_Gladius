@@ -180,6 +180,71 @@ func test_move_touch_never_fires_or_aims() -> void:
 	hud.free()
 
 
+const BUTTON_LABELS := {"fire": "Fire", "aim": "Aim", "reload": "Reload", "swap_weapon": "Swap", "jump": "Jump"}
+
+
+func test_each_button_presses_and_releases_its_action() -> void:
+	var hud := _new_hud()
+	for action in BUTTON_LABELS:
+		var c: Vector2 = hud.get_button_rect(action).get_center()
+		_touch(hud, 3, c, true)
+		assert_true(Input.is_action_pressed(action), "%s pressed on touch down" % action)
+		assert_eq(hud._move_touch, -1, "%s does not start move" % action)
+		assert_eq(hud._look_touch, -1, "%s does not start look" % action)
+		_touch(hud, 3, c, false)
+		assert_true(not Input.is_action_pressed(action), "%s released on touch up" % action)
+	hud.free()
+
+
+func test_fire_button_works_with_move_finger_held() -> void:
+	var hud := _new_hud()
+	_touch(hud, 0, Vector2(200, 400), true)
+	_drag(hud, 0, Vector2(200, 320), Vector2(0, -80))
+	_touch(hud, 1, hud.get_button_rect("fire").get_center(), true)
+	assert_true(Input.is_action_pressed("fire"), "fire pressed by second finger")
+	assert_true(hud.provider.move_value != Vector2.ZERO, "move still non-zero")
+	_touch(hud, 1, hud.get_button_rect("fire").get_center(), false)
+	assert_true(not Input.is_action_pressed("fire"), "fire released")
+	assert_true(hud.provider.move_value != Vector2.ZERO, "move still held")
+	_touch(hud, 0, Vector2(200, 320), false)
+	hud.free()
+
+
+func test_hud_has_five_labelled_buttons_and_no_sprint() -> void:
+	var hud := _new_hud()
+	assert_true(hud.visible, "HUD visible with force_touch_hud")
+	assert_eq(hud.get_button_actions().size(), 5, "five buttons")
+	for action in BUTTON_LABELS:
+		assert_true(hud.get_button_actions().has(action), "button %s" % action)
+		assert_eq(hud.get_button_label(action), BUTTON_LABELS[action], "label of %s" % action)
+		var b := hud._buttons[action] as Button
+		assert_eq(b.mouse_filter, Control.MOUSE_FILTER_IGNORE, "%s mouse_filter" % action)
+		assert_eq(b.focus_mode, Control.FOCUS_NONE, "%s focus_mode" % action)
+	assert_true(not InputMap.has_action("sprint"), "no sprint action")
+	assert_true(not hud.get_button_actions().has("sprint"), "no sprint button")
+	hud.free()
+
+
+func test_relayout_folded_and_unfolded() -> void:
+	var hud := _new_hud()
+	var min_frac: float = hud.cfg["touch_layout"]["button_size_frac_of_height"]
+	for sz in [Vector2(2316, 1000), Vector2(2184, 1968)]:
+		hud.size = sz
+		hud.relayout()
+		var view := Rect2(Vector2.ZERO, sz)
+		var move_zone: Rect2 = hud._zone_rect("move_zone")
+		var rects: Array = []
+		for action in BUTTON_LABELS:
+			var r: Rect2 = hud.get_button_rect(action)
+			assert_true(view.encloses(r), "%s inside %s, got %s" % [action, sz, r])
+			assert_true(r.size.y >= min_frac * sz.y - 0.001, "%s height at %s" % [action, sz])
+			assert_true(not r.intersects(move_zone), "%s clear of move zone at %s" % [action, sz])
+			for other in rects:
+				assert_true(not r.intersects(other), "%s overlaps another at %s" % [action, sz])
+			rects.append(r)
+	hud.free()
+
+
 func test_mouse_emulation_off_while_hud_active_and_restored() -> void:
 	Input.emulate_mouse_from_touch = true
 	var hud := _new_hud()
