@@ -1,0 +1,22 @@
+{
+	"id": "alesia_section",
+	"name": "Alesia (section)",
+	"scene": "res://scenes/maps/alesia_section.tscn",
+	"modes": ["koth"],
+	"hill": {
+		"center": [0.0, 0.0, 0.0],
+		"radius_m": 8.0,
+		"height_m": 3.0
+	},
+	"spawns": {
+		"spot_0": [40.0, 0.1, 0.0],
+		"spot_1": [20.0, 0.1, 34.64],
+		"spot_2": [-20.0, 0.1, 34.64],
+		"spot_3": [-40.0, 0.1, 0.0],
+		"spot_4": [-20.0, 0.1, -34.64],
+		"spot_5": [20.0, 0.1, -34.64]
+	},
+	"_placeholder": true,
+	"_todo": "OQ-23, OQ-24, OQ-26",
+	"_note": "TODO: hill size/shape (OQ-23), which part of Alesia (OQ-24) and the number/placement of spawn spots (OQ-26) are placeholders, not design values. Spawn spots must match Marker3D names under SquadSpawns in the scene."
+}

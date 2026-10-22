@@ -354,7 +354,9 @@ Acceptance: Definition of done passes. Named tests pass:
 
 Placeholders: OQ-06–OQ-10, OQ-17, OQ-18, OQ-19, OQ-25, OQ-37.
 
-## S7: Alesia section map, fixed hill and offline match loop
+## S7: Alesia section map, fixed hill and offline match loop [DONE]
+
+Notes: Built greybox alesia_section.tscn (+navmesh baked at load), data/maps/alesia_section.json, HillZone, MatchDirector, MatchRoot/match.tscn with debug label, Pawn.respawn_at/set_active, tests; added placeholder `offline_squads` to data/match.json (covered by OQ-30); no new OQs (OQ-23–26 already listed).
 
 Goal: a playable offline match on a greybox section of Alesia: the hill scores, players respawn at
 their squad spot with protection, and the match ends at 100 points or 10 minutes.

@@ -5,5 +5,6 @@
 	"max_players": 18,
 	"min_humans": 2,
 	"max_humans": 6,
-	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15)."
+	"offline_squads": 2,
+	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15). TODO: offline_squads (squads in the offline match, local player is squad 0) is a placeholder matching OQ-30, not a design value."
 }

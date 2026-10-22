@@ -2,6 +2,8 @@ class_name Pawn
 extends CharacterBody3D
 ## Driven only by an InputFrame, so humans, bots and network peers share it.
 
+signal fired
+
 const MUZZLE_HEIGHT_M := 1.3
 
 @export var class_id: String = "hastati"
@@ -39,6 +41,30 @@ func set_frame(frame: InputFrame) -> void:
 	_frame = frame
 
 
+func is_alive() -> bool:
+	return bridge != null and not bridge.state.is_dead()
+
+
+## Enables or disables the pawn (dead pawns are hidden and not hittable).
+func set_active(active: bool) -> void:
+	visible = active
+	collision_layer = 2 if active else 0
+	var head := get_node_or_null("Head")
+	if head != null:
+		head.collision_layer = 4 if active else 0
+	set_physics_process(active)
+
+
+## Fresh health and loadout at a new position; the caller sets protection.
+func respawn_at(xform: Transform3D) -> void:
+	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
+	loadout = Loadout.from_class(class_id, registry)
+	global_transform = xform
+	velocity = Vector3.ZERO
+	pitch = 0.0
+	set_active(true)
+
+
 ## Class speed_pct applied to the base speed (m/s).
 func get_move_speed() -> float:
 	var pct: float = class_def.speed_pct if class_def != null else 100.0
@@ -62,6 +88,7 @@ func fire_shot() -> Dictionary:
 	var w := loadout.get_active()
 	if w == null:
 		return {}
+	fired.emit()
 	var exclude: Array[RID] = [get_rid()]
 	return Hitscan.fire(get_world_3d().direct_space_state, self, get_muzzle_position(),
 			get_aim_direction(), w.def, exclude, hit_authority, _rng)
