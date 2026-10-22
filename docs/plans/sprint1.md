@@ -417,7 +417,9 @@ Acceptance: Definition of done passes. Named tests pass:
 
 Placeholders: OQ-30, OQ-31, OQ-32, OQ-33.
 
-## S9: Hotspot multiplayer with host authority
+## S9: Hotspot multiplayer with host authority [DONE]
+
+Notes: Built data/net.json (port/timeout/rate/validation tolerances all placeholders, T-01/T-03), NetSession (ENet host/join/leave, isolated SceneMultiplayer for in-process loopback), LobbyState (pure), NetValidator (pure fire/move checks), NetMatchBridge (input/fire RPCs, host raycast + DamageRules, snapshots, reliable events), MatchDirector.player_respawned signal, tests/test_net.gd; not yet wired into MatchRoot/menus (S10); humans-share-squad-0 auto-assign noted under OQ-28.
 
 Goal: two phones on the host's hotspot play the same match. The host decides hits, damage, score and
 respawns; clients send input and fire requests.

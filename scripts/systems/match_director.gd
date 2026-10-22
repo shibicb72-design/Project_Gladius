@@ -6,6 +6,7 @@ extends Node
 signal score_changed(scores: Dictionary)
 signal time_changed(remaining_s: float)
 signal match_over(result: Dictionary)
+signal player_respawned(player_id: int)
 
 const MODE_ID := "koth"
 
@@ -97,6 +98,7 @@ func _place(player_id: int) -> void:
 	pawn.respawn_at(xform)
 	spawn_rules.spawn_now(player_id)
 	pawn.bridge.spawn_protected = true
+	player_respawned.emit(player_id)
 
 
 func _on_pawn_fired(player_id: int) -> void:

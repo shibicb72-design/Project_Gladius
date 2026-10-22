@@ -1,0 +1,16 @@
+{
+  "port": 7777,
+  "connect_timeout_s": 5.0,
+  "snapshot_rate_hz": 15,
+  "_max_clients_note": "max_clients = match.json max_humans - 1 (the host is one of the humans); computed by NetSession.",
+  "validation": {
+    "_placeholder": true,
+    "_todo": "T-03 / OQ-41: tolerances for host-side checks are placeholders, not design values.",
+    "fire_rate_tolerance": 0.8,
+    "fire_origin_max_error_m": 2.0,
+    "move_speed_tolerance": 1.5,
+    "move_min_window_s": 0.05
+  },
+  "_placeholder": true,
+  "_todo": "T-01: port 7777, 5 s timeout and 15 Hz snapshots are default placeholders, not design values."
+}
