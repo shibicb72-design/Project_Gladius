@@ -234,7 +234,8 @@ Acceptance: Definition of done passes. Named tests pass:
 
 Placeholders: OQ-12, OQ-13, OQ-14.
 
-## S4: King of the Hill and spawn rules (pure)
+## S4: King of the Hill and spawn rules (pure) [DONE]
+Notes: Added modes.json, match.json, GameModeRules/KothRules/SpawnRules/ModeRegistry and tests (24 pass, import and APK export OK). Placeholders contest_rule/scoring_unit/tie_result (OQ-20/21/22) and spawn-protection scope (OQ-15) were already in OPEN_QUESTIONS.md; no new questions.
 
 Goal: the match rules for a fixed-hill KotH, runnable headless with no scene.
 

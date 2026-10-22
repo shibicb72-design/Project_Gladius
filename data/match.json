@@ -1,0 +1,9 @@
+{
+	"respawn_s": 5,
+	"spawn_protection_s": 5,
+	"squad_size": 3,
+	"max_players": 18,
+	"min_humans": 2,
+	"max_humans": 6,
+	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15)."
+}

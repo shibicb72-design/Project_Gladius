@@ -1,0 +1,16 @@
+{
+	"koth": {
+		"rules": "koth",
+		"points_per_second": 1,
+		"score_to_win": 100,
+		"time_limit_s": 600,
+		"hill_modes": ["fixed", "moving"],
+		"default_hill_mode": "fixed",
+		"moving_warn_s": 5,
+		"contest_rule": "any_other_squad",
+		"scoring_unit": "squad",
+		"tie_result": "draw",
+		"_placeholder": true,
+		"_note": "TODO: contest_rule (OQ-21), scoring_unit (OQ-20), tie_result (OQ-22) are placeholders, not design values. Other values come from DESIGN.md. moving_warn_s is unused in milestone 1."
+	}
+}
