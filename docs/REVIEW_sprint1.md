@@ -1826,3 +1826,131 @@ VERDICT: ITERATE
 4. Minor: scripts/ui/hud.gd `_build_feedback` with data/ui.json `feedback.reload_anchor_y_frac` 0.7 puts the
    "Reloading" bar over the look-stick ring on the inner screen (buttons_reload_inner_landscape.png). Move the anchor
    or extend tests/test_touch_controls.gd-style clearance checks to the new feedback widgets.
+
+## GBTN2 review
+
+Opus check of 4e33a18 against C:\Users\shibi\cc_gladius\fixG\GBTN2.txt (template fixG\VTEMPLATE.txt).
+
+INPUTS: GBTN2 commit = FOUND (4e33a18 "fix: GBTN2 visible tracer, feedback clearance, host aim, bot tracers", parent
+e454c66, 18 files, +390/-21) ; test run = FOUND (I ran it: import exit 0, Android export exit 0, full suite exit 0,
+"TESTS: 214 passed, 0 failed", no SCRIPT ERROR / Parse Error / ERROR: lines) ; apk = FOUND (build/gladius-debug.apk,
+re-exported by me) ; shots = FOUND (Fold-size landscape set build/shots/cover_landscape_*, inner_landscape_*, plus
+buttons_*_landscape: well over 4) ; named shots = FOUND (buttons_fire_cover_landscape.png, buttons_fire_inner_landscape.png,
+buttons_reload_inner_landscape.png). Portrait not required (OQ-PORTRAIT).
+
+1. Tracer. The new code is in scripts/weapons/shot_fx.gd:24-29:
+   `tmat.no_depth_test = bool(_cfg["tracer_draw_on_top"])`, `tmat.render_priority = int(_cfg["tracer_render_priority"])`,
+   `(flash.mesh as SphereMesh).material.set("no_depth_test", bool(_cfg["tracer_draw_on_top"]))`. It also records the
+   endpoints (:78-82) and adds `get_tracer_endpoints()` (:91-92). The origin is still the weapon-box tip (:68-69), as in
+   GBTN. Root cause given in the summary: the segment was 116 px long on screen but sat behind the depth-tested capsule.
+   The fix draws it on top; it does not offset the segment from the view axis (GBTN2.txt item 1 allowed "offset ...
+   enough to be readable"; the result is readable, see the shots below, so I accept it).
+   Gameplay: `git diff e454c66 -- scripts/weapons/hitscan.gd` is empty, and no file under scripts/classes/ changed
+   (pawn.gd:165-169 fire path unchanged). The diff under scripts/ touches only net_match_bridge.gd, match_root.gd,
+   hud.gd and shot_fx.gd.
+   Test (I ran it): `PASS test_tracer_visibility.gd::test_tracer_projects_to_a_readable_segment_and_draws_on_top`. It
+   fires through the Fire button (tests/button_rig.gd:62-63, Viewport.push_input) at 2520x1080 and 2176x1812, both modes,
+   and asserts the projected endpoints differ and `a.distance_to(b) > min_px` (test_tracer_visibility.gd:29-33).
+   data/ui.json:21 `"tracer_min_screen_px": 60.0` in shot_fx, which has `"_placeholder": true` (:13); read without a
+   fallback (test_tracer_visibility.gd:9, :13).
+   Shots (opened): buttons_fire_cover_landscape.png: a yellow trail starts at the orange flash on the weapon box, left of
+   the capsule at about (1165, 615) px in the 2520x1080 image, and runs up and right to about (1260, 545), at the
+   capsule's neck. buttons_fire_inner_landscape.png: the same trail from the flash at about (955, 1015) px to about
+   (1090, 915) in the 2176x1812 image. It is drawn over the capsule and is clearly visible in both. PASS.
+2. Reload bar. data/ui.json:47-50: `"row_x_frac": [0.35, 0.65]`, `"cue_anchor_y_frac": 0.26`,
+   `"reload_anchor_y_frac": 0.32`, `"toast_anchor_y_frac": 0.2` (was 0.62 / 0.7 / 0.55); scripts/ui/hud.gd:96-98
+   `c.anchor_left = float(_fb["row_x_frac"][0])`, `c.anchor_right = float(_fb["row_x_frac"][1])` (was 0.0 / 1.0).
+   Test: `PASS test_feedback_clearance.gd::test_feedback_widgets_clear_of_sticks_and_buttons`. It covers 4 widgets x 4
+   sizes x 2 modes, and each widget is checked against 7 rects (move, look, 5 buttons) plus shown, has size and inside
+   viewport (test_feedback_clearance.gd:45-53). Shot (opened): buttons_reload_inner_landscape.png shows "Reloading" and
+   its bar at about 32% height in the centre, far above the look-stick ring top (about 64%) and left of the Aim button.
+   It is clear of both sticks and all buttons. PASS.
+3. Summary (cc_gladius\out\GBTN2.json "result"): it contains the sentence verbatim: "No first-person weapon mesh was
+   added; the only weapon mesh is the third-person placeholder box beside the pawn (shot_fx.gd, data/ui.json
+   shot_fx.weapon_mesh_*)." API list: push_input, ProgressBar, top_level, Basis.looking_at, move_toward, SubViewport,
+   Camera3D.unproject_position, rpc, no_depth_test, render_priority, is_position_behind: all "not listed", plus related
+   cites breaking-changes.md:24, deprecated-apis.md:53, breaking-changes.md:55. Spot-checks (opened): breaking-changes.md:24
+   is "Input | Mouse and keyboard device IDs ... DEVICE_ID_MOUSE"; deprecated-apis.md:53 is "`event.device == 0` to
+   detect mouse or keyboard"; breaking-changes.md:55 is "UI | Dual-focus system". All match. My Grep of docs/engine-reference/godot
+   for all 11 names finds only modules/networking.md (rpc examples), nothing in breaking-changes.md or deprecated-apis.md,
+   so "not listed" is correct. PASS.
+4. Host aim. net_match_bridge.gd:159 `host_note_input(peer_id, frame_array)` in submit_input; :164-167
+   `_last_aim[pid] = InputFrame.from_array(frame_array).aim_pressed`; :238-240 `spread_mult = ... if _last_aim.get(pid,
+   false) else 1.0`. The client flag is now `_aimed` (:205, :215), not passed on by request_fire and not read anywhere.
+   Tests: `PASS ...::test_host_ignores_client_claimed_aim_when_frame_says_not_aiming` and
+   `PASS ...::test_host_uses_frame_aim_even_when_client_claims_not_aimed`. PASS.
+5. Bot tracers. match_root.gd:116 `wire_bot_shots(host_bridge, bots)` in the host branch of begin(); :188-192
+   `static func wire_bot_shots` connects each bot's `shot_resolved` to `host_bridge.announce_pawn_shot(b, o, e)`.
+   announce_shot now emits `shot_announced` (net_match_bridge.gd:253). Test: `PASS
+   test_host_aim_and_bot_tracers.gd::test_bot_shot_is_announced_with_the_bot_player_id_and_client_draws_it`. It calls
+   `MatchRoot.wire_bot_shots(host, [bot])` directly (:75), not begin(). See mutation iv-a: the begin() wiring is not
+   tested. ISSUE 1.
+6. Hit marker. Before (e454c66 test_action_buttons.gd:206-214): `pawn.shot_resolved.emit(Vector3.ZERO, Vector3.FORWARD,
+   {})` / `assert_true(not hud.hit_marker.visible, "miss shows no hit marker")` / `pawn.shot_resolved.emit(...,
+   {"target": pawn})` / `assert_true(hud.hit_marker.visible, "hit shows the hit marker")`. After (:207-225): an enemy pawn
+   is placed 4 m ahead (hit) or 4 m behind (miss) via button_rig.gd:67-79, Fire is pressed through push_input, and the
+   test asserts both original assertions with the same messages, plus "no marker before firing" and
+   `resolved[0].get("target") == target` / `== null`. Equal or stronger, through a real hitscan (mutation v confirms).
+   PASS.
+7. LESSONS.md: `git diff e454c66 -- docs/LESSONS.md` has only "+" lines (18 added at the end). "## GBTN ITERATE, Oct 22
+   2026" has Whys 1-5 and ends with "Visual feedback tests assert on-screen projection/size, not just visible." verbatim.
+   PASS.
+8. Stability (run by me): full suite 3 times: "TESTS: 214 passed, 0 failed" / "TESTS: 214 passed, 0 failed" /
+   "TESTS: 214 passed, 0 failed" (build/v_run1-3.log:218), each exit 0. `-- --only=action_buttons --move-stick=virtual`:
+   "TESTS: 8 passed, 0 failed"; `--move-stick=custom`: "TESTS: 8 passed, 0 failed". PASS.
+9. Mutations (in-memory in the repo, each reverted with Edit):
+   (i) shot_fx.gd show_shot: origin = camera position + 2 m along the camera forward ray, end = + 30 m on the same ray ->
+       `FAIL test_tracer_visibility.gd::test_tracer_projects_to_a_readable_segment_and_draws_on_top: (2520, 1080)
+       mode=virtual: projected endpoints differ ... tracer on-screen length 0.0 px > 60.0 px` (all 4 size/mode
+       combinations), "TESTS: 0 passed, 1 failed". Caught.
+   (ii) data/ui.json cue/reload/toast_anchor_y_frac back to 0.62 / 0.7 / 0.55 and hud.gd anchors back to 0.0 / 1.0 ->
+       `FAIL test_feedback_clearance.gd::test_feedback_widgets_clear_of_sticks_and_buttons: reload_box (1512.0, 648.0)
+       mode=virtual [P: (0.0, 430.1), S: (1512.0, 47.0)] overlaps move_stick [P: (149.04, 414.72), S: (155.52,
+       155.52)]`, "TESTS: 0 passed, 1 failed". Caught.
+   (iii) net_match_bridge.gd:239 `if _aimed else 1.0` -> `FAIL ...::test_host_ignores_client_claimed_aim_when_frame_says_not_aiming:
+       ... (expected 1.0, got 0.5)` and `FAIL ...::test_host_uses_frame_aim_even_when_client_claims_not_aimed: ...
+       (expected 0.5, got 1.0)`, "TESTS: 1 passed, 2 failed". Caught.
+   (iv-a) match_root.gd:116 `wire_bot_shots(host_bridge, bots)` replaced by `pass` (bots in a real hosted match are no
+       longer wired) -> full suite "TESTS: 214 passed, 0 failed" (build/v_mut4a.log:218). NOT CAUGHT.
+   (iv-b) the `b.shot_resolved.connect(...)` inside wire_bot_shots (:191-192) replaced by `pass` -> `FAIL
+       ...::test_bot_shot_is_announced_with_the_bot_player_id_and_client_draws_it: one bot shot -> one announce_shot
+       (expected 1, got 0); announced with the bot's player id (expected 8, got -1)`, "TESTS: 2 passed, 1 failed". Caught.
+   (v) scripts/classes/pawn.gd:169 `res = {}` before `shot_resolved.emit` (every shot misses) -> `FAIL
+       test_action_buttons.gd::test_hit_marker_shows_on_a_hit_only: hit shows the hit marker; the real hitscan hit the
+       target pawn`, "TESTS: 7 passed, 1 failed". Caught.
+   After reverting all: `git status --porcelain` printed nothing (empty).
+10. Integrity: `git diff 8ffb2da -- tests/test_touch_controls.gd` is exactly 7 added lines, each
+    `load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"  # this test targets the custom stick` (in
+    test_move_stick_forward_and_release, test_move_stick_in_match_moves_pawn, test_fire_button_works_with_move_finger_held,
+    test_both_sticks_visible_at_rest_unfolded_2176x1812, test_hud_clear_of_sticks_and_buttons_folded / _unfolded,
+    test_move_stick_recentres_on_touch_and_returns_to_rest), no removed lines. `git diff e454c66 -- tests/test_physics_baseline.gd
+    data/physics_baseline.json tests/run_tests.gd tests/test_case.gd tests/test_runner_safety.gd .claude/settings.json`:
+    empty. `PASS test_physics_baseline.gd::test_movement_within_tolerance_of_physics_baseline` and `PASS
+    test_physics_baseline.gd::test_physics_engine_is_jolt` in all 3 runs. The only existing test changed is
+    test_action_buttons.gd (item 6 replacement, judged equal or stronger). The rest are new files. PASS.
+11. Data: new values tracer_draw_on_top, tracer_render_priority, tracer_min_screen_px (shot_fx, `_placeholder` :13) and
+    row_x_frac plus the moved anchors (feedback, `_placeholder` :31) are all in placeholder blocks and listed in
+    OPEN_QUESTIONS.md ("OQ-FEEDBACK (GBTN2)"). `git diff e454c66 -U0 -G "PUBG|Android|..."` is empty, so no new PUBG
+    label. The new reads (shot_fx.gd:27-29, hud.gd:97-98, test_tracer_visibility.gd:13) have no numeric fallback
+    (`_last_aim.get(pid, false)` is a bool state default, not a tunable). PASS.
+12. Paths: Grep `C:\\|cc_gladius|/Users/|/home/` (case-insensitive) over tests/** and scripts/**: "No matches found".
+    PASS.
+13. Hygiene: `git diff e454c66 -U0 -G "[Hh][Aa][Ll][Oo]"`: empty. `git diff e454c66 --diff-filter=D --name-only`:
+    empty. No Android-only API (JavaClass/JNI/get_singleton/OS.get_name/"Android") in the diff. touch_hud.gd,
+    data/input.json and the button sizing were not touched, so the buttons are still >= 48 dp (data/ui.json:10
+    min_touch_target_dp 48.0). PASS.
+
+Minor (not blocking): docs/CONTROLS.md:17, Aim row, still says "clients send it with the shot so the host applies the
+same spread". Since GBTN2 the host ignores that flag and uses the last InputFrame (net_match_bridge.gd:238-239).
+
+VERDICT: ITERATE
+1. scripts/systems/match_root.gd:116, tests/test_host_aim_and_bot_tracers.gd:64-96: the call that wires bots in a real
+   hosted match is untested. Mutation iv-a (delete `wire_bot_shots(host_bridge, bots)` from begin()) leaves the full
+   suite at 214 passed, 0 failed. The test calls `MatchRoot.wire_bot_shots(host, [bot])` itself (:75), so it proves the
+   helper works but not that the match uses it. This is the exact bug of GBTN review item 9 (clients see no bot shots),
+   and the same pattern as the GBTN lesson (the test checks a stand-in, not the outcome). Fix: add a test that
+   starts a hosted match through begin() (session_override/lobby_override with a host session and at least one bot),
+   fires one of `m.bots`, and asserts `roster.bridge.shot_announced` fires with that bot's player id. Mutation iv-a
+   must then FAIL.
+2. Minor: docs/CONTROLS.md:17: update the Aim row to say the host takes aim from the client's latest InputFrame and
+   ignores the client-sent flag.
