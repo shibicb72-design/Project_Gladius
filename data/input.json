@@ -41,6 +41,18 @@
 		"_sticks_todo": "OQ-35: rest centres of the always-visible sticks are placeholders: [x as fraction of width, y as fraction of height]. Move bottom-left; look bottom-centre-right, left of the button cluster.",
 		"move_stick_rest": [0.15, 0.76],
 		"look_stick_rest": [0.58, 0.76],
+		"_move_stick_note": "TRIAL (G2): which move stick the touch HUD builds. 'virtual' = Godot 4.7 VirtualJoystick; 'custom' = hand-written stick. Shibi judges the trial on the Fold. Default is 'custom' because 'virtual' cannot pass tests/test_touch_controls.gd unchanged (see docs/OPEN_QUESTIONS.md OQ-VJOY).",
+		"move_stick": "custom",
+		"_vjoy_todo": "OQ-VJOY: all values below are trial placeholders, not design values. Sizes are fractions of the custom stick radius / ring.",
+		"vjoy": {
+			"_placeholder": true,
+			"mode": "dynamic",
+			"visibility": "always",
+			"size_frac_of_ring": 1.0,
+			"tip_frac_of_size": 0.4,
+			"deadzone_ratio": 0.1,
+			"clampzone_ratio": 1.0
+		},
 		"move_zone": {"left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0},
 		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
 		"tap_fire_max_s": 0.2,

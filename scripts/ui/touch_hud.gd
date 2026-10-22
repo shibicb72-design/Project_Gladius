@@ -23,8 +23,14 @@ var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> action
 var _buttons: Dictionary = {}  # action -> Control
-var move_stick: StickVisual
+## Test-only hook ("" = use data/input.json touch_layout.move_stick): forces "virtual" or "custom".
+static var move_stick_override: String = ""
+const _VJOY_ACTIONS := ["vjoy_move_left", "vjoy_move_right", "vjoy_move_up", "vjoy_move_down"]
+
+## "custom": a StickVisual driven by this script. "virtual": a Godot 4.7 VirtualJoystick (trial, OQ-VJOY).
+var move_stick: Control
 var look_stick: StickVisual
+var move_mode: String = "custom"
 var _emulation_overridden: bool = false
 var _prev_emulation: bool = true
 
@@ -48,7 +54,11 @@ func _ready() -> void:
 		b.anchor_bottom = anchor[1]
 		add_child(b)
 		_buttons[action] = b
+	move_mode = move_stick_override if move_stick_override != "" else String(_layout.get("move_stick", "custom"))
 	for s in ["move_stick", "look_stick"]:
+		if s == "move_stick" and move_mode == "virtual":
+			add_child(_make_virtual_joystick())
+			continue
 		var v := StickVisual.new()
 		v.name = s
 		v.ring_alpha = float(_layout.get("ring_alpha", 0.35))
@@ -93,7 +103,53 @@ func _restore_emulation() -> void:
 		_emulation_overridden = false
 
 
+## Builds the trial move stick. It drives four private InputMap actions (not the gameplay ones);
+## _process turns them into TouchProvider.move_value, so gameplay never reads the joystick.
+func _make_virtual_joystick() -> VirtualJoystick:
+	var vj: Dictionary = _layout.get("vjoy", {})
+	var dead := float(cfg.get("dead_zones", {}).get("touch_move", 0.1))
+	for a in _VJOY_ACTIONS:
+		if not InputMap.has_action(a):
+			InputMap.add_action(a, dead)
+	var j := VirtualJoystick.new()
+	j.name = "move_stick"
+	j.mouse_filter = Control.MOUSE_FILTER_STOP
+	j.action_left = _VJOY_ACTIONS[0]
+	j.action_right = _VJOY_ACTIONS[1]
+	j.action_up = _VJOY_ACTIONS[2]
+	j.action_down = _VJOY_ACTIONS[3]
+	j.joystick_mode = VirtualJoystick.JOYSTICK_FOLLOWING if String(vj.get("mode", "dynamic")) == "following" else VirtualJoystick.JOYSTICK_DYNAMIC
+	j.visibility_mode = VirtualJoystick.VISIBILITY_WHEN_TOUCHED if String(vj.get("visibility", "always")) == "when_touched" else VirtualJoystick.VISIBILITY_ALWAYS
+	j.deadzone_ratio = float(vj.get("deadzone_ratio", 0.1))
+	j.clampzone_ratio = float(vj.get("clampzone_ratio", 1.0))
+	var ring := Color(1, 1, 1, float(_layout.get("ring_alpha", 0.35)))
+	var held := Color(1, 1, 1, minf(1.0, ring.a * 1.5))
+	j.add_theme_stylebox_override("normal_joystick", _disc(Color(1, 1, 1, ring.a * 0.3), ring))
+	j.add_theme_stylebox_override("pressed_joystick", _disc(Color(1, 1, 1, ring.a * 0.5), ring))
+	j.add_theme_stylebox_override("normal_tip", _disc(Color(1, 1, 1, minf(1.0, ring.a * 2.0)), ring))
+	j.add_theme_stylebox_override("pressed_tip", _disc(held, ring))
+	j.released.connect(func(_v: Vector2) -> void: provider.move_value = Vector2.ZERO)
+	return j
+
+
+func _disc(fill: Color, border: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.border_color = border
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(512)
+	return sb
+
+
+## Touch target of the move stick in density-independent pixels (smaller side), from the platform layer.
+func get_move_target_dp() -> float:
+	var px := (move_stick as VirtualJoystick).joystick_size if move_mode == "virtual" else minf(move_stick.size.x, move_stick.size.y)
+	return px / _Platform.new().get_dp_scale()
+
+
 func _process(delta: float) -> void:
+	if move_mode == "virtual":
+		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3])
 	if _look_touch != -1:
 		_look_down_s += delta
 	if _fire_pulse_s > 0.0:
@@ -154,7 +210,18 @@ func _update_sticks() -> void:
 	var look_c := get_look_rest()
 	look_stick.place(look_c, r)
 	look_stick.set_knob_offset((_look_pos - _look_origin) if _look_touch != -1 else Vector2.ZERO)
-	if _move_touch != -1:
+	if move_mode == "virtual":
+		# The Control fills move_zone (so a thumb anywhere in the zone grabs it, as with the custom stick);
+		# the joystick base rests at move_stick_rest via initial_offset_ratio and moves itself while touched.
+		var zone := _zone_rect("move_zone")
+		var vj := move_stick as VirtualJoystick
+		var side := 2.0 * r * float(_layout.get("vjoy", {}).get("size_frac_of_ring", 1.0))
+		move_stick.position = zone.position
+		move_stick.size = zone.size
+		vj.initial_offset_ratio = (get_move_rest() - zone.position) / zone.size
+		vj.joystick_size = side
+		vj.tip_size = side * float(_layout.get("vjoy", {}).get("tip_frac_of_size", 0.4))
+	elif _move_touch != -1:
 		move_stick.place(_move_origin, r)
 		move_stick.set_knob_offset(_move_pos - _move_origin)
 	else:
@@ -242,7 +309,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		Input.action_press(action)
 		_style_button(_buttons[action], true)
 	elif _move_touch == -1 and _zone_rect("move_zone").has_point(pos):
-		_move_touch = idx
+		_move_touch = idx  # under "virtual" this only tracks the finger; the VirtualJoystick gets the touch via the GUI
 		_move_origin = pos
 		_move_pos = pos
 		_update_sticks()
@@ -281,7 +348,8 @@ func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 	var dz: Dictionary = cfg.get("dead_zones", {})
 	if idx == _move_touch:
 		_move_pos = pos
-		provider.move_value = _stick(pos, _move_origin, float(dz.get("touch_move", 0.1)))
+		if move_mode != "virtual":
+			provider.move_value = _stick(pos, _move_origin, float(dz.get("touch_move", 0.1)))
 		_update_sticks()
 	elif idx == _look_touch:
 		_look_pos = pos

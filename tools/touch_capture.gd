@@ -18,6 +18,7 @@ var _report: PackedStringArray = []
 var _label: Label
 var _real_mouse_swallowed: int = 0
 var _trace_events: bool = false
+var _vjoy_shot_name: String = ""
 
 
 func _ready() -> void:
@@ -28,6 +29,8 @@ func _ready() -> void:
 			_tag = a.substr(6)
 		elif a.begins_with("--dpi="):
 			_dpi = float(a.substr(6))
+		elif a.begins_with("--vjoy-shot="):  # only save the VirtualJoystick move stick at rest as <out>/<value>.png
+			_vjoy_shot_name = a.substr(12)
 	_Platform.dpi_override = _dpi  # 0 = leave the DisplayServer value alone
 	if _dpi <= 0.0:
 		_dpi = _Platform.new().get_screen_dpi()
@@ -84,6 +87,10 @@ func _run() -> void:
 	_log("tag=%s window=%s viewport=%s dpi=%.0f (DisplayServer.screen_get_dpi()=%d; --dpi=N overrides, e.g. 420 folded / 373 unfolded)" % [
 			_tag, win.size, get_viewport().get_visible_rect().size, _dpi, DisplayServer.screen_get_dpi()])
 	await _frames(3)
+	if _vjoy_shot_name != "":
+		await _vjoy_rest_shot()
+		get_tree().quit(0)
+		return
 	await _lobby_shots()
 	await _match_shots()
 	var failed: PackedStringArray = []
@@ -284,6 +291,31 @@ func _match_shots() -> void:
 			str(pitch1 >= lo - 0.001 and pitch1 <= hi + 0.001)])
 	m.queue_free()
 	await _frames(2)
+
+
+## G2 trial: the touch HUD with the VirtualJoystick move stick at rest (no touch), over a flat backdrop.
+func _vjoy_rest_shot() -> void:
+	var hud_script: GDScript = load("res://scripts/ui/touch_hud.gd")
+	hud_script.move_stick_override = "virtual"
+	var bg := ColorRect.new()
+	bg.color = Color(0.18, 0.2, 0.24)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg)
+	var hud: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
+	add_child(hud)
+	await _frames(4)
+	hud.relayout()
+	await _frames(3)
+	var vj_ok: bool = hud.move_stick is VirtualJoystick and hud.move_stick.is_visible_in_tree() and hud._move_touch == -1
+	_log("vjoy rest: visible=%s dp=%.1f RESULT vjoy_rest_visible=%s" % [str(hud.visible), hud.get_move_target_dp(), str(vj_ok)])
+	var img_name := _vjoy_shot_name
+	await _frames(2)
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png(_out.path_join("%s.png" % img_name))
+	_log("saved %s.png (%dx%d) err=%d" % [img_name, img.get_width(), img.get_height(), err])
+	hud_script.move_stick_override = ""
 
 
 func _touch_event(idx: int, canvas_pos: Vector2, pressed: bool) -> void:

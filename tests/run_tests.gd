@@ -19,6 +19,8 @@ func _initialize() -> void:
 			only = a.substr(7)
 		elif a.begins_with("--repeat="):
 			repeat = maxi(1, int(a.substr(9)))
+		elif a.begins_with("--move-stick="):  # test-only: force the touch HUD move stick ("virtual" | "custom")
+			load("res://scripts/ui/touch_hud.gd").move_stick_override = a.substr(13)
 	# The root is still being set up inside _initialize; let one frame pass so add_child works for the
 	# very first test (matters when --only selects a single scene-using test).
 	await process_frame
