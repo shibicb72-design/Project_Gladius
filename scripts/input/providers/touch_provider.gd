@@ -57,7 +57,7 @@ func get_move() -> Vector2:
 	return move_value / length * pow(remapped, float(_feel["response_exponent"]["value"]))
 
 
-## Fail loudly, once per provider: shaping is on but data/input.json has no touch_layout.move_feel.
+## Fail loudly, once per provider: shaping is on but data/input.json has no top-level move_feel.
 func _report_missing_feel() -> void:
 	if move_feel_errors > 0:
 		return

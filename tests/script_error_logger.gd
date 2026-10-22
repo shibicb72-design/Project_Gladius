@@ -1,6 +1,7 @@
 extends Logger
 ## Records runtime script errors (null calls, bad indexes ...) while a test runs. A test that hits one aborts
-## its own body silently, so the runner uses this to turn that into a FAIL instead of a PASS.
+## only its own body and the awaiting runner resumes as if nothing happened, so this logger is the real guard:
+## the runner uses it to turn that into a FAIL instead of a PASS.
 
 var errors: Array[String] = []
 

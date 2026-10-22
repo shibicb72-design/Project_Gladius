@@ -23,3 +23,19 @@ Review of G2b (docs/REVIEW_sprint1.md "## G2b review") found two behaviour chang
 ### Prevention rule
 
 Ramp/feel equivalence tests must cover every enabled class and a diagonal input.
+
+## G2b2 ITERATE, Oct 22 2026
+
+Review of G2b2 (docs/REVIEW_sprint1.md "## G2b2 review", M1/M2) found that the test-completion flag specified in G2b2.txt item 4 cannot catch runtime script errors: in Godot 4.7.2 a script error aborts only the called test body, the awaiting caller resumes, and `completed` is still set true. The script-error logger was the real guard all along.
+
+### Why was the completion flag specified without checking Godot's runtime error semantics?
+
+1. Why did the flag not work? `run_test` does `await call(method)` then `completed = true`; an aborted awaited call returns to the caller, so the line after the await still runs.
+2. Why was it specified that way? The spec assumed an erroring test body would never return to its caller, so "returned" would equal "ran to the end".
+3. Why was that assumed? It matches how exceptions behave in many languages, and nobody ran a test body that errors to see what Godot does.
+4. Why did nobody probe it? The spec was written as a design guard, not as an experiment, and a probe (one fixture with a null call) looked unnecessary for something that felt obvious.
+5. Why did review not catch it? BOTH the spec author (Android Lead) and the approver (Engineering Lead) assumed the semantics without a probe; the approval checked the logic against the assumption, not the assumption against the engine.
+
+### Prevention rule
+
+Verify an engine's error semantics with a probe before specifying a guard.

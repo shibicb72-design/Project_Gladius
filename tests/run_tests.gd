@@ -28,6 +28,8 @@ func _initialize() -> void:
 			if f.begins_with("test_") and f.ends_with(".gd") and f != "test_case.gd":
 				files.append(f)
 	files.sort()
+	# The script-error logger is the real guard against runtime script errors (see the check below);
+	# test_case.gd's `completed` flag is only a secondary check.
 	var err_logger = _ErrorLogger.new()
 	OS.add_logger(err_logger)
 	# The root is still being set up inside _initialize; let one frame pass so add_child works for the
@@ -54,7 +56,8 @@ func _initialize() -> void:
 				var inst = script.new()
 				err_logger.errors.clear()
 				await inst.run_test(mname)
-				# A runtime script error aborts the test body without failing an assertion; the logger sees it.
+				# A runtime script error aborts only the test body and the await above resumes, so `completed` is still
+				# true; the script-error logger (err_logger) is the real guard. `completed` is a SECONDARY check.
 				if inst.completed and inst.failures.is_empty() and err_logger.errors.is_empty():
 					passed += 1
 					print("PASS %s::%s" % [f, mname])
@@ -63,7 +66,12 @@ func _initialize() -> void:
 					var why: Array[String] = []
 					why.append_array(inst.failures)
 					if not err_logger.errors.is_empty() or not inst.completed:
-						why.append("did not complete (script error?) %s" % "; ".join(err_logger.errors))
+						var reason := "did not complete (script error?)"
+						if not err_logger.errors.is_empty():
+							reason += "; script error logged: %s" % err_logger.errors[0]
+							if err_logger.errors.size() > 1:
+								reason += " (+%d more)" % (err_logger.errors.size() - 1)
+						why.append(reason)
 					print("FAIL %s::%s: %s" % [f, mname, "; ".join(why)])
 	OS.remove_logger(err_logger)
 	print("TESTS: %d passed, %d failed" % [passed, failed])
