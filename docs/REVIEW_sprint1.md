@@ -3085,3 +3085,74 @@ VERDICT: ITERATE
    replacing the bar name with a fixed word) leaves every test green. Fix: assert the text contains the specific bar
    the element is dropped on at Vector2(0.06, 0.12) on COVER (e.g. "shield bar" or "health bar", whichever the check
    reports first; layout_editor.gd:317-321 names only the first intersecting bar), so a wrong or missing bar name fails.
+
+## G2e3 review
+
+Opus check of 24a420c ("fix: G2e3 HUD-bar test asserts the bar name") against fixG/G2e3.txt (and fixG/G2e2.txt,
+fixG/G2e.txt for what it leaves in place), prev = fb5b557.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius tests_G2e3.log; fixG.log:212 "GATE G2e3 apk=True tests=0 shots=101";
+re-run here: import exit 0, Android export exit 0, full suite exit 0 "TESTS: 284 passed, 0 failed") ; apk = FOUND
+(build/gladius-debug.apk after this session's export) ; shots = FOUND (n>=100, including all 4 named
+layout_editor_{cover,inner,cover_small,inner_small}_landscape.png; not retaken this step, as the task allows) ;
+step commit = FOUND (24a420c, 1 file, 1 insertion, 1 deletion)
+
+Gate output: the only "ERROR:" line is the expected push_error from test_button_capture_far_target.gd:148
+(tools/button_capture.gd:83), which that test asserts on and which predates this step; no SCRIPT ERROR or Parse Error.
+
+### Diff
+`git diff fb5b557 --stat`: `tests/test_layout_editor.gd | 2 +-`, nothing else (no scripts/, data/, docs, .claude/settings.json,
+tests/test_physics_baseline.gd or data/physics_baseline.json). `git diff fb5b557 -- tests/test_layout_editor.gd` is a
+single hunk `@@ -351,7 +351,7 @@ func test_overlap_with_hud_bar_warns_and_does_not_block()`; the one changed line:
+
+    -		if it["kind"] == "overlap" and it["element"] == "jump" and it["size"] == COVER and it["text"].contains("the HUD (") and not it["text"].contains("gear"):
+    +		if it["kind"] == "overlap" and it["element"] == "jump" and it["size"] == COVER and it["text"].contains("overlaps the HUD (shield bar) at") and not it["text"].contains("gear"):
+
+It is :354, inside that test function (:346-360). The check is strictly stronger (the new substring contains the old
+prefix "the HUD ("); kind/element/size/not-gear clauses and the assert messages at :356-358 are unchanged. No other
+assertion in any test file is changed or removed. `git diff fb5b557 -U0` and the commit message contain no banned word.
+No new data values (no placeholder/_source question), no new Godot API, no Android-only code (iOS rule untouched).
+
+### Item 1 (the one finding)
+scripts/ui/layout_editor.gd check_slot: :310 fills `bars` in the order shield_bar, health_bar, weapon_label, ammo_label,
+scores_label, timer_label, hill_label, then :312 adds gear; :317-321 walks `bars` in that insertion order and `break`s on
+the first intersection, and :319 builds "the HUD (%s)" from the key with "_" -> " ". Jump at (0.06, 0.12) on COVER sits
+on the top-left stat block, so the first hit is shield_bar and the text is "Jump overlaps the HUD (shield bar) at
+2520x1080" (confirmed: the test passes on the unmutated tree, and the P3 failure output below shows the same issue set at
+all four sizes). The asserted "overlaps the HUD (shield bar) at" matches exactly. Fixed as written.
+
+### Existing tests
+All 284 pass, including test_layout_editor.gd (G2e/G2e2, 14 tests), test_touch_layout_g2l.gd and test_action_buttons.gd
+(G2L/GBTN), test_sensitivity.gd and test_match_sensitivity.gd (G2d/G2d2). 48 dp floors still enforced by
+test_size_never_below_48dp and test_targets_at_least_48dp_at_dpi_0_and_420 (both pass).
+
+### Mutations (scratch copy only; import run first; each undone before the next; full suite then --only=test_layout_editor.gd)
+- P1 layout_editor.gd:310 bar list -> `for n in []:` (gear only). Full suite "TESTS: 283 passed, 1 failed"; "FAIL
+  test_layout_editor.gd::test_overlap_with_hud_bar_warns_and_does_not_block: overlap with a HUD bar is reported by
+  name: []; warning shown". CAUGHT.
+- P2 delete layout_editor.gd:312 `bars["gear"] = gear_rect(Vector2(sz))`. Full suite 283/1; "FAIL
+  test_layout_editor.gd::test_overlap_with_gear_warns_and_does_not_block: overlap with the gear is reported by name:
+  [{ ... "text": "Jump overlaps the HUD (hill label) at 1512x648" }]". CAUGHT.
+- P3 layout_editor.gd:319 `"the HUD (%s)" % String(bname).replace("_", " ")` -> `"the HUD (bar)"`. Full suite 283/1;
+  "FAIL test_layout_editor.gd::test_overlap_with_hud_bar_warns_and_does_not_block: overlap with a HUD bar is reported by
+  name: [{ ... "text": "Jump overlaps the HUD (bar) at 2520x1080" }, ... 2176x1812, 1512x648, 1152x959]". CAUGHT
+  (this survived in the G2e2 review; now killed).
+Scratch copy restored (grep confirms :310, :312, :319 back to the original text) and left in place.
+
+### Shots (opened; unchanged from G2e2)
+- layout_editor_cover_landscape.png (2520x1080): top panel Slot 1 (active), Slot 2, Slot 3, Save, Reset, Back, with
+  "Sprint lock" size/opacity sliders; Sprint lock selected (gold box) mid-screen; Jump moved up below the panel; move
+  stick bottom-left; Swap/Aim/Reload/Fire 2x2 and look stick bottom-right. No warning.
+- layout_editor_inner_landscape.png (2176x1812): same panel, "Look stick" selected (gold box bottom-right); Sprint lock,
+  Jump, 2x2 cluster and move stick in their G2L places. No warning.
+- layout_editor_cover_small_landscape.png (1512x648): Fire dragged off the right edge (gold box clipped); red list "Fire
+  is partly off-screen at 2520x1080 / 2176x1812 / 1512x648 / (+1 more) / Fix it or press Reset to save."; Save greyed
+  (blocked). The warning panel overlaps the top of the Sprint lock button in the editor view (cosmetic, pre-existing).
+- layout_editor_inner_small_landscape.png (~1152x959): Slot 2 active, "Move stick" selected (gold box bottom-left);
+  other controls in default places; Save enabled, no warning.
+All four are landscape Fold sizes; every control is visibly well above 48 dp.
+
+VERDICT: APPROVE
+G2e3's single item is fixed exactly as asked (tests/test_layout_editor.gd:354 asserts "shield bar", which matches
+check_slot's first-hit order at layout_editor.gd:310/317-321); only that line changed; no assertion weakened; suite
+284/284; import and export clean; P1, P2 and P3 are all caught.
