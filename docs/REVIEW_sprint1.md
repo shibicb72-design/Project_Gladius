@@ -2232,3 +2232,134 @@ Non-blocking notes:
   SpawnLane compute the same float path.
 
 VERDICT: APPROVE
+
+## G2c review
+
+cc_gladius/fixG/G2c.txt and VG2c.txt, template fixG/VTEMPLATE.txt, Oct 23 2026. Review only, no fixes. Step commit
+6d3d05c; prev = f520001. The mutations were made in the repo and reverted with Edit, because `git clone` and `rm` are not
+in this session's shell, so a scratch clone could not be made or deleted. `git status --porcelain` afterwards: empty.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_G2c.log:264 "TESTS: 236 passed, 0 failed"; gate line
+cc_gladius/fixG.log:102 "GATE G2c apk=True tests=0 shots=85") ; apk = FOUND (build/gladius-debug.apk, re-exported in this
+review) ; shots = FOUND (n=85, including all four named shots) ; step commit = FOUND (6d3d05c, 22 files, +894/-28).
+Gates run here, each as its own command: `mkdir -p build`; `--import` exit 0, with no ERROR, SCRIPT ERROR or Parse Error lines;
+`--export-debug "Android" build/gladius-debug.apk` exit 0, with no ERROR lines, and Glob finds the APK; full suite exit 0,
+"TESTS: 236 passed, 0 failed". The only ERROR: line is the expected GBTN5 STOP message from
+test_button_capture_far_target.gd:148, which is not caused by G2c.
+
+1. Baseline. PASS. `git diff f520001 -- data/physics_baseline.json` changes exactly one line:
+   `-    "walk_speed_mps": 5.000004529953,` / `+    "walk_speed_mps": 5.37500381469727,`.
+   `git diff f520001 -- tests/test_physics_baseline.gd` is empty.
+   `-- --only=physics_baseline` printed PHYSICS_METRICS {"jump_air_time_s":0.716666666666667,"jump_apex_m":1.28420352935791,
+   "max_slope_deg":45.5,"max_step_up_m":0.12,"walk_speed_mps":5.37500381469727}, then "2 passed, 0 failed". The baseline values
+   are 0.716666666666667 / 1.28415989875793 / 45.5 / 0.12. That is 0% / +0.003% / 0% / 0%, all within the 5% tolerance.
+2. Walk and accel. PASS. stats.json:20 has `base_speed_mps` 5.375 under movement `_placeholder: true` (:19).
+   stats.json:21 has the note "Shibi Oct 22 asked for +5-10%; +7.5% chosen (5.0 x 1.075)...".
+   stats.json:23-24 set `ground_accel`/`ground_decel` time_s to 0.134375, `_placeholder: true`. 5.375 / 40 = 0.134375 s, so
+   the rate is 5.375 / 0.134375 = 40 m/s^2.
+   test_sprint.gd:222-225 measures a per-tick gain of 40/60 within 1% over 5 ticks, and :214 checks walk 5.375 within 1%.
+   The commit message and docs/PHYSICS_JOLT.md:25 cite Shibi's Oct 22 request.
+3. DESIGN.md / OQ. PASS. `git diff -U0 -- docs/DESIGN.md` is one hunk at line 15. Only "No sprint." became
+   "Sprint added by Shibi's decision, Oct 22 2026."; the rest of the line is byte-identical (both full lines compared).
+   OPEN_QUESTIONS.md:66 OQ-SPRINT reads "DECIDED Oct 22 2026 (Shibi): sprint is added with a speed boost; trigger = move stick
+   held at the forward extreme for 0.5 s; see docs/CONTROLS.md Sprint. CLOSED."
+   "Halo": `git diff f520001 6d3d05c -U0 -i -G halo --name-only` lists only docs/DESIGN.md, which is the pre-existing line-15
+   wording. No new Halo text appears in code, data, docs or the commit message.
+4. Sprint data. PASS.
+   - stats.json:25 `sprint_hold_s` {"_source": "Shibi Oct 22", "value": 0.5}, with no _placeholder.
+   - stats.json:26 `sprint_speed_multiplier` 1.3 `_placeholder` with the exact note and no source.
+   - stats.json:27 `sprint_ramp_s` 1.0 `_placeholder`.
+   - input.json:38-40 hold the threshold at 0/100 (0.98/0.7) and the cone of 25 deg, all `_placeholder`.
+   - input.json:41-43 hold lock_target and lock_button, both `_placeholder`.
+   - There is no `sprint_speed_mult` key; test_sprint.gd:193 asserts that.
+   - No value is labelled as PUBG's. CONTROLS.md says "PUBG publishes no numbers, so none are taken from it".
+5. Sprint behaviour and smoothness in code. PASS.
+   - Before G2c the pawn had no sprint term (wish = basis*local*get_move_speed()).
+   - After: pawn.gd:262 `sprint_factor = ... move_toward(sprint_factor, target, (mult - 1.0) / ramp_s * delta)`. This is a
+     linear ease in both directions at a fixed rate, so there is no snap. It is applied at pawn.gd:268 inside
+     _apply_movement and multiplies the wish speed.
+   - The hold timer is in scripts/input/sprint_detector.gd:46-53, with reset to 0 when the condition breaks and the cone
+     check at :43. It is fed via InputProvider.tick and is_sprinting (input_router.gd) into InputFrame.sprint.
+   - Gameplay never reads HUD nodes. The host validator uses pawn.get_max_move_speed() (pawn.gd:252,
+     net_match_bridge.gd:186).
+   - Tests:
+     - no sprint at 0.45 s, sprint at tick 30-31 (:102-113);
+     - entry non-decreasing, step <= bound, reaches 1.3x within 1% (:116-130);
+     - exit by release, below threshold and out of cone non-increasing with the same bound (:134-156);
+     - 45 deg and below threshold never sprint over 3 s (:159-167);
+     - break at 0.4 s restarts the timer (:170-181).
+6. Sensitivity. PASS. input.json:35 is exactly {"min": 0, "max": 100, "default": 50, "step": 5, "_source": "HT Tech
+   report of BGMI 1.6 notes, single unofficial source; Shibi chose it as the starting point Oct 22 2026"}, with no _placeholder.
+   sprint_detector.gd:35-36 maps the slider linearly between the two placeholder thresholds. at_forward_extreme
+   (:40-43) is used by both the hold trigger (:49) and the lock target (touch_provider.gd lock_target_visible), and
+   CONTROLS.md Sprint says so.
+   Tests:
+   - 0/50/100 push lengths shrink while sprint speed and hold stay equal (:244-257);
+   - default 50, 52->50, 53->55, clamp 0/100 (:260-266);
+   - profile round trip with snap and clamp (:269-284);
+   - the slider saves to the profile (:287-298).
+   The slider is 48 dp tall (main_menu.gd `_build_sprint_slider`).
+7. Lock. PASS.
+   - Release on target locks (touch_hud.gd:512, :516). Release elsewhere stops.
+   - A new move touch cancels (:463). The button toggles (:457 -> touch_provider.gd toggle_sprint_lock).
+   - Look works while locked.
+   - Tested in custom/floating, virtual/floating and virtual/fixed (:346-393, :396-423). Locked speed and ease-down are
+     tested at :427-447.
+   - The lock button and target are >= 48 dp, using dp from PlatformServices.
+   - The lock button position comes from input.json:42, with the profile key `sprint_lock_pos` overriding it
+     (save_service.gd).
+   - Clear of shield/health bars, all HUD labels, both sticks and all buttons at 1512x648, 2520x1080, 1152x959 and
+     2176x1812 (:452-493). These are the same 4 sizes as test_touch_controls.gd:476-483.
+   - CONTROLS.md Sprint contains the 4 research quotes plus the GuruGamer 18712, Reddit 1rbgu31 and PuK quotes verbatim.
+8. Existing test file touched: tests/test_move_feel.gd only. The changed assertion lines:
+   - :185 `5.0` -> `5.375` ("forward walk speed 5.375 m/s (5.0 + 7.5%%, Shibi Oct 22)").
+   - :200 and :203 `move_toward(old, 5.0, ...)` -> `5.375`, and "steady state unchanged" -> "steady state at the new 5.375
+     walk speed". Same tolerances.
+   - :284-288 the "x and z reach their targets at different ticks" assertion moved from (-0.707, -0.707) to (-0.6, -0.8).
+     _check_ramp on (-0.707, -0.707) is kept.
+   - :299-301 the literal `5.0 / 0.5` became `base / 0.5`, with base read from data.
+   - :312-313 `5.0 / 40.0` -> `5.375 / 40.0`.
+   All of these are forced by the mandated 5.0 -> 5.375 change: the old expected values cannot hold. None widens a
+   tolerance or drops a property. I checked the diagonal by arithmetic. Per-axis gain is 0.6667 per tick. x = 0.707 *
+   0.889 * 5.375 = 3.378, which needs 5.07 ticks and lands on tick 6. z = 0.707 * 5.375 = 3.800, which needs 5.70 ticks
+   and also lands on tick 6. At 5.0 they were 4.71 (tick 5) and 5.30 (tick 6). The "different ticks" property is kept on
+   (-0.6, -0.8). I do not count this as weakening.
+9. iOS / platform. PASS. The diff adds no OS.get_name, JNI, Engine.get_singleton or Android API. dp comes from the
+   platform layer. `.claude/settings.json` is unchanged (`git diff f520001 -- .claude/settings.json` is empty).
+10. Godot APIs I relied on: move_toward, lerpf, atan2, HSlider, StyleBoxFlat, add_theme_stylebox_override and
+   Input.action_press have no entry in docs/engine-reference/godot/breaking-changes.md or deprecated-apis.md (Grep: no
+   matches). VirtualJoystick is new in 4.7 per docs/engine-reference/godot/modules/input.md:11.
+
+Mutations (each batch run with `-- --only=sprint`, then reverted):
+ A. pawn.gd:262 snap (`sprint_factor = target`) -> FAIL entry ("entry step 0.6667 <= bound 0.0271"), exit (all 3 cases) and
+    locked ease-down. touch_hud.gd:516 lock_sprint removed -> FAIL release_on_target in all 3 modes. get_threshold returns
+    threshold_at_0 -> FAIL sensitivity ("0.98 0.98 0.98"). 11 passed, 5 failed.
+ B. Timer reset removed (sprint_detector.gd:52) -> FAIL restart ("expected 0.0, got 0.4"). Cone check removed (:43) -> FAIL
+    45-deg case and the exit out-of-cone case. cancel on new move touch removed (touch_hud.gd:463) -> FAIL "new move touch
+    cancels the lock" in all 3 modes. 12 passed, 4 failed.
+ C. No hold (`sprinting = held_s >= 0.0 and ...`) -> FAIL no-sprint-before-0.5 s, walk speed, hold per sensitivity, GUI
+    0.45 s. Lock-button cancel removed (touch_provider.gd toggle_sprint_lock) -> FAIL "tap while locked cancels" in all 3
+    modes. 10 passed, 6 failed.
+ After reverting: `git status --porcelain` is empty, so the tree equals 6d3d05c, which passed 236/236 above.
+
+Shots (opened):
+- sprint_lock_cover_landscape (2520x1080, tag s1): move ring bottom left, a light "Lock" target circle above it and slightly
+  right, the "Sprint lock" button at about 56% x / 42% y above the look stick, and Aim, Reload, Fire, Swap and Jump at
+  bottom right.
+- sprint_lock_inner_landscape (2176x1812, s3): the same layout scaled, with the "Lock" target visible.
+- sprint_locked_cover_landscape (s2) and sprint_locked_inner_landscape (s4): the target is gone, the button reads "Locked"
+  with a brighter fill, and the move knob is centred (no finger down).
+- No element overlaps another.
+
+Non-blocking notes:
+- The *_lock_* shots show the target but not a deflected knob. touch_capture.gd `_sprint_shot` presses the vjoy action,
+  which does not move the VirtualJoystick's drawn tip, so "mid-push" is only implied.
+- touch_hud.gd:127-150 builds new StyleBoxFlat objects and theme overrides every _process frame (:266). This is per-frame
+  allocation on mobile, and it should only restyle when the lock state changes.
+- The lock target is checked clear of the HUD bars only at rest (`lock_target_at_rest`). While pushing, it follows the
+  finger origin and is clamped on screen, but it can cover HUD labels.
+- On release the pawn stops (move = 0, decel 40 m/s^2), per item 4. The "release" exit test checks the eased sprint factor,
+  not ground speed. That matches the spec's two statements together.
+- Keyboard and gamepad have no sprint binding yet. This is recorded as a TODO in OQ-SPRINT, not invented.
+
+VERDICT: APPROVE
