@@ -30,6 +30,7 @@ var host_lost_handled: bool = false
 ## Test hook: when valid, a host drop calls go_scene.call(menu_scene_path) instead of the AppFlow change.
 var go_scene: Callable
 
+var _gyro: GyroProvider
 var _client_bridge: NetMatchBridge
 var _input_accum_s: float = 0.0
 var _spawn_synced: bool = false
@@ -52,12 +53,12 @@ func _ready() -> void:
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
 	router.add_provider(gamepad)
-	var gyro := GyroProvider.new()
-	var profile: Dictionary = AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
+	_gyro = GyroProvider.new()
 	var gyro_cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json").get("gyro", {})
-	router.sens = SensitivitySettings.from_profile(profile)
-	gyro.configure({"gyro_mode": router.sens.gyro_mode, "sensitivity": gyro_cfg.get("sensitivity", 1.0)})
-	router.add_provider(gyro)
+	_gyro.configure({"sensitivity": gyro_cfg.get("sensitivity", 1.0)})
+	apply_sensitivity()
+	router.add_provider(_gyro)
+	pause_menu.settings.changed.connect(apply_sensitivity)  # in-match Settings / Sensitivity screen (G2d2)
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
 	director.match_over.connect(_on_match_over)
@@ -66,6 +67,13 @@ func _ready() -> void:
 	pause_menu.quit_confirmed.connect(quit_to_menu)
 	if auto_start:
 		begin()
+
+
+## Re-reads the profile's sensitivity settings into the router (tables, inversion) and the gyro provider (mode).
+## Runs at start and whenever the in-match Settings panel or Sensitivity screen saves, so changes apply at once.
+func apply_sensitivity() -> void:
+	router.sens = SensitivitySettings.from_profile(profile_cfg())
+	_gyro.configure({"gyro_mode": router.sens.gyro_mode})
 
 
 ## Loads the map and starts the match. Returns false if the data is unusable.

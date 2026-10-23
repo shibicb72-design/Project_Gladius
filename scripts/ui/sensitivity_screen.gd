@@ -5,6 +5,8 @@ extends Control
 ## (main menu and in-match menu). Layout uses containers and anchors; all targets are at least 48 dp.
 
 signal closed
+## Emitted after every change was saved to the profile (the host panel forwards it).
+signal changed
 
 const _Theme := preload("res://scenes/ui/theme.tres")
 const TITLES := {"camera": "Camera", "ads": "ADS", "gyro": "Gyro", "ads_gyro": "ADS Gyro", "free_look": "Free Look"}
@@ -187,3 +189,4 @@ func _persist() -> void:
 	profile["sensitivity"] = settings.to_dict()
 	save.save_profile(profile)
 	AppFlow.profile = save.load_profile()
+	changed.emit()

@@ -19,6 +19,8 @@
 	"_sensitivity_tables_todo": "G2d, OQ-SENS, OQ-ADS-ZOOM: sensitivity tables, in percent (100 = the base look rate above). Every min, default, step and preset value is a placeholder, not a design value. Only the gyro max of 400 has an official source. The key is sensitivity_tables because 'sensitivity' above already holds the base look rates.",
 	"sensitivity_tables": {
 		"default_preset": "medium",
+		"_default_preset_placeholder": true,
+		"_default_preset_note": "OQ-SENS: which preset new players start on is a placeholder, not a design value.",
 		"gyro_modes": ["off", "scope_on", "always_on"],
 		"default_gyro_mode": {"value": "off", "note": "OQ-34"},
 		"states": {

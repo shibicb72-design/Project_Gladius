@@ -81,6 +81,7 @@ func open_sensitivity() -> void:
 	var screen: SensitivityScreen = _SensitivityScene.instantiate()
 	screen.save = save
 	screen.closed.connect(_close_sensitivity)
+	screen.changed.connect(changed.emit)  # the host (in-match: MatchRoot) re-reads the profile
 	sensitivity_layer.add_child(screen)
 	add_child(sensitivity_layer)
 

@@ -223,6 +223,8 @@ func test_save_load_round_trip() -> void:
 	assert_eq(back.to_dict(), s.to_dict(), "round trip")
 	assert_eq(back.preset, "custom", "edits kept the Custom preset")
 	assert_eq(back.gyro_mode, "scope_on", "mode kept")
+	assert_eq(back.gyro_invert_x, true, "gyro_invert_x kept")
+	assert_eq(back.gyro_invert_y, false, "gyro_invert_y stays false")
 	assert_eq(back.percent("gyro", "16x"), 250.0, "gyro row kept")
 	assert_eq(SaveService.new(_TMP).load_profile()["gyro_enabled"], true, "legacy flag follows the mode")
 	_remove_tmp()
