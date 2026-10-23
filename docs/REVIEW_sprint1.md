@@ -2363,3 +2363,99 @@ Non-blocking notes:
 - Keyboard and gamepad have no sprint binding yet. This is recorded as a TODO in OQ-SPRINT, not invented.
 
 VERDICT: APPROVE
+
+## G2M review
+
+Reviewer: Opus (VG2M). Step commit 1b2e4b1 ("feat: G2M in-match menu (gear), shared settings panel"). Prev commit: fc51581.
+Checked against fixG/G2M.txt.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius\tests_G2M.log; gate line "GATE G2M apk=True tests=0 shots=89" in
+cc_gladius\fixG.log:112, which is where this run's orchestrator writes; fix3c.log has no G2M line) ; reviewer re-run =
+FOUND (import exit 0; Android export exit 0, "Signed", no ERROR lines; full suite exit 0, "TESTS: 246 passed, 0 failed") ;
+apk = FOUND (build/gladius-debug.apk, re-exported by this review) ; shots = FOUND (n=89, all 4 named menu_* shots present) ;
+step commit = FOUND (1b2e4b1, 16 files, +837/-81)
+
+Run notes: the only "ERROR:" line in the suite is the pre-existing intentional button_capture STOP push_error from
+test_button_capture_far_target.gd:148 (GBTN5). A new WARNING ("SubViewport is not a child of a SubViewportContainer",
+ui_scale.gd:43 via settings_panel.gd:35) appears when test_bot_shot_wiring.gd builds the match in a SubViewport. It is a
+warning, not an error.
+
+### Item by item
+1. Gear. data/ui.json `pause_gear` has `"_placeholder": true` with anchor [1,0], margin_dp [8,56], icon_dp 28, touch_dp 48.
+   The touch rect is pause_menu.gd:122-128 (dp from PlatformServices.get_dp_scale), and the icon is centred inside it
+   (:132-135). The gear is handled in `_input` (:157-170). PauseMenu is the last child of Hud (match.tscn), so it gets
+   input before TouchHud, and the tap is consumed with set_input_as_handled. Emulated mouse events are skipped (:164), so
+   one touch can't open it twice. The HUD text was not shrunk. The gear sits 56 dp below the top edge.
+2. Menu. Full-screen overlay with MOUSE_FILTER_STOP (:47) and Resume, Settings, Quit buttons sized from
+   `pause_menu.button_dp` (`_placeholder`). Quit opens a confirm box (Confirm / Cancel, :64-70). Confirm emits
+   quit_confirmed, which goes to match_root.gd:188 quit_to_menu (unpauses, then main menu).
+3. Settings reuse. There is one implementation, scripts/ui/settings_panel.gd (scene scenes/ui/settings_panel.tscn).
+   main_menu.gd:67-70 and pause_menu.gd:72 both instance `_SettingsScene`. main_menu keeps its old public names as
+   getters that delegate to the panel (main_menu.gd:22-39). The toggle, slider and refresh code was removed from
+   main_menu (-109 lines) and lives only in settings_panel.gd. No toggle code is duplicated (grep: toggle_move_stick /
+   toggle_stick_layout exist only in settings_panel.gd). Main-menu tests pass unchanged (test_ui, test_decisions_batch1
+   gyro toggle/persist, test_sprint slider).
+4. Online / offline. Offline: match_root.gd:174-178 sets get_tree().paused = true only when not networked_match.
+   pause_menu.tscn and pause_menu.gd:33 set PROCESS_MODE_ALWAYS, and so do settings_panel.tscn and the boxes
+   (pause_menu.gd:82). Online: no pause. match_root.gd:203 sends `InputFrame.new()` (zero) whenever menu_open.
+   touch_hud.gd set_suspended releases held buttons and vjoy actions, clears look, move and sprint lock, and ignores
+   touches. docs/CONTROLS.md "In-match menu (gear)" documents this, including "You can be shot while in the menu".
+5. Back. A grep of scripts/ for NOTIFICATION_WM_GO_BACK_REQUEST / ui_cancel finds only the comment at pause_menu.gd:4.
+   No handler opens the menu, and no Back handling was added.
+6. Tests (tests/test_pause_menu.gd, all new; 10 tests pass): gear centre (:128), icon edge + touch-rect corner + just
+   outside (:139), Resume (:156), Quit -> Confirm/Cancel (:167), offline pause + pawn frozen 30 frames + clock stopped
+   (:187), online not paused + zero frame + tick advances with a closed-menu control run first (:204), go-back via
+   root propagate_notification + direct notification + ui_cancel action + Escape key (:239), same scene_file_path and
+   in-match change persisted (:258), touch rect >= 48 dp and all menu buttons >= 48 dp at dpi 0 and 420 (:280), and the gear
+   icon AND touch rects vs scores/timer/hill labels, shield/health bars, weapon/ammo labels, both sticks, lock button
+   and every action button at 1512x648, 2520x1080, 1152x959, 2176x1812 under custom and virtual modes (:298-344, new helper;
+   _check_hud_clear untouched). The long-text fill in :310-314 is the same text as test_touch_controls.gd:448-452.
+7. Shots: see below.
+
+### Rule checks
+- No existing assertion was changed: `git diff fc51581 1b2e4b1 --stat -- tests/` lists only tests/test_pause_menu.gd and
+  its .uid (both added). No existing test line changed.
+- Placeholders: both new ui.json blocks carry `"_placeholder": true` plus an OQ-PAUSE-MENU `_todo`, and OQ-PAUSE-MENU was
+  added to docs/OPEN_QUESTIONS.md. `git diff fc51581 1b2e4b1 -U0 -i -G "pubg|_source"` finds nothing, so no value is
+  labelled as PUBG's.
+- `git diff fc51581 1b2e4b1 -U0 -i -G halo` finds nothing, and the commit message doesn't contain it either.
+- .claude/settings.json, tests/test_physics_baseline.gd, data/physics_baseline.json, project.godot and
+  export_presets.cfg are unchanged.
+- iOS: no OS.get_name / Engine.get_singleton / Android API was added outside scripts/platform/. dp comes from
+  PlatformServices.
+- move_stick_override is set at test_pause_menu.gd:342 and not reset, but run_tests.gd:55 resets it before every test,
+  so it doesn't leak.
+
+### Mutations
+A scratch clone was not possible because `git clone` is outside this session's allowed shell. The mutations were
+applied in the working tree, run, and reverted by Edit. `git status --short` was empty afterwards.
+- Back wired to open the menu (`_notification` GO_BACK -> open() and `ui_cancel` -> open() in pause_menu.gd):
+  test_go_back_does_not_open_menu FAILED ("Back / ui_cancel never open the menu; tree not paused by Back"). Each half
+  alone (notification only, ui_cancel only) also FAILED.
+- Input zeroing removed (match_root.gd `if not menu_open:` -> `if true:`): test_online_overlay_keeps_sim_running_with_zero_input
+  FAILED ("open: no motion, drift 2.687; open: ammo unchanged (expected 27, got 24)").
+
+### Shots (opened)
+- menu_closed_cover_landscape.png (2520x1080): match HUD. "Squad 1: 0  Squad 2: 0" is top-left and "10:00 Hill: empty"
+  top-right. Below them are the capture tool's yellow/green debug captions. A yellow 8-tooth gear on a dark disc sits at
+  the right edge, about a quarter of the way down, clearly below the time/Hill text and above Aim. The sticks, Sprint lock and the
+  five buttons are visible.
+- menu_open_cover_landscape.png: the scene is dimmed and three large red buttons with gold borders are centred: Resume,
+  Settings, Quit to main menu. The gear is hidden while the menu is open.
+- menu_closed_inner_landscape.png (2176x1812): same layout scaled. The gear is top-right below the time/Hill row and the
+  debug captions, and well clear of the Aim button.
+- menu_open_inner_landscape.png: dimmed scene with the same three large buttons centred.
+
+### Non-blocking notes
+- The staged engine reference has no entries for SceneTree.paused, Node.process_mode or NOTIFICATION_WM_GO_BACK_REQUEST
+  (grep of docs/engine-reference/godot/ finds nothing). The step should say "not staged". Nothing in the repo
+  (e.g. CONTROLS.md) says so, so this review can't confirm the step said it.
+- pause_menu.gd:75 UiScale.bind(_overlay) overwrites each button's custom_minimum_size.y with UiScale's own min height
+  (ui_scale.gd:55). So `pause_menu.button_dp[1]` (64 dp) is not what is shown. The 48 dp floor still holds
+  (ui_scale.gd:35), so the touch target rule is met. The data knob is just partly ineffective.
+- The online test holds move/fire with Input.action_press, not a touch on the move stick. While suspended the touch HUD
+  ignores touches, so the zero frame is the real guard, and the mutation proves the test catches its removal.
+- A move-stick mode changed in-match is saved to the profile but not applied to the live touch HUD until the next match.
+  The prompt only asks for persistence.
+
+VERDICT: APPROVE
