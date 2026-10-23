@@ -341,6 +341,25 @@ func test_overlap_with_gear_warns_and_does_not_block() -> void:
 	_end()
 
 
+## Same policy for the HUD bars: an element dropped on the top-left stat block (shield/health bars) is reported by
+## bar name, the warning shows, and Save stays enabled.
+func test_overlap_with_hud_bar_warns_and_does_not_block() -> void:
+	_begin()
+	assert_eq(HudLayoutModel.cfg()["overlap_policy"], "warn_only", "documented policy")
+	var ed := await _editor(COVER)
+	ed.select_element("jump")
+	ed.move_selected_to(Vector2(0.06, 0.12))
+	var found := false
+	for it in ed.issues:
+		if it["kind"] == "overlap" and it["element"] == "jump" and it["size"] == COVER and it["text"].contains("the HUD (") and not it["text"].contains("gear"):
+			found = true
+	assert_true(found, "overlap with a HUD bar is reported by name: %s" % [ed.issues])
+	assert_true(ed.warn_label.visible, "warning shown")
+	assert_true(not ed.is_blocked(), "overlap alone does not block Save: %s" % [ed.issues])
+	ed.free()
+	_end()
+
+
 func test_default_layout_has_no_issues_at_the_four_sizes() -> void:
 	_begin()
 	var ed := await _editor(COVER)
