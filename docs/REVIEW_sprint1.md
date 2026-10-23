@@ -2459,3 +2459,115 @@ applied in the working tree, run, and reverted by Edit. `git status --short` was
   The prompt only asks for persistence.
 
 VERDICT: APPROVE
+
+## G2L review
+
+Task prompt: fixG/G2L.txt. Verifier template: fixG/VTEMPLATE.txt. Step commit 0e610c1, compared with prev = 3a6c6d4 (G2M head).
+
+INPUTS: tests log/exit code = FOUND (ran here: `--import` exit 0; `--export-debug "Android" build/gladius-debug.apk`
+exit 0, "Signed", "[ DONE ] export"; full suite exit 0, "TESTS: 251 passed, 0 failed"; the step's log tests_G2L.log
+also exists, but fix3c.log has no "GATE G2L" line, so this run is the evidence) ; apk = FOUND (Glob finds
+build/gladius-debug.apk after the export) ; shots = FOUND (n=95 in build/shots/*.png, including the 4 named
+layout_* shots) ; step commit = FOUND (0e610c1 "feat: G2L new default touch layout", 7 files, +204/-37)
+
+Run notes: no SCRIPT ERROR or Parse Error lines. The only "ERROR:" line is the deliberate STOP push_error from
+tools/button_capture.gd:83, which tests/test_button_capture_far_target.gd:148 triggers on purpose. Earlier reviews
+accepted it.
+
+### Item by item
+1. DATA. data/input.json:51-89 touch_layout is `"_placeholder": true` (:52). It holds look_stick_rest [0.88, 0.78] (:60,
+   was [0.58, 0.76]), stick size stick_radius_frac_of_height (:54, unchanged), button_size_frac_of_height 0.12 (:78, was
+   0.16), button_min_dp 48 (:79), per-button offsets in button sizes from the look rest (:82-86, `_placeholder_buttons`
+   :77) and sprint_lock_pos [0.30, 0.45] (:89). move_stick_rest stays [0.15, 0.76] (:59). OQ-LAYOUT
+   (docs/OPEN_QUESTIONS.md:99-104) says these are "not a design value and not PUBG's". No value is labelled as PUBG's.
+   The only `_source` in the file is the pre-existing sprint_sensitivity one (:35). The look_zone (:73) is unchanged
+   (right half), and buttons and the lock button still take priority in _on_down (touch_hud.gd:476 onward).
+   - Layout literals in touch_hud.gd: the diff removes every layout fallback it touched (`_rest_center`:306-309,
+     `_button_size`:380-381, `_cell_rect`:385-389). The only new numbers are the 0.0 anchors (:57-60, with a comment that
+     offsets are absolute) and the 0.5 half-size in `_cell_rect`:389. Neither is a layout value. One fallback from before
+     G2L remains: `_layout.get("button_font_frac_of_size", 0.24)` (:299, :134).
+   - Sprint lock default: `sprint.lock_button.pos` is gone (input.json:42). `git grep -n -e lock_button -e sprint_lock_pos`
+     lists these readers: touch_hud.gd:101/106-115/128-135/476 (the only default reader is `_lock_button_center` :106-110,
+     now `_layout["sprint_lock_pos"]`), save_service.gd:21/69/84, settings_panel.gd:19/33/102, main_menu.gd:38-39 (these
+     carry only the profile value; [] = default), tools/touch_capture.gd:427, and tests test_sprint.gd:201/274/278/396/404/475/491,
+     test_pause_menu.gd:326, test_touch_layout_g2l.gd. Docs: **docs/CONTROLS.md:88 still says the default is `input.json`
+     `sprint.lock_button.pos`** (issue 2). The test test_touch_layout_g2l.gd:115-135 proves the key is gone, that the
+     default comes from touch_layout, and that the profile value overrides it.
+2. GEAR. pause_menu is not in the diff. The gear stays top-right. test_pause_menu.gd::test_gear_clear_of_hud_both_stick_modes
+   passes, and the new pairwise test includes `pm.get_gear_touch_rect()` (test_touch_layout_g2l.gd:93). In all 4 shots the gear
+   sits below the hud.gd:48-51 row (scores, timer, Hill) and is clear of Jump.
+3. CLEARANCE. `git diff 3a6c6d4 -- tests/test_touch_controls.gd` is **empty**: `_check_hud_clear` (:439-471) and its
+   callers (:474-483) are byte-identical. test_hud_clear_of_sticks_and_buttons_folded/unfolded PASS (log lines 240-241).
+   The new pairwise test (test_touch_layout_g2l.gd:74-112) covers both sticks, the 5 buttons, the lock button, the lock
+   target and the gear, plus viewport containment, at all 4 sizes in both modes, and it PASSes.
+4. DEFAULT. The new values are the data defaults. G2e is not built yet.
+5. TESTS. The look stick is bottom-right and the 5 buttons are NW, at 4 sizes x 2 modes (:33-44). Size is checked
+   against the literal 0.16 from f793f1a (:11, :47-53). 48 dp is checked at dpi 0 and 420 for both sticks, the buttons and
+   the lock button (:56-70). The GBTN tests (test_action_buttons.gd, 8 tests, set mode per test at :50) and
+   test_touch_controls.gd's button tests pass unchanged.
+   - Existing test files: `git diff 3a6c6d4 -- tests/test_touch_controls.gd tests/test_action_buttons.gd
+     tests/test_sprint.gd tests/test_pause_menu.gd` is empty. No assertion was changed or removed. The only test files
+     touched are the new tests/test_touch_layout_g2l.gd and its .uid.
+6. SHOTS. All 4 exist. Details are in the shot descriptions below.
+
+Other checks: `git diff 3a6c6d4 -U0` has no "halo" (case-insensitive grep: no output). .claude/settings.json,
+tests/test_physics_baseline.gd, data/physics_baseline.json and docs/DESIGN.md are unchanged (diff --stat empty). iOS:
+the diff adds no OS/Android/JNI/singleton calls. dp comes from `_Platform.new().get_dp_scale()` (touch_hud.gd:381), from
+the platform layer. GODOT API: the staged docs/engine-reference/godot/breaking-changes.md and deprecated-apis.md have no
+entries for Control anchors/offsets, Rect2 or maxf (grep finds nothing). Those APIs are "not staged", and nothing in
+the repo records that.
+
+### Mutation check: NOT DONE (scratch copy denied)
+The brief asks me to break the feature only in a scratch copy under cc_gladius\scratch. Both `git worktree add --detach
+.../cc_gladius/scratch/vg2l 0e610c1` and `git clone --no-hardlinks ... .../cc_gladius/scratch/vg2l` were denied
+("requires approval"). Per the brief I stopped there and did not mutate the live tree. **I have not shown that the new
+tests fail when the feature breaks.** Reading the code, the asserts look sound: they read live rects from the HUD, and
+`not has("pos")` would catch a re-added key. Reading is not proof, so this step cannot be approved yet.
+
+### Shots (opened and viewed)
+- layout_cover_landscape.png (2520x1080): the scores are top-left and "10:00 Hill: empty" is top-right. Shield and health bars,
+  "Pilum BR" and "30 / 120" are under the scores. The move stick ring is bottom-left. The look stick ring with its knob is in the
+  bottom-right corner. Left of and above it sits a 2x2 grid: Swap, Aim on the upper row and Reload, Fire on the lower
+  row. Jump is higher, above Aim and to the right. The gear is at the right edge level with Jump, below the time/Hill text. "Sprint
+  lock" is a round button left of centre at about 30% x, 45% y. Nothing overlaps.
+- layout_cover_small_landscape.png (1512x648): the same layout, scaled. Buttons are clearly smaller than the sticks. The gear is
+  below the time/Hill row, right of Jump. Nothing overlaps.
+- layout_inner_landscape.png (2176x1812): the same arrangement. The look stick is large in the bottom-right corner, with the
+  2x2 cluster NW of it and Jump above at about 45% height. The gear is top-right, well below the label row. Sprint lock is left
+  of centre. A lot of empty space remains in the upper half.
+- layout_inner_small_landscape.png (1152x959): the same layout. The cluster is NW of the look stick, Jump is above, and the gear
+  is top-right under the labels.
+- Note: the HUD labels are filled, but with live match values ("Pilum BR", "30 / 120", "Hill: empty"), not the strings
+  `_layout_shot` sets (tools/touch_capture.gd:276-280). The match HUD overwrites them before the shot. The labels are still
+  filled, which is what the prompt asks for.
+
+### Issues
+1. Blocking for approval: the mutation proof for tests/test_touch_layout_g2l.gd is missing (see above). The next verify
+   must run it in a scratch copy. Suggested mutations: (a) look_stick_rest back to [0.58, 0.76] fails :39;
+   (b) `_button_size` without the maxf floor fails :68 at 1512x648 dpi 420; (c) re-adding `sprint.lock_button.pos` fails
+   :117; (d) one button offset of [0, 0] fails :42/:101; (e) `_lock_button_center` ignoring the profile fails :133.
+2. docs/CONTROLS.md:88 (Important): it still names `sprint.lock_button.pos` as the default. That key no longer exists
+   (data/input.json:42). The prompt wants "exactly one default, not two", and the doc points readers to the removed key.
+   Fix: point it to `touch_layout.sprint_lock_pos`, and also mention the G2L layout (look stick bottom-right, cluster NW,
+   offsets in button sizes) in CONTROLS.md.
+3. data/input.json:89 (Minor): the lock default moved from [0.56, 0.42] to [0.30, 0.45]. The prompt says "move that one
+   default", and neither the commit message nor OQ-LAYOUT says why. By my arithmetic the old point was still clear of the
+   new cluster at all 4 sizes. Either restore [0.56, 0.42] or say in OQ-LAYOUT why it moved. It now also sits inside the
+   floating move_zone (:72). Button priority makes that work, but it is a layout choice for Shibi.
+4. tests/test_touch_layout_g2l.gd:74-112 (Minor): the pairwise no-overlap test runs only at the default dpi. At dpi 420 on
+   1512x648 the 48 dp floor makes buttons 126 px instead of 78 px (OQ-LAYOUT says so). That case is never checked for overlap,
+   nor through `_check_hud_clear`. Add the dpi 0 and 420 loop to `_check_pairwise`.
+5. tools/touch_capture.gd:265-266 (Minor): the "## G2M: the match with the gear closed..." doc comment now sits above
+   `_layout_shot`, not `_menu_shots`. Also, `_layout_shot`'s label strings (:276-280) are overwritten by the live HUD, so
+   the shots show "Hill: empty" rather than "Hill: contested".
+
+VERDICT: ITERATE
+1. tests/test_touch_layout_g2l.gd: the new tests have not been shown to fail on a broken feature. The scratch copy (git
+   worktree / git clone) was denied, so the mutation check must run in the next verify.
+2. docs/CONTROLS.md:88: it still names the removed `sprint.lock_button.pos` as the lock default. Point it to
+   `touch_layout.sprint_lock_pos`.
+3. data/input.json:89: the lock default value changed ([0.56, 0.42] to [0.30, 0.45]) without a stated reason. Restore it or
+   justify it in OQ-LAYOUT.
+4. tests/test_touch_layout_g2l.gd:74-112: the pairwise overlap test only runs at the default dpi. Also run it at dpi 420,
+   where the 48 dp floor enlarges the buttons.
+5. tools/touch_capture.gd:265-280: the misplaced G2M doc comment, and layout-shot label strings that never show.
