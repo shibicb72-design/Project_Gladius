@@ -2165,3 +2165,70 @@ VERDICT: ITERATE
    placement into a function the test can call, or run `_place_far_target` on a button_rig match) and asserts the
    target lies on the line to the SpawnLane spot from data/maps/alesia_section.json, plus the STOP path returning
    false when no lane is usable.
+
+---
+
+## GBTN5 review
+
+cc_gladius/fixG/GBTN5.txt and VGBTN5.txt, template fixG/VTEMPLATE.txt, Oct 22 2026. Review only. The mutations were
+made in the repo and reverted (`git status --porcelain` afterwards: empty).
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_GBTN5.log:249 "TESTS: 221 passed, 0 failed"; gate line
+cc_gladius/fixG.log:92 "GATE GBTN5 apk=True tests=0 shots=81") ; apk = FOUND (build/gladius-debug.apk, re-exported in
+this review: "Signed", "[ DONE ] export") ; shots = FOUND (81 per gate, incl. build/shots/buttons_fire_far_{cover,inner}_landscape.png)
+; step commit = FOUND (dcc3a26, 2 files, +157/-0).
+Gates run here, each as its own command: `mkdir -p build`; `--import` exit 0; `--export-debug "Android"` "[ DONE ] export";
+full suite exit 0, "TESTS: 221 passed, 0 failed" (219 + the 2 new tests). The only ERROR: line is the expected
+"[button_capture] STOP, no usable lane: lane to spot_1 blocked at (37.83487, 1.4, 3.75); lane to spot_5 blocked at ..."
+from the new STOP test, which GBTN5.txt:9 allows. The only WARNING is the known "fire rejected for player 5:
+aim_blocked". There are no SCRIPT ERROR or Parse Error lines.
+
+1. Loads the real tool. test_button_capture_far_target.gd:6 `const _Capture := preload("res://tools/button_capture.gd")`.
+   The tests instance it with `_Capture.new()` at :97 and :147 and call `cap._place_far_target(m, pawn)` at :98 and :148.
+   The rig (:36-50) starts a real match.tscn MatchRoot and moves the local player onto a spawn spot from the map JSON. PASS.
+2. Data-driven expectations. Spawns come from `DataRegistry.MAP_PATH` (:28; data_registry.gd:11 =
+   "res://data/maps/alesia_section.json"). The distance comes from data/ui.json capture.far_target_distance_m (:62).
+   :66-76 compute their own expected direction from the JSON spot positions (next ring neighbour, then the previous
+   one, with a clear muzzle ray and length >= dist), the same rule as spawn_lane.gd:26-40.
+   :110 asserts target - pawn == dir*dist, :112 asserts forward·dir > 0.9999 (rotation.y faces it), :113 asserts pitch 0.
+   :116 asserts that at least one spot uses the *next* lane, so the old PI/3 chord, which always pointed at the
+   previous spot, cannot pass. The only literals are the fence geometry in the STOP fixture (:132-137) and the facing
+   tolerance; none is an expected target value. PASS.
+3. STOP path. A ring of four world-layer StaticBody3D walls around the pawn (:129-143) blocks both lanes. :150 asserts
+   a false return, :151 asserts the pawn count is unchanged, and :152 asserts `catcher.hits == 1`, so the error fires
+   exactly once. :153 asserts that no other error of any type was logged while the call ran.
+   The allowance is test-local (`_StopCatcher`, :11-20) and is added and removed around the single call (:146/:149).
+   It matches only text that begins with the exact constant STOP_MSG = "[button_capture] STOP, no usable lane" (:7, :17).
+   A prefix match is the narrowest form that works, because button_capture.gd:83 appends ": <reason>" with float hit
+   positions. Everything else goes into `others` and fails :153.
+   The logger is not weakened: run_tests.gd and script_error_logger.gd are unchanged (`git diff 8175210 --name-only`
+   lists only the test and its .uid). push_error is ERROR_TYPE_ERROR, which script_error_logger.gd:10 never counted,
+   so no global allowance was needed or added. PASS.
+4. Scope. `git diff 8175210 HEAD --name-only` = tests/test_button_capture_far_target.gd and its .uid only. No seam in
+   button_capture.gd and no production code. The three VGBTN4 non-blocking items (net_match_bridge.gd stale aim point,
+   missing-aim-point legacy path, 18-22 px tracer margin) are untouched. PASS.
+5. Suite. My run says "TESTS: 221 passed, 0 failed" with exit 0; cc_gladius/tests_GBTN5.log:249 says the same. PASS.
+
+Mutations (each run with `--only=test_button_capture_far_target`, then reverted):
+ (c) Restored `(from.rotated(Vector3.UP, PI / 3.0) - from).normalized()` in place of `lane["dir"]` at
+     button_capture.gd:85. Result: "FAIL ...test_place_far_target_sits_toward_the_neighbour_spawn_spot: ... spot_1: target
+     at pawn + dir * far_target_distance_m ((17.49961, 0.0, -30.31111) vs (-35.0, 0.0, 0.0)); spot_1: pawn faces the
+     neighbour spot ...", 1 passed, 1 failed. Caught.
+ (e) Removed button_capture.gd:82-84 (`if not lane["ok"]` ... `return false`). Result: "FAIL ...test_place_far_target_stops_when_no_lane_is_usable:
+     the exact STOP push_error fired exactly once (expected 1, got 0); no other error logged: [Invalid access ... 'dir'
+     ...]", 1 passed, 1 failed. Caught.
+     I also ran a softer variant that does not crash (`lane.get("dir", Vector3.ZERO)`). It is also caught, by the
+     no-target assertion: "no target pawn added on STOP (expected 1, got 2)".
+ After reverting: `git status --porcelain` is empty and `--only=test_button_capture_far_target` gives "2 passed, 0 failed".
+
+Godot APIs: PhysicsRayQueryParameters3D.create and intersect_ray as in docs/engine-reference/godot/modules/physics.md:75-77.
+Logger._log_error and OS.add_logger/remove_logger have no entry in breaking-changes.md or deprecated-apis.md (Grep: no
+matches); the same signature is already used at tests/script_error_logger.gd:9.
+
+Non-blocking notes:
+- test_button_capture_far_target.gd:113 `pitch == 0.0` would also hold if the tool never set it (the rig's pitch is
+  already 0), so this assertion is weak. It is harmless.
+- :110 uses `is_equal_approx` on vectors about 35 m long. That is a tight tolerance, and it passes because the test and
+  SpawnLane compute the same float path.
+
+VERDICT: APPROVE
