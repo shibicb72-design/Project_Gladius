@@ -2686,3 +2686,113 @@ VERDICT: APPROVE
 All 5 G2L2 findings are fixed with file:line evidence. The import, the Android export and the full suite (252/252) pass. The
 4 layout shots were retaken and look right. No existing assertion was changed. All 5 G2L mutations and the new dpi-420
 mutation are caught, the last one only by the new test.
+
+## G2d review
+
+Task prompt: fixG/G2d.txt (checks from fixG/VG2d.txt). Verifier template: fixG/VTEMPLATE.txt. Step commit 95dba05
+"feat: G2d sensitivity tables and gyro modes" (20 files, +873/-15), prev = 02d2432 (G2L2 review head).
+
+INPUTS: tests log/exit code = FOUND (I ran them here: `--import` exit 0; `--export-debug "Android" build/gladius-debug.apk`
+exit 0, "Signed", "[ DONE ] export"; full suite exit 0, "TESTS: 266 passed, 0 failed". cc_gladius/tests_G2d.log exists;
+fix3c.log has no "GATE G2d" line, so this run is the evidence) ; apk = FOUND (Glob finds build/gladius-debug.apk after the
+export) ; shots = FOUND (n=99 in build/shots/*.png, including the 4 named sensitivity_* shots) ; step commit = FOUND (95dba05)
+
+Run notes: no SCRIPT ERROR or Parse Error lines. The only "ERROR:" line is the deliberate STOP push_error from
+tools/button_capture.gd:83, which tests/test_button_capture_far_target.gd:148 triggers on purpose (accepted before).
+
+### fixG/G2d.txt items
+1. Tables: OK. data/input.json:20-45 `sensitivity_tables`. Camera, ADS, Gyro and ADS Gyro share `scope_rows`
+   tpp_fpp_no_scope, red_dot, 2x, 4x, 8x, 16x, which match DESIGN.md:24 "Scopes red dot, 2x, 4x, 8x, 16x". A separate Free Look
+   table has rows tpp_character and fpp_character. Parachuting is skipped because there is no parachute. The 3x/6x reason is
+   in docs/CONTROLS.md:52 and the `_free_look_note` in input.json. The look-state API is `InputRouter.set_aim_state`
+   (scripts/input/input_router.gd:21-22). Unknown states fall back to no_scope, and `set_ads(false)` resets to no_scope (:26-29).
+   The data `states` map is at input.json:24-27. OQ-ADS-ZOOM is at docs/OPEN_QUESTIONS.md:63, and OQ-SENS is at :62.
+   No ADS mechanics were invented. The only "zoom" text in scripts/input and data/input.json is in comments and notes; no FOV,
+   scope or zoom code was added. The ADS tables follow the existing aim_blend (match_root.gd:204).
+2. Gyro modes: OK. off/scope_on/always_on are at input.json `gyro_modes` and GyroProvider.MODES (gyro_provider.gd). The
+   `allows_gyro()` gate is `always_on or (scope_on and ads)`. Inversion X/Y is applied in InputRouter._scaled_look, for gyro
+   providers only. The default is "off" (input.json `default_gyro_mode` with note OQ-34; SaveService defaults keep
+   `gyro_enabled: false`). The old `gyro_enabled` is migrated in SensitivitySettings.from_profile/from_dict
+   (sensitivity_settings.gd:111-136, trueΓåÆalways_on, falseΓåÆoff) and through SaveService._set_sensitivity (save_service.gd:51-56).
+   **The single toggle is not gone.** settings_panel.gd:34 still builds "Gyro aim" (OffΓåöAlways), and main_menu.gd:22-25
+   and :89-90 still delegate to it. This is the conflict fixG/G2d.txt item 7 anticipates. tests/test_decisions_batch1.gd:108-114
+   and tests/test_pause_menu.gd:267-272 click it and read "Gyro aim: On", so the step kept it and did not edit those tests. It
+   is reported in test_sensitivity.gd:3-4 and CONTROLS.md:54, but not in OPEN_QUESTIONS.md (see issue 4).
+3. Ranges and sources: OK, with one gap. Only gyro and ads_gyro `max` 400 carry the 1.1 `_source` (input.json:34-35).
+   Every other min/max/default/step has `"_placeholder": true`, and the `presets` block is `"_placeholder": true` with a
+   `_todo`. G2d adds no other `_source`. The `sprint_sensitivity` `_source` at input.json:62 predates G2d. No other value is
+   labelled as PUBG's. Gap: `"default_preset": "medium"` (input.json:21) is a default with no placeholder marker (issue 3).
+   Custom: `set_value` sets preset = custom (sensitivity_settings.gd:75-77). The Custom button only shows state.
+4. Persistence: OK. The profile key `sensitivity` is in `user://profile.json` via SaveService (DEFAULT_PATH user://).
+   Loading is tolerant: bad or missing keys keep the data defaults, and hand-edited values are clamped.
+5. Apply: OK in the router; not proven in a match (issues 1, 2). InputRouter.update_frame multiplies every provider's look
+   by `look_percent` (look_math.gd `apply_percent`). Camera/ADS/Free Look tables apply to camera providers and Gyro/ADS Gyro
+   tables to the gyro provider. GyroProvider has no assist code, and none was added (DESIGN.md:18 "none on gyro").
+6. UI: OK. scenes/ui/sensitivity_screen.tscn + scripts/ui/sensitivity_screen.gd: presets, gyro mode, Invert X/Y, and 26
+   sliders (4├ù6 + 2) in a ScrollContainer. Buttons get the 48 dp floor from UiScale.bind (ui_scale.gd:31-36, dp from
+   PlatformServices). Sliders use `48.0 * PlatformServices.get_dp_scale()` (sensitivity_screen.gd:41,123). The screen is
+   reached from the shared SettingsPanel "Sensitivity" button (settings_panel.gd:33), which is where the toggle was.
+7. Tests: present and mostly real (mutations below). No existing test file is touched: `git diff 02d2432 95dba05
+   --name-only -- tests/test_decisions_batch1.gd tests/test_pause_menu.gd tests/test_physics_baseline.gd
+   data/physics_baseline.json .claude` prints nothing, and the only test file in the stat is the new tests/test_sensitivity.gd.
+   No assertion was changed or removed.
+8. Docs: CONTROLS.md:47-57 has a Sensitivity section. The shots are below.
+
+### Shots (opened and checked)
+- sensitivity_cover_landscape.png (2520x1080): Back + "Sensitivity" title; Low / Medium (selected, black) / High / Custom
+  (greyed); "Gyro:" Off (selected), ADS, Always, Invert X, Invert Y; the Camera table with all 6 rows at 100% and the start of
+  ADS (to 8x), with a scrollbar on the right. Text is readable, and nothing is clipped except the list, which scrolls.
+- sensitivity_inner_landscape.png (2176x1812): the same layout with larger text. Camera and the full ADS table (6 rows) are
+  visible, and the list scrolls.
+- sensitivity_cover_small_landscape.png (1512x648): the same controls, smaller but readable. Camera plus ADS up to 4x.
+- sensitivity_inner_small_landscape.png (1152x959): the same controls. Camera plus ADS up to 8x. The five gyro buttons fit
+  without truncation.
+  In all four shots the slider track sits slightly above its row label's baseline. This is cosmetic.
+
+### Other checks
+- "halo": `git diff 02d2432 95dba05 -U0 -i -G halo --name-only` prints nothing, and the commit message has none.
+- iOS: G2d adds no OS/JNI/Engine.get_singleton/Android call (grep over scripts/input, the new UI, save_service, the tool and
+  the test). Gyro reads stay behind PlatformServices.has_gyro/get_gyro_rate, and dp comes from PlatformServices.
+- .claude/settings.json, tests/test_physics_baseline.gd and data/physics_baseline.json are unchanged (diff empty).
+- GODOT API: the new engine calls (`snappedf`, `clampf`, `Range.set_value_no_signal`, `BaseButton.set_pressed_no_signal`,
+  `ScrollContainer.SCROLL_MODE_DISABLED`, `Label.clip_text`, `size_flags_stretch_ratio`, `CanvasLayer`) have no entry in
+  docs/engine-reference/godot/breaking-changes.md or deprecated-apis.md (grep finds none), so they are "not staged".
+  `FileAccess.store_string` returns bool (breaking-changes.md:91). The test ignores the return value, which is harmless.
+
+### Mutations (scratch copy cc_gladius/scratch/vG2d, HEAD 95dba05 per its .git/refs; imported first; Edit, run, revert)
+`git worktree add` and `git clone` both needed approval this session could not give. The pre-made scratch copy
+cc_gladius/scratch/vG2d was used instead. The live tree was never edited. Runs used `-- --only=test_sensitivity` unless noted.
+- M1 look_percent always uses row tpp_fpp_no_scope: CAUGHT (test_every_camera_and_ads_row_is_applied,
+  test_every_gyro_row_is_applied: "camera row red_dot applied (got 0.019635)" ...).
+- M2 ADS flag ignored (camera/gyro table always): CAUGHT (both row tests + test_look_state_api_picks_the_row "ADS table while
+  aiming (expected 40.0, got 70.0)").
+- M3 Free Look multiplier removed: CAUGHT (test_free_look_rows_applied).
+- M4 Invert X removed: CAUGHT (test_gyro_inversion "invert X (expected (-0.25, 0.5), got (0.25, 0.5))").
+- M5 `allows_gyro` = mode != off: CAUGHT (test_gyro_mode_gating "scope_on hip (expected false, got true)").
+- M6 clamp_value without clampf: CAUGHT (test_gyro_max_400_clamps "gyro clamps to 400 (expected 400.0, got 1000.0)").
+- M7 set_value no longer sets Custom: CAUGHT (presets test, round trip, screen test).
+- M8 from_profile ignores legacy gyro_enabled: CAUGHT (test_old_gyro_enabled_migration "expected always_on, got off").
+- P1 (full suite) match_root.gd:58 `router.sens = SensitivitySettings.from_profile(profile)` removed: NOT CAUGHT (266/266).
+- P2 (same run) match_root.gd:204 `router.set_ads(local_player.aim_blend > 0.0)` removed: NOT CAUGHT.
+- P3 (same run) `gyro_invert_x` dropped from to_dict (sensitivity_settings.gd:105): NOT CAUGHT. The round trip compares
+  two to_dict outputs, and only invert_y persistence is asserted (test_sensitivity.gd:271).
+All edits were reverted. `git diff --no-index --stat` of live scripts/ vs scratch scripts/ shows no file differences. This
+shell has no rm, so the scratch copy could not be deleted. It is left clean at 95dba05.
+
+VERDICT: ITERATE
+1. scripts/systems/match_root.gd:58-59 with scripts/ui/settings_panel.gd:73-83 and :55-66: the Sensitivity screen and the
+   gyro quick toggle can be opened from the in-match menu (CONTROLS.md:49), but the running match never re-reads the
+   profile. router.sens and GyroProvider.mode are set once in _ready, so tables, presets, gyro mode and inversion changed
+   mid-match do nothing until the next match. Fix: when SettingsPanel/SensitivityScreen saves (SettingsPanel.changed, or
+   when the screen closes), have match_root reload `router.sens = SensitivitySettings.from_profile(AppFlow.profile)` and
+   call `gyro.configure(...)` again. Add a test that edits a value through the in-match panel and measures the router look.
+2. Missing tests for the match wiring (P1, P2 survive the full suite). fixG/G2d.txt item 1 says the ADS row applies while
+   aim_blend > 0, but only the router is tested. Add a match-level test: set the profile's ads/tpp_fpp_no_scope to a
+   non-default value, start a match, hold Aim (aim_blend > 0), and assert the look delta uses the ADS value, then the camera
+   value after release.
+3. data/input.json:21 `"default_preset": "medium"` is a default that the design does not give, with no `"_placeholder":
+   true` or TODO. fixG/G2d.txt item 3 requires every other default to be a placeholder. Mark it and list it under OQ-SENS.
+4. Small: round trip does not prove gyro_invert_x persists (P3). Assert `back.gyro_invert_x == true` in
+   test_save_load_round_trip (test_sensitivity.gd:223-227). Also record the kept single toggle (settings_panel.gd:34, pinned
+   by test_decisions_batch1.gd:108-114 and test_pause_menu.gd:267-272) in docs/OPEN_QUESTIONS.md so EL decides whether to
+   retire those tests and the toggle.
