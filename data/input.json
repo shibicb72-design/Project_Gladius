@@ -86,6 +86,6 @@
 			"aim": {"label": "Aim", "offset": [-1.7, -1.25]}
 		},
 		"_sprint_lock_note": "G2L: the one default position of the movable Sprint lock button, [x of width, y of height] of its centre. The profile value (sprint_lock_pos) overrides it. Its size and min_dp stay in sprint.lock_button.",
-		"sprint_lock_pos": [0.30, 0.45]
+		"sprint_lock_pos": [0.56, 0.42]
 	}
 }

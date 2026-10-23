@@ -112,6 +112,17 @@ func test_pairwise_no_overlap_four_sizes_both_modes() -> void:
 	_TouchHud.move_stick_override = ""
 
 
+## Same pairwise check at dpi 420 (the 48 dp minimums grow, so the layout is tightest here). Landscape only (OQ-PORTRAIT).
+func test_pairwise_no_overlap_four_sizes_both_modes_dpi_420() -> void:
+	PlatformServices.dpi_override = 420.0
+	for mode in _modes():
+		_TouchHud.move_stick_override = mode
+		for sz in SIZES:
+			await _check_pairwise(sz)
+	_TouchHud.move_stick_override = ""
+	PlatformServices.dpi_override = 0.0
+
+
 func test_lock_default_only_in_touch_layout_and_profile_overrides() -> void:
 	var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/input.json"))
 	assert_true(not cfg["sprint"]["lock_button"].has("pos"), "no lock default in sprint.lock_button")

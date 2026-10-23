@@ -262,7 +262,6 @@ func _lobby_shots() -> void:
 	await _frames(2)
 
 
-## G2M: the match with the gear closed, then a real tap on the gear (pushed through the viewport) and the open menu.
 func _layout_shot() -> void:
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
@@ -273,6 +272,7 @@ func _layout_shot() -> void:
 	m.begin()
 	await _frames(5)
 	var hud: GameHud = m.hud
+	hud.set_process(false)  # GameHud._process rewrites these labels every frame; stop it so the longest-text sample sticks
 	hud.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
 	hud.timer_label.text = "10:00"
 	hud.hill_label.text = "Hill: contested"
@@ -285,6 +285,7 @@ func _layout_shot() -> void:
 	await _frames(2)
 
 
+## G2M: the match with the gear closed, then a real tap on the gear (pushed through the viewport) and the open menu.
 func _menu_shots() -> void:
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
