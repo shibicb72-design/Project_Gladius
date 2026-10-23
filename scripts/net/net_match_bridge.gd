@@ -35,6 +35,7 @@ var _tick: int = 0
 var _last_move_s: Dictionary = {}  # player id -> time of last accepted position
 var _last_correction_s: Dictionary = {}  # player id -> _clock of the last correct_position
 var _rng :=RandomNumberGenerator.new()
+var _last_aim_point: Dictionary = {}  # player id -> camera-centre aim point of the last InputFrame (if it had one)
 var _last_aim: Dictionary = {}  # player id -> aim_pressed of the last InputFrame received from that peer
 ## Spread multiplier used by the most recent host_handle_fire (read by tests).
 var last_spread_mult: float = 1.0
@@ -164,7 +165,12 @@ func submit_input(frame_array: Array, pos: Vector3, yaw: float, _client_tick: in
 func host_note_input(peer_id: int, frame_array: Array) -> void:
 	var pid: int = peer_to_player.get(peer_id, -1)
 	if pid >= 0:
-		_last_aim[pid] = InputFrame.from_array(frame_array).aim_pressed
+		var f := InputFrame.from_array(frame_array)
+		_last_aim[pid] = f.aim_pressed
+		if f.has_aim_point:
+			_last_aim_point[pid] = f.aim_point
+		else:
+			_last_aim_point.erase(pid)
 
 
 ## Host: accepts a client position if plausible; otherwise the host position stays authoritative and the
@@ -226,9 +232,23 @@ func host_handle_fire(peer_id: int, origin: Vector3, direction: Vector3, weapon_
 		return {"ok": false, "reason": "reloading"}
 	if not w.has_ammo():
 		return {"ok": false, "reason": "empty"}
-	var v := validator.validate_fire(pid, weapon_id, w.def, _clock, origin, pawn.get_muzzle_position(), direction)
+	# Right-shoulder camera: when the client sent an aim point, the shot goes from the host muzzle to that point
+	# (the claimed direction is ignored); a point whose muzzle ray is blocked spawns no shot. Checked before
+	# validate_fire so a rejected aim does not use up the fire-rate window.
+	var muzzle := pawn.get_muzzle_position()
+	var has_point := _last_aim_point.has(pid)
+	if has_point:
+		var aim_ok := AimMath.validate_aim(pawn.get_world_3d().direct_space_state, muzzle, _last_aim_point[pid],
+				float(registry.get_camera_cfg()["aim_validate_epsilon_m"]["value"]), pawn.hitscan_exclude())
+		if not aim_ok["ok"]:
+			push_warning("fire rejected for player %d: %s (aim point %s)" % [pid, aim_ok["reason"], _last_aim_point[pid]])
+			return aim_ok
+	var v := validator.validate_fire(pid, weapon_id, w.def, _clock, origin, muzzle, direction)
 	if not v["ok"]:
 		return v
+	if has_point:
+		origin = muzzle
+		direction = (_last_aim_point[pid] - muzzle).normalized()
 	pawn.fired.emit()  # ends spawn protection through MatchDirector, same as a local shot
 	if w.def.is_melee():
 		# Energy blade (OQ-07): no ammo; the host runs the swing on its own pawn states.

@@ -26,7 +26,9 @@ func _ready() -> void:
 	_cfg = DataRegistry.new().get_camera_cfg()
 	_arm.spring_length = float(_cfg.get("arm_length_m", 3.5))
 	position.y = float(_cfg.get("height_m", 1.6))
-	_camera.position.x = float(_cfg.get("shoulder_offset_m", 0.0))
+	# SpringArm3D rewrites its child camera's transform every physics frame (measured: tools/measure_shoulder.gd),
+	# so the shoulder offset goes on the arm itself.
+	_arm.position.x = float(_cfg["shoulder_offset_m"]["value"])
 	get_viewport().size_changed.connect(apply_fov)
 	apply_fov()
 
@@ -44,6 +46,15 @@ func set_aim_blend(blend: float, fov_mult: float) -> void:
 	_aim_blend = clampf(blend, 0.0, 1.0)
 	_aim_fov_mult = fov_mult
 	_apply_zoom()
+
+
+## World point under the camera centre (hit, or aim_ray_length_m along the ray). `exclude` keeps the shooter out.
+func get_aim_point(exclude: Array[RID]) -> Vector3:
+	return AimMath.camera_aim_point(_camera, exclude, float(_cfg["aim_ray_length_m"]["value"]))
+
+
+func get_camera() -> Camera3D:
+	return _camera
 
 
 func get_fov() -> float:

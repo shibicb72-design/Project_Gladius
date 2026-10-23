@@ -75,19 +75,23 @@ func _measure(svp: SubViewport, pawn: Pawn, name: String) -> bool:
 
 ## Puts a target pawn straight ahead of the player at data/ui.json capture.far_target_distance_m, so the
 ## shot's hit point is far away (no fallback: a missing key is a loud error).
-func _place_far_target(m: MatchRoot, pawn: Pawn) -> void:
+func _place_far_target(m: MatchRoot, pawn: Pawn) -> bool:
 	var dist := float(DataRegistry.new().load_file("res://data/ui.json")["capture"]["far_target_distance_m"])
+	# The hill blocks the spawn-to-hill line, so aim at the neighbouring spawn spot from the map data.
+	var lane := SpawnLane.neighbour_lane(pawn, dist)
+	if not lane["ok"]:
+		push_error("[button_capture] STOP, no usable lane: %s" % lane["reason"])
+		return false
+	var chord: Vector3 = lane["dir"]
 	var target: Pawn = _PawnScene.instantiate()
 	target.squad_id = 1
 	m.add_child(target)
 	target.set_physics_process(false)
-	# The hill blocks the spawn-to-hill line, so aim along the chord to the neighbouring spawn spot.
-	var from := pawn.global_position
-	from.y = 0.0
-	var chord := (from.rotated(Vector3.UP, PI / 3.0) - from).normalized()
 	target.global_position = pawn.global_position + chord * dist
 	pawn.rotation.y = atan2(-chord.x, -chord.z)
 	pawn.pitch = 0.0
+	print("[button_capture] far target toward %s at %s" % [lane["spot_id"], lane["spot"]])
+	return true
 
 
 func _one(action: String, size: Vector2i, name: String) -> bool:
@@ -114,7 +118,9 @@ func _one(action: String, size: Vector2i, name: String) -> bool:
 	match action:
 		"fire", "fire_far":
 			if action == "fire_far":
-				_place_far_target(m, pawn)
+				if not _place_far_target(m, pawn):
+					svp.queue_free()
+					return false
 				await _frames(3)
 			_tap(svp, touch, "fire", true)
 			# Capture on a frame that really draws the tracer (it only lives ~0.08 s).

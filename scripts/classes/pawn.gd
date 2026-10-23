@@ -142,7 +142,13 @@ func _invalid_melee(key: String) -> DamageRules.HitResult:
 	return bad
 
 
+## Single source of the shot direction: muzzle -> the frame's camera-centre aim point when the frame has one
+## (right-shoulder camera, GBTN4); otherwise pitch/yaw forward (bots, tests, frames without a camera).
 func get_aim_direction() -> Vector3:
+	if _frame.has_aim_point:
+		var to := _frame.aim_point - get_muzzle_position()
+		if to.length_squared() > 0.0001:
+			return to.normalized()
 	return (global_transform.basis * Vector3(0.0, sin(pitch), -cos(pitch))).normalized()
 
 

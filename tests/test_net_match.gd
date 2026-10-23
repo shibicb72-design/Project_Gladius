@@ -193,6 +193,12 @@ func test_e2e_client_fire_damages_on_host_only() -> void:
 			var hb: NetMatchBridge = hm.roster.bridge
 			# Hold the host's snapshots so the client's view can only change through them.
 			hb.snapshot_interval_s = 1000000.0
+			# GBTN4: this test stages the bot on the claimed fire direction (0,0,-1). The client's real camera would
+			# send its own aim point in every InputFrame and the host would shoot at that instead (covered by
+			# tests/test_shoulder_aim.gd), so the client camera is removed here: no aim point is sent.
+			var client_rig := cm.local_player.get_node_or_null("CameraRig")
+			if client_rig != null:
+				client_rig.free()
 			var w := cm.local_player.loadout.get_active()
 			var muzzle := host_copy.get_muzzle_position()
 			var hit := false

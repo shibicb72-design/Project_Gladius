@@ -163,6 +163,10 @@ func _physics_process(delta: float) -> void:
 	if local_player == null or router == null:
 		return
 	var frame := router.get_frame()
+	var rig := local_player.get_node_or_null("CameraRig") as CameraRig
+	if rig != null:
+		frame.aim_point = rig.get_aim_point(local_player.hitscan_exclude())
+		frame.has_aim_point = true
 	local_player.set_frame(frame)
 	if _client_bridge != null and director.running:
 		_input_accum_s += delta

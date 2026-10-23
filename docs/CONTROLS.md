@@ -54,6 +54,18 @@ A DYNAMIC `VirtualJoystick` moves its base inside a fixed Control (the whole lef
 | `radial_deadzone` | stick length 0..1 | 0.1 | `TouchProvider.get_move`: on the vector length (no diagonal snapping), remainder rescaled to 0..1 |
 | `response_exponent` | exponent | 1.0 (linear) | `out = dir * pow(remapped_length, exponent)` |
 
+radial_deadzone 0.1 is new vs 8ffb2da, a placeholder, tunable in input.json move_feel.
+
+`data/camera.json` (each entry `{"_placeholder": true, "value": ...}`):
+
+| Key | Unit | Value | Notes |
+|---|---|---|---|
+| `shoulder_offset_m` | m | 0.6 (placeholder, right shoulder, no source) | Camera sits to the right of the pawn axis. Set on the `SpringArm3D` node (`camera_rig.gd`), because the arm rewrites a child camera's position every physics frame (measured with `tools/measure_shoulder.gd`: camera x was 0.0 with the offset on the camera). Left/right swap is undecided: OQ-SHOULDER |
+| `aim_ray_length_m` | m | 200 (placeholder) | Far aim point when the camera-centre ray hits nothing |
+| `aim_validate_epsilon_m` | m | 0.3 (placeholder) | Host tolerance for the muzzle ray reaching the client aim point |
+
+Aim with the shoulder camera: the client takes the point under the screen centre (`AimMath.camera_aim_point`) and sends it in the `InputFrame` (`aim_point`). The host fires from its own muzzle toward that point (`pawn.get_aim_direction()` locally, `host_handle_fire` on the host) and rejects, with a logged warning and no shot, any point whose muzzle ray is blocked by world geometry before it arrives (`AimMath.validate_aim`, reason `aim_blocked`). Pawns in the way do not count as blocking. Context only, no numbers taken from them: the PUBG PC Update 20 patch note (Reddit) and the PUBG Mobile shoulder-aim help page.
+
 `data/stats.json` `movement`:
 
 | Key | Unit | Value | Notes |
