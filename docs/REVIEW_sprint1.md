@@ -3358,3 +3358,5 @@ present) ; step commit = FOUND (76572d4, 5 files, +66/-2).
    platform_services.gd vibrate() still bypasses the haptics settings. Both were out of scope here by the prompt.
 
 VERDICT: APPROVE
+
+Note: G2f/G2f2 commits were rebuilt before push to remove an absolute user path; old->new SHAs: 6c87f90->129d0e5, 12a73ad->d0f9a35, b219360->a9f36a2, 76572d4->a39ddf3, 243e7c6->cc94fb6.
