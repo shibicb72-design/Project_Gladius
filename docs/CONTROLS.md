@@ -129,6 +129,21 @@ Settings > "HUD layout" opens the editor (main menu and in-match menu). It shows
 - **Shots:** `tools/layout_editor_capture.tscn` writes `build/shots/layout_editor_{cover,inner}_landscape.png` and `layout_editor_{cover,inner}_small_landscape.png` (1512x648, 1152x959); the cover_small shot shows the off-screen warning.
 - **Tests:** `tests/test_layout_editor.gd` (temp `user://` profile, restores `AppFlow.profile`).
 
+## Haptics (G2f)
+
+Settings > "Haptics" opens the Haptics screen (main menu and in-match menu). Research (`pubg_mobile_movement_research.md`, official): tactile feedback for weapons, character status and sound visualisation, a system vibration setting, High and Low quality, on/off switches, "only available on select devices". We have no vehicles, so there is no vehicle category.
+
+- **API (staged docs):** `Input.vibrate_handheld(duration_ms: int = 500, amplitude: float = -1.0)` is in `staging/godot-docs/class_input.md:1834`. Amplitude is 0.0 to 1.0 (:1838). "Implemented on Android, iOS, and Web. It has no effect on other platforms." (:1840). Android needs the `VIBRATE` permission in the export preset (:1842), so `export_presets.cfg` has `permissions/vibrate=true`. On iOS the duration is only supported from iOS 13 (:1844). Device settings (vibration off, do not disturb) can suppress it (:1850). `docs/engine-reference/godot/` (breaking-changes.md, deprecated-apis.md) does not mention `vibrate_handheld` or any haptic API, and none of the other APIs used here (Button toggle_mode, set_pressed_no_signal, CanvasLayer, OS.get_name, DisplayServer.get_name, JSON) appears in either file.
+- **Layers:** `scripts/platform/haptics_backend.gd` is the only code that calls Input (Android and iOS, non-headless; desktop, web and the headless server are a no-op). `scripts/platform/haptics_service.gd` holds settings and looks up the event in `data/haptics.json`. `scripts/platform/haptics.gd` is the static entry point for gameplay: `Haptics.play("weapon_fire")`. The service takes a backend, so tests inject a fake.
+- **Events and categories:** weapons (`weapon_fire`, `weapon_reload`, `melee_hit`), status (`damage_taken`, `shield_break`, `death`), sound cues (`sound_cue`). `scripts/systems/haptics_events.gd` binds the local pawn only, from `MatchRoot.begin()`: `shot_resolved`, `reload_started`, the new `melee_landed`, and the new `damaged` (one status event per damaging hit: death, else shield break, else damage taken). Sound cues are wired to nothing: the project has no audio or sound-visualisation events yet (OQ-HAPTICS-SOUND-CUES).
+- **Quality:** High or Low picks the `high` or `low` block of the event in `data/haptics.json`. Choosing a quality plays a sample.
+- **Defaults (placeholders):** haptics on where supported, every category on, quality High. Every duration, amplitude and the damage-event precedence is a placeholder (`_placeholder: true`; OQ-HAPTICS-VALUES), not PUBG's.
+- **Unsupported device:** `is_supported()` is false, `is_enabled()` reads off, `play()` makes no backend call, and the screen shows "Not available on this device" with the controls disabled. The stored choice is kept.
+- **Persistence:** profile key `haptics` (`enabled`, `quality`, `categories`) in `user://profile.json` via `SaveService`; bad values fall back to the data defaults.
+- **48 dp:** the screen uses `UiScale`, so every button is at least 48 dp at the device scale.
+- **Shots:** `tools/haptics_capture.tscn` writes `build/shots/haptics_settings_{cover,inner}_landscape.png` and `haptics_settings_{cover,inner}_small_landscape.png` (1512x648, 1152x959), using a fake supported backend because a desktop cannot vibrate.
+- **Tests:** `tests/test_haptics.gd`.
+
 ## Rest-state screenshots (landscape only)
 
 The project is landscape only (`window/handheld/orientation=4`, sensor_landscape). `tools/touch_capture.gd --vjoy-shot=<name>` saves the move stick at rest; the shots kept are `vjoy_rest_cover_landscape.png` and `vjoy_rest_inner_landscape.png` (Fold inner landscape 2176x1812). Portrait is out of scope (OQ-PORTRAIT in OPEN_QUESTIONS.md); the tool skips any `--vjoy-shot` name containing "portrait".

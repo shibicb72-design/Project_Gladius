@@ -145,6 +145,7 @@ func begin() -> bool:
 			bots = BotSpawner.spawn_bots(self, director, {0: 1}, squads.size(), center, radius)
 	if local_player != null:
 		hud.bind(director, local_player)
+		HapticsEvents.bind_pawn(local_player)
 		var rig := _RigScene.instantiate()
 		rig.name = "CameraRig"
 		local_player.add_child(rig)

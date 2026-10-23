@@ -14,6 +14,10 @@ signal shot_resolved(origin: Vector3, end: Vector3, hit: Dictionary)
 signal reload_rejected(reason: String)
 ## Fire pressed with an empty magazine.
 signal fire_empty
+## This pawn took a hit or melee blow that dealt damage (haptics, hit feedback).
+signal damaged(result: DamageRules.HitResult)
+## A melee swing by this pawn found at least one target.
+signal melee_landed
 
 ## LOCAL: full simulation (offline, host, own pawn on a client).
 ## HOST_REMOTE: remote human on the host; moved only by accepted net input, never fires by itself.
@@ -115,7 +119,13 @@ func get_move_speed() -> float:
 
 
 func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) -> DamageRules.HitResult:
-	return bridge.take_hit(weapon_def, is_headshot, attacker_squad)
+	return _notify_damage(bridge.take_hit(weapon_def, is_headshot, attacker_squad))
+
+
+func _notify_damage(result: DamageRules.HitResult) -> DamageRules.HitResult:
+	if result.damage_dealt > 0.0:
+		damaged.emit(result)
+	return result
 
 
 ## Melee hit from `attacker` (DESIGN.md:15): front/back from this pawn's facing, rule numbers from
@@ -130,7 +140,7 @@ func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
 	var behind := Melee.is_from_behind(global_position, -global_transform.basis.z, attacker.global_position,
 			float(cfg["melee_back_angle_deg"]))
 	var breaks: bool = attacker.class_id in cfg["front_breaks_full_shield_classes"]
-	return bridge.take_melee(attacker.squad_id, behind, breaks, cfg)
+	return _notify_damage(bridge.take_melee(attacker.squad_id, behind, breaks, cfg))
 
 
 func _invalid_melee(key: String) -> DamageRules.HitResult:
@@ -167,7 +177,10 @@ func fire_shot() -> Dictionary:
 	fired.emit()
 	shot.emit(get_muzzle_position(), get_aim_direction(), w.def.id)
 	if w.def.is_melee():
-		return melee_swing(w.def, get_muzzle_position(), get_aim_direction(), hit_authority)
+		var swing := melee_swing(w.def, get_muzzle_position(), get_aim_direction(), hit_authority)
+		if not (swing["targets"] as Array).is_empty():
+			melee_landed.emit()
+		return swing
 	var origin := get_muzzle_position()
 	var dir := get_aim_direction()
 	var res := Hitscan.fire(get_world_3d().direct_space_state, self, origin, dir, w.def, hitscan_exclude(),

@@ -24,6 +24,9 @@ var sprint_slider: HSlider
 const _LayoutScene := preload("res://scenes/ui/layout_editor.tscn")
 var layout_button: Button
 var layout_layer: CanvasLayer
+const _HapticsScene := preload("res://scenes/ui/haptics_screen.tscn")
+var haptics_button: Button
+var haptics_layer: CanvasLayer
 var sprint_lock_pos: Array = []  # kept so saving does not drop the layout editor's value
 
 
@@ -45,6 +48,7 @@ func _ready() -> void:
 	sprint_lock_pos = profile["sprint_lock_pos"]
 	_build_sprint_slider(float(profile["sprint_sensitivity"]))
 	layout_button = _button("HUD layout", open_layout_editor)  # G2e
+	haptics_button = _button("Haptics", open_haptics)  # G2f
 	UiScale.apply_to(self)
 
 
@@ -127,6 +131,28 @@ func _close_layout_editor() -> void:
 	layout_layer.queue_free()
 	layout_layer = null
 	sprint_lock_pos = save.load_profile()["sprint_lock_pos"]
+
+
+## Opens the Haptics screen (G2f) on top of everything, like the Sensitivity screen.
+func open_haptics() -> void:
+	if haptics_layer != null:
+		return
+	haptics_layer = CanvasLayer.new()
+	haptics_layer.layer = 100
+	haptics_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var screen: HapticsScreen = _HapticsScene.instantiate()
+	screen.save = save
+	screen.closed.connect(_close_haptics)
+	screen.changed.connect(changed.emit)
+	haptics_layer.add_child(screen)
+	add_child(haptics_layer)
+
+
+func _close_haptics() -> void:
+	if haptics_layer == null:
+		return
+	haptics_layer.queue_free()
+	haptics_layer = null
 
 
 func toggle_move_stick() -> void:
