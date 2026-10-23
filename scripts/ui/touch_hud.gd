@@ -37,6 +37,7 @@ var lock_target: Button
 var _lock_btn_touch: int = -1
 var move_mode: String = "custom"
 var vjoy_layout: String = "floating"  # "floating" | "fixed"; only used when move_mode == "virtual"
+var suspended: bool = false  # true while the in-match menu is open
 var _emulation_overridden: bool = false
 var _prev_emulation: bool = true
 
@@ -437,8 +438,33 @@ func _stick(pos: Vector2, origin: Vector2, dead: float) -> Vector2:
 	return Vector2.ZERO if v.length() < dead else v
 
 
+## While the in-match menu is open the HUD ignores touches and drops everything it holds (sticks, buttons,
+## fire pulse, sprint lock), so nothing is left pressed behind the menu.
+func set_suspended(on: bool) -> void:
+	suspended = on
+	if not on:
+		refresh_visibility()  # emulation off again: a thumb must not hold "fire"
+		return
+	_restore_emulation()  # menu buttons are clicked through emulated mouse events from touches
+	for action in _button_touch.values():
+		Input.action_release(action)
+		_style_button(_buttons[action], false)
+	_button_touch.clear()
+	for action in _VJOY_ACTIONS:
+		Input.action_release(action)
+	Input.action_release("fire")
+	_fire_pulse_s = 0.0
+	_lock_btn_touch = -1
+	_move_touch = -1
+	_look_touch = -1
+	provider.move_value = Vector2.ZERO
+	provider.clear_look()
+	provider.cancel_sprint_lock()
+	_update_sticks()
+
+
 func _input(event: InputEvent) -> void:
-	if not visible:
+	if not visible or suspended:
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:

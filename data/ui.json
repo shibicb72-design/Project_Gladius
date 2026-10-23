@@ -59,6 +59,30 @@
 		"_todo": "OQ-DEVICE-TOUCH (GBTN): debug overlay showing each touch index and the button it hit. Default off.",
 		"enabled": false
 	},
+	"pause_gear": {
+		"_placeholder": true,
+		"_todo": "OQ-PAUSE-MENU: gear icon that opens the in-match menu (Shibi via EL, Oct 22 2026: top-right gear only, never Android Back). Position, sizes and look are placeholders, not design values. anchor = viewport corner [x, y] in 0..1; margin_dp = [from the right edge, from the top edge] to the touch rect, moved down/in via data if the top-right is crowded (the HUD top text is never shrunk). icon_dp is the drawn gear, touch_dp the tap target (>= 48 dp).",
+		"anchor": [1.0, 0.0],
+		"margin_dp": [8.0, 56.0],
+		"icon_dp": 28.0,
+		"touch_dp": 48.0,
+		"teeth": 8,
+		"color": [0.95, 0.85, 0.45, 0.9]
+	},
+	"pause_menu": {
+		"_placeholder": true,
+		"_todo": "OQ-PAUSE-MENU: layout of the in-match menu overlay. Sizes and tint are placeholders, not design values; every button is at least 48 dp.",
+		"button_dp": [320.0, 64.0],
+		"gap_dp": 12.0,
+		"dim_color": [0.0, 0.0, 0.0, 0.65],
+		"resume_text": "Resume",
+		"settings_text": "Settings",
+		"quit_text": "Quit to main menu",
+		"confirm_text": "Confirm",
+		"cancel_text": "Cancel",
+		"back_text": "Back",
+		"confirm_prompt": "Leave the match?"
+	},
 	"hud_layout": {
 		"_placeholder": true,
 		"_todo": "OQ-35: gameplay HUD stat block (bars, weapon, ammo) top-left corner as [x frac of width, y frac of height]; kept clear of the touch sticks and buttons. Not a design value.",

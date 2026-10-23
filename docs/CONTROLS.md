@@ -96,6 +96,15 @@ Research quotes (staging `pubg_mobile_movement_research.md`; PUBG publishes no n
 - Reddit 1rbgu31: "you don't have to move the joystick as much to start sprinting ... but not your actual speed."
 - PuK: "It defines how much you need to move the PuK Thumbstick forward before sprint is activated".
 
+## In-match menu (gear)
+
+Shibi (via EL, Oct 22 2026): the menu opens ONLY from a small gear icon in the top-right corner. Android Back, `ui_cancel` and Escape do not open it, and no Back handling was added (Godot's default for Back is unchanged).
+
+- **Gear:** drawn icon `pause_gear.icon_dp` (28 dp) inside a tap target `pause_gear.touch_dp` (48 dp), both from `PlatformServices.get_dp_scale()`. Position (`anchor`, `margin_dp`) is data in `data/ui.json` and sits below the HUD's top row; if crowded it moves in data, the HUD text is never shrunk. `PauseMenu._input` runs before the touch HUD (it is later in the tree), consumes the tap, and so the tap is never a stick, button or look touch.
+- **Menu:** full-screen overlay with Resume, Settings (the shared `scenes/ui/settings_panel.tscn`, the same scene as the main menu) and Quit to main menu (Confirm / Cancel). Buttons are at least 48 dp; sizes are `pause_menu` in `data/ui.json`. All placeholders (OQ-PAUSE-MENU).
+- **Offline:** `get_tree().paused = true` while open; the menu and settings panel are `PROCESS_MODE_ALWAYS`; Resume unpauses.
+- **Online:** overlay only. The simulation and networking keep running and the local pawn gets a zero `InputFrame` (no move, look, fire, jump or sprint; the touch HUD drops its held sticks, buttons and sprint lock). **You can be shot while in the menu.**
+
 ## Rest-state screenshots (landscape only)
 
 The project is landscape only (`window/handheld/orientation=4`, sensor_landscape). `tools/touch_capture.gd --vjoy-shot=<name>` saves the move stick at rest; the shots kept are `vjoy_rest_cover_landscape.png` and `vjoy_rest_inner_landscape.png` (Fold inner landscape 2176x1812). Portrait is out of scope (OQ-PORTRAIT in OPEN_QUESTIONS.md); the tool skips any `--vjoy-shot` name containing "portrait".

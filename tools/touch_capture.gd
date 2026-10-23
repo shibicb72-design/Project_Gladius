@@ -20,6 +20,7 @@ var _real_mouse_swallowed: int = 0
 var _trace_events: bool = false
 var _vjoy_shot_name: String = ""
 var _sprint_shot_name: String = ""
+var _menu_shot_name: String = ""
 
 
 func _ready() -> void:
@@ -32,6 +33,8 @@ func _ready() -> void:
 			_dpi = float(a.substr(6))
 		elif a.begins_with("--vjoy-shot="):  # only save the VirtualJoystick move stick at rest as <out>/<value>.png
 			_vjoy_shot_name = a.substr(12)
+		elif a.begins_with("--menu-shot="):  # in-match menu: saves <tag>_closed_<value>_landscape.png and <tag>_open_...; use --tag=menu
+			_menu_shot_name = a.substr(12)
 		elif a.begins_with("--sprint-shot="):  # sprint lock target mid-push ("sprint_lock_*") or locked state ("sprint_locked_*")
 			_sprint_shot_name = a.substr(14)
 	_Platform.dpi_override = _dpi  # 0 = leave the DisplayServer value alone
@@ -103,6 +106,10 @@ func _run() -> void:
 			_log("skipped %s: portrait is out of scope (OQ-PORTRAIT)" % _sprint_shot_name)
 		else:
 			await _sprint_shot()
+		get_tree().quit(0)
+		return
+	if _menu_shot_name != "":
+		await _menu_shots()
 		get_tree().quit(0)
 		return
 	await _lobby_shots()
@@ -245,6 +252,36 @@ func _lobby_shots() -> void:
 	remove_child(lobby)
 	lobby.free()
 	AppFlow.end_session()
+	await _frames(2)
+
+
+## G2M: the match with the gear closed, then a real tap on the gear (pushed through the viewport) and the open menu.
+func _menu_shots() -> void:
+	var m: MatchRoot = _MatchScene.instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.fill_bots = false
+	add_child(m)
+	await _frames(2)
+	m.begin()
+	await _frames(5)
+	m.get_node("Hud/TouchHud").relayout()
+	await _frames(3)
+	await _shot("closed_%s_landscape" % _menu_shot_name)
+	var gear: Rect2 = m.pause_menu.get_gear_touch_rect()
+	_log("gear touch rect %s = %.1f dp, icon %.1f dp (dpi %.0f)" % [str(gear), gear.size.x / (_dpi / 160.0),
+			m.pause_menu.get_gear_icon_rect().size.x / (_dpi / 160.0), _dpi])
+	for pressed in [true, false]:
+		var e := InputEventScreenTouch.new()
+		e.index = 0
+		e.position = gear.get_center()
+		e.pressed = pressed
+		get_viewport().push_input(e, true)
+	await _frames(3)
+	_log("RESULT menu_opened_by_gear_tap=%s" % str(m.pause_menu.is_open))
+	await _shot("open_%s_landscape" % _menu_shot_name)
+	m.pause_menu.close()
+	m.queue_free()
 	await _frames(2)
 
 

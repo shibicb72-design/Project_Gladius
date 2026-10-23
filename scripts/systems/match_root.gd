@@ -37,6 +37,12 @@ var _spawn_synced: bool = false
 @onready var director: MatchDirector = $Director
 @onready var hud: GameHud = $Hud/GameHud
 @onready var _touch_hud: Control = $Hud/TouchHud
+@onready var pause_menu: PauseMenu = $Hud/PauseMenu
+
+## True while the in-match menu is open: the local pawn then gets a zero InputFrame. Offline the tree is
+## also paused; online the simulation and networking keep running (you can be shot in the menu).
+var menu_open: bool = false
+var networked_match: bool = false
 
 
 func _ready() -> void:
@@ -54,6 +60,9 @@ func _ready() -> void:
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
 	director.match_over.connect(_on_match_over)
+	pause_menu.opened.connect(_on_menu_opened)
+	pause_menu.closed.connect(_on_menu_closed)
+	pause_menu.quit_confirmed.connect(quit_to_menu)
 	if auto_start:
 		begin()
 
@@ -94,6 +103,7 @@ func begin() -> bool:
 	var lobby := lobby_override if lobby_override != null else AppFlow.lobby
 	var local_peer := session.get_unique_id() if session != null else 0
 	var networked := local_peer != 0
+	networked_match = networked
 	director.authoritative = not networked or session.is_host
 	if lobby != null:
 		var slots := lobby.assign()
@@ -157,16 +167,46 @@ func profile_cfg() -> Dictionary:
 func _exit_tree() -> void:
 	if roster != null:
 		roster.detach_bridge()
+	if menu_open and not networked_match and is_inside_tree():
+		get_tree().paused = false
+
+
+func _on_menu_opened() -> void:
+	menu_open = true
+	_touch_hud.set_suspended(true)
+	if not networked_match:
+		get_tree().paused = true
+
+
+func _on_menu_closed() -> void:
+	menu_open = false
+	_touch_hud.set_suspended(false)
+	get_tree().paused = false
+
+
+## Quit confirmed in the menu: leave the match for the main menu (same exit as a lost host).
+func quit_to_menu() -> void:
+	if menu_open:
+		pause_menu.close()
+	get_tree().paused = false
+	if go_scene.is_valid():
+		go_scene.call(AppFlow.MENU_SCENE)
+		return
+	if session_override == null and lobby_override == null:
+		AppFlow.end_session()
+		AppFlow.go(get_tree(), AppFlow.MENU_SCENE)
 
 
 func _physics_process(delta: float) -> void:
 	if local_player == null or router == null:
 		return
-	var frame := router.get_frame()
-	var rig := local_player.get_node_or_null("CameraRig") as CameraRig
-	if rig != null:
-		frame.aim_point = rig.get_aim_point(local_player.hitscan_exclude())
-		frame.has_aim_point = true
+	var frame := InputFrame.new()  # zero frame while the menu is open: no move, look, fire, jump or sprint
+	if not menu_open:
+		frame = router.get_frame()
+		var rig := local_player.get_node_or_null("CameraRig") as CameraRig
+		if rig != null:
+			frame.aim_point = rig.get_aim_point(local_player.hitscan_exclude())
+			frame.has_aim_point = true
 	local_player.set_frame(frame)
 	if _client_bridge != null and director.running:
 		_input_accum_s += delta
