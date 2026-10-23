@@ -16,7 +16,8 @@ func _init(save_path: String = DEFAULT_PATH) -> void:
 
 static func defaults() -> Dictionary:
 	return {"version": VERSION, "gamertag": DEFAULT_GAMERTAG, "last_ip": "", "gyro_enabled": false,  # OQ-34: gyro off by default
-			"move_stick": "", "vjoy_layout": "",  # "" = use data/input.json touch_layout (see docs/CONTROLS.md)
+			"sensitivity": SensitivitySettings.new().to_dict(),  # G2d: tables, preset, gyro mode and inversion
+				"move_stick": "", "vjoy_layout": "",  # "" = use data/input.json touch_layout (see docs/CONTROLS.md)
 			"sprint_sensitivity": DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]["default"],
 			"sprint_lock_pos": []}  # [] = data/input.json touch_layout.sprint_lock_pos; G2e's layout editor writes [x, y] (fractions)
 
@@ -47,6 +48,14 @@ static func gyro_mode(profile: Dictionary) -> String:
 	return "on" if bool(profile.get("gyro_enabled", false)) else "off"
 
 
+## Writes "sensitivity" (and the derived legacy "gyro_enabled") into `target` from `source`. An old profile
+## with only gyro_enabled maps true to gyro mode always_on and false to off (G2d migration).
+static func _set_sensitivity(target: Dictionary, source: Dictionary) -> void:
+	var s := SensitivitySettings.from_profile(source)
+	target["sensitivity"] = s.to_dict()
+	target["gyro_enabled"] = s.gyro_mode != "off"
+
+
 func load_profile() -> Dictionary:
 	var profile := defaults()
 	if not FileAccess.file_exists(path):
@@ -62,7 +71,7 @@ func load_profile() -> Dictionary:
 	if not tag.strip_edges().is_empty():
 		profile["gamertag"] = tag
 	profile["last_ip"] = str(data.get("last_ip", ""))
-	profile["gyro_enabled"] = bool(data.get("gyro_enabled", false))
+	_set_sensitivity(profile, data)
 	profile["move_stick"] = _choice(data.get("move_stick", ""), ["virtual", "custom"])
 	profile["vjoy_layout"] = _choice(data.get("vjoy_layout", ""), ["floating", "fixed"])
 	profile["sprint_sensitivity"] = _sensitivity(data.get("sprint_sensitivity", null))
@@ -77,7 +86,7 @@ func save_profile(profile: Dictionary) -> bool:
 	var out := defaults()
 	out["gamertag"] = str(profile.get("gamertag", DEFAULT_GAMERTAG))
 	out["last_ip"] = str(profile.get("last_ip", ""))
-	out["gyro_enabled"] = bool(profile.get("gyro_enabled", false))
+	_set_sensitivity(out, profile)
 	out["move_stick"] = _choice(profile.get("move_stick", ""), ["virtual", "custom"])
 	out["vjoy_layout"] = _choice(profile.get("vjoy_layout", ""), ["floating", "fixed"])
 	out["sprint_sensitivity"] = _sensitivity(profile.get("sprint_sensitivity", null))

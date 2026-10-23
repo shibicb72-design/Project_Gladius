@@ -55,7 +55,8 @@ func _ready() -> void:
 	var gyro := GyroProvider.new()
 	var profile: Dictionary = AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
 	var gyro_cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json").get("gyro", {})
-	gyro.configure({"gyro_mode": SaveService.gyro_mode(profile), "sensitivity": gyro_cfg.get("sensitivity", 1.0)})
+	router.sens = SensitivitySettings.from_profile(profile)
+	gyro.configure({"gyro_mode": router.sens.gyro_mode, "sensitivity": gyro_cfg.get("sensitivity", 1.0)})
 	router.add_provider(gyro)
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
@@ -200,6 +201,7 @@ func quit_to_menu() -> void:
 func _physics_process(delta: float) -> void:
 	if local_player == null or router == null:
 		return
+	router.set_ads(local_player.aim_blend > 0.0)  # picks the ADS sensitivity tables (G2d)
 	var frame := InputFrame.new()  # zero frame while the menu is open: no move, look, fire, jump or sprint
 	if not menu_open:
 		frame = router.get_frame()

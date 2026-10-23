@@ -8,7 +8,12 @@ signal changed
 var save := SaveService.new()
 ## Optional: extra profile keys owned by the host screen (main menu: gamertag, last_ip), merged on save.
 var extra_fields: Callable = Callable()
+const _SensitivityScene := preload("res://scenes/ui/sensitivity_screen.tscn")
+
 var gyro_button: Button
+var sensitivity_button: Button
+var sensitivity_layer: CanvasLayer
+var gyro_mode: String = "off"
 var gyro_enabled: bool = false
 var move_stick_button: Button
 var stick_layout_button: Button
@@ -21,8 +26,12 @@ var sprint_lock_pos: Array = []  # kept so saving does not drop the layout edito
 
 func _ready() -> void:
 	var profile := save.load_profile()
-	gyro_enabled = bool(profile["gyro_enabled"])
-	gyro_button = _button("", toggle_gyro)  # Settings: gyro On/Off (OQ-34)
+	gyro_mode = SensitivitySettings.from_profile(profile).gyro_mode
+	gyro_enabled = gyro_mode != "off"
+	# G2d: the Sensitivity screen owns the gyro mode, tables and inversion; this quick toggle (Off <-> Always)
+	# is kept because tests/test_decisions_batch1.gd and tests/test_pause_menu.gd still pin it.
+	sensitivity_button = _button("Sensitivity", open_sensitivity)
+	gyro_button = _button("", toggle_gyro)
 	_refresh_gyro_text()
 	var input_cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json")["touch_layout"]
 	move_stick_mode = str(profile["move_stick"]) if str(profile["move_stick"]) != "" else str(input_cfg["move_stick"])
@@ -43,14 +52,48 @@ func _button(text: String, handler: Callable) -> Button:
 	return b
 
 
+## Quick toggle: any gyro mode goes to off, off goes to always_on. Reads the stored sensitivity first so a
+## change made on the Sensitivity screen is not overwritten.
 func toggle_gyro() -> void:
-	gyro_enabled = not gyro_enabled
+	var s := SensitivitySettings.from_profile(save.load_profile())
+	s.set_gyro_mode("off" if s.gyro_mode != "off" else "always_on")
+	gyro_mode = s.gyro_mode
+	gyro_enabled = gyro_mode != "off"
 	_refresh_gyro_text()
+	var profile := save.load_profile()
+	profile["sensitivity"] = s.to_dict()
+	save.save_profile(profile)
 	persist()
 
 
 func _refresh_gyro_text() -> void:
-	gyro_button.text = "Gyro aim: %s" % ("On" if gyro_enabled else "Off")
+	var names := {"off": "Off", "scope_on": "ADS", "always_on": "On"}
+	gyro_button.text = "Gyro aim: %s" % names[gyro_mode]
+
+
+## Opens the Sensitivity screen on top of everything (own CanvasLayer, so it works in the menu and in a match).
+func open_sensitivity() -> void:
+	if sensitivity_layer != null:
+		return
+	sensitivity_layer = CanvasLayer.new()
+	sensitivity_layer.layer = 100
+	sensitivity_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var screen: SensitivityScreen = _SensitivityScene.instantiate()
+	screen.save = save
+	screen.closed.connect(_close_sensitivity)
+	sensitivity_layer.add_child(screen)
+	add_child(sensitivity_layer)
+
+
+func _close_sensitivity() -> void:
+	if sensitivity_layer == null:
+		return
+	sensitivity_layer.queue_free()
+	sensitivity_layer = null
+	var profile := save.load_profile()
+	gyro_mode = SensitivitySettings.from_profile(profile).gyro_mode
+	gyro_enabled = gyro_mode != "off"
+	_refresh_gyro_text()
 
 
 func toggle_move_stick() -> void:
@@ -98,7 +141,7 @@ func _refresh_sprint_text() -> void:
 
 ## The profile keys this panel owns.
 func fields() -> Dictionary:
-	return {"gyro_enabled": gyro_enabled, "move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
+	return {"move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
 			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos}
 
 

@@ -16,6 +16,33 @@
 		"touch_look": 1.0,
 		"mouse_look": 0.002
 	},
+	"_sensitivity_tables_todo": "G2d, OQ-SENS, OQ-ADS-ZOOM: sensitivity tables, in percent (100 = the base look rate above). Every min, default, step and preset value is a placeholder, not a design value. Only the gyro max of 400 has an official source. The key is sensitivity_tables because 'sensitivity' above already holds the base look rates.",
+	"sensitivity_tables": {
+		"default_preset": "medium",
+		"gyro_modes": ["off", "scope_on", "always_on"],
+		"default_gyro_mode": {"value": "off", "note": "OQ-34"},
+		"states": {
+			"_note": "InputRouter.set_aim_state(state) -> table row. Scope rows are data only until scopes exist (OQ-ADS-ZOOM); the state stays no_scope otherwise.",
+			"no_scope": "tpp_fpp_no_scope", "red_dot": "red_dot", "2x": "2x", "4x": "4x", "8x": "8x", "16x": "16x"
+		},
+		"scope_rows": ["tpp_fpp_no_scope", "red_dot", "2x", "4x", "8x", "16x"],
+		"free_look_rows": ["tpp_character", "fpp_character"],
+		"_free_look_note": "PUBG's parachuting row is skipped: our design has no parachute. 3x and 6x are skipped: our weapons have no such scopes (DESIGN.md scopes: red dot, 2x, 4x, 8x, 16x).",
+		"ranges": {
+			"camera": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 300, "_placeholder": true}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"ads": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 300, "_placeholder": true}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"gyro": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 400, "_source": "PUBG MOBILE Patch Notes 1.1: Increased the max sensitivity of the gyroscope to 400."}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"ads_gyro": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 400, "_source": "PUBG MOBILE Patch Notes 1.1: Increased the max sensitivity of the gyroscope to 400."}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"free_look": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 300, "_placeholder": true}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}}
+		},
+		"presets": {
+			"_placeholder": true,
+			"_todo": "Low / Medium / High: every value is a placeholder, one percent per table applied to every row of that table.",
+			"low": {"camera": 60, "ads": 60, "gyro": 60, "ads_gyro": 60, "free_look": 60},
+			"medium": {"camera": 100, "ads": 100, "gyro": 100, "ads_gyro": 100, "free_look": 100},
+			"high": {"camera": 150, "ads": 150, "gyro": 150, "ads_gyro": 150, "free_look": 150}
+		}
+	},
 	"dead_zones": {
 		"_placeholder": true,
 		"_todo": "OQ-35",

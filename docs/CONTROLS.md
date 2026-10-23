@@ -105,6 +105,18 @@ Shibi (via EL, Oct 22 2026): the menu opens ONLY from a small gear icon in the t
 - **Offline:** `get_tree().paused = true` while open; the menu and settings panel are `PROCESS_MODE_ALWAYS`; Resume unpauses.
 - **Online:** overlay only. The simulation and networking keep running and the local pawn gets a zero `InputFrame` (no move, look, fire, jump or sprint; the touch HUD drops its held sticks, buttons and sprint lock). **You can be shot while in the menu.**
 
+## Sensitivity (G2d)
+
+Settings has a **Sensitivity** button (shared panel: main menu and in-match menu) that opens `scenes/ui/sensitivity_screen.tscn`. Controls are at least 48 dp; every change is saved to the profile at once.
+
+- **Presets:** Low / Medium / High set every value of every table. Editing any slider switches the preset to **Custom** (state only, not a button). Preset values are placeholders.
+- **Tables** (percent, 100 = the base look rate in `data/input.json`): Camera, ADS, Gyro, ADS Gyro, and a separate Free Look table. Rows are `tpp_fpp_no_scope`, `red_dot`, `2x`, `4x`, `8x`, `16x` (the scopes in DESIGN.md). PUBG's 3x and 6x rows are **not** added because our weapons have no such scopes; PUBG's parachuting Free Look row is skipped because our design has no parachute. Free Look rows are `tpp_character` and `fpp_character`. The tables live in `data/input.json` `sensitivity_tables` (the old `sensitivity` key already holds the base look rates).
+- **Ranges:** the Gyro and ADS Gyro max is 400 (PUBG MOBILE Patch Notes 1.1). Every other min, max, default and step is a placeholder (OQ-SENS).
+- **Gyro mode:** Off (default, OQ-34), ADS (`scope_on`, only while aiming) or Always (`always_on`). Invert X and Invert Y are separate toggles. Gyro has no aim assist. The quick "Gyro aim" button in the panel still flips Off / Always (existing tests pin it).
+- **Which row applies:** `InputRouter.set_ads(aim_blend > 0)` selects the ADS tables (the match calls it each tick); `set_aim_state(state)` with `no_scope`, `red_dot`, `2x`, `4x`, `8x` or `16x` selects the row. No scopes exist yet, so it stays `no_scope` and the scope rows are data only (OQ-ADS-ZOOM). `set_free_look_row` multiplies the camera value by the Free Look row (no free look exists yet).
+- **Profile:** `user://profile.json` key `sensitivity` (preset, gyro mode, inversion, values per table/row). Missing keys use the data defaults. An old profile with only `gyro_enabled` loads as `always_on` (true) or `off` (false); `gyro_enabled` is still written, derived from the mode.
+- **Shots:** `tools/sensitivity_capture.tscn` writes `build/shots/sensitivity_{cover,inner}_landscape.png` and `sensitivity_{cover,inner}_small_landscape.png` (1512x648, 1152x959).
+
 ## Rest-state screenshots (landscape only)
 
 The project is landscape only (`window/handheld/orientation=4`, sensor_landscape). `tools/touch_capture.gd --vjoy-shot=<name>` saves the move stick at rest; the shots kept are `vjoy_rest_cover_landscape.png` and `vjoy_rest_inner_landscape.png` (Fold inner landscape 2176x1812). Portrait is out of scope (OQ-PORTRAIT in OPEN_QUESTIONS.md); the tool skips any `--vjoy-shot` name containing "portrait".

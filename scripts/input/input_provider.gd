@@ -9,6 +9,15 @@ func get_move() -> Vector2:
 
 
 ## Look contribution in radians-per-tick-ish units, already scaled by sensitivity.
+## "camera" providers are scaled by the Camera / ADS / Free Look tables, "gyro" by the Gyro tables (G2d).
+var look_source: String = "camera"
+
+
+## Called by InputRouter every tick before get_look(): whether the player is aiming (aim_blend > 0) and the row.
+func set_look_context(_ads: bool, _row: String) -> void:
+	pass
+
+
 func get_look() -> Vector2:
 	return Vector2.ZERO
 

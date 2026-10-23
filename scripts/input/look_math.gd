@@ -23,6 +23,12 @@ static func clamp_turn(v: Vector2, cfg: Dictionary, hz: float) -> Vector2:
 	return Vector2(clampf(v.x, -m, m), clampf(v.y, -m, m))
 
 
+## Sensitivity table entry (percent, 100 = unchanged) applied to a look delta (G2d). The max turn cap is
+## applied by the providers before this, so a table value above 100 can exceed it.
+static func apply_percent(v: Vector2, percent: float) -> Vector2:
+	return v * (percent / 100.0)
+
+
 ## Rate source (right stick, touch stick mode): full deflection gives look.stick_rate_deg_s.
 static func look_from_stick(v: Vector2, cfg: Dictionary, hz: float) -> Vector2:
 	var look: Dictionary = cfg.get("look", {})
