@@ -3156,3 +3156,108 @@ VERDICT: APPROVE
 G2e3's single item is fixed exactly as asked (tests/test_layout_editor.gd:354 asserts "shield bar", which matches
 check_slot's first-hit order at layout_editor.gd:310/317-321); only that line changed; no assertion weakened; suite
 284/284; import and export clean; P1, P2 and P3 are all caught.
+
+## G2f review
+
+Opus check of 6c87f90 ("feat: G2f haptics settings and platform service") against fixG/G2f.txt, prev = 66f58c0.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius tests_G2f.log:337 "TESTS: 297 passed, 0 failed"; fixG.log:225 "GATE G2f
+apk=True tests=0 shots=105") ; apk = FOUND (build/gladius-debug.apk, re-exported in this review) ; shots = FOUND (n>100;
+all four named haptics_settings_{cover,inner,cover_small,inner_small}_landscape.png present) ; step commit = FOUND (6c87f90,
+24 files, +710/-4).
+
+### Run in this review (live repo, each command on its own)
+- `godot.cmd --headless --path . --import`: exit 0, no project errors.
+- `godot.cmd --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, "Signed", "Adding permission
+  android.permission.VIBRATE", no ERROR lines. Glob finds build/gladius-debug.apk.
+- `godot.cmd --headless --path . --script res://tests/run_tests.gd`: exit 0, "TESTS: 297 passed, 0 failed" (13 new in
+  test_haptics.gd). The only "ERROR:" line is the pre-existing intentional push_error that
+  test_button_capture_far_target.gd::test_place_far_target_stops_when_no_lane_is_usable expects (tools/button_capture.gd:83).
+  G2f did not add it.
+
+### Item 1: API check (G2f took the full path, not the STOP path)
+- I searched it myself. `vibrate_handheld` IS staged: staging/godot-docs/class_input.md:1834 gives the signature
+  `vibrate_handheld(duration_ms: int = 500, amplitude: float = -1.0)`, :1838 says amplitude is 0.0-1.0, :1840 says "implemented on
+  Android, iOS, and Web. It has no effect on other platforms.", :1842 says Android needs VIBRATE in the export preset, and :1844
+  says iOS honours duration only on 13+. docs/engine-reference/godot/ has no vibrate/haptic entry (grep: no match). So
+  continuing past item 1 was correct.
+- OQ-HAPTICS-API exists (docs/OPEN_QUESTIONS.md, added at :136) and is marked RESOLVED with those citations.
+
+### Item 2: platform service
+- scripts/platform/haptics_backend.gd:9-20: OS.get_name() switch. "Android", "iOS" call `Input.vibrate_handheld(duration_ms,
+  amplitude)` (staged signature). Everything else, and headless, is a no-op. The iOS path follows the doc (:1840).
+  Web is a documented no-op for now (OQ-HAPTICS-API). OK.
+- Permission: export_presets.cfg:68 `permissions/vibrate=true`, per class_input.md:1842. The export log confirms it. OK.
+- `Input.vibrate_handheld` is called only in scripts/platform/ (grep over *.gd: haptics_backend.gd:20, plus the
+  pre-existing platform_services.gd:94). OK. Gameplay goes through `Haptics.play(...)` (scripts/platform/haptics.gd:16)
+  from scripts/systems/haptics_events.gd:9-12. No gameplay file touches Input for vibration.
+- Unsupported devices: haptics_service.gd:66-67 `is_enabled()` is `enabled and is_supported()`, and play() returns early
+  (:91). The screen shows "Not available on this device" and disables the controls (haptics_screen.gd:62-63, :110-123). OK.
+
+### Item 3: categories, quality, data
+- data/haptics.json:11 categories = weapons, status, sound_cues. There is **no vehicle category**. Events: weapon_fire,
+  weapon_reload, melee_hit (weapons), damage_taken, shield_break, death (status), sound_cue (sound_cues). Each category has
+  a toggle (haptics_screen.gd:65-66). Sound cues are wired to nothing, with OQ-HAPTICS-SOUND-CUES, as the prompt allows.
+- High/Low: every event has `high` and `low` {duration_ms, amplitude} blocks and `"_placeholder": true` (haptics.json:13-26).
+  The root (:2) and defaults (:5) are `_placeholder` too, and OQ-HAPTICS-VALUES lists them. play() picks `ev[quality]`
+  (haptics_service.gd:99). The service reads them with no numeric fallback.
+- Defaults: on, every category on, High (haptics.json:4-9), placeholders. No value is labelled as PUBG's: CONTROLS.md says
+  "not PUBG's", and the diff adds no `_source`.
+
+### Item 4: settings UI and persistence
+- Settings > "Haptics" (settings_panel.gd:51, :136-155). It is reachable from the main menu and the pause menu through the
+  shared SettingsPanel.
+- Persistence: profile key `haptics` in SaveService (save_service.gd:24, :82, :99), which is the user:// profile.
+  sanitize() falls back to data defaults (haptics_service.gd:31-46). OK.
+- 48 dp: UiScale.bind (haptics_screen.gd:33), and test_haptics.gd:169-171 checks master_button against
+  48 * PlatformServices.get_dp_scale(). In the shots, every button is well above 48 dp.
+
+### Item 5: tests (tests/test_haptics.gd, new file)
+- The category gating (:43-59), master off (:62), quality High vs Low values from data (:75-90), unsupported = off and no
+  calls (:99-106), round trip through a user:// file (:117-132), corrupt profile (:135), screen persistence and the
+  unsupported text (:141-173), and a real offline match where `fire_shot()` reaches the fake through Haptics.play with the data
+  values (:185-221) are all present. The fake backend is injected via `HapticsService.new({}, fake)`.
+- Weak spot (note 2): the match test emits `reload_started`, `melee_landed` and `damaged` directly (:210-217). Only fire
+  goes through real gameplay code.
+
+### Item 6 and other checks
+- docs/CONTROLS.md:132-146 Haptics section with the class_input.md file:line citations.
+- Existing tests: the commit touches no existing test file (`--stat` lists only the new tests/test_haptics.gd). No assertion
+  changed or removed.
+- `git diff 66f58c0 6c87f90 --stat -- .claude/settings.json tests/test_physics_baseline.gd data/physics_baseline.json` is
+  empty.
+- Banned-word check (word list kept off-repo): a case-insensitive grep of the repo finds hits only in pre-existing files
+  (DESIGN.md, ARCHITECTURE.md, OPEN_QUESTIONS.md:29, plans/sprint1.md, damage_rules.gd:3, earlier review text). None of the
+  24 G2f files contains it, and the commit message doesn't either.
+- iOS: no Android-only API outside scripts/platform/. The backend's iOS branch uses the same documented cross-platform call.
+- GODOT API: Input.vibrate_handheld (class_input.md:1834-1850). Button.toggle_mode, set_pressed_no_signal, CanvasLayer,
+  OS.get_name and DisplayServer.get_name have no entry in breaking-changes.md or deprecated-apis.md.
+
+### Shots (opened and viewed)
+- haptics_settings_cover_landscape.png (2520x1080): Back (red) top-left, "Haptics" title centred. Then full-width rows:
+  "Haptics: On", "Weapons (fire, reload, melee hit): On", "Status (damage, shield break, death): On", "Sound cues: On".
+  Then "Quality:" with a dark "High" button and a red/gold-bordered "Low" button. The lower ~40% is empty. No
+  "Not available" text (the fake backend reports supported).
+- haptics_settings_inner_landscape.png (2176x1812): the same layout, larger text. The rows fill the top ~55%.
+- haptics_settings_cover_small_landscape.png (1512x648): the same, scaled down. Rows about 58 px tall.
+- haptics_settings_inner_small_landscape.png (1152x959): the same. The rows and quality buttons are clearly above 48 dp.
+- In all four, the **selected** quality (High, the default) is drawn dark and the unselected **Low** is drawn red with a
+  gold border, so the screen reads as "Low selected" (Issue 1).
+
+### Notes (not blocking)
+1. scripts/platform/platform_services.gd:90-96 (pre-existing) still has `vibrate(ms)`, which calls Input.vibrate_handheld
+   without the haptics settings. Nothing calls it today. Delegate it to Haptics or remove it so the toggles cannot be
+   bypassed later.
+2. tests/test_haptics.gd:210-217 emit the reload, melee and damage signals by hand, so they only prove the binding in
+   haptics_events.gd, not that Pawn emits `melee_landed`/`damaged` (pawn.gd:125-128, :181-183).
+3. docs/CONTROLS.md:136 cites the staged doc with an absolute user path. A repo-relative "staging/godot-docs/..." (as
+   in OPEN_QUESTIONS.md) would be cleaner.
+
+VERDICT: ITERATE
+1. scenes/ui/theme.tres:23 styles only `Button/styles/normal` (red, gold border), and scripts/ui/haptics_screen.gd:72-73,
+   :120-123 rely on the toggle-button pressed state to show the chosen quality. The pressed state falls back to the default
+   dark style, so the active quality (High) looks dark and the inactive Low looks highlighted, which is inverted in all four
+   shots. The category rows survive only because their text says On/Off. Fix: give the selected quality a clear marker,
+   either a `pressed` style in the theme or a text cue ("High (selected)" / a check mark) as the category rows do. Retake the
+   four shots, and add a test asserting the active quality button is visually distinguished (e.g. its text or style
+   override) after choosing Low.
