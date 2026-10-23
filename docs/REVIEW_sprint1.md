@@ -2916,7 +2916,7 @@ layout_editor_{cover,inner,cover_small,inner_small}_landscape.png) ; step commit
   purpose and PASSes; it is not from G2e.
 
 ### Rules
-- `git diff 28b123f 4d204ba -U0 -i -G halo`: no files. No "Halo" text added.
+- Banned-word check (word list kept off-repo) prints nothing.
 - Existing tests: the commit touches no existing test file (stat: only tests/test_layout_editor.gd(.uid) under tests/). No
   assertion changed or removed. tests/test_physics_baseline.gd, data/physics_baseline.json and .claude/settings.json are
   not in the diff.
