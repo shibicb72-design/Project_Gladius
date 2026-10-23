@@ -2750,7 +2750,7 @@ tools/button_capture.gd:83, which tests/test_button_capture_far_target.gd:148 tr
   In all four shots the slider track sits slightly above its row label's baseline. This is cosmetic.
 
 ### Other checks
-- "halo": `git diff 02d2432 95dba05 -U0 -i -G halo --name-only` prints nothing, and the commit message has none.
+- Banned-word check (word list kept off-repo) prints nothing, and the commit message has none.
 - iOS: G2d adds no OS/JNI/Engine.get_singleton/Android call (grep over scripts/input, the new UI, save_service, the tool and
   the test). Gyro reads stay behind PlatformServices.has_gyro/get_gyro_rate, and dp comes from PlatformServices.
 - .claude/settings.json, tests/test_physics_baseline.gd and data/physics_baseline.json are unchanged (diff empty).
@@ -2844,7 +2844,7 @@ in tests/test_match_sensitivity.gd). No "SCRIPT ERROR" or "Parse Error". The onl
 ### Rule checks
 - Data values: the only data change is the placeholder flag above. No value is newly labelled as PUBG's; the existing
   `_source` on the gyro and ADS-gyro max 400 (input.json:36-37) is the one the G2d prompt allows.
-- `git diff 15f148c -U0 -i -G halo` is empty: no new text with the banned word. docs/DESIGN.md unchanged.
+- Banned-word check (word list kept off-repo) prints nothing. docs/DESIGN.md unchanged.
 - Existing tests: the only touched existing test file is tests/test_sensitivity.gd, and its diff is two added lines (:226,
   :227 above); no line changed or removed. tests/test_physics_baseline.gd, data/physics_baseline.json, .claude/settings.json
   and scripts/platform/ have an empty diff since 15f148c.
