@@ -18,7 +18,7 @@ static func defaults() -> Dictionary:
 	return {"version": VERSION, "gamertag": DEFAULT_GAMERTAG, "last_ip": "", "gyro_enabled": false,  # OQ-34: gyro off by default
 			"move_stick": "", "vjoy_layout": "",  # "" = use data/input.json touch_layout (see docs/CONTROLS.md)
 			"sprint_sensitivity": DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]["default"],
-			"sprint_lock_pos": []}  # [] = data/input.json sprint.lock_button.pos; G2e's layout editor writes [x, y] (fractions)
+			"sprint_lock_pos": []}  # [] = data/input.json touch_layout.sprint_lock_pos; G2e's layout editor writes [x, y] (fractions)
 
 
 ## Slider value from a file or menu: snapped to the step and clamped to the data range.

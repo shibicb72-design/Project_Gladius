@@ -48,17 +48,16 @@ func _ready() -> void:
 	provider.configure(cfg)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var anchor: Array = _layout.get("button_anchor", [1.0, 1.0])
-	for action in _layout.get("buttons", {}):
+	for action in _layout["buttons"]:
 		var spec: Dictionary = _layout["buttons"][action]
 		var b := Button.new()
 		b.text = String(spec.get("label", action))
 		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.focus_mode = Control.FOCUS_NONE
-		b.anchor_left = anchor[0]
-		b.anchor_right = anchor[0]
-		b.anchor_top = anchor[1]
-		b.anchor_bottom = anchor[1]
+		b.anchor_left = 0.0  # offsets below are absolute HUD positions (relayout)
+		b.anchor_right = 0.0
+		b.anchor_top = 0.0
+		b.anchor_bottom = 0.0
 		add_child(b)
 		_buttons[action] = b
 	if bool(_DataRegistry.new().load_file("res://data/ui.json")["touch_debug_overlay"]["enabled"]):
@@ -107,7 +106,7 @@ func _lock_side(key: String) -> float:
 func _lock_button_center() -> Vector2:
 	var p: Array = AppFlow.profile.get("sprint_lock_pos", [])
 	if p.size() != 2:
-		p = cfg["sprint"]["lock_button"]["pos"]
+		p = _layout["sprint_lock_pos"]
 	return Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y)
 
 
@@ -293,8 +292,8 @@ func relayout() -> void:
 	for action in _buttons:
 		var b: Button = _buttons[action]
 		var cell := _cell_rect(_layout["buttons"][action])
-		b.offset_left = cell.position.x - _anchor_point().x
-		b.offset_top = cell.position.y - _anchor_point().y
+		b.offset_left = cell.position.x
+		b.offset_top = cell.position.y
 		b.offset_right = b.offset_left + s
 		b.offset_bottom = b.offset_top + s
 		b.add_theme_font_size_override("font_size", int(s * float(_layout.get("button_font_frac_of_size", 0.24))))
@@ -304,18 +303,18 @@ func relayout() -> void:
 
 
 ## Rest centre of a stick in HUD space, from data (x of width, y of height).
-func _rest_center(key: String, fallback: Array) -> Vector2:
-	var a: Array = _layout.get(key, fallback)
+func _rest_center(key: String) -> Vector2:
+	var a: Array = _layout[key]
 	var s := _area()
 	return Vector2(float(a[0]) * s.x, float(a[1]) * s.y)
 
 
 func get_move_rest() -> Vector2:
-	return _rest_center("move_stick_rest", [0.15, 0.76])
+	return _rest_center("move_stick_rest")
 
 
 func get_look_rest() -> Vector2:
-	return _rest_center("look_stick_rest", [0.58, 0.76])
+	return _rest_center("look_stick_rest")
 
 
 ## Places both stick rings: look is fixed at rest; move follows the thumb while held and returns to rest on release.
@@ -377,21 +376,17 @@ func _move_grab_rect() -> Rect2:
 	return _zone_rect("move_zone")
 
 
-func _anchor_point() -> Vector2:
-	var a: Array = _layout.get("button_anchor", [1.0, 1.0])
-	var area := _area()
-	return Vector2(float(a[0]) * area.x, float(a[1]) * area.y)
-
-
+## Button side in px: its data fraction of the HUD height, never below button_min_dp (touch target floor).
 func _button_size() -> float:
-	return float(_layout.get("button_size_frac_of_height", 0.16)) * _area().y
+	return maxf(float(_layout["button_size_frac_of_height"]) * _area().y, float(_layout["button_min_dp"]) * _Platform.new().get_dp_scale())
 
 
+## A button's rect: its data offset (in button sizes) from the look stick rest centre.
 func _cell_rect(spec: Dictionary) -> Rect2:
 	var s := _button_size()
-	var step := s + float(_layout.get("button_gap_frac_of_height", 0.02)) * _area().y
-	var corner := _anchor_point()
-	return Rect2(corner.x - s - int(spec.get("col", 0)) * step, corner.y - s - int(spec.get("row", 0)) * step, s, s)
+	var o: Array = spec["offset"]
+	var c := get_look_rest() + Vector2(float(o[0]), float(o[1])) * s
+	return Rect2(c - Vector2.ONE * s * 0.5, Vector2.ONE * s)
 
 
 ## Screen rect of the button for an action (the HUD is full-screen, so this is viewport space).

@@ -96,6 +96,12 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-45: What behavior earns "Carthaginian"?** DESIGN.md names it but gives no rule, and there is no
   friendly fire. Draft: a host who abandons matches (the match closes because the host left), read
   as "Punic faith". Deserter covers players who quit.
+- **OQ-LAYOUT (G2L): default touch layout numbers.** Shibi asked for: move stick bottom-left, look stick
+  bottom-right, Aim/Reload/Fire/Swap/Jump smaller and north-west of the look stick. Every number is a
+  placeholder in data/input.json touch_layout (look_stick_rest, button_size_frac_of_height,
+  button_min_dp, per-button offsets in button sizes from the look stick, sprint_lock_pos), not a design
+  value and not PUBG's. Button size has a 48 dp floor, so on dense small screens (e.g. 648 px high at
+  420 dpi) buttons are larger than the data fraction. Needs Shibi's playtest feedback.
 - **OQ-46: Do bot victims count as kills for medals and traits?** DECIDED (Shibi, Oct 22 2026): the draft stands: yes (`count_bot_victims: true`).
 - **OQ-47: Medal stacking.** DECIDED (Shibi, Oct 22 2026): the draft stands: lower tiers are also awarded (each pays 10 Denarii); no cap.
 - **OQ-48: Trait display.** How many traits show per player in the lobby, and is there one in-game

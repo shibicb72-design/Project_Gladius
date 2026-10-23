@@ -21,6 +21,7 @@ var _trace_events: bool = false
 var _vjoy_shot_name: String = ""
 var _sprint_shot_name: String = ""
 var _menu_shot_name: String = ""
+var _layout_shot_name: String = ""
 
 
 func _ready() -> void:
@@ -33,6 +34,8 @@ func _ready() -> void:
 			_dpi = float(a.substr(6))
 		elif a.begins_with("--vjoy-shot="):  # only save the VirtualJoystick move stick at rest as <out>/<value>.png
 			_vjoy_shot_name = a.substr(12)
+		elif a.begins_with("--layout-shot="):  # G2L: match HUD at rest with labels filled, saved as <tag>_<value>.png; use --tag=layout
+			_layout_shot_name = a.substr(14)
 		elif a.begins_with("--menu-shot="):  # in-match menu: saves <tag>_closed_<value>_landscape.png and <tag>_open_...; use --tag=menu
 			_menu_shot_name = a.substr(12)
 		elif a.begins_with("--sprint-shot="):  # sprint lock target mid-push ("sprint_lock_*") or locked state ("sprint_locked_*")
@@ -106,6 +109,10 @@ func _run() -> void:
 			_log("skipped %s: portrait is out of scope (OQ-PORTRAIT)" % _sprint_shot_name)
 		else:
 			await _sprint_shot()
+		get_tree().quit(0)
+		return
+	if _layout_shot_name != "":
+		await _layout_shot()
 		get_tree().quit(0)
 		return
 	if _menu_shot_name != "":
@@ -256,6 +263,28 @@ func _lobby_shots() -> void:
 
 
 ## G2M: the match with the gear closed, then a real tap on the gear (pushed through the viewport) and the open menu.
+func _layout_shot() -> void:
+	var m: MatchRoot = _MatchScene.instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.fill_bots = false
+	add_child(m)
+	await _frames(2)
+	m.begin()
+	await _frames(5)
+	var hud: GameHud = m.hud
+	hud.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	hud.timer_label.text = "10:00"
+	hud.hill_label.text = "Hill: contested"
+	hud.weapon_label.text = "Gladius Rifle"
+	hud.ammo_label.text = "120 / 360"
+	m.get_node("Hud/TouchHud").relayout()
+	await _frames(3)
+	await _shot(_layout_shot_name)
+	m.queue_free()
+	await _frames(2)
+
+
 func _menu_shots() -> void:
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
