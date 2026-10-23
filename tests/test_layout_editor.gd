@@ -351,7 +351,7 @@ func test_overlap_with_hud_bar_warns_and_does_not_block() -> void:
 	ed.move_selected_to(Vector2(0.06, 0.12))
 	var found := false
 	for it in ed.issues:
-		if it["kind"] == "overlap" and it["element"] == "jump" and it["size"] == COVER and it["text"].contains("the HUD (") and not it["text"].contains("gear"):
+		if it["kind"] == "overlap" and it["element"] == "jump" and it["size"] == COVER and it["text"].contains("overlaps the HUD (shield bar) at") and not it["text"].contains("gear"):
 			found = true
 	assert_true(found, "overlap with a HUD bar is reported by name: %s" % [ed.issues])
 	assert_true(ed.warn_label.visible, "warning shown")
