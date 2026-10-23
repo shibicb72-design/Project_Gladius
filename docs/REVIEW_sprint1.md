@@ -2067,3 +2067,101 @@ VERDICT: ITERATE
 2. tools/button_capture.gd:87: the far-shot aim uses a hard-coded `PI / 3.0` spawn-layout assumption. With a
    different spawn (this review's run) the shot hit level geometry at ~22 m instead of the 35 m target. Derive the
    direction from the map data (e.g. aim at the actual target or a known open lane), so the far shot is reliably far.
+
+## GBTN4 review
+
+Opus check of 981928a ("fix: GBTN4 right-shoulder camera, host-validated aim", parent de7f74d) against
+cc_gladius/fixG/GBTN4.txt and VGBTN4.txt, template fixG/VTEMPLATE.txt, Oct 22 2026. Review only; mutations were
+in-repo and reverted (`git status --porcelain` afterwards: empty).
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_GBTN4.log "TESTS: 219 passed, 0 failed"; gate line is in
+cc_gladius/fixG.log:82 "GATE GBTN4 apk=True tests=0 shots=81", not fix3c.log) ; apk = FOUND (build/gladius-debug.apk,
+re-exported in this review: "Signed", "[ DONE ] export") ; shots = FOUND (build/shots/*.png, 81 per gate, incl.
+buttons_fire_{,far_}{cover,inner}_landscape.png) ; step commit = FOUND (981928a, 18 files, +329/-12).
+Gates run here: `--import` exit 0; Android export "[ DONE ] export"; full suite exit 0 "TESTS: 219 passed, 0 failed",
+no SCRIPT ERROR / Parse Error / ERROR: lines (the only warning is the expected "fire rejected for player 5:
+aim_blocked" from the rejection test).
+
+1. SpringArm3D question, measured. `godot --headless --path . --script res://tools/measure_shoulder.gd` at HEAD:
+   "arm.position=(0.6, 0.0, 0.0) cam.position(local to arm)=(0.0, 0.0, 3.5) cam_in_rig=(0.6, 0.0, 3.5)". With the
+   offset put back on the camera (camera_rig.gd:31 `_arm` -> `_camera`, reverted): "arm.position=(0.0, 0.0, 0.0)
+   cam.position(local to arm)=(0.0, 0.0, 3.5) cam_in_rig=(0.0, 0.0, 3.5)". So SpringArm3D does reset the child camera's
+   x; the offset on the arm (camera_rig.gd:31) is where it takes effect. PASS.
+2. data/camera.json:5 `"shoulder_offset_m": {"_placeholder": true, "value": 0.6, "unit": "m", ...}`;
+   camera_rig.gd:31 `_arm.position.x = float(_cfg["shoulder_offset_m"]["value"])`, no fallback. The two new keys
+   (camera.json:6-7 aim_ray_length_m, aim_validate_epsilon_m) are placeholders too, read without fallback
+   (camera_rig.gd:53, net_match_bridge.gd:242). PASS.
+3. Aim path:
+   - client: match_root.gd:166-169 `frame.aim_point = rig.get_aim_point(local_player.hitscan_exclude())`,
+     `frame.has_aim_point = true` -> camera_rig.gd:52-53 -> aim_math.gd:8-17 (screen-centre ray, world/body/head,
+     else far point at aim_ray_length_m).
+   - local shot: pawn.gd:147-151 direction = muzzle -> frame.aim_point; pawn.gd:169-171 hitscan from
+     get_muzzle_position().
+   - input frame: input_frame.gd:48 `to_array` appends has_aim_point, aim.x/y/z; :59-61 `from_array` reads them;
+     match_root.gd:175 `send_input(frame, ...)` -> net_match_bridge.gd:153-160 `submit_input` -> :165-173
+     `host_note_input` stores `_last_aim_point[pid]` (erased when a frame has none).
+   - host validation: net_match_bridge.gd:238-245 `AimMath.validate_aim(space, muzzle, _last_aim_point[pid], eps, exclude)`;
+     aim_math.gd:22-31 casts muzzle -> point on MASK_WORLD and returns "aim_blocked" if the hit is nearer than the
+     point minus epsilon; bridge returns before validate_fire, ammo and announce.
+   - shot spawn: net_match_bridge.gd:249-251 `origin = muzzle`, `direction = (point - muzzle).normalized()`, then
+     Hitscan.fire :261, show_shot_fx :266, announce_shot :267.
+   Rejection verified by test_shoulder_aim.gd:74-90 (wall at z=-5, point at z=-12: not ok, reason aim_blocked, 0
+   announces, ammo unchanged) and mutation (d) below. PASS.
+4. `Grep PI tools/button_capture.gd`: no match. button_capture.gd:81 `SpawnLane.neighbour_lane(pawn, dist)`;
+   spawn_lane.gd:10 reads `DataRegistry.MAP_PATH` (data_registry.gd:11 = res://data/maps/alesia_section.json, 6
+   spot_ ids) "spawns", tries both ring neighbours, rejects too-close or world-blocked lanes; stop path
+   button_capture.gd:82-84 `push_error("[button_capture] STOP, no usable lane: ...")`, `return false`, and :121-123
+   frees the viewport and fails the shot. PASS (but see mutation (c)).
+5. Tracer far end vs shooter rect (test_shoulder_aim.gd:125-145), values from a temporary print added to the
+   passing test (removed afterwards):
+   "VGBTN4PROBE (2520, 1080) vp=(1512.0, 648.0) ep=[(-39.22, 1.15, 0.24), (-9.74, 1.36, 52.50)] far_px=(752.38, 325.61)
+   rect=[P: (619.79, 324.0), S: (114.55, 217.93)]" and
+   "VGBTN4PROBE (2176, 1812) vp=(1152.0, 959.0) ep=[(-20.78, 1.15, 34.40), (-50.26, 1.36, -17.86)] far_px=(571.51, 481.50)
+   rect=[P: (407.20, 479.5), S: (141.97, 270.08)]"; "PASS ...test_far_tracer_ends_outside_the_shooter_screen_rect_at_fold_sizes".
+   The far end is right of the rect by 18.0 px (cover) and 22.3 px (inner) in viewport pixels (content scale; the
+   window sizes are 2520x1080 / 2176x1812). With offset 0 the test fails: "far end (755.11, 325.61) outside shooter
+   rect [P: (701.52, 324.0), S: (108.97, 217.93)]". PASS.
+6. docs/CONTROLS.md:63 shoulder row (placeholder, camera.json, measured note, OQ-SHOULDER); CONTROLS.md:57
+   "radial_deadzone 0.1 is new vs 8ffb2da, a placeholder, tunable in input.json move_feel." verbatim;
+   OPEN_QUESTIONS.md:122 OQ-SHOULDER (offset value, left/right swap). PASS.
+7. Mutations (each reverted):
+   (a) camera.json shoulder_offset_m value 0.0: "FAIL ...test_shoulder_offset_is_on_the_arm_and_survives_physics_frames:
+       right shoulder: positive x" and "FAIL ...test_far_tracer_ends_outside_the_shooter_screen_rect_at_fold_sizes:
+       (2520, 1080): far end (755.1147, 325.6097) outside shooter rect ...". Also offset on the camera instead of the arm:
+       "FAIL ...: camera x in the rig is the shoulder offset (0.0 vs 0.6)". Caught.
+   (b) shot origin at the camera. Client pawn.gd:169 `origin := get_viewport().get_camera_3d().global_position`:
+       "FAIL test_action_buttons.gd::test_hit_marker_shows_on_a_hit_only" and "FAIL test_weapons.gd::
+       test_hitscan_damages_dummy" (217 passed, 2 failed; caught by older tests, not by test_shoulder_aim). Host
+       net_match_bridge.gd:250 `origin = pawn.global_transform * Vector3(0.6, 1.6, 3.5)`: "FAIL ...
+       test_host_accepts_clear_aim_point_and_fires_from_the_muzzle_toward_it: shot starts at the muzzle". Caught.
+   (c) PI/3 chord restored in button_capture.gd `_place_far_target` (replacing `lane["dir"]`): full suite
+       "TESTS: 219 passed, 0 failed". NOT caught: no test loads tools/button_capture.gd (`Grep button_capture tests/`:
+       no matches); test_shoulder_aim.gd:130 calls SpawnLane directly.
+   (d) aim_math.gd:30 returns ok for a blocked ray: "FAIL ...test_host_rejects_aim_point_behind_a_wall_and_spawns_no_shot:
+       aim point behind the wall is rejected; reason names the blocked muzzle ray (expected aim_blocked, got );
+       no shot spawned or announced (expected 0, got 1); no ammo spent (expected 30, got 29)". Caught.
+8. Integrity: `git diff de7f74d --stat -- tests/` = test_net_match.gd +6, test_shoulder_aim.gd +145 (new), .uid;
+   no assertion removed. test_net_match.gd:196-201 frees the client CameraRig so the e2e fire test keeps its staged
+   claimed direction; documented in the test, but it means no e2e test sends an aim point over the real RPC.
+9. Godot APIs: PhysicsRayQueryParameters3D.create / intersect_ray as in docs/engine-reference/godot/modules/physics.md:75-77;
+   SpringArm3D, Camera3D.project_ray_origin/normal, unproject_position: no entry in breaking-changes.md or
+   deprecated-apis.md (Grep: no matches).
+
+Non-blocking notes:
+- net_match_bridge.gd:239-251: the host fires at the last aim point from `submit_input`, which is unreliable and sent
+  at input_interval_s (1/15 s, net_match_bridge.gd:22), while `request_fire` is reliable. A shot fired while turning
+  can go to an aim point up to ~67 ms old (more on loss), so the host's shot can differ from the client's own tracer.
+  Sending the aim point with `request_fire` would remove that. The task asked for it in the input frame, so this is a
+  follow-up, not a defect.
+- net_match_bridge.gd:239: a client that sends frames without an aim point skips validate_aim and uses its claimed
+  direction (legacy path). Already listed in OQ-SHOULDER.
+- The tracer clears the shooter rect by only 18-22 viewport px at offset 0.6; any smaller placeholder value would
+  fail the test. Fine while 0.6 is the value; worth knowing when OQ-SHOULDER is decided.
+
+VERDICT: ITERATE
+1. tools/button_capture.gd:78-94 (VGBTN4 mutation (c)): restoring the `PI / 3.0` chord in `_place_far_target` leaves
+   the suite green (219 passed, 0 failed), so the fixture's use of map-data spawns is untested. test_shoulder_aim.gd:130
+   checks SpawnLane on its own, not the tool. Add a test that drives the far-target placement (e.g. move the
+   placement into a function the test can call, or run `_place_far_target` on a button_rig match) and asserts the
+   target lies on the line to the SpawnLane spot from data/maps/alesia_section.json, plus the STOP path returning
+   false when no lane is usable.
