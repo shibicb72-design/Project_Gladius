@@ -3253,6 +3253,24 @@ all four named haptics_settings_{cover,inner,cover_small,inner_small}_landscape.
 3. docs/CONTROLS.md:136 cites the staged doc with an absolute user path. A repo-relative "staging/godot-docs/..." (as
    in OPEN_QUESTIONS.md) would be cleaner.
 
+### Mutations (scratch copy cc_gladius/scratch/vG2f at 6c87f90, imported first; each made with Edit, run, then undone)
+- M1 haptics_service.gd:97 category gate disabled (`if false and ...`): CAUGHT. The full suite gives "295 passed, 2 failed":
+  FAIL test_each_category_toggle_gates_its_events ("weapon_fire blocked when weapons is off; ... expected 4, got 7") and
+  FAIL test_match_gameplay_events_reach_the_service ("weapons off -> the next shot makes no call (expected 4, got 5)").
+- M2 haptics_service.gd:99 `ev["high"]` regardless of quality: CAUGHT. FAIL test_quality_selects_high_or_low_values_from_data
+  ("weapon_fire low values (expected [12, 0.3], got [25, 0.6]) ...").
+- M3 haptics_service.gd:67 `is_enabled()` ignores is_supported(): CAUGHT. FAIL test_unsupported_device_is_off_and_never_calls
+  ("no backend calls (expected 0, got 2)") and FAIL test_screen_toggles_persist_and_unsupported_shows_text ("reads Off").
+- M4 haptics_events.gd:9 shot_resolved no longer plays weapon_fire: CAUGHT. FAIL test_match_gameplay_events_reach_the_service
+  ("a fired shot -> one weapon_fire haptic call (expected 1, got 0)").
+- M5 pawn.gd:126 `damaged` never emitted: SURVIVES. The full suite gives "297 passed, 0 failed". This confirms note 2: the
+  status-event path from real damage is untested. The prompt's item 5 only requires the weapon-fire path, so this is not
+  blocking.
+- M6 save_service.gd:99 save drops the haptics settings (`sanitize(null)`): CAUGHT. FAIL test_profile_round_trip ("quality
+  round-trips (expected low, got high)") and FAIL test_screen_toggles_persist_and_unsupported_shows_text ("quality saved").
+- After undoing all six, `--only=test_haptics` in the copy gives "TESTS: 13 passed, 0 failed". The copy is left in place.
+  The live repo was never mutated.
+
 VERDICT: ITERATE
 1. scenes/ui/theme.tres:23 styles only `Button/styles/normal` (red, gold border), and scripts/ui/haptics_screen.gd:72-73,
    :120-123 rely on the toggle-button pressed state to show the chosen quality. The pressed state falls back to the default
