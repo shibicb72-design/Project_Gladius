@@ -2571,3 +2571,118 @@ VERDICT: ITERATE
 4. tests/test_touch_layout_g2l.gd:74-112: the pairwise overlap test only runs at the default dpi. Also run it at dpi 420,
    where the 48 dp floor enlarges the buttons.
 5. tools/touch_capture.gd:265-280: the misplaced G2M doc comment, and layout-shot label strings that never show.
+
+## G2L review (VG2L2: G2L2 fix round)
+
+Task prompts: fixG/G2L2.txt (fix round), with fixG/G2L.txt for everything G2L2 leaves in place. Verifier template:
+fixG/VTEMPLATE.txt. Step commit 326a548, compared with prev = 9f7056f (G2L review).
+
+INPUTS: tests log/exit code = FOUND (ran here: `--import` exit 0; `--export-debug "Android" build/gladius-debug.apk`
+exit 0, "Signed", "[ DONE ] export"; full suite exit 0, "TESTS: 252 passed, 0 failed". fix3c.log has no "GATE G2L2" line,
+so this run is the evidence) ; apk = FOUND (Glob finds build/gladius-debug.apk after the export) ; shots = FOUND (n=95 in
+build/shots/*.png, including the 4 named layout_* shots) ; step commit = FOUND (326a548 "fix: G2L2 lock default, dpi-420
+overlap, doc and tool fixes", 4 files, +15/-3)
+
+Run notes: no SCRIPT ERROR or Parse Error lines. The only "ERROR:" line is the deliberate STOP push_error from
+tools/button_capture.gd:83, which tests/test_button_capture_far_target.gd:148 triggers on purpose (accepted before).
+
+### G2L2 items
+1. CONTROLS.md: OK. docs/CONTROLS.md:88 now reads "Its default position is `input.json` `touch_layout.sprint_lock_pos`
+   (`"_placeholder": true`); the profile key `sprint_lock_pos` ([x, y] fractions) overrides it". `sprint.lock_button.pos` is
+   no longer named.
+2. Lock default: OK. data/input.json:89 `"sprint_lock_pos": [0.56, 0.42]`, inside touch_layout (`"_placeholder": true`
+   :52). `sprint.lock_button` (:42-43) has no `pos`. test_lock_default_only_in_touch_layout_and_profile_overrides
+   (tests/test_touch_layout_g2l.gd:126-146) passes. Its :129 check (no "0.56" in the sprint block) still holds, because the
+   value now lives only in touch_layout.
+3. dpi 420 pairwise: OK. The new test test_pairwise_no_overlap_four_sizes_both_modes_dpi_420 (tests/test_touch_layout_g2l.gd:115-123)
+   sets `PlatformServices.dpi_override = 420.0` (the same platform-layer hook the 48 dp test uses at :58), then runs
+   the unchanged `_check_pairwise` (:74-104: both sticks, 5 buttons, lock button, lock target, gear, plus viewport
+   containment) for both modes at all 4 sizes. It resets the dpi to 0 at :123. It passes, so no pair overlaps at dpi
+   420 and no layout data change was needed (the commit changes no layout value besides the lock revert).
+   `git diff 9f7056f -- tests/test_touch_controls.gd` and `git diff 3a6c6d4 -- tests/test_touch_controls.gd` are both
+   **empty**: `_check_hud_clear` and its callers are byte-identical, and test_hud_clear_of_sticks_and_buttons_folded/unfolded pass.
+4. Doc comment: OK. tools/touch_capture.gd:288 "## G2M: the match with the gear closed..." now sits directly above
+   `_menu_shots` (:289). `_layout_shot` (:265) has no stray comment. The diff only moves the line.
+5. Label text: OK. tools/touch_capture.gd:275 `hud.set_process(false)` stops GameHud._process (scripts/ui/hud.gd:218, which
+   rewrites scores/timer/weapon/ammo/Hill at :230-262), so the tool's strings stick. hud.gd is not in the diff. The shots
+   show "Hill: contested", "Gladius Rifle" and "120 / 360", where before they showed "Hill: empty".
+
+### Existing tests and other checks
+- Touched test files: only tests/test_touch_layout_g2l.gd (G2L's own file), with +11 lines and no changed or removed line. The
+  diff is the whole new function at :115-123, with no `-` lines. `git diff 9f7056f -- tests/test_touch_controls.gd
+  tests/test_action_buttons.gd tests/test_sprint.gd tests/test_pause_menu.gd tests/test_physics_baseline.gd
+  data/physics_baseline.json .claude/settings.json docs/DESIGN.md scripts/` is empty. The GBTN tests (test_action_buttons.gd, 8)
+  pass unchanged.
+- G2L items left in place: the look stick is bottom-right, the 5 buttons are NW of it, button size 0.12 < 0.16 (literal
+  from f793f1a, :11), and 48 dp at dpi 0 and 420 (:56-70) all pass in both modes. The gear stays top-right and clear
+  (test_pause_menu.gd::test_gear_clear_of_hud_both_stick_modes passes, and the gear is in both pairwise tests).
+- Data: the only value G2L2 changes is input.json:89, under touch_layout `"_placeholder": true`. No value is labelled as
+  PUBG's, and the diff adds no `_source`.
+- "halo": `git diff 9f7056f -U0 -i -G halo` prints nothing.
+- Layout literals: G2L2 does not touch scripts/. The numeric `_layout.get(..., N)` fallbacks still in
+  scripts/ui/touch_hud.gd (:134, :139, :157-158, :238, :299, :425, :540, :542, :560) date from c7f94fc and earlier, not from
+  G2L or G2L2. They are outside this fix round's scope (see note 2).
+- iOS: no OS/JNI/Android call added. The only new engine call is `Node.set_process` in a desktop shot tool. dp comes from
+  PlatformServices (platform layer).
+- GODOT API: `Node.set_process` has no entry in docs/engine-reference/godot/breaking-changes.md or deprecated-apis.md (grep
+  for set_process finds only an unrelated `_process` row at deprecated-apis.md:48), so it is "not staged". `PlatformServices.dpi_override` is
+  project code.
+
+### Mutations (scratch copy cc_gladius/scratch/vG2L2 at 326a548, imported first; each mutation made with Edit, run, then undone)
+The 5 suggested in the G2L review (above, Issues 1): "(a) look_stick_rest back to [0.58, 0.76] fails :39; (b) `_button_size`
+without the maxf floor fails :68 at 1512x648 dpi 420; (c) re-adding `sprint.lock_button.pos` fails :117; (d) one button
+offset of [0, 0] fails :42/:101; (e) `_lock_button_center` ignoring the profile fails :133." (After G2L2, :117 is now
+:128 and :133 is now :144.)
+- (a) input.json look_stick_rest = [0.58, 0.76]: CAUGHT, but not by :39. Full suite "TESTS: 243 passed, 9 failed".
+  test_look_stick_bottom_right_and_buttons_north_west PASSES, because [0.58, 0.76] still satisfies x > 0.5w, y > 0.5h. FAIL
+  test_pairwise_no_overlap_four_sizes_both_modes: "lock_button [P: (807.84, 233.28), S: (77.76, 77.76)] overlaps button_jump
+  ... at (1512.0, 648.0)" (all 4 sizes), and the dpi-420 variant fails too ("move_stick ... overlaps button_swap_weapon ...
+  at (1152.0, 959.0)"). test_action_buttons.gd::test_jump_button_lifts_pawn also fails.
+- (b) touch_hud.gd:381 `_button_size` without `maxf`: CAUGHT. FAIL test_targets_at_least_48dp_at_dpi_0_and_420: "button_jump 29.6
+  dp >= 48 at (1512.0, 648.0) dpi 420.0; ... button_aim 43.8 dp >= 48 at (1152.0, 959.0) dpi 420.0".
+- (c) re-add `"pos": [0.56, 0.42]` to sprint.lock_button: CAUGHT. FAIL test_lock_default_only_in_touch_layout_and_profile_overrides:
+  "no lock default in sprint.lock_button; old lock default value gone from the sprint block" (:128, :129).
+- (d) fire offset [0, 0]: CAUGHT. FAIL test_look_stick_bottom_right_and_buttons_north_west: "custom (1512.0, 648.0): fire centre
+  (1330.56, 505.44) north-west of look centre (1330.56, 505.44)" (:42). FAIL test_pairwise_no_overlap_four_sizes_both_modes:
+  "look_stick ... overlaps button_fire ..." (:101), and the dpi-420 variant fails the same way.
+- (e) touch_hud.gd:108-109 `_lock_button_center` always uses the data default: CAUGHT. FAIL
+  test_lock_default_only_in_touch_layout_and_profile_overrides: "profile value overrides the default" (:144).
+- (f) new: a button over the look stick at dpi 420 at 1512x648 only. A data offset cannot do this, because offsets are in
+  button sizes and grow with the 48 dp floor. So the edit was in `_cell_rect` (touch_hud.gd:388): Fire's centre goes to
+  the look rest only when the HUD is 1512x648 and the dp floor is active. CAUGHT, only by the new test: FAIL
+  test_pairwise_no_overlap_four_sizes_both_modes_dpi_420: "look_stick [P: (1252.8, 427.68), S: (155.52, 155.52)] overlaps
+  button_fire [P: (1267.56, 442.44), S: (126.0, 126.0)] at (1512.0, 648.0)". The dpi-0 pairwise test PASSES, which shows
+  the new test covers a case the old one missed.
+- After undoing all six: the edited regions read the same as the live repo (touch_hud.gd:106-110, :380-389; input.json:43,
+  :60, :84), and `--only=test_touch` in the copy gives "TESTS: 48 passed, 0 failed". One undo first joined two lines
+  (Parse Error at touch_hud.gd:388); I fixed that before this check. `git -C <copy> status` needed approval, so it was not run.
+  The copy is left in place. The live repo was never mutated.
+
+### Shots (retaken, opened and viewed)
+- layout_cover_landscape.png (2520x1080): "Squad VIII: XXXVIII   Squad II: XXIX" top-left, "10:00 Hill: contested" top-right,
+  shield/health bars, "Gladius Rifle" and "120 / 360" under the scores. Move stick ring bottom-left. Look stick ring with its knob
+  in the bottom-right corner. Swap, Aim (upper row) and Reload, Fire (lower row) form a 2x2 grid to its left, and Jump is above
+  Aim, to the right. "Sprint lock" is back at about 56% x, 42% y (right of the pawn). The gear is at the right edge below the
+  time/Hill row. Nothing overlaps.
+- layout_cover_small_landscape.png (1512x648): the same layout, scaled down. The buttons are smaller than the sticks, Sprint lock
+  is just right of centre and above the horizon, and the gear is below the time/Hill row. Nothing overlaps.
+- layout_inner_landscape.png (2176x1812): the same arrangement, larger. Big look stick bottom-right, the 2x2 cluster NW of it,
+  Jump above at about 45% height, and Sprint lock at about 56% x, 42% y. The gear is top-right, well below the labels. Nothing overlaps.
+- layout_inner_small_landscape.png (1152x959): the same layout. The cluster is NW of the look stick, Jump is above it, Sprint lock is right of
+  the pawn, and the gear is top-right under the labels. Nothing overlaps.
+- In all 4, the capture tool's own yellow "desktop render, not device - layout" caption is drawn behind the gear icon. That
+  caption belongs to the tool and is not game HUD (see note 3).
+
+### Notes (not blocking)
+1. tests/test_touch_layout_g2l.gd:39: the quadrant assert cannot tell the old mid-screen rest [0.58, 0.76] from the new corner.
+   It is exactly what fixG/G2L.txt item 5 asks for (x > 0.5w, y > 0.5h), and the pairwise tests catch that mutation (a), so
+   this is not a defect. A tighter bound (e.g. x > 0.75w) would need Shibi's decision.
+2. scripts/ui/touch_hud.gd: numeric `_layout.get` fallbacks from before G2L (list above) go against "read without numeric
+   fallbacks". They are out of scope for this fix round. Worth a later cleanup step.
+3. tools/touch_capture.gd: the tool's caption sits under the gear in the layout shots. This is cosmetic and affects only
+   the shots.
+
+VERDICT: APPROVE
+All 5 G2L2 findings are fixed with file:line evidence. The import, the Android export and the full suite (252/252) pass. The
+4 layout shots were retaken and look right. No existing assertion was changed. All 5 G2L mutations and the new dpi-420
+mutation are caught, the last one only by the new test.
