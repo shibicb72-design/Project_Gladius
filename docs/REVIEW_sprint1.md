@@ -3019,3 +3019,69 @@ VERDICT: ITERATE
    HUD bar from the check (layout_editor.gd:310, mutation M5) leaves all 13 tests green. Add a test that moves an
    element onto a HUD bar or label (e.g. the shield/health bar or the scores label) at a checked size and asserts an
    "overlap" issue naming that bar, a visible warning, and Save still enabled.
+
+## G2e2 review
+
+Opus check of 9810b7f ("fix: G2e2 HUD-bar overlap warning test") against fixG/G2e2.txt, prev = 5292ab5.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius tests_G2e2.log; fixG.log:199 "GATE G2e2 apk=True tests=0 shots=101";
+re-run here: import exit 0, Android export exit 0, full suite exit 0 "TESTS: 284 passed, 0 failed") ; apk = FOUND
+(build/gladius-debug.apk after this session's export) ; shots = FOUND (n>=100, including all 4 named
+layout_editor_{cover,inner,cover_small,inner_small}_landscape.png) ; step commit = FOUND (9810b7f, 1 file, +19 lines)
+
+Gate output: the only "ERROR:" line is the expected push_error from test_button_capture_far_target.gd:148
+(tools/button_capture.gd:83), which that test asserts on and which predates this step; no SCRIPT ERROR or Parse Error.
+
+### Diff
+`git diff 5292ab5 --stat`: only tests/test_layout_editor.gd, 19 insertions, 0 deletions. The single hunk is
+`@@ -343,0 +344,19 @@`, i.e. pure additions after the gear test; no existing line in the file is changed or removed.
+No scripts/, data/*.json, docs, .claude/settings.json, tests/test_physics_baseline.gd or data/physics_baseline.json
+change. No added line contains the banned word (checked the full `git diff 5292ab5 -U0`; commit message too). No new
+data values, so no placeholder/_source question arises; no new Godot API (test uses existing helpers only); no
+Android-only code, so the iOS rule is untouched.
+
+### Item 1 (the one finding)
+The new test is tests/test_layout_editor.gd:346-360 `test_overlap_with_hud_bar_warns_and_does_not_block`:
+- :347/:349/:350/:351/:359/:360 use the same helpers as the gear test (_begin, _editor(COVER), select_element("jump"),
+  move_selected_to(Vector2(0.06, 0.12)), free, _end). COVER is a checked size. OK.
+- :348 re-asserts overlap_policy == "warn_only". OK.
+- :352-356 looks for an issue with kind "overlap", element "jump", size COVER, text containing "the HUD (" and not
+  "gear". OK for kind/element/size; see issue 1 for "names that bar".
+- :357 `assert_true(ed.warn_label.visible, ...)`. OK.
+- :358 `assert_true(not ed.is_blocked(), ...)` (Save still enabled). OK.
+- No scripts/ change, so no root-cause write-up was needed.
+
+### Existing tests
+All of test_layout_editor.gd's 13 pre-existing tests (G2e), GBTN/G2L (test_touch_layout_g2l.gd, test_action_buttons.gd),
+G2d/G2d2 (test_sensitivity.gd, test_match_sensitivity.gd) pass in the 284/284 run above.
+
+### Mutations (scratch copy only; import run first; each undone before the next)
+- P1 layout_editor.gd:310 `for n in [...7 bars...]` -> `for n in []` (gear only). Full suite: 283 passed, 1 failed;
+  `--only=test_layout_editor.gd`: "FAIL test_layout_editor.gd::test_overlap_with_hud_bar_warns_and_does_not_block:
+  overlap with a HUD bar is reported by name: []; warning shown". CAUGHT by the new test.
+- P2 delete layout_editor.gd:312 `bars["gear"] = gear_rect(Vector2(sz))`. "FAIL
+  test_layout_editor.gd::test_overlap_with_gear_warns_and_does_not_block: overlap with the gear is reported by name:
+  [{ ... "text": "Jump overlaps the HUD (hill label) at 1512x648" }]". CAUGHT by the gear test.
+- P3 (extra) layout_editor.gd:319 `"the HUD (%s)" % String(bname).replace("_", " ")` -> `"the HUD (something)"`.
+  test_layout_editor.gd: 14 passed, 0 failed. SURVIVED: the new test does not check that the text names the bar.
+
+### Shots (opened)
+- layout_editor_cover_landscape.png (2520x1080): editor top panel (Slot 1 selected, Slot 2, Slot 3, Save, Reset,
+  Back) with "Sprint lock" size/opacity sliders; Sprint lock button selected (gold box) mid-screen; Jump moved up near
+  the panel; move stick bottom-left, Swap/Aim/Reload/Fire cluster and look stick bottom-right. No warning text.
+- layout_editor_inner_landscape.png (2176x1812): same panel, "Look stick" selected (gold box, bottom-right); Sprint
+  lock, Jump, the 2x2 button cluster and move stick in their G2L places. No warning.
+- layout_editor_cover_small_landscape.png (1512x648): Fire dragged off the right edge (gold box clipped); red warning
+  list "Fire is partly off-screen at 2520x1080 / 2176x1812 / 1512x648 / (+1 more) / Fix it or press Reset to save.";
+  Save greyed out (blocked). The tall warning panel covers the top of the Sprint lock button in this editor view.
+- layout_editor_inner_small_landscape.png (~1152x959): Slot 2 selected, "Move stick" selected (gold box, bottom-left);
+  other controls in default places; Save enabled, no warning.
+All four are landscape Fold sizes; buttons are visibly well above 48 dp (sizes are enforced by
+test_size_never_below_48dp and test_targets_at_least_48dp_at_dpi_0_and_420, both passing).
+
+VERDICT: ITERATE
+1. tests/test_layout_editor.gd:354: fixG/G2e2.txt item 1 asks for an overlap issue "whose text names that bar". The
+   test only checks the generic prefix "the HUD (" and the absence of "gear", so mutation P3 (layout_editor.gd:319
+   replacing the bar name with a fixed word) leaves every test green. Fix: assert the text contains the specific bar
+   the element is dropped on at Vector2(0.06, 0.12) on COVER (e.g. "shield bar" or "health bar", whichever the check
+   reports first; layout_editor.gd:317-321 names only the first intersecting bar), so a wrong or missing bar name fails.
