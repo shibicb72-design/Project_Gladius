@@ -13,6 +13,8 @@ const _Theme := preload("res://scenes/ui/theme.tres")
 const CATEGORY_TITLES := {"weapons": "Weapons (fire, reload, melee hit)",
 		"status": "Status (damage, shield break, death)", "sound_cues": "Sound cues"}
 const QUALITY_TITLES := {"high": "High", "low": "Low"}
+## Text prefix on the chosen quality, so the choice reads without relying on the pressed style alone.
+const SELECTED_MARKER := "[x] "
 
 var save := SaveService.new()
 ## Injected by tests and the capture tool; defaults to the shared service.
@@ -120,6 +122,7 @@ func _refresh() -> void:
 	for q in quality_buttons:
 		var b: Button = quality_buttons[q]
 		b.set_pressed_no_signal(q == service.quality)
+		b.text = (SELECTED_MARKER if q == service.quality else "") + QUALITY_TITLES[q]
 		b.disabled = not supported or not service.enabled
 
 
