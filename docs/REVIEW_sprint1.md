@@ -2796,3 +2796,104 @@ VERDICT: ITERATE
    test_save_load_round_trip (test_sensitivity.gd:223-227). Also record the kept single toggle (settings_panel.gd:34, pinned
    by test_decisions_batch1.gd:108-114 and test_pause_menu.gd:267-272) in docs/OPEN_QUESTIONS.md so EL decides whether to
    retire those tests and the toggle.
+
+## G2d2 review
+
+Step: G2d2 fix round (task prompt fixG/G2d2.txt, on top of 15f148c), commit 6fdf804. Reviewer: Opus (VG2d2).
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_G2d2.log; fixG.log:173 "GATE G2d2 apk=True tests=0 shots=97") ;
+apk = FOUND (re-exported by this review, Glob finds build/gladius-debug.apk) ; shots = FOUND (n=97 in build/shots, including
+the 4 named sensitivity_{cover,inner,cover_small,inner_small}_landscape.png) ; step commit = FOUND (6fdf804, 8 files,
++181/-6).
+
+Gates run by this review (repo root, one command each): `mkdir -p build` exit 0; `godot.cmd --headless --path . --import`
+exit 0; `godot.cmd --headless --path . --export-debug "Android" build/gladius-debug.apk` exit 0 ("Signed", APK verified);
+`godot.cmd --headless --path . --script res://tests/run_tests.gd` exit 0, "TESTS: 270 passed, 0 failed" (266 before + 4 new
+in tests/test_match_sensitivity.gd). No "SCRIPT ERROR" or "Parse Error". The only "ERROR:" line is the expected
+`[button_capture] STOP, no usable lane` that test_button_capture_far_target.gd:148 provokes on purpose (PASS). GBTN tests
+(test_action_buttons.gd, test_button_capture_far_target.gd), G2L tests (test_touch_layout_g2l.gd, 6) and G2d tests
+(test_sensitivity.gd, 14) all PASS.
+
+### Item by item (fixG/G2d2.txt)
+1. In-match reapply: FIXED. scripts/systems/match_root.gd:74-76 adds `apply_sensitivity()`, which sets
+   `router.sens = SensitivitySettings.from_profile(profile_cfg())` and re-configures the gyro provider with the new mode;
+   it runs at start (:59) and on `pause_menu.settings.changed` (:61). The Sensitivity screen gains a `changed` signal emitted
+   after every save (scripts/ui/sensitivity_screen.gd:9, :192) and the panel forwards it (scripts/ui/settings_panel.gd:84);
+   the quick toggle and other panel edits already emit `changed` via persist() (settings_panel.gd:157). Inversion lives in
+   router.sens (input_router.gd:52), so it is reapplied too. GyroProvider.configure keeps the data sensitivity because it only
+   overwrites it when the key is present (gyro_provider.gd:28-29). Test: test_in_match_sensitivity_screen_applies_at_once
+   moves the in-match slider to 40 and measures the router's look output (test_match_sensitivity.gd:111-112), then the
+   gyro mode, invert X and a preset. PASS.
+2. Match-level wiring test: FIXED. test_match_uses_ads_table_while_aiming_and_camera_table_otherwise
+   (test_match_sensitivity.gd:73-96) sets ADS 37 and Camera 173 on tpp_fpp_no_scope, starts a match, holds Aim until
+   aim_blend > 0, asserts the look is 37%, releases until aim_blend == 0 and asserts 173%. PASS.
+3. default_preset: FIXED in substance. data/input.json:22-23 add `"_default_preset_placeholder": true` and a note naming
+   OQ-SENS; docs/OPEN_QUESTIONS.md OQ-SENS now lists it. It is a sibling key, not a literal `"_placeholder": true` on the
+   value. Wrapping the value as `{"value": ..., "_placeholder": true}` would change sensitivity_settings.gd:27 and the
+   meaning of existing assertions test_sensitivity.gd:197 and :241 (both compare against `str(cfg["default_preset"])`), so
+   the sibling key is the choice that leaves existing assertions alone. The file is also covered by the root
+   `"_placeholder": true` (input.json:2) and the block note (input.json:19). Accepted (minor note 1).
+4. Round trip: FIXED. test_sensitivity.gd:218 (pre-existing) sets `gyro_invert_x = true`; new lines :226
+   `assert_eq(back.gyro_invert_x, true, "gyro_invert_x kept")` and :227 `assert_eq(back.gyro_invert_y, false, ...)`.
+5. Old toggle: FIXED. `git diff 15f148c -- tests/test_decisions_batch1.gd tests/test_pause_menu.gd` is EMPTY. The toggle is
+   unchanged (settings_panel.gd:34, :57-66). New test test_gyro_toggle_matches_sensitivity_gyro_mode
+   (test_match_sensitivity.gd:137-157) checks off -> always_on -> off in the saved `sensitivity.gyro_mode`, the legacy
+   `gyro_enabled` in step, and the panel state; test_quick_gyro_toggle_in_match_applies_at_once (:126-132) checks the running
+   match follows. OQ-GYRO-TOGGLE exists in docs/OPEN_QUESTIONS.md (EL decides).
+
+### Rule checks
+- Data values: the only data change is the placeholder flag above. No value is newly labelled as PUBG's; the existing
+  `_source` on the gyro and ADS-gyro max 400 (input.json:36-37) is the one the G2d prompt allows.
+- `git diff 15f148c -U0 -i -G halo` is empty: no new text with the banned word. docs/DESIGN.md unchanged.
+- Existing tests: the only touched existing test file is tests/test_sensitivity.gd, and its diff is two added lines (:226,
+  :227 above); no line changed or removed. tests/test_physics_baseline.gd, data/physics_baseline.json, .claude/settings.json
+  and scripts/platform/ have an empty diff since 15f148c.
+- iOS / cross-platform: no new platform API; changes are signals and data only. No new touch targets (the screen is the
+  G2d one, already pinned at 48 dp by test_screen_buttons_sliders_and_persistence).
+- Godot API: callable signal connections (`changed.connect(apply_sensitivity)`, `screen.changed.connect(changed.emit)`)
+  follow docs/engine-reference/godot/deprecated-apis.md:28 and :47; tests use `await tree.physics_frame` per
+  deprecated-apis.md:27. Nothing used appears in breaking-changes.md.
+
+### Shots (opened)
+- sensitivity_cover_landscape.png (2520x1080): Sensitivity screen with Back top-left and centred title; preset row Low /
+  Medium (selected, black) / High / Custom (greyed); Gyro row Off (selected) / ADS / Always / Invert X / Invert Y; the Camera
+  table (TPP/FPP no scope, Red dot, 2x, 4x, 8x, 16x) and the start of ADS, every slider at 100%, scrollbar on the right.
+- sensitivity_inner_landscape.png (2176x1812): same layout, larger text; the full Camera and ADS tables are visible with
+  sliders at 100%; buttons fill the width with no overlap.
+- sensitivity_cover_small_landscape.png (small cover window): same screen scaled down; Camera table and ADS rows down to 4x
+  visible, labels readable, nothing clipped.
+- sensitivity_inner_small_landscape.png (small inner window): same screen; Camera table and ADS down to 8x; buttons and
+  sliders inside the frame.
+All four are consistent with the G2d shots: Medium preset, gyro off, 100% defaults. They are a retake; G2d2 did not change
+the screen's layout.
+
+### Mutations (scratch copy cc_gladius/scratch/vG2d2 at 6fdf804, imported first; one at a time, each undone)
+- P1 match_root.gd:59 startup `apply_sensitivity()` removed (the only startup path that sets router.sens): CAUGHT, full suite
+  "269 passed, 1 failed": test_match_uses_ads_table_while_aiming_and_camera_table_otherwise "two different values; not
+  aiming: Camera value; aiming: ADS value, got 100.0; released: Camera value again".
+- P2 match_root.gd:212 `router.set_ads(local_player.aim_blend > 0.0)` removed: CAUGHT, same test "aiming: ADS value, got
+  173.000006830189".
+- P3 `gyro_invert_x` dropped from SensitivitySettings.to_dict (sensitivity_settings.gd:105): CAUGHT, test_save_load_round_trip
+  "gyro_invert_x kept (expected true, got false)" and test_in_match_sensitivity_screen_applies_at_once "inversion re-applied
+  to the router".
+- P4 match_root.gd:61 `pause_menu.settings.changed.connect(apply_sensitivity)` removed: CAUGHT,
+  test_in_match_sensitivity_screen_applies_at_once "slider change measured in the router's look output; gyro mode
+  re-applied to the provider (expected scope_on, got off) ..." and test_quick_gyro_toggle_in_match_applies_at_once "toggle
+  applied to the running match (expected always_on, got off)".
+- P5 settings_panel.gd:59 `s.set_gyro_mode(...)` removed (toggle stops updating the new mode): CAUGHT,
+  test_gyro_toggle_matches_sensitivity_gyro_mode "off -> always_on in the sensitivity settings (expected always_on, got off)
+  ...", test_quick_gyro_toggle_in_match_applies_at_once, and the pre-existing test_gyro_default_off_and_toggle_persists.
+P2-P5 were run with `-- --only=<filter>` covering the G2d2 tests (P3 and P5 filters also covered test_sensitivity.gd and
+test_decisions_batch1.gd). All five edits were reverted; the copy is left in place.
+
+### Minor notes (no fix required for this step)
+1. data/input.json:22 uses a sibling `_default_preset_placeholder` flag rather than the `{"value", "_placeholder"}` form
+   used elsewhere in the same block (:34-38). A tool scanning for the literal `_placeholder` key on the value would miss it.
+   Worth normalising if a placeholder scanner is added.
+2. test_match_sensitivity.gd:108, :114, :129-130 read the private `MatchRoot._gyro`. Acceptable for a wiring test; a public
+   getter would be cleaner.
+3. apply_sensitivity also runs on unrelated panel saves (move stick, sprint slider). Harmless (it only re-reads the profile).
+
+VERDICT: APPROVE
+All 5 items of fixG/G2d2.txt are fixed and tested; gates green (270/270, APK exported); no existing assertion changed;
+the 4 named shots are present and correct; mutations P1-P5 are each caught by a G2d2 test.
