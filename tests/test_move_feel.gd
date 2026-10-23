@@ -182,7 +182,7 @@ func test_shipped_strafe_and_backpedal_are_0_889_of_forward() -> void:
 		p.velocity = Vector3.ZERO
 		f.move = {"forward": Vector2(0.0, -1.0), "sideways": Vector2(1.0, 0.0), "backward": Vector2(0.0, 1.0)}[dir]
 		speeds[dir] = _run(p, 40)
-	assert_true(absf(speeds["forward"] - 5.0) < 0.05, "forward walk speed unchanged at 5 m/s, got %s" % speeds["forward"])
+	assert_true(absf(speeds["forward"] - 5.375) < 0.05, "forward walk speed 5.375 m/s (5.0 + 7.5%%, Shibi Oct 22), got %s" % speeds["forward"])
 	assert_true(absf(speeds["sideways"] - 0.889 * speeds["forward"]) < 0.00889 * speeds["forward"], "strafe 0.889 x forward, got %s" % speeds)
 	assert_true(absf(speeds["backward"] - 0.889 * speeds["forward"]) < 0.00889 * speeds["forward"], "backpedal 0.889 x forward, got %s" % speeds)
 	s[0].queue_free()
@@ -197,10 +197,10 @@ func test_shipped_ramp_matches_old_accel_40_behaviour() -> void:
 	f.move = Vector2(0.0, -1.0)
 	var old := 0.0
 	for n in 12:
-		old = move_toward(old, 5.0, 40.0 * DT)
+		old = move_toward(old, 5.375, 40.0 * DT)
 		var v := _run(p, 1)
 		assert_true(absf(v - old) <= maxf(0.01 * old, 1e-3), "ramp up tick %d: %s vs old %s" % [n + 1, v, old])
-	assert_true(absf(old - 5.0) < 1e-6 and absf(_speed(p) - 5.0) < 0.05, "steady state unchanged")
+	assert_true(absf(old - 5.375) < 1e-6 and absf(_speed(p) - 5.375) < 0.05, "steady state at the new 5.375 walk speed")
 	f.move = Vector2.ZERO
 	for n in 12:
 		old = move_toward(old, 0.0, 40.0 * DT)
@@ -281,8 +281,11 @@ func test_shipped_ramp_per_axis_for_every_enabled_class_diagonal() -> void:
 	for id in _enabled_class_ids():
 		p.class_def = DataRegistry.new().get_class_def(id)
 		_check_ramp(p, f, Vector2(0.707, 0.707), id + " (0.707, 0.707)")
-		var r := _check_ramp(p, f, Vector2(-0.707, -0.707), id + " (-0.707, -0.707)")
-		assert_true(r.x != 0 and r.y != 0 and r.x != r.y, "%s (-0.707, -0.707): x and z reach their targets at different ticks, got %s" % [id, r])
+		_check_ramp(p, f, Vector2(-0.707, -0.707), id + " (-0.707, -0.707)")
+		# At 5.375 m/s the 0.889 strafe ratio no longer separates the two axes' reach ticks for (-0.707, -0.707)
+		# (both are tick 6), so the "different ticks" claim is asserted on (-0.6, -0.8) instead.
+		var r := _check_ramp(p, f, Vector2(-0.6, -0.8), id + " (-0.6, -0.8)")
+		assert_true(r.x != 0 and r.y != 0 and r.x != r.y, "%s (-0.6, -0.8): x and z reach their targets at different ticks, got %s" % [id, r])
 	s[0].queue_free()
 
 
@@ -293,8 +296,9 @@ func test_ramp_chooses_accel_or_decel_per_axis() -> void:
 	p._movement["ground_accel"]["time_s"] = 0.0
 	p._movement["ground_decel"]["time_s"] = 0.5
 	assert_eq(p._ramp_axis(1.0, 3.0, DT), 3.0, "speeding up on an axis uses accel (0 = instant)")
-	assert_true(absf(p._ramp_axis(1.0, -1.0, DT) - (1.0 - 5.0 / 0.5 * DT)) < 1e-6, "sign flip uses decel")
-	assert_true(absf(p._ramp_axis(2.0, 1.0, DT) - (2.0 - 5.0 / 0.5 * DT)) < 1e-6, "slowing down uses decel")
+	var base: float = p._movement["base_speed_mps"]
+	assert_true(absf(p._ramp_axis(1.0, -1.0, DT) - (1.0 - base / 0.5 * DT)) < 1e-6, "sign flip uses decel")
+	assert_true(absf(p._ramp_axis(2.0, 1.0, DT) - (2.0 - base / 0.5 * DT)) < 1e-6, "slowing down uses decel")
 	s[0].queue_free()
 
 
@@ -305,8 +309,8 @@ func test_shipped_data_markers() -> void:
 	assert_true(not m["strafe_back_ratio"].has("_placeholder"), "ratio is not a placeholder")
 	for k in ["ground_accel", "ground_decel"]:
 		assert_eq(m[k]["_placeholder"], true, k + " _placeholder")
-	assert_true(absf(float(m["ground_accel"]["time_s"]) - 5.0 / 40.0) < 1e-9, "accel time = 5.0 / 40.0")
-	assert_true(absf(float(m["ground_decel"]["time_s"]) - 5.0 / 40.0) < 1e-9, "decel time = 5.0 / 40.0")
+	assert_true(absf(float(m["ground_accel"]["time_s"]) - 5.375 / 40.0) < 1e-9, "accel time = 5.375 / 40.0")
+	assert_true(absf(float(m["ground_decel"]["time_s"]) - 5.375 / 40.0) < 1e-9, "decel time = 5.375 / 40.0")
 	var feel: Dictionary = _input_cfg()["move_feel"]
 	for k in ["vjoy_deadzone_ratio", "vjoy_clampzone_ratio", "radial_deadzone", "response_exponent"]:
 		assert_eq(feel[k]["_placeholder"], true, k + " _placeholder")

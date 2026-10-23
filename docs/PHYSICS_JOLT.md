@@ -22,6 +22,8 @@ boxes and ramps built by the test). The pawn is driven with `InputFrame`s throug
 | Largest step-up that passes (m) | 0.12 | 0.12 | 0.00 |
 | Largest slope angle that passes (deg) | 45.5 | 45.5 | 0.00 |
 
+Walk speed update (G2c): Shibi asked on Oct 22 2026 for +5-10% walk speed, so `base_speed_mps` became 5.375 (+7.5%) and the baseline `walk_speed_mps` line was re-measured as 5.37500381469727; every other metric is unchanged. (The table above is the original G1 comparison at 5.0 m/s.)
+
 All differences are far below 5%, so no code or data change was needed (no `floor_snap_length`, `safe_margin`,
 collision-shape or step-logic edits). The pawn has no step-up logic: the 0.12 m step is the capsule's rounded
 bottom riding over a lip (about `0.4 * (1 - cos 45)` = 0.117 m). Step heights are swept at 0.005 m up to 0.20 m and

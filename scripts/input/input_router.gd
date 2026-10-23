@@ -20,10 +20,12 @@ func get_frame() -> InputFrame:
 
 
 ## Rebuilds the frame from the providers. Called every physics tick; callable directly in tests.
-func update_frame() -> InputFrame:
+func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -> InputFrame:
 	var f := InputFrame.new()
 	for p in providers:
+		p.tick(delta)
 		f.move += p.get_move()
+		f.sprint = f.sprint or p.is_sprinting()
 		f.look += p.get_look()
 	if f.move.length() > 1.0:
 		f.move = f.move.normalized()
@@ -39,8 +41,8 @@ func update_frame() -> InputFrame:
 	return f
 
 
-func _physics_process(_delta: float) -> void:
-	update_frame()
+func _physics_process(delta: float) -> void:
+	update_frame(delta)
 
 
 func _input(event: InputEvent) -> void:

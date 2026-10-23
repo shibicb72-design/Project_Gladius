@@ -32,6 +32,9 @@ const _VJOY_ACTIONS := ["vjoy_move_left", "vjoy_move_right", "vjoy_move_up", "vj
 ## "custom": a StickVisual driven by this script. "virtual": a Godot 4.7 VirtualJoystick (trial, OQ-VJOY).
 var move_stick: Control
 var look_stick: StickVisual
+var lock_button: Button
+var lock_target: Button
+var _lock_btn_touch: int = -1
 var move_mode: String = "custom"
 var vjoy_layout: String = "floating"  # "floating" | "fixed"; only used when move_mode == "virtual"
 var _emulation_overridden: bool = false
@@ -64,11 +67,88 @@ func _ready() -> void:
 		add_child(debug_label)
 	look_stick = _make_stick_visual("look_stick")
 	add_child(look_stick)
+	_make_sprint_elements()
 	rebuild_move_stick()
 	resized.connect(relayout)
 	get_viewport().size_changed.connect(relayout)
 	relayout()
 	refresh_visibility()
+
+
+## Sprint lock button (separate, movable HUD element showing the lock state) and the lock target that
+## appears above the move stick while it is pushed past the sprint trigger. Purely visual: the lock
+## itself is TouchProvider state, gameplay never reads these nodes.
+func _make_sprint_elements() -> void:
+	var sens: Dictionary = cfg["sprint_sensitivity"]
+	provider.set_sprint_sensitivity(float(AppFlow.profile.get("sprint_sensitivity", sens["default"])))
+	lock_button = Button.new()
+	lock_button.name = "sprint_lock_button"
+	lock_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lock_button.focus_mode = Control.FOCUS_NONE
+	add_child(lock_button)
+	lock_target = Button.new()
+	lock_target.name = "sprint_lock_target"
+	lock_target.text = "Lock"
+	lock_target.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lock_target.focus_mode = Control.FOCUS_NONE
+	lock_target.visible = false
+	add_child(lock_target)
+
+
+## Side of the lock button / target in px: its data fraction of the HUD height, never below min_dp.
+func _lock_side(key: String) -> float:
+	var spec: Dictionary = cfg["sprint"][key]
+	var min_dp: float = cfg["sprint"]["lock_button"]["min_dp"]
+	return maxf(float(spec["size_frac_of_height"]) * _area().y, min_dp * _Platform.new().get_dp_scale())
+
+
+## Lock button centre in HUD space: the profile layout (G2e) wins over data/input.json.
+func _lock_button_center() -> Vector2:
+	var p: Array = AppFlow.profile.get("sprint_lock_pos", [])
+	if p.size() != 2:
+		p = cfg["sprint"]["lock_button"]["pos"]
+	return Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y)
+
+
+func get_lock_button_rect() -> Rect2:
+	var s := _lock_side("lock_button")
+	return Rect2(global_position + _lock_button_center() - Vector2.ONE * s * 0.5, Vector2.ONE * s)
+
+
+## Lock target above where the move stick started (the finger origin), clamped onto the screen.
+func get_lock_target_rect() -> Rect2:
+	var s := _lock_side("lock_target")
+	var origin := _move_origin if _move_touch != -1 else get_move_rest()
+	var c := origin - Vector2(0.0, float(cfg["sprint"]["lock_target"]["distance_radii"]) * _radius())
+	c = c.clamp(Vector2.ONE * s * 0.5, _area() - Vector2.ONE * s * 0.5)
+	return Rect2(global_position + c - Vector2.ONE * s * 0.5, Vector2.ONE * s)
+
+
+func _place_sprint_elements() -> void:
+	if lock_button == null:
+		return
+	var r := get_lock_button_rect()
+	lock_button.position = r.position - global_position
+	lock_button.size = r.size
+	lock_button.text = "Locked" if provider.sprint_locked else "Sprint\nlock"
+	lock_button.add_theme_font_size_override("font_size", int(r.size.x * float(_layout.get("button_font_frac_of_size", 0.24))))
+	_style_round(lock_button, r.size.x, 0.6 if provider.sprint_locked else 0.22)
+	var t := get_lock_target_rect()
+	lock_target.position = t.position - global_position
+	lock_target.size = t.size
+	lock_target.add_theme_font_size_override("font_size", int(t.size.x * float(_layout.get("button_font_frac_of_size", 0.24))))
+	_style_round(lock_target, t.size.x, 0.5)
+	lock_target.visible = provider.lock_target_visible()
+
+
+func _style_round(b: Button, side: float, alpha: float) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, alpha)
+	sb.border_color = Color(1, 1, 1, 0.6)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(int(ceil(side * 0.5)))
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(state, sb)
 
 
 func _make_stick_visual(node_name: String) -> StickVisual:
@@ -183,6 +263,7 @@ func get_move_target_dp() -> float:
 func _process(delta: float) -> void:
 	if move_mode == "virtual":
 		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3], 0.0)
+	_place_sprint_elements()
 	if _look_touch != -1:
 		_look_down_s += delta
 	if _fire_pulse_s > 0.0:
@@ -218,6 +299,7 @@ func relayout() -> void:
 		b.add_theme_font_size_override("font_size", int(s * float(_layout.get("button_font_frac_of_size", 0.24))))
 		_style_button(b, _button_touch.values().has(action))
 	_update_sticks()
+	_place_sprint_elements()
 
 
 ## Rest centre of a stick in HUD space, from data (x of width, y of height).
@@ -370,11 +452,15 @@ func _input(event: InputEvent) -> void:
 
 func _on_down(idx: int, pos: Vector2) -> void:
 	var action := _button_at(pos)
-	if action != "":
+	if get_lock_button_rect().has_point(pos):
+		_lock_btn_touch = idx
+		provider.toggle_sprint_lock()
+	elif action != "":
 		_button_touch[idx] = action
 		Input.action_press(action)
 		_style_button(_buttons[action], true)
 	elif _move_touch == -1 and _move_grab_rect().has_point(pos):
+		provider.cancel_sprint_lock()  # a new move-stick touch ends the lock (speed eases down in the pawn)
 		_move_touch = idx  # under "virtual" this only tracks the finger; the VirtualJoystick gets the touch via the GUI
 		_move_origin = pos
 		_move_pos = pos
@@ -413,15 +499,21 @@ func _debug_touch(idx: int, pressed: bool, pos: Vector2) -> void:
 
 
 func _on_up(idx: int) -> void:
-	if _button_touch.has(idx):
+	if idx == _lock_btn_touch:
+		_lock_btn_touch = -1
+	elif _button_touch.has(idx):
 		var action: String = _button_touch[idx]
 		_button_touch.erase(idx)
 		if not _button_touch.values().has(action):
 			Input.action_release(action)
 			_style_button(_buttons[action], false)
 	elif idx == _move_touch:
+		# Released ON the lock target while pushed past the trigger: lock forward sprint. Anywhere else: stop.
+		var on_target := provider.lock_target_visible() and get_lock_target_rect().has_point(_move_pos)
 		_move_touch = -1
 		provider.move_value = Vector2.ZERO
+		if on_target:
+			provider.lock_sprint()
 		_update_sticks()
 	elif idx == _look_touch:
 		if not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):

@@ -16,7 +16,24 @@ func _init(save_path: String = DEFAULT_PATH) -> void:
 
 static func defaults() -> Dictionary:
 	return {"version": VERSION, "gamertag": DEFAULT_GAMERTAG, "last_ip": "", "gyro_enabled": false,  # OQ-34: gyro off by default
-			"move_stick": "", "vjoy_layout": ""}  # "" = use data/input.json touch_layout (see docs/CONTROLS.md)
+			"move_stick": "", "vjoy_layout": "",  # "" = use data/input.json touch_layout (see docs/CONTROLS.md)
+			"sprint_sensitivity": DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]["default"],
+			"sprint_lock_pos": []}  # [] = data/input.json sprint.lock_button.pos; G2e's layout editor writes [x, y] (fractions)
+
+
+## Slider value from a file or menu: snapped to the step and clamped to the data range.
+static func _sensitivity(value: Variant) -> float:
+	var cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]
+	if not (value is float or value is int):
+		return float(cfg["default"])
+	return SprintDetector.snap_sensitivity(float(value), cfg)
+
+
+## Sprint lock button position: [x, y] fractions of the HUD, or [] for the data default.
+static func _lock_pos(value: Variant) -> Array:
+	if value is Array and value.size() == 2 and (value[0] is float or value[0] is int) and (value[1] is float or value[1] is int):
+		return [clampf(float(value[0]), 0.0, 1.0), clampf(float(value[1]), 0.0, 1.0)]
+	return []
 
 
 ## A touch-layout choice from a file or menu: only the listed values are kept, anything else means "unset".
@@ -48,6 +65,8 @@ func load_profile() -> Dictionary:
 	profile["gyro_enabled"] = bool(data.get("gyro_enabled", false))
 	profile["move_stick"] = _choice(data.get("move_stick", ""), ["virtual", "custom"])
 	profile["vjoy_layout"] = _choice(data.get("vjoy_layout", ""), ["floating", "fixed"])
+	profile["sprint_sensitivity"] = _sensitivity(data.get("sprint_sensitivity", null))
+	profile["sprint_lock_pos"] = _lock_pos(data.get("sprint_lock_pos", null))
 	return profile
 
 
@@ -61,5 +80,7 @@ func save_profile(profile: Dictionary) -> bool:
 	out["gyro_enabled"] = bool(profile.get("gyro_enabled", false))
 	out["move_stick"] = _choice(profile.get("move_stick", ""), ["virtual", "custom"])
 	out["vjoy_layout"] = _choice(profile.get("vjoy_layout", ""), ["floating", "fixed"])
+	out["sprint_sensitivity"] = _sensitivity(profile.get("sprint_sensitivity", null))
+	out["sprint_lock_pos"] = _lock_pos(profile.get("sprint_lock_pos", null))
 	f.store_string(JSON.stringify(out, "\t"))
 	return true

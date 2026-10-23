@@ -183,7 +183,7 @@ func host_handle_move(peer_id: int, pos: Vector3, yaw: float) -> bool:
 	var dt := _clock - float(_last_move_s.get(pid, _clock - 0.1))
 	# Reset on every attempt so a repeated far position never ages into acceptance.
 	_last_move_s[pid] = _clock
-	if validator.validate_move(pawn.global_position, pos, dt, pawn.get_move_speed(),
+	if validator.validate_move(pawn.global_position, pos, dt, pawn.get_max_move_speed(),
 			float(registry.get_movement_cfg().get("jump_velocity", 0.0)), pawn.floor_max_angle):
 		pawn.global_position = pos
 		pawn.rotation.y = yaw

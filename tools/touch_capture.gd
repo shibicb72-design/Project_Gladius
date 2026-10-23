@@ -19,6 +19,7 @@ var _label: Label
 var _real_mouse_swallowed: int = 0
 var _trace_events: bool = false
 var _vjoy_shot_name: String = ""
+var _sprint_shot_name: String = ""
 
 
 func _ready() -> void:
@@ -31,6 +32,8 @@ func _ready() -> void:
 			_dpi = float(a.substr(6))
 		elif a.begins_with("--vjoy-shot="):  # only save the VirtualJoystick move stick at rest as <out>/<value>.png
 			_vjoy_shot_name = a.substr(12)
+		elif a.begins_with("--sprint-shot="):  # sprint lock target mid-push ("sprint_lock_*") or locked state ("sprint_locked_*")
+			_sprint_shot_name = a.substr(14)
 	_Platform.dpi_override = _dpi  # 0 = leave the DisplayServer value alone
 	if _dpi <= 0.0:
 		_dpi = _Platform.new().get_screen_dpi()
@@ -93,6 +96,13 @@ func _run() -> void:
 			get_tree().quit(0)
 			return
 		await _vjoy_rest_shot()
+		get_tree().quit(0)
+		return
+	if _sprint_shot_name != "":
+		if _sprint_shot_name.contains("portrait"):
+			_log("skipped %s: portrait is out of scope (OQ-PORTRAIT)" % _sprint_shot_name)
+		else:
+			await _sprint_shot()
 		get_tree().quit(0)
 		return
 	await _lobby_shots()
@@ -318,6 +328,43 @@ func _vjoy_rest_shot() -> void:
 	var img := get_viewport().get_texture().get_image()
 	var err := img.save_png(_out.path_join("%s.png" % img_name))
 	_log("saved %s.png (%dx%d) err=%d" % [img_name, img.get_width(), img.get_height(), err])
+
+
+## G2c: the touch HUD with the sprint-lock target visible mid-push, or in the locked state. The HUD's touch handlers are
+## called directly and the VirtualJoystick output is simulated through its InputMap actions (as the joystick would press them).
+func _sprint_shot() -> void:
+	var bg := ColorRect.new()
+	bg.color = Color(0.18, 0.2, 0.24)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg)
+	var hud: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
+	add_child(hud)
+	await _frames(4)
+	hud.relayout()
+	var start: Vector2 = hud.get_move_rest() if hud.vjoy_layout == "fixed" and hud.move_mode == "virtual" else Vector2(0.18, 0.7) * hud.size
+	hud._on_down(0, start)
+	var up: Vector2 = start + Vector2(0.0, -hud._radius())
+	hud._on_drag(0, up, Vector2.ZERO)
+	if hud.move_mode == "virtual":
+		Input.action_press("vjoy_move_up", 1.0)
+	await _frames(3)
+	var ok: bool = hud.provider.lock_target_visible()
+	if _sprint_shot_name.begins_with("sprint_locked"):
+		var t: Rect2 = hud.get_lock_target_rect()
+		hud._on_drag(0, t.get_center(), Vector2.ZERO)
+		hud._on_up(0)
+		if hud.move_mode == "virtual":
+			Input.action_release("vjoy_move_up")
+		await _frames(3)
+		ok = hud.provider.sprint_locked
+	_log("sprint shot %s: dp=%.1f target_or_locked=%s RESULT sprint_state_ok=%s" % [_sprint_shot_name, hud.get_lock_button_rect().size.x / _Platform.new().get_dp_scale(), str(ok), str(ok)])
+	await _frames(2)
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png(_out.path_join("%s.png" % _sprint_shot_name))
+	_log("saved %s.png (%dx%d) err=%d" % [_sprint_shot_name, img.get_width(), img.get_height(), err])
+	Input.action_release("vjoy_move_up")
 
 
 func _touch_event(idx: int, canvas_pos: Vector2, pressed: bool) -> void:

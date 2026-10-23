@@ -32,6 +32,16 @@
 		"drag_rad_per_screen_height": 3.14
 	},
 	"_move_feel_todo": "OQ-VJOY: move-stick feel. Every entry is a NEUTRAL placeholder (not a design value, not tuned). Applies to the VirtualJoystick move stick only; the custom stick keeps dead_zones.touch_move.",
+	"sprint_sensitivity": {"min": 0, "max": 100, "default": 50, "step": 5, "_source": "HT Tech report of BGMI 1.6 notes, single unofficial source; Shibi chose it as the starting point Oct 22 2026"},
+	"sprint": {
+		"_todo": "OQ-SPRINT-NUMBERS: every value below is a placeholder, not a design value. The forward threshold is a fraction of the stick radius; higher sprint sensitivity = lower threshold (docs/CONTROLS.md Sprint).",
+		"threshold_at_sensitivity_0": {"_placeholder": true, "value": 0.98, "unit": "fraction of stick radius"},
+		"threshold_at_sensitivity_100": {"_placeholder": true, "value": 0.7, "unit": "fraction of stick radius"},
+		"forward_cone_half_angle_deg": {"_placeholder": true, "value": 25.0, "unit": "degrees from straight forward"},
+		"lock_target": {"_placeholder": true, "distance_radii": 2.7, "size_frac_of_height": 0.12, "note": "centre of the lock target above the move-stick origin, in stick radii; its size as a fraction of the HUD height"},
+		"lock_button": {"_placeholder": true, "pos": [0.56, 0.42], "size_frac_of_height": 0.12, "note": "default position [x of width, y of height] of the movable Sprint lock button; the profile layout (G2e) overrides it; always at least min_dp",
+			"min_dp": 48.0}
+	},
 	"move_feel": {
 		"vjoy_deadzone_ratio": {"_placeholder": true, "value": 0.0, "unit": "ratio of joystick radius", "note": "VirtualJoystick.deadzone_ratio; 0.0 is the engine default"},
 		"vjoy_clampzone_ratio": {"_placeholder": true, "value": 1.0, "unit": "ratio", "note": "VirtualJoystick.clampzone_ratio; 1.0 is the engine default"},

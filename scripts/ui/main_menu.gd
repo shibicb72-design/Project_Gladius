@@ -17,6 +17,9 @@ var move_stick_button: Button
 var stick_layout_button: Button
 var move_stick_mode: String = "virtual"
 var vjoy_layout: String = "floating"
+var sprint_label: Label
+var sprint_slider: HSlider
+var sprint_lock_pos: Array = []  # kept so saving the menu does not drop the layout editor's value
 var later_buttons: Array[Button] = []
 
 
@@ -53,6 +56,8 @@ func _ready() -> void:
 	move_stick_button = _button(box, "", toggle_move_stick)  # Settings: Virtual / Custom move stick
 	stick_layout_button = _button(box, "", toggle_stick_layout)  # Settings: Floating / Fixed (virtual stick)
 	_refresh_stick_text()
+	sprint_lock_pos = profile["sprint_lock_pos"]
+	_build_sprint_slider(box, float(profile["sprint_sensitivity"]))
 	for entry in LATER_ENTRIES:
 		var b := _button(box, "%s (later)" % entry, Callable())
 		b.disabled = true
@@ -99,9 +104,35 @@ func _refresh_stick_text() -> void:
 	stick_layout_button.disabled = move_stick_mode != "virtual"
 
 
+## Settings: sprint sensitivity slider (range/step from data/input.json sprint_sensitivity). Higher = shorter push to sprint.
+func _build_sprint_slider(parent: Node, value: float) -> void:
+	var cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]
+	sprint_label = Label.new()
+	parent.add_child(sprint_label)
+	sprint_slider = HSlider.new()
+	sprint_slider.min_value = float(cfg["min"])
+	sprint_slider.max_value = float(cfg["max"])
+	sprint_slider.step = float(cfg["step"])
+	sprint_slider.custom_minimum_size = Vector2(0, 48.0 * PlatformServices.new().get_dp_scale())
+	sprint_slider.value = value
+	sprint_slider.value_changed.connect(_on_sprint_sensitivity_changed)
+	parent.add_child(sprint_slider)
+	_refresh_sprint_text()
+
+
+func _on_sprint_sensitivity_changed(_v: float) -> void:
+	_refresh_sprint_text()
+	_save_profile()
+
+
+func _refresh_sprint_text() -> void:
+	sprint_label.text = "Sprint sensitivity: %d" % int(sprint_slider.value)
+
+
 func _save_profile() -> void:
 	AppFlow.profile = {"gamertag": name_edit.text.strip_edges(), "last_ip": ip_edit.text.strip_edges(),
-			"gyro_enabled": gyro_enabled, "move_stick": move_stick_mode, "vjoy_layout": vjoy_layout}
+			"gyro_enabled": gyro_enabled, "move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
+			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos}
 	save.save_profile(AppFlow.profile)
 	AppFlow.profile = save.load_profile()
 

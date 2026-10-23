@@ -3,7 +3,7 @@
   "engine": "GodotPhysics3D",
   "tolerance_pct": 5.0,
   "metrics": {
-    "walk_speed_mps": 5.000004529953,
+    "walk_speed_mps": 5.37500381469727,
     "jump_apex_m": 1.28415989875793,
     "jump_air_time_s": 0.716666666666667,
     "max_step_up_m": 0.12,

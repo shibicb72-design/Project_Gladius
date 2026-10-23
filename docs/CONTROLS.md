@@ -70,11 +70,31 @@ Aim with the shoulder camera: the client takes the point under the screen centre
 
 | Key | Unit | Value | Notes |
 |---|---|---|---|
-| `ground_accel.time_s` | seconds, rest to full speed | 0.125 (placeholder) | = 5.0 m/s / 40 m/s^2, today's behaviour; 0 = instant |
-| `ground_decel.time_s` | seconds, full speed to stop | 0.125 (placeholder) | same as today's behaviour; 0 = instant |
+| `ground_accel.time_s` | seconds, rest to full speed | 0.134375 (placeholder) | = 5.375 m/s / 40 m/s^2, so the rate stays 40 m/s^2; 0 = instant |
+| `ground_decel.time_s` | seconds, full speed to stop | 0.134375 (placeholder) | same rate, 40 m/s^2; 0 = instant |
+| `sprint_hold_s.value` | seconds | 0.5 (NOT a placeholder) | `_source` "Shibi Oct 22" |
+| `sprint_speed_multiplier.value` | ratio of run speed | 1.3 (placeholder) | our placeholder starting value, no sourced number |
+| `sprint_ramp_s.value` | seconds | 1.0 (placeholder) | ease run <-> sprint, both directions |
 | `strafe_back_ratio.value` | ratio of forward speed | 0.889 (NOT a placeholder) | sideways and backward; `_source`: "TSG Forge Wiki community tag data: sideways 2 / forward 2.25, backward 2" |
 
-Speed scales continuously with stick length (full analog, no walk/run step). Forward walk speed (`base_speed_mps`) is unchanged. The ramp rate is `base_speed_mps / time_s` (40 m/s^2 with the shipped data) for every class, applied per horizontal axis.
+Speed scales continuously with stick length (full analog, no walk/run step). Forward walk speed (`base_speed_mps`) is 5.375 (5.0 + 7.5%, Shibi Oct 22 "+5-10%"). The ramp rate is `base_speed_mps / time_s` (5.375 / 0.134375 = 40 m/s^2 with the shipped data) for every class, applied per horizontal axis.
+
+## Sprint
+
+Sprint added by Shibi's decision, Oct 22 2026 (OQ-SPRINT, closed). Touch only for now; keyboard and gamepad bindings are undecided (TODO in OPEN_QUESTIONS.md).
+
+- **Trigger:** the move stick is pushed to the forward extreme and held there for `stats.json` `movement.sprint_hold_s` = 0.5 s (`_source` "Shibi Oct 22", not a placeholder). "Forward extreme" = deflection >= the forward threshold AND the stick direction within `input.json` `sprint.forward_cone_half_angle_deg` of straight forward. Breaking the condition restarts the timer from zero. Works for the floating and fixed VirtualJoystick and the custom stick (the check is in `TouchProvider`/`SprintDetector`, on the provider's move vector).
+- **Speed:** `InputFrame.sprint` asks the pawn to ease its speed factor from 1 (run) to `movement.sprint_speed_multiplier` (1.3, our placeholder starting value, no sourced number) over `movement.sprint_ramp_s` (placeholder), with no snap. Releasing, dropping below the threshold, or leaving the cone eases back down over the same time.
+- **Sprint lock:** while the stick is past the trigger a lock target appears above the stick origin. Releasing the finger ON it locks forward sprint (no finger needed; movement is straight forward at sprint speed). Releasing anywhere else stops movement. A new move-stick touch or a tap on the lock button cancels the lock (speed eases down); look still works. The separate, movable Sprint lock button shows the lock state: tapping it while moving forward locks, tapping it while locked cancels. Its default position is `input.json` `sprint.lock_button.pos` (placeholder); the profile key `sprint_lock_pos` ([x, y] fractions) overrides it so the layout editor (G2e/G2L) can store it. At least 48 dp.
+- **Sprint sensitivity:** Settings slider (main menu), profile key `sprint_sensitivity`, `input.json` `sprint_sensitivity` min 0, max 100, default 50, step 5 (single unofficial source, HT Tech report of BGMI 1.6 notes; Shibi chose it as the starting point Oct 22 2026). It only sets the forward deflection threshold used by BOTH the 0.5 s hold trigger and the lock target: threshold = lerp(`sprint.threshold_at_sensitivity_0`, `sprint.threshold_at_sensitivity_100`, sensitivity / 100), both ends placeholders. Higher sensitivity = lower threshold = shorter push. It never changes speed, the cone, `sprint_hold_s` or `sprint_ramp_s`.
+
+Research quotes (staging `pubg_mobile_movement_research.md`; PUBG publishes no numbers, so none are taken from it):
+- Official support reply: "In the customize buttons section, you can increase or decrease the length at which the Auto-Sprint is triggered." Also: "Your character will stop moving when you lift your finger up."
+- Article: "The auto sprint icon appears when you're running at full speed - simply hover over it and let go to continue running without holding your screen."
+- Accessory maker: "Drag the 'Sprint lock' button up and out of the way".
+- GuruGamer 18712: "The higher sprint sensitivity is, the less distance your left thumb needs to move up to sprint."
+- Reddit 1rbgu31: "you don't have to move the joystick as much to start sprinting ... but not your actual speed."
+- PuK: "It defines how much you need to move the PuK Thumbstick forward before sprint is activated".
 
 ## Rest-state screenshots (landscape only)
 

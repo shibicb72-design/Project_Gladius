@@ -44,6 +44,8 @@ var aiming: bool = false
 ## 0..1 aim zoom blend, eased by stats.json aim.aim_zoom_s.
 var aim_blend: float = 0.0
 var shot_fx: ShotFx
+## 1.0 at run speed, up to stats.json movement.sprint_speed_multiplier at full sprint.
+var sprint_factor: float = 1.0
 
 var _frame: InputFrame = InputFrame.new()
 var _aim: Dictionary = {}
@@ -246,12 +248,27 @@ func _apply_aim(delta: float) -> void:
 		rig.set_aim_blend(aim_blend, float(_aim["aim_fov_mult"]))
 
 
+## Highest speed the pawn can reach (sprint included); the host's movement validator uses it.
+func get_max_move_speed() -> float:
+	return get_move_speed() * float(_movement["sprint_speed_multiplier"]["value"])
+
+
+## Eases sprint_factor between 1 (run) and sprint_speed_multiplier over sprint_ramp_s, both directions.
+## The sprint request comes from InputFrame.sprint (hold timer / lock live in the input layer).
+func _update_sprint_factor(delta: float) -> void:
+	var mult: float = _movement["sprint_speed_multiplier"]["value"]
+	var target := mult if _frame.sprint and _frame.move.y < 0.0 else 1.0
+	var ramp_s: float = _movement["sprint_ramp_s"]["value"]
+	sprint_factor = target if ramp_s <= 0.0 else move_toward(sprint_factor, target, (mult - 1.0) / ramp_s * delta)
+
+
 func _apply_movement(delta: float) -> void:
 	# Full analog speed: the wish speed scales continuously with the stick length (no walk/run step).
 	# Sideways and backward are a ratio of forward speed (stats.json movement.strafe_back_ratio).
+	_update_sprint_factor(delta)
 	var ratio: float = _movement["strafe_back_ratio"]["value"]
 	var local := Vector3(_frame.move.x * ratio, 0.0, _frame.move.y * (ratio if _frame.move.y > 0.0 else 1.0))
-	var wish := global_transform.basis * local * get_move_speed()
+	var wish := global_transform.basis * local * get_move_speed() * sprint_factor
 	velocity.x = _ramp_axis(velocity.x, wish.x, delta)
 	velocity.z = _ramp_axis(velocity.z, wish.z, delta)
 	if is_on_floor():
