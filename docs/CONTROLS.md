@@ -117,6 +117,18 @@ Settings has a **Sensitivity** button (shared panel: main menu and in-match menu
 - **Profile:** `user://profile.json` key `sensitivity` (preset, gyro mode, inversion, values per table/row). Missing keys use the data defaults. An old profile with only `gyro_enabled` loads as `always_on` (true) or `off` (false); `gyro_enabled` is still written, derived from the mode.
 - **Shots:** `tools/sensitivity_capture.tscn` writes `build/shots/sensitivity_{cover,inner}_landscape.png` and `sensitivity_{cover,inner}_small_landscape.png` (1512x648, 1152x959).
 
+## Layout editor (G2e)
+
+Settings > "HUD layout" opens the editor (main menu and in-match menu). It shows the live touch HUD: both sticks at rest, every button and the Sprint lock button. Tap an element to select it, drag to move it, use the Size and Opacity sliders. The shape follows the research guide (tap an element, drag to move, adjust size and transparency, three saved layouts, a reset); every range is our placeholder (`data/input.json` `layout_editor`, `_placeholder: true`; OQ-LAYOUT-EDITOR), not PUBG's.
+
+- **Slots:** 3 layouts (Slot 1-3) with an active slot. Save writes all three plus the active one to `user://profile.json` key `hud_layouts` (`scripts/systems/hud_layout_model.gd`); it survives a restart. Back drops unsaved edits. A slot stores only what changed: element key -> `pos` (fractions of the HUD, so it scales), `size_pct`, `alpha_pct`. `touch_hud.gd` applies the active slot over the data defaults (`reload_profile_layout()`; the in-match menu calls it after Save).
+- **Reset** (current slot) clears the slot, which is exactly the G2L default layout from `data/input.json` `touch_layout`, Sprint lock button included. The data default is never edited. The editor mirrors the active slot's lock position into the profile `sprint_lock_pos` on Save (`[]` when the slot keeps the default); the HUD uses slot, then `sprint_lock_pos`, then the data default.
+- **48 dp:** an element's touch target never goes below 48 dp at the device's scale (platform layer `get_dp_scale()`): the size slider's lower end is raised to it, and `TouchHud` clamps stored values too.
+- **Off-screen warning:** every edited slot is checked at 2520x1080, 2176x1812, 1512x648 and 1152x959 (landscape only, OQ-PORTRAIT) against the platform safe area (`PlatformServices.get_safe_insets()`, none = whole viewport). A partly-outside element is named in a red warning and outlined, and Save is blocked until it is fixed or the slot is reset.
+- **Overlap policy (chosen: warn only):** overlap with the gear (top-right, not editable) or the HUD bars is named in the warning but does not block Save. Only leaving the safe viewport blocks.
+- **Shots:** `tools/layout_editor_capture.tscn` writes `build/shots/layout_editor_{cover,inner}_landscape.png` and `layout_editor_{cover,inner}_small_landscape.png` (1512x648, 1152x959); the cover_small shot shows the off-screen warning.
+- **Tests:** `tests/test_layout_editor.gd` (temp `user://` profile, restores `AppFlow.profile`).
+
 ## Rest-state screenshots (landscape only)
 
 The project is landscape only (`window/handheld/orientation=4`, sensor_landscape). `tools/touch_capture.gd --vjoy-shot=<name>` saves the move stick at rest; the shots kept are `vjoy_rest_cover_landscape.png` and `vjoy_rest_inner_landscape.png` (Fold inner landscape 2176x1812). Portrait is out of scope (OQ-PORTRAIT in OPEN_QUESTIONS.md); the tool skips any `--vjoy-shot` name containing "portrait".

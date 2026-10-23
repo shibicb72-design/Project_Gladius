@@ -20,6 +20,30 @@ func get_screen_dpi() -> float:
 	return dpi if dpi > 0.0 else 160.0
 
 
+## Tool/test hook: pretend the platform reports these safe-area insets (left, top, right, bottom fractions of the
+## screen) when non-null. Never set in shipping code.
+static var safe_insets_override: Variant = null
+
+
+## Safe-area insets (cutouts, rounded corners, system bars) as fractions of the screen, Vector4(left, top,
+## right, bottom). Zero where the platform reports none (desktop, web, or a failed query), so callers fall back
+## to the whole viewport.
+func get_safe_insets() -> Vector4:
+	if safe_insets_override is Vector4:
+		return safe_insets_override
+	match OS.get_name():
+		"Android", "iOS":
+			var screen := Vector2(DisplayServer.screen_get_size())
+			var safe := DisplayServer.get_display_safe_area()
+			if screen.x <= 0.0 or screen.y <= 0.0 or safe.size.x <= 0 or safe.size.y <= 0:
+				return Vector4.ZERO
+			return Vector4(
+					clampf(safe.position.x / screen.x, 0.0, 0.5), clampf(safe.position.y / screen.y, 0.0, 0.5),
+					clampf((screen.x - safe.end.x) / screen.x, 0.0, 0.5), clampf((screen.y - safe.end.y) / screen.y, 0.0, 0.5))
+		_:
+			return Vector4.ZERO
+
+
 ## Window pixels per density-independent pixel (Android baseline: 160 dpi = 1.0).
 func get_dp_scale() -> float:
 	return get_screen_dpi() / 160.0

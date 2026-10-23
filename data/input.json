@@ -77,6 +77,19 @@
 		"radial_deadzone": {"_placeholder": true, "value": 0.1, "unit": "stick length 0..1", "note": "applied to the vector's length (not per axis); the rest is rescaled to 0..1"},
 		"response_exponent": {"_placeholder": true, "value": 1.0, "unit": "exponent", "note": "out = dir * pow(remapped_length, exponent); 1.0 = linear"}
 	},
+	"layout_editor": {
+		"_placeholder": true,
+		"_todo": "OQ-LAYOUT-EDITOR (G2e): every range below is a placeholder, not a design value and not PUBG's. size_pct is a percent of the element's default size; alpha_pct a percent of full opacity. An element's touch target never goes below min_target_dp, whatever the slider says.",
+		"slots": 3,
+		"default_size_pct": 100,
+		"default_alpha_pct": 100,
+		"min_target_dp": 48.0,
+		"size_pct": {"_placeholder": true, "min": 50, "max": 250, "step": 5},
+		"alpha_pct": {"_placeholder": true, "min": 10, "max": 100, "step": 5},
+		"check_sizes": {"_note": "Viewports checked for off-screen elements, landscape only (OQ-PORTRAIT): Fold cover, Fold inner, and the two small test sizes.",
+			"list": [[2520, 1080], [2176, 1812], [1512, 648], [1152, 959]]},
+		"overlap_policy": "warn_only"
+	},
 	"touch_layout": {
 		"_placeholder": true,
 		"_todo": "OQ-35",

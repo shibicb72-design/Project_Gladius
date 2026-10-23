@@ -21,6 +21,9 @@ var move_stick_mode: String = "virtual"
 var vjoy_layout: String = "floating"
 var sprint_label: Label
 var sprint_slider: HSlider
+const _LayoutScene := preload("res://scenes/ui/layout_editor.tscn")
+var layout_button: Button
+var layout_layer: CanvasLayer
 var sprint_lock_pos: Array = []  # kept so saving does not drop the layout editor's value
 
 
@@ -41,6 +44,7 @@ func _ready() -> void:
 	_refresh_stick_text()
 	sprint_lock_pos = profile["sprint_lock_pos"]
 	_build_sprint_slider(float(profile["sprint_sensitivity"]))
+	layout_button = _button("HUD layout", open_layout_editor)  # G2e
 	UiScale.apply_to(self)
 
 
@@ -95,6 +99,34 @@ func _close_sensitivity() -> void:
 	gyro_mode = SensitivitySettings.from_profile(profile).gyro_mode
 	gyro_enabled = gyro_mode != "off"
 	_refresh_gyro_text()
+
+
+## Opens the HUD layout editor (G2e) on top of everything, like the Sensitivity screen.
+func open_layout_editor() -> void:
+	if layout_layer != null:
+		return
+	layout_layer = CanvasLayer.new()
+	layout_layer.layer = 100
+	layout_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var editor: LayoutEditor = _LayoutScene.instantiate()
+	editor.save = save
+	editor.closed.connect(_close_layout_editor)
+	editor.changed.connect(_on_layout_saved)
+	layout_layer.add_child(editor)
+	add_child(layout_layer)
+
+
+func _on_layout_saved() -> void:
+	sprint_lock_pos = save.load_profile()["sprint_lock_pos"]  # the editor mirrors the active slot's lock position
+	changed.emit()  # the host (in-match: MatchRoot) re-applies the layout to the live HUD
+
+
+func _close_layout_editor() -> void:
+	if layout_layer == null:
+		return
+	layout_layer.queue_free()
+	layout_layer = null
+	sprint_lock_pos = save.load_profile()["sprint_lock_pos"]
 
 
 func toggle_move_stick() -> void:

@@ -120,12 +120,19 @@ func close() -> void:
 
 ## Touch rect of the gear in global coordinates: touch_dp square (>= 48 dp) in the corner given by data.
 func get_gear_touch_rect() -> Rect2:
+	var r := gear_touch_rect(_gear, size)
+	r.position += global_position
+	return r
+
+
+## The gear's touch rect in a viewport of `view_size`, from the ui.json pause_gear data (the layout editor uses it
+## to keep HUD elements off the gear without instancing the menu).
+static func gear_touch_rect(gear: Dictionary, view_size: Vector2) -> Rect2:
 	var s := PlatformServices.new().get_dp_scale()
-	var side := float(_gear["touch_dp"]) * s
-	var corner := Vector2(float(_gear["anchor"][0]) * size.x, float(_gear["anchor"][1]) * size.y)
-	var margin := Vector2(float(_gear["margin_dp"][0]), float(_gear["margin_dp"][1])) * s
-	var pos := Vector2(corner.x - margin.x - side, corner.y + margin.y)
-	return Rect2(global_position + pos, Vector2(side, side))
+	var side := float(gear["touch_dp"]) * s
+	var corner := Vector2(float(gear["anchor"][0]) * view_size.x, float(gear["anchor"][1]) * view_size.y)
+	var margin := Vector2(float(gear["margin_dp"][0]), float(gear["margin_dp"][1])) * s
+	return Rect2(Vector2(corner.x - margin.x - side, corner.y + margin.y), Vector2(side, side))
 
 
 ## The drawn gear: icon_dp square centred in the touch rect.

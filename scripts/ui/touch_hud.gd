@@ -38,6 +38,11 @@ var _lock_btn_touch: int = -1
 var move_mode: String = "custom"
 var vjoy_layout: String = "floating"  # "floating" | "fixed"; only used when move_mode == "virtual"
 var suspended: bool = false  # true while the in-match menu is open
+## G2e: the active saved layout slot (element key -> {pos, size_pct, alpha_pct}); {} = the data defaults.
+var slot_layout: Dictionary = {}
+const LOCK_KEY := "sprint_lock"
+## false in the layout editor: the slots alone decide the lock button, not the profile's mirrored sprint_lock_pos.
+var use_profile_lock_fallback: bool = true
 var _emulation_overridden: bool = false
 var _prev_emulation: bool = true
 
@@ -45,6 +50,7 @@ var _prev_emulation: bool = true
 func _ready() -> void:
 	cfg = _DataRegistry.new().load_file("res://data/input.json")
 	_layout = cfg.get("touch_layout", {})
+	reload_profile_layout()
 	provider.configure(cfg)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -75,6 +81,82 @@ func _ready() -> void:
 	refresh_visibility()
 
 
+## G2e: applies the profile's active layout slot over the data defaults.
+func reload_profile_layout() -> void:
+	apply_slot_layout(HudLayoutModel.from_dict(AppFlow.profile.get("hud_layouts", null)).active_slot())
+
+
+## Applies a layout slot (also used live by the layout editor) and re-places everything.
+func apply_slot_layout(slot: Dictionary) -> void:
+	slot_layout = slot
+	if is_inside_tree() and move_stick != null:
+		relayout()
+
+
+func _entry(key: String) -> Dictionary:
+	return slot_layout.get(key, {})
+
+
+func _scale(key: String) -> float:
+	return float(_entry(key).get("size_pct", cfg["layout_editor"]["default_size_pct"])) / 100.0
+
+
+func _alpha(key: String) -> float:
+	return float(_entry(key).get("alpha_pct", cfg["layout_editor"]["default_alpha_pct"])) / 100.0
+
+
+## Centre of an element in HUD space: its slot position (fractions of the HUD) or `default_px`.
+func _center_px(key: String, default_px: Vector2) -> Vector2:
+	var p: Array = _entry(key).get("pos", [])
+	if p.size() != 2:
+		return default_px
+	return Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y)
+
+
+## Element keys the layout editor can edit: the two sticks, the Sprint lock button and every action button.
+func get_element_keys() -> Array:
+	var keys: Array = ["move_stick", "look_stick", LOCK_KEY]
+	keys.append_array(_buttons.keys())
+	return keys
+
+
+## Smallest touch target of an element in px (48 dp at this device's scale, data min_dp / min_target_dp).
+func get_element_min_px(key: String) -> float:
+	var dp := _Platform.new().get_dp_scale()
+	if key == LOCK_KEY:
+		return float(cfg["sprint"]["lock_button"]["min_dp"]) * dp
+	if _buttons.has(key):
+		return float(_layout["button_min_dp"]) * dp
+	return float(cfg["layout_editor"]["min_target_dp"]) * dp
+
+
+## Side of the element at 100 % (before its slot scale and the minimum), in px at the current HUD size.
+func get_element_base_px(key: String) -> float:
+	if key == LOCK_KEY:
+		return float(cfg["sprint"]["lock_button"]["size_frac_of_height"]) * _area().y
+	if _buttons.has(key):
+		return float(_layout["button_size_frac_of_height"]) * _area().y
+	return 2.0 * maxf(1.0, float(_layout.get("stick_radius_frac_of_height", 0.12)) * _area().y)
+
+
+## Screen rect of an element as drawn (sticks at rest), for editing and layout checks.
+func get_element_rect(key: String) -> Rect2:
+	if key == LOCK_KEY:
+		return get_lock_button_rect()
+	if _buttons.has(key):
+		return get_button_rect(key)
+	if key == "move_stick":
+		return get_move_visual_rect()
+	var r := _radius(key)
+	return Rect2(global_position + get_look_rest() - Vector2.ONE * r, Vector2.ONE * r * 2.0)
+
+
+## Effective editable state of an element: centre as HUD fractions, size and opacity in percent.
+func get_element_state(key: String) -> Dictionary:
+	var c := (get_element_rect(key).get_center() - global_position) / _area()
+	return {"pos": [c.x, c.y], "size_pct": _scale(key) * 100.0, "alpha_pct": _alpha(key) * 100.0}
+
+
 ## Sprint lock button (separate, movable HUD element showing the lock state) and the lock target that
 ## appears above the move stick while it is pushed past the sprint trigger. Purely visual: the lock
 ## itself is TouchProvider state, gameplay never reads these nodes.
@@ -99,15 +181,17 @@ func _make_sprint_elements() -> void:
 func _lock_side(key: String) -> float:
 	var spec: Dictionary = cfg["sprint"][key]
 	var min_dp: float = cfg["sprint"]["lock_button"]["min_dp"]
-	return maxf(float(spec["size_frac_of_height"]) * _area().y, min_dp * _Platform.new().get_dp_scale())
+	var scale := _scale(LOCK_KEY) if key == "lock_button" else 1.0
+	return maxf(float(spec["size_frac_of_height"]) * _area().y * scale, min_dp * _Platform.new().get_dp_scale())
 
 
-## Lock button centre in HUD space: the profile layout (G2e) wins over data/input.json.
+## Lock button centre in HUD space: the active layout slot (G2e) wins over the profile's sprint_lock_pos
+## (which the editor mirrors from the slot), which wins over data/input.json.
 func _lock_button_center() -> Vector2:
-	var p: Array = AppFlow.profile.get("sprint_lock_pos", [])
+	var p: Array = AppFlow.profile.get("sprint_lock_pos", []) if use_profile_lock_fallback else []
 	if p.size() != 2:
 		p = _layout["sprint_lock_pos"]
-	return Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y)
+	return _center_px(LOCK_KEY, Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y))
 
 
 func get_lock_button_rect() -> Rect2:
@@ -133,6 +217,7 @@ func _place_sprint_elements() -> void:
 	lock_button.text = "Locked" if provider.sprint_locked else "Sprint\nlock"
 	lock_button.add_theme_font_size_override("font_size", int(r.size.x * float(_layout.get("button_font_frac_of_size", 0.24))))
 	_style_round(lock_button, r.size.x, 0.6 if provider.sprint_locked else 0.22)
+	lock_button.modulate.a = _alpha(LOCK_KEY)
 	var t := get_lock_target_rect()
 	lock_target.position = t.position - global_position
 	lock_target.size = t.size
@@ -288,15 +373,15 @@ func _zone_rect(key: String) -> Rect2:
 ## e.g. a foldable switching between cover and inner screen). Stick radius and zones are derived
 ## from the area on demand, so they follow automatically; this redraws any active stick.
 func relayout() -> void:
-	var s := _button_size()
 	for action in _buttons:
 		var b: Button = _buttons[action]
-		var cell := _cell_rect(_layout["buttons"][action])
+		var cell := _cell_rect(action)
 		b.offset_left = cell.position.x
 		b.offset_top = cell.position.y
-		b.offset_right = b.offset_left + s
-		b.offset_bottom = b.offset_top + s
-		b.add_theme_font_size_override("font_size", int(s * float(_layout.get("button_font_frac_of_size", 0.24))))
+		b.offset_right = b.offset_left + cell.size.x
+		b.offset_bottom = b.offset_top + cell.size.y
+		b.modulate.a = _alpha(action)
+		b.add_theme_font_size_override("font_size", int(cell.size.x * float(_layout.get("button_font_frac_of_size", 0.24))))
 		_style_button(b, _button_touch.values().has(action))
 	_update_sticks()
 	_place_sprint_elements()
@@ -310,11 +395,11 @@ func _rest_center(key: String) -> Vector2:
 
 
 func get_move_rest() -> Vector2:
-	return _rest_center("move_stick_rest")
+	return _center_px("move_stick", _rest_center("move_stick_rest"))
 
 
 func get_look_rest() -> Vector2:
-	return _rest_center("look_stick_rest")
+	return _center_px("look_stick", _rest_center("look_stick_rest"))
 
 
 ## Places both stick rings: look is fixed at rest; move follows the thumb while held and returns to rest on release.
@@ -323,7 +408,9 @@ func _update_sticks() -> void:
 		return
 	var r := _radius()
 	var look_c := get_look_rest()
-	look_stick.place(look_c, r)
+	look_stick.place(look_c, _radius("look_stick"))
+	look_stick.modulate.a = _alpha("look_stick")
+	move_stick.modulate.a = _alpha("move_stick")
 	look_stick.set_knob_offset((_look_pos - _look_origin) if _look_touch != -1 else Vector2.ZERO)
 	if move_mode == "virtual":
 		var vj := move_stick as VirtualJoystick
@@ -381,17 +468,24 @@ func _button_size() -> float:
 	return maxf(float(_layout["button_size_frac_of_height"]) * _area().y, float(_layout["button_min_dp"]) * _Platform.new().get_dp_scale())
 
 
-## A button's rect: its data offset (in button sizes) from the look stick rest centre.
-func _cell_rect(spec: Dictionary) -> Rect2:
+## Side of a button in px: its slot scale on the default size, never below button_min_dp.
+func _button_side(action: String) -> float:
+	return maxf(float(_layout["button_size_frac_of_height"]) * _area().y * _scale(action), float(_layout["button_min_dp"]) * _Platform.new().get_dp_scale())
+
+
+## A button's rect: its slot position, else its data offset (in default button sizes) from the DATA look stick
+## rest centre (so moving the look stick in the editor does not drag the buttons along).
+func _cell_rect(action: String) -> Rect2:
 	var s := _button_size()
-	var o: Array = spec["offset"]
-	var c := get_look_rest() + Vector2(float(o[0]), float(o[1])) * s
-	return Rect2(c - Vector2.ONE * s * 0.5, Vector2.ONE * s)
+	var o: Array = _layout["buttons"][action]["offset"]
+	var c := _center_px(action, _rest_center("look_stick_rest") + Vector2(float(o[0]), float(o[1])) * s)
+	var side := _button_side(action)
+	return Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side)
 
 
 ## Screen rect of the button for an action (the HUD is full-screen, so this is viewport space).
 func get_button_rect(action: String) -> Rect2:
-	var r := _cell_rect(_layout["buttons"][action])
+	var r := _cell_rect(action)
 	r.position += global_position
 	return r
 
@@ -409,7 +503,7 @@ func _style_button(b: Button, held: bool) -> void:
 	sb.bg_color = Color(1, 1, 1, 0.5 if held else 0.22)
 	sb.border_color = Color(1, 1, 1, 0.6)
 	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(int(ceil(_button_size() * 0.5)))
+	sb.set_corner_radius_all(int(ceil(maxf(b.size.x, 1.0) * 0.5)))
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		b.add_theme_stylebox_override(state, sb)
 
@@ -421,13 +515,15 @@ func _button_at(pos: Vector2) -> String:
 	return ""
 
 
-func _radius() -> float:
-	return maxf(1.0, float(_layout.get("stick_radius_frac_of_height", 0.12)) * _area().y)
+## Stick radius in px: its slot scale on the default, never below half of the minimum target (48 dp).
+func _radius(key: String = "move_stick") -> float:
+	var base := maxf(1.0, float(_layout.get("stick_radius_frac_of_height", 0.12)) * _area().y)
+	return maxf(base * _scale(key), 0.5 * get_element_min_px(key))
 
 
 ## Analog stick vector: distance from the origin over the radius, clamped to 1, with a dead zone.
-func _stick(pos: Vector2, origin: Vector2, dead: float) -> Vector2:
-	var v := (pos - origin) / _radius()
+func _stick(pos: Vector2, origin: Vector2, dead: float, key: String = "move_stick") -> Vector2:
+	var v := (pos - origin) / _radius(key)
 	if v.length() > 1.0:
 		v = v.normalized()
 	return Vector2.ZERO if v.length() < dead else v
@@ -560,7 +656,7 @@ func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 			if _look_travel > float(_layout.get("tap_slop_frac_of_height", 0.01)) * _area().y:
 				_look_moved = true
 		else:
-			var v := _stick(pos, _look_origin, float(dz.get("touch_look", 0.1)))
+			var v := _stick(pos, _look_origin, float(dz.get("touch_look", 0.1)), "look_stick")
 			if v != Vector2.ZERO:
 				_look_moved = true
 			provider.look_value = v

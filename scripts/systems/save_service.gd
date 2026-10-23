@@ -19,7 +19,8 @@ static func defaults() -> Dictionary:
 			"sensitivity": SensitivitySettings.new().to_dict(),  # G2d: tables, preset, gyro mode and inversion
 				"move_stick": "", "vjoy_layout": "",  # "" = use data/input.json touch_layout (see docs/CONTROLS.md)
 			"sprint_sensitivity": DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]["default"],
-			"sprint_lock_pos": []}  # [] = data/input.json touch_layout.sprint_lock_pos; G2e's layout editor writes [x, y] (fractions)
+			"sprint_lock_pos": [],  # [] = data/input.json touch_layout.sprint_lock_pos; G2e's layout editor writes [x, y] (fractions)
+				"hud_layouts": HudLayoutModel.new().to_dict()}  # G2e: 3 saved touch-HUD layouts + the active slot
 
 
 ## Slider value from a file or menu: snapped to the step and clamped to the data range.
@@ -76,6 +77,7 @@ func load_profile() -> Dictionary:
 	profile["vjoy_layout"] = _choice(data.get("vjoy_layout", ""), ["floating", "fixed"])
 	profile["sprint_sensitivity"] = _sensitivity(data.get("sprint_sensitivity", null))
 	profile["sprint_lock_pos"] = _lock_pos(data.get("sprint_lock_pos", null))
+	profile["hud_layouts"] = HudLayoutModel.from_dict(data.get("hud_layouts", null)).to_dict()
 	return profile
 
 
@@ -91,5 +93,6 @@ func save_profile(profile: Dictionary) -> bool:
 	out["vjoy_layout"] = _choice(profile.get("vjoy_layout", ""), ["floating", "fixed"])
 	out["sprint_sensitivity"] = _sensitivity(profile.get("sprint_sensitivity", null))
 	out["sprint_lock_pos"] = _lock_pos(profile.get("sprint_lock_pos", null))
+	out["hud_layouts"] = HudLayoutModel.from_dict(profile.get("hud_layouts", null)).to_dict()
 	f.store_string(JSON.stringify(out, "\t"))
 	return true
