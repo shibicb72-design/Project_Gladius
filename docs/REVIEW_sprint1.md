@@ -2897,3 +2897,125 @@ test_decisions_batch1.gd). All five edits were reverted; the copy is left in pla
 VERDICT: APPROVE
 All 5 items of fixG/G2d2.txt are fixed and tested; gates green (270/270, APK exported); no existing assertion changed;
 the 4 named shots are present and correct; mutations P1-P5 are each caught by a G2d2 test.
+
+## G2e review
+
+Reviewer: Opus (VG2e). Task prompt: fixG/G2e.txt. Step commit 4d204ba ("feat: G2e HUD layout editor"), prev = 28b123f.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_G2e.log; fixG.log:186 "GATE G2e apk=True tests=0 shots=101";
+re-run by this review: exit 0, "TESTS: 283 passed, 0 failed") ; apk = FOUND (build/gladius-debug.apk, re-exported by this
+review, exit 0, "Signed", "Verifying APK... DONE") ; shots = FOUND (n>100 in build/shots/*.png, including all 4 named
+layout_editor_{cover,inner,cover_small,inner_small}_landscape.png) ; step commit = FOUND (4d204ba, 19 files, +1201/-30)
+
+### Verification (run by this review, repo root, each command on its own)
+- `godot --headless --path . --import`: exit 0, no errors.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, APK present (Glob).
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, "TESTS: 283 passed, 0 failed" (13 new
+  test_layout_editor.gd tests). The only "ERROR:" line is the existing negative test
+  test_button_capture_far_target.gd::test_place_far_target_stops_when_no_lane_is_usable, which calls push_error on
+  purpose and PASSes; it is not from G2e.
+
+### Rules
+- `git diff 28b123f 4d204ba -U0 -i -G halo`: no files. No "Halo" text added.
+- Existing tests: the commit touches no existing test file (stat: only tests/test_layout_editor.gd(.uid) under tests/). No
+  assertion changed or removed. tests/test_physics_baseline.gd, data/physics_baseline.json and .claude/settings.json are
+  not in the diff.
+- Profile leak: AppFlow.profile is loaded only by scripts/ui/boot.gd:8, which the runner does not run. The new tests use
+  `user://test_layout_editor_profile.json` (test_layout_editor.gd:15, :45) and restore AppFlow.profile, dpi_override
+  and safe_insets_override in `_end()` (:31-35). Existing touch tests keep the data defaults.
+- iOS / cross-platform: the safe area is read only in scripts/platform/platform_services.gd:31-44 behind an
+  `OS.get_name()` match ("Android", "iOS"; other platforms -> Vector4.ZERO). No Android-only API elsewhere. Saves use user://.
+- Godot API rule: APIs used are DisplayServer.get_display_safe_area / screen_get_size, Rect2.encloses / intersects /
+  grow, snappedf, HSlider, CanvasLayer, CanvasItem.modulate. None of them appears in
+  docs/engine-reference/godot/breaking-changes.md or deprecated-apis.md (searched). The only DisplayServer entries,
+  breaking-changes.md:21 and deprecated-apis.md:39, are about AccessibilityLiveMode and do not apply.
+
+### Task items (fixG/G2e.txt)
+1. Editor screen: CHECKS OUT. Settings > "HUD layout" (settings_panel.gd:47, :105-117) opens scenes/ui/layout_editor.tscn
+   on a CanvasLayer for both menus (shared SettingsPanel). The preview is the real touch HUD scene with both sticks,
+   every button and Sprint lock (touch_hud.gd get_element_keys). Tap selects (layout_editor.gd:251-260), drag moves
+   (:263-266), and there are per-element size and alpha sliders (:132-133, :212-223). Ranges: data/input.json
+   `layout_editor`: size_pct 50/250/5 and alpha_pct 10/100/5, each `"_placeholder": true`, and the block is a
+   placeholder too. Its `_todo` says "not a design value and not PUBG's"; CONTROLS.md and OQ-LAYOUT-EDITOR repeat that.
+   Nothing labels 250 % as PUBG's. Positions are stored as fractions (hud_layout_model.gd:85-86).
+2. 48 dp: CHECKS OUT. The slider's lower end is raised to ceil(min_px/base) (layout_editor.gd:177-181, :206, :215).
+   The HUD clamps at render time too: buttons touch_hud.gd:472, sticks :519-521 (radius >= half of 48 dp), lock button
+   :181-185. dp comes from the platform layer get_dp_scale(). Tested by test_size_never_below_48dp at dpi 0 and 420
+   (slider end, slider clamp, drawn side, and a stored 50 % below the floor). Editor buttons and sliders are at least
+   48 dp tall (layout_editor.gd:103, :119, :143, :155).
+3. Off-screen warning: CHECKS OUT. Every edited slot plus the active one is checked at all four data sizes
+   (layout_editor.gd:334-348, data check_sizes 2520x1080, 2176x1812, 1512x648, 1152x959; landscape only) against
+   the platform safe area (:296-298), else the viewport. The warning names the element and size (:316). Save is
+   disabled (:363) and save_layout refuses (:400-403). Tested at the four sizes, including x=0.96 fitting the cover
+   screen but not the inner one (test :137-159). Safe area tested at :162-172; blocking and unblocking by fix or Reset
+   tested at :175-190.
+4. Slots, Reset, persistence: CHECKS OUT. 3 slots (data `slots`: 3, research "save three different layouts"), active
+   select, Save, and per-slot Reset to an empty slot = the data touch_layout default (hud_layout_model.gd:99-100).
+   Persisted under profile `hud_layouts` in user://profile.json (save_service.gd:23, :80, :96), sanitized on load
+   (hud_layout_model.gd:50-68). touch_hud.gd:85-87 applies the active slot over the data defaults, and the in-match
+   menu re-applies on Save (match_root.gd:64). The gear is not an editable element and stays top-right
+   (pause_menu.gd gear_touch_rect from data). The lock position is mirrored to profile `sprint_lock_pos`, and the data
+   default is never written (test :310-321). Reset test :221-263 compares every element with the data/input.json
+   touch_layout default and with a fresh HUD. Round trip :266-307 covers a new editor and the game HUD from the file.
+5. HUD clearance decision: DOCUMENTED, ONLY PARTLY TESTED. The choice is "warn only" (data `overlap_policy`,
+   CONTROLS.md "Overlap policy", OQ-LAYOUT-EDITOR). check_slot warns on overlap with the HUD bars and labels
+   (layout_editor.gd:308-321) and the gear. test_overlap_with_gear_warns_and_does_not_block (:326-341) covers only the
+   gear. No test asserts a warning for overlap with a HUD bar, and mutation M5 below (bars list emptied) survives the
+   whole layout-editor file. See ITERATE item 1.
+6. Docs and shots: CHECKS OUT. CONTROLS.md "Layout editor (G2e)" section and OQ-LAYOUT-EDITOR are present. Shots below.
+
+### Shots (opened)
+- layout_editor_cover_landscape.png (2520x1080): editor panel top-centre (Slot 1 active, Save, Reset, Back, two
+  sliders). Sprint lock is selected (gold outline, dimmed by reduced opacity). Jump has been moved up under the
+  panel. Move stick bottom-left, look stick bottom-right, Swap/Aim/Reload/Fire west of it. No warning.
+- layout_editor_inner_landscape.png (2176x1812): same panel with larger text. Look stick selected (gold box); default
+  layout otherwise; no warning.
+- layout_editor_cover_small_landscape.png (1512x648): THE OFF-SCREEN SHOT. Fire is dragged past the right edge
+  (red/gold outline, half visible). Save is greyed out. The red warning reads "Fire is partly off-screen at 2520x1080 /
+  2176x1812 / 1512x648 / (+1 more) / Fix it or press Reset to save." The expanded warning panel covers the top of
+  the Sprint lock button (see minor note 1).
+- layout_editor_inner_small_landscape.png (1152x959): Slot 2 active, move stick selected and made smaller with
+  reduced opacity; the rest are defaults; no warning.
+
+### Mutations (scratch copy cc_gladius/scratch/vG2e at 4d204ba, imported first; one at a time with Edit, each undone;
+run with `-- --only=test_layout_editor`)
+- M1 layout_editor.gd:181 slider floor removed (`return cfg min`): CAUGHT, test_size_never_below_48dp "slider lower
+  end 50.0% is >= 48 dp at dpi 420.0" (all 8 elements).
+- M2 touch_hud.gd:472 `_button_side` 48 dp maxf removed: CAUGHT, test_size_never_below_48dp "jump stored 50% still
+  >= 48 dp at dpi 420.0, got 38.88".
+- M3 layout_editor.gd:351 `is_blocked()` always false: CAUGHT, test_save_blocked_while_offscreen_until_fixed_or_reset
+  "Save button disabled while off-screen; save_layout refuses; nothing was written" and
+  test_offscreen_detected_at_the_four_sizes.
+- M4 layout_editor.gd:334 check only the editor's own size: CAUGHT, test_offscreen_detected_at_the_four_sizes
+  "fire at x=0.995 is off-screen at (2176, 1812) (editor at (2520, 1080)) ... x=0.96 falls off the inner screen".
+- M5 layout_editor.gd:310 HUD-bar list emptied (gear check kept): NOT CAUGHT, "TESTS: 13 passed, 0 failed".
+- M6 hud_layout_model.gd:100 Reset a no-op: CAUGHT, test_reset_restores_the_g2l_default_exactly (every element's
+  centre, size, alpha, rect, and "profile sprint_lock_pos cleared") and the Save-after-Reset test.
+- M7 hud_layout_model.gd:80-82 all edits go to slot 1: CAUGHT, test_three_slots_are_independent "slot 1 kept its
+  move ... three slots persisted independently", test_real_hud_applies_the_active_slot_from_the_profile, and
+  test_save_load_round_trip.
+- M8 save_service.gd:96 save writes empty hud_layouts: CAUGHT, test_three_slots_are_independent "active slot
+  persisted (expected 1, got 0)" and test_save_load_round_trip.
+- M9 layout_editor.gd:353 overlap also blocks Save: CAUGHT, test_overlap_with_gear_warns_and_does_not_block "overlap
+  alone does not block Save".
+All 9 edits were reverted. A content diff of the copy's scripts/ against the repo's shows no differences. The copy is
+left in place.
+
+### Minor notes (no fix required for this step)
+1. layout_editor.gd:102-137: the editor panel sits over the top of the HUD area and grows with the warning text. In
+   the cover_small shot it hides part of the Sprint lock button, and taps there hit the panel, not the element.
+   Worth a collapsible panel or keeping it clear of elements.
+2. The two sliders have no "Size"/"Opacity" captions in the shots (only the element name), though CONTROLS.md calls
+   them Size and Opacity sliders.
+3. touch_hud.gd:139 (new) repeats the numeric fallback `get("stick_radius_frac_of_height", 0.12)` from the existing
+   :520. The prompt asks for tunables without numeric fallbacks; the key exists in data, so it has no effect today.
+   layout_editor.gd:130 `110.0 * _dp()` is a hard-coded label width.
+4. Moving the look stick only moves its visual and its rect. Look input still starts anywhere in the data `look_zone`
+   (touch_hud.gd:585), so a look stick dragged into the left half is decorative. Document this or move the zone with it.
+
+VERDICT: ITERATE
+1. tests/test_layout_editor.gd:326-341: the chosen clearance option (fixG/G2e.txt item 5, "the editor warns about
+   overlap with the HUD bars") is not tested for the HUD bars. Only overlap with the gear is asserted, so removing every
+   HUD bar from the check (layout_editor.gd:310, mutation M5) leaves all 13 tests green. Add a test that moves an
+   element onto a HUD bar or label (e.g. the shield/health bar or the scores label) at a checked size and asserts an
+   "overlap" issue naming that bar, a visible warning, and Save still enabled.
