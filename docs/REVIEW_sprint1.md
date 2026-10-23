@@ -3279,3 +3279,82 @@ VERDICT: ITERATE
    either a `pressed` style in the theme or a text cue ("High (selected)" / a check mark) as the category rows do. Retake the
    four shots, and add a test asserting the active quality button is visually distinguished (e.g. its text or style
    override) after choosing Low.
+
+## G2f2 review
+
+Opus check of 76572d4 ("fix: G2f2 selected haptics quality is visibly marked", parent b219360) against fixG/G2f2.txt,
+prev = b219360.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius tests_G2f2.log:339 "TESTS: 299 passed, 0 failed"; fixG.log:238 "GATE G2f2
+apk=True tests=0 shots=105"; also re-run here, see below) ; apk = FOUND (build/gladius-debug.apk, re-exported in this review,
+Glob finds it) ; shots = FOUND (n>100; all four named haptics_settings_{cover,inner,cover_small,inner_small}_landscape.png
+present) ; step commit = FOUND (76572d4, 5 files, +66/-2).
+
+### Run in this review (live repo, each command on its own)
+- `godot.cmd --headless --path . --import`: exit 0, no project errors.
+- `godot.cmd --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, "Signed", no ERROR lines.
+- `godot.cmd --headless --path . --script res://tests/run_tests.gd`: exit 0, "TESTS: 299 passed, 0 failed" (2 new in
+  tests/test_haptics_marker.gd). The only "ERROR:" line is the pre-existing intentional push_error expected by
+  test_button_capture_far_target.gd::test_place_far_target_stops_when_no_lane_is_usable (tools/button_capture.gd:83).
+
+### Item 1: pressed style, marker, test, shots
+- scenes/ui/theme.tres:19-25 adds StyleBoxFlat `button_pressed` (gold bg Color(0.85, 0.68, 0.2), light-gold border), and
+  :33 `Button/styles/hover_pressed`, :35 `Button/styles/pressed` use it; :31-32 set a dark-red font for pressed and
+  hover-pressed so text stays readable. Normal (:11-17, :34) stays red with a gold border, so pressed is clearly distinct.
+  Red/gold follows docs/DESIGN.md:31 (HUD colours). The theme is not a tunable number store, so no data/*.json entry is
+  needed; no new numeric tunable was added in code.
+- scripts/ui/haptics_screen.gd:16-17 `SELECTED_MARKER := "[x] "`, :125 the quality text is the marker plus the title only
+  when `q == service.quality`; it runs in `_refresh()`, so it follows every change of selection.
+- New test tests/test_haptics_marker.gd:20-38 instantiates the real haptics_screen.tscn with a fake supported backend,
+  asserts the selected quality begins with the marker and the other has none (:30-32), presses the other button through
+  its real `pressed` signal (:33), then asserts the marker moved and left the old one (:34-36). :41-48 assert the theme has
+  `pressed` and `hover_pressed` Button styles and that their bg colours differ from `normal`. This covers all three things
+  the prompt asks for.
+- Shots (opened and viewed):
+  - haptics_settings_cover_landscape.png (2520x1080): red Back top-left, "Haptics" title, four full-width gold rows with dark
+    text ("Haptics: On", "Weapons (fire, reload, melee hit): On", "Status (damage, shield break, death): On", "Sound cues:
+    On"), then "Quality:" with a gold "[x] High" button and a red "Low" button with gold text. Lower ~40% empty.
+  - haptics_settings_inner_landscape.png (2176x1812): same layout, larger text; "[x] High" gold, "Low" red.
+  - haptics_settings_cover_small_landscape.png (1512x648): same, scaled down; "[x] High" gold, "Low" red.
+  - haptics_settings_inner_small_landscape.png (1152x959): same; "[x] High" gold, "Low" red.
+  - In all four the selected quality (High, the default) is the distinct one: gold fill plus the "[x]" marker, while Low
+    uses the plain red normal style. The G2f inversion is fixed. The On toggles now also draw gold (pressed), which matches
+    their "On" text. All buttons are well above 48 dp in every shot.
+
+### Item 2: CONTROLS.md citation
+- docs/CONTROLS.md:136 now cites `staging/godot-docs/class_input.md:1834` (relative). P-check: the added lines of
+  `git diff b219360 -U0` contain no absolute user path (none of the 5 files' + lines has it). OK.
+
+### Nothing else changed
+- `git diff b219360 --stat` lists only docs/CONTROLS.md, scenes/ui/theme.tres, scripts/ui/haptics_screen.gd,
+  tests/test_haptics_marker.gd and its .uid. scripts/platform/platform_services.gd (vibrate()) is untouched. No
+  damaged-signal test was added (the new file has only the two tests above).
+- No existing test file is touched, so no assertion was changed or removed.
+- .claude/settings.json, tests/test_physics_baseline.gd and data/physics_baseline.json are not in the diff.
+- Data: the step adds no data value; nothing is labelled as PUBG's and no `_source` was added.
+- Banned-word check (word list kept off-repo): no added line in `git diff b219360 -U0` contains it, nor does the commit
+  message. The only occurrences are pre-existing (e.g. the DESIGN.md wording), not new.
+- iOS: no platform code changed; no Android-only API outside scripts/platform/.
+- GODOT API: Theme.has_stylebox/get_stylebox, StyleBoxFlat.bg_color and Button `pressed`/`hover_pressed` theme items have no
+  entry in docs/engine-reference/godot/breaking-changes.md or deprecated-apis.md (grep for "stylebox": no match; the only
+  theme item, breaking-changes.md:57, is the editor theme and does not apply). modules/ui.md:38-44 confirms custom game
+  themes work as before in 4.6+.
+
+### Mutations (scratch copy cc_gladius/scratch/vG2f2 at 76572d4, imported first; each made with Edit, run, then undone)
+- M1 theme.tres:35 `Button/styles/pressed` line removed: CAUGHT. Full suite "298 passed, 1 failed"; `--only=test_haptics_marker`
+  gives FAIL test_theme_has_distinct_pressed_button_style: "theme has Button pressed style".
+- M2 haptics_screen.gd:125 marker line removed: CAUGHT. FAIL test_selected_quality_has_marker_and_follows_selection:
+  "selected shows marker; marker moved to new choice".
+- M3 (extra) marker put on both quality buttons: CAUGHT. FAIL test_selected_quality_has_marker_and_follows_selection:
+  "unselected has no marker; marker removed from old choice".
+- After undoing all three, `--only=test_haptics` in the copy gives "TESTS: 15 passed, 0 failed". The copy is left in place.
+  The live repo was never mutated.
+
+### Notes (not blocking)
+1. The new pressed style is theme-wide, so the toggle buttons in scripts/ui/sensitivity_screen.gd and
+   scripts/ui/layout_editor.gd (toggle_mode = true) now also draw gold when pressed. This is consistent with the fix and
+   likely an improvement, but those screens' shots were not retaken in this step.
+2. Carried over from the G2f review: the `damaged` path from real damage (pawn.gd) is still untested, and
+   platform_services.gd vibrate() still bypasses the haptics settings. Both were out of scope here by the prompt.
+
+VERDICT: APPROVE
