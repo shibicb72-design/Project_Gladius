@@ -3961,3 +3961,47 @@ data/input.json, docs/ARCHITECTURE.md, scenes/player/pawn.tscn, scripts/ui/touch
 VERDICT: ITERATE
 1. tests/test_fold_window_coords.gd:88, :123 (and _setup :50-68). Mandatory mutation M1 is not caught: dropping `global_position` from `_to_global_rect` (scripts/ui/touch_hud.gd:502) leaves all 321 tests green. The TouchHud sits at (0, 0), and the tests take their touch points from the helpers under test. Fix: give the TouchHud a non-zero offset in a test (for example set its position or offsets so `global_position` is not zero), and compute the expected touch points independently (local layout rect + known offset, or `get_global_rect()`). Then assert that a window-coord touch at that point reaches the look zone and presses a button. With the offset removed, the test must fail.
 2. scripts/ui/touch_hud.gd:239, :245-248, :688 (and :191). Item 1 of fixG/P0.txt asks for one helper for every hit rect, and get_lock_* is named in the measured bug (fixG/P0.txt:6). `get_lock_button_rect`/`get_element_rect` still add `global_position` inline. `get_lock_target_rect` adds `global_position` to `_move_origin`, which is already viewport space (:637), so with a non-zero HUD offset the lock target is shifted twice against `_move_pos` in `_on_up` (:688). Route these through `_to_global_rect`, and keep `_move_origin` in one space (convert once). Cover it with the offset test from issue 1.
+
+## P0b review
+
+Step commit 3aa75b2 ("fix: P0b hit-test offset mutation + lock rects via _to_global_rect"), prev = 643b272. Task: fixG/P0b.txt. Reviewer: Opus (VP0b).
+
+INPUTS: tests log/exit code = FOUND (cc_gladius tests_P0b.log; fixG.log:346 "GATE P0b apk=True tests=0 shots=113") ; apk = FOUND (build/gladius-debug.apk, re-exported in this review) ; shots = FOUND (n=113 per gate; Glob of build/shots/*.png returns >100) ; step commit = FOUND (3aa75b2, 2 files, +120/-7)
+
+### Verification (run during this review)
+- `godot --headless --path . --import`: exit 0, no project errors.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, "Signed", APK verified; Glob finds build/gladius-debug.apk.
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, **TESTS: 325 passed, 0 failed** (P0 was 321; +4 new tests). The single "ERROR:" line is the pre-existing expected `push_error` exercised by test_button_capture_far_target.gd::test_place_far_target_stops_when_no_lane_is_usable (tools/button_capture.gd:83), which passes; not caused by this step.
+- Shots: build/shots/folded1_hud_rest.png (2520x1080 Fold landscape) opened and still present, sticks and five buttons visible. P0b is not a contrast/pawn reshoot and needs no new names (fixG/P0b.txt:14).
+
+### Checks against fixG/P0b.txt
+- **Scope / allowed files** (fixG/P0b.txt:16): `git diff 643b272 --stat` lists only scripts/ui/touch_hud.gd (12 lines) and tests/test_fold_window_coords.gd (115 lines). No .uid sidecar needed (existing test file). No contrast, pawn, lobby, data/input.json or unrelated changes. .claude/settings.json, tests/test_physics_baseline.gd and data/physics_baseline.json are unchanged.
+- **Item 2, lock/hit rects through one helper** (fixG/P0b.txt:12):
+  - scripts/ui/touch_hud.gd:191 look branch of `get_element_rect` -> `_to_global_rect(...)`.
+  - :239 `get_lock_button_rect` -> `_to_global_rect(...)`.
+  - :247-250 `get_lock_target_rect`: `_move_origin - global_position` converts the viewport-space origin to HUD space once, clamp runs in HUD space, the rect is shifted once by `_to_global_rect`. No double shift.
+  - :503-504 `_to_global_rect` is the single helper; no remaining inline `global_position +` on hit rects (Grep of `global_position` in touch_hud.gd: only :196, :247, :257, :264, :476, :504, all HUD-space conversions of already-global values, each subtracting once).
+  - :476 `move_stick.place(_move_origin - global_position, r)`: same single conversion for the custom stick visual (place() takes HUD space). This is coordinate consistency for `_move_origin`, which the item allows; with a zero offset it is a no-op, so no gameplay math changed.
+  - `_on_down` (:629, :636-640) and `_on_up` (:690) compare viewport-space `pos`/`_move_pos` against global rects: one space.
+- **Item 1, offset test** (fixG/P0b.txt:10): new tests in tests/test_fold_window_coords.gd:
+  - `test_offset_hud_look_and_buttons_folded_2520x1080`, `test_offset_hud_look_and_buttons_unfolded_2176x1812` (helper `_offset_look_buttons`, :158-193): sets `touch.position` to a non-zero x offset larger than any button width and asserts `global_position != Vector2.ZERO`. The look point is `offset + touch._zone_rect("look_zone").position + ...` (HUD-space layout + known offset), the button points are each child Button's engine `get_global_rect().get_center()`; neither comes from `_zone_hit_rect`/`get_button_rect`/`get_lock_*`. Delivered via `_touch` -> `_deliver_window` -> `push_input(e, false)` (:26-39). Asserts `_look_touch == 1`, `_button_at(c) == key` and `Input.is_action_pressed(act)` for every action button.
+  - `test_offset_hud_lock_target_and_button_folded_2520x1080`, `test_offset_hud_lock_target_and_button_unfolded_2176x1812` (helper `_offset_lock`, :204-255): non-zero y offset larger than the lock button/target side; the lock-target centre is rebuilt in the test from `start - offset`, `distance_radii` from data and the clamp, then `+ offset`; the lock-button point is `offset + touch._lock_button_center()` (HUD space). Asserts release on target sets `provider.sprint_locked`, and a touch at the lock button sets `_lock_btn_touch == 1` and locks.
+- **No existing assertion changed or removed**: the only removed lines in the touched existing test file are `-func _setup(size: Vector2i) -> Dictionary:` and `-	_TouchHud.move_stick_override = "virtual"`, replaced by `func _setup(size: Vector2i, stick_mode: String = "virtual")` / `_TouchHud.move_stick_override = stick_mode` (:50-51). The default keeps every existing caller identical. No assertion line changed; the 4 P0 look/button tests still pass.
+- **Data / placeholders**: no data/*.json change. The test reads the existing `cfg["sprint"]["lock_target"]["distance_radii"]`. No new number, nothing labelled as PUBG's.
+- **Banned-word check** (word list kept off-repo): no listed word appears in the added lines of `git diff 643b272 -U0` or in the commit message.
+- **P-check**: added lines of `git diff 643b272 -U0` contain no `C:\Users` path.
+- **Touch targets >= 48 dp**: no size changes; test_touch_layout_g2l.gd::test_targets_at_least_48dp_at_dpi_0_and_420 and test_layout_editor.gd::test_size_never_below_48dp pass.
+- **iOS / cross-platform**: no Android-only API, plugin or OS switch added; changes are pure Control-space math.
+- **Godot APIs relied on**: `Control.global_position`, `Control.get_global_rect()`, `Rect2`, `Viewport.push_input`. None is listed in docs/engine-reference/godot/breaking-changes.md or deprecated-apis.md (Grep finds no entry; `global_position` appears only in docs/engine-reference/godot/modules/navigation.md:36, :55, :65 usage examples).
+
+### Mutations (scratch copy at the P0b commit only; each undone before the next; live tree never mutated)
+Scratch import: exit 0.
+- **M1** `_to_global_rect` returns `Rect2(local.position, local.size)` (no global_position). Full suite: **321 passed, 4 failed** (exit 1). `--only=test_fold_window_coords`: FAIL `test_offset_hud_look_and_buttons_folded_2520x1080` ("window touch at the shifted look-zone edge reaches look ... expected 1, got -1"; "jump node centre hit-tests to itself ... expected jump, got "), FAIL `test_offset_hud_look_and_buttons_unfolded_2176x1812` (same), FAIL `test_offset_hud_lock_target_and_button_folded_2520x1080` ("release on the shifted lock target locks"; "touch at the shifted lock button centre reaches it ... expected 1, got -1"), FAIL `test_offset_hud_lock_target_and_button_unfolded_2176x1812` (same). The old zero-offset P0 tests stay green, so the catch comes from the NEW offset tests. **CAUGHT.** Undone.
+- **M2** `get_lock_target_rect` origin back to `_move_origin` (viewport value then shifted again by `_to_global_rect`: double global_position). `--only=test_fold_window_coords`: FAIL `test_offset_hud_lock_target_and_button_folded_2520x1080` and `..._unfolded_2176x1812` ("release on the shifted lock target locks (offset (0.0, -97.76))" / "(0.0, -135.08)"); the 8 other tests pass. **CAUGHT.** Undone.
+
+### Minor (not blocking)
+- tests/test_fold_window_coords.gd `_offset_look_buttons` (like the P0 tests using `_setup`) leaves `_TouchHud.move_stick_override = "virtual"` after teardown; only `_offset_lock` resets it to "". Harmless today (the suite is green in file order) but a later file that relies on the default could be affected.
+- scripts/ui/touch_hud.gd:476 (custom stick visual placed in HUD space) is correct but not pinned by a test at a non-zero offset; only hit-tests are.
+
+VERDICT: APPROVE
+Both VP0 blockers are fixed in the allowed files only: every hit rect, including the lock rects and the look element rect, now goes through `_to_global_rect` (touch_hud.gd:191, :239, :250, :504) with `_move_origin` converted once (:247, :476). Four new non-zero-offset tests with independently computed points catch M1 (4 failures) and M2 (2 failures). Import, Android export and the suite (325/0) pass. No assertion was weakened.
