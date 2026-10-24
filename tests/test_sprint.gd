@@ -1,5 +1,6 @@
 extends "res://tests/test_case.gd"
-## Sprint (G2c, Shibi Oct 22 2026): 0.5 s forward-extreme hold, smooth speed ramp, sprint lock, sensitivity.
+## Sprint (G2c, Shibi Oct 22 2026; G3a2, Oct 23 2026: no hold, sprint starts on the threshold): smooth speed ramp,
+## sprint lock, sensitivity.
 ## The trigger is driven like tests/test_physics_baseline.gd: TouchProvider -> InputRouter -> InputFrame -> Pawn
 ## (the pawn's _apply_movement is called directly, so the tick count is exact). The lock is driven through
 ## TouchHud touch events.
@@ -99,17 +100,13 @@ func _free(rig: Array) -> void:
 
 # ---------------------------------------------------------------- trigger and ramp
 
-func test_no_sprint_before_hold_and_sprint_after() -> void:
+func test_sprint_starts_on_the_threshold() -> void:
 	var g := await _rig()
 	var p: Pawn = g[1]
 	var rec := _rec()
-	_sim(p, g[2], g[3], Vector2(0.0, -1.0), 27, rec)  # 0.45 s
-	assert_true(not rec["sprint"].has(true), "no sprint request before 0.5 s")
-	assert_true(absf(_speed(p) - _run_speed(p)) < 1e-3, "speed == run speed at 0.45 s, got %s" % _speed(p))
-	_sim(p, g[2], g[3], Vector2(0.0, -1.0), 10, rec)
-	var first := _first_sprint_tick(rec)
-	assert_true(first >= 30 and first <= 31, "sprint starts after 0.5 s (tick %d)" % first)
-	assert_eq(float(_move_cfg()["sprint_hold_s"]["value"]), 0.5, "hold is 0.5 s")
+	_sim(p, g[2], g[3], Vector2(0.0, -1.0), 1, rec)
+	assert_eq(_first_sprint_tick(rec), 1, "sprint requested on the first tick past the threshold")
+	assert_true(not _move_cfg().has("sprint_hold_s"), "no sprint_hold_s in data")
 	_free(g)
 
 
@@ -167,17 +164,17 @@ func test_outside_cone_or_below_threshold_never_sprints() -> void:
 		_free(g)
 
 
-func test_breaking_the_condition_restarts_the_timer() -> void:
+func test_leaving_the_threshold_stops_and_returning_restarts_at_once() -> void:
 	var g := await _rig()
 	var rec := _rec()
-	_sim(g[1], g[2], g[3], Vector2(0.0, -1.0), 24, rec)  # 0.4 s
-	_sim(g[1], g[2], g[3], Vector2.ZERO, 1, rec)
-	assert_eq(g[2].detector.held_s, 0.0, "timer reset to zero")
+	_sim(g[1], g[2], g[3], Vector2(0.0, -1.0), 24, rec)
+	assert_true(rec["sprint"][23], "sprint true past the threshold")
 	var rec2 := _rec()
-	_sim(g[1], g[2], g[3], Vector2(0.0, -1.0), 27, rec2)  # 0.45 s again
-	assert_true(not rec2["sprint"].has(true), "0.4 s + 0.45 s is not 0.5 s of continuous hold")
-	_sim(g[1], g[2], g[3], Vector2(0.0, -1.0), 6, rec2)
-	assert_true(rec2["sprint"].has(true), "sprints 0.5 s after the restart")
+	_sim(g[1], g[2], g[3], Vector2.ZERO, 1, rec2)
+	assert_true(not rec2["sprint"][0], "sprint false on the tick the stick leaves")
+	var rec3 := _rec()
+	_sim(g[1], g[2], g[3], Vector2(0.0, -1.0), 1, rec3)
+	assert_true(rec3["sprint"][0], "sprint true again on the first tick back")
 	_free(g)
 
 
@@ -185,9 +182,7 @@ func test_breaking_the_condition_restarts_the_timer() -> void:
 
 func test_sprint_data_markers() -> void:
 	var m := _move_cfg()
-	assert_eq(m["sprint_hold_s"]["value"], 0.5, "sprint_hold_s")
-	assert_eq(m["sprint_hold_s"]["_source"], "Shibi Oct 22", "sprint_hold_s _source")
-	assert_true(not m["sprint_hold_s"].has("_placeholder"), "sprint_hold_s is not a placeholder")
+	assert_true(not m.has("sprint_hold_s"), "sprint_hold_s removed (no hold, G3a2)")
 	assert_eq(m["sprint_speed_multiplier"]["value"], 1.3, "multiplier")
 	assert_eq(m["sprint_speed_multiplier"]["note"], "our placeholder starting value, no sourced number", "multiplier note")
 	assert_true(not m.has("sprint_speed_mult"), "exactly one multiplier key")
@@ -209,8 +204,12 @@ func test_sprint_data_markers() -> void:
 func test_walk_speed_and_accel_rate() -> void:
 	var g := await _rig()
 	var p: Pawn = g[1]
-	var rec := _rec()
-	_sim(p, g[2], g[3], Vector2(0.0, -1.0), 25, rec)  # before the sprint hold ends
+	var wf := InputFrame.new()
+	wf.move = Vector2(0.0, -1.0)
+	wf.sprint = false  # the provider would sprint on tick 1, so walk speed is measured with sprint forced off
+	p.set_frame(wf)
+	for i in 25:
+		p._apply_movement(DT)
 	assert_true(absf(_speed(p) - 5.375) / 5.375 < 0.01, "walk speed 5.375 within 1%%, got %s" % _speed(p))
 	_free(g)
 	var s := await _pawn()
@@ -252,7 +251,7 @@ func test_higher_sensitivity_needs_a_shorter_push_but_same_speed() -> void:
 		var rec := _rec()
 		_sim(g[1], g[2], g[3], Vector2(0.0, -1.0), 30 + 80, rec)
 		finals.append(_speed(g[1]))
-		assert_true(_first_sprint_tick(rec) >= 30 and _first_sprint_tick(rec) <= 31, "hold stays 0.5 s at sens %s" % sens)
+		assert_eq(_first_sprint_tick(rec), 1, "sprint starts on the first tick at sens %s" % sens)
 		_free(g)
 	assert_true(absf(finals[0] - finals[1]) < 1e-3 and absf(finals[1] - finals[2]) < 1e-3, "sprint speed unchanged: %s" % [finals])
 
@@ -353,16 +352,11 @@ func test_release_on_target_locks_release_elsewhere_stops() -> void:
 		r.add_provider(hud.provider)
 		var start := _start(hud, mode, layout)
 		var rad: float = hud._radius()
-		# Held at the forward extreme: no sprint at 0.45 s, sprint after 0.5 s, in every move-stick mode.
+		# Past the threshold: sprint on the first tick, no hold, in every move-stick mode.
 		_touch(hud, 0, start, true)
 		_push(hud, mode, 0, start + Vector2(0.0, -rad), Vector2(0.0, -1.0))
-		var fr: InputFrame
-		for i in 27:
-			fr = r.update_frame(DT)
-		assert_true(not fr.sprint, tag + ": no sprint at 0.45 s")
-		for i in 6:
-			fr = r.update_frame(DT)
-		assert_true(fr.sprint, tag + ": sprint after 0.5 s")
+		var fr: InputFrame = r.update_frame(DT)
+		assert_true(fr.sprint, tag + ": sprint on the first tick past the threshold")
 		assert_true(hud.provider.lock_target_visible(), tag + ": lock target shown past the trigger")
 		# Release elsewhere (short of the target): movement stops.
 		_push(hud, mode, 0, start + Vector2(0.0, -rad * 0.95), Vector2(0.0, -0.95))

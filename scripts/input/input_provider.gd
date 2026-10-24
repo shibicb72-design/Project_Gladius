@@ -26,7 +26,7 @@ func is_pressed(_action: String) -> bool:
 	return false
 
 
-## Called by the router once per physics tick before it reads the provider (sprint hold timers).
+## Called by the router once per physics tick before it reads the provider (sprint threshold and lock state).
 func tick(_delta: float) -> void:
 	pass
 

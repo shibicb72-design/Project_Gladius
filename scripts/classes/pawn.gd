@@ -267,7 +267,7 @@ func get_max_move_speed() -> float:
 
 
 ## Eases sprint_factor between 1 (run) and sprint_speed_multiplier over sprint_ramp_s, both directions.
-## The sprint request comes from InputFrame.sprint (hold timer / lock live in the input layer).
+## The sprint request comes from InputFrame.sprint (threshold / lock live in the input layer).
 func _update_sprint_factor(delta: float) -> void:
 	var mult: float = _movement["sprint_speed_multiplier"]["value"]
 	var target := mult if _frame.sprint and _frame.move.y < 0.0 else 1.0

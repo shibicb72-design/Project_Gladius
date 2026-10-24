@@ -20,7 +20,7 @@ var _drag_accum: Vector2 = Vector2.ZERO  # pixels since the last tick (drag mode
 var _viewport_h: float = 1.0
 
 
-## Sprint gesture (hold at the forward extreme, then lock). Lives here, not in gameplay or the HUD nodes.
+## Sprint gesture (forward extreme threshold starts sprint, no hold; then lock). Lives here, not in gameplay or the HUD nodes.
 var detector := SprintDetector.new()
 var sprint_locked: bool = false
 

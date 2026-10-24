@@ -1,23 +1,22 @@
 class_name SprintDetector
 extends RefCounted
-## Touch sprint trigger (docs/CONTROLS.md Sprint). Sprint starts once the move stick has been held at the
-## forward extreme (deflection >= threshold AND inside the forward cone) for sprint_hold_s. Breaking the
-## condition restarts the timer. The speed ramp itself lives in the pawn; this only decides "sprint requested".
-## Sprint sensitivity (0..100) only moves the threshold; hold time, cone and speeds never change with it.
+## Touch sprint trigger (docs/CONTROLS.md Sprint). Sprint starts on the tick the move stick reaches the forward
+## extreme (deflection >= threshold AND inside the forward cone) and stops on the tick it leaves it; there is no hold.
+## Shibi's decision (Oct 23 2026): "Start on the threshold like PUBG". The speed ramp itself lives in the pawn;
+## this only decides "sprint requested".
+## Sprint sensitivity (0..100) only moves the threshold; cone and speeds never change with it.
 
-var hold_s: float = 0.0
 var threshold_at_0: float = 1.0
 var threshold_at_100: float = 1.0
 var cone_half_angle_deg: float = 0.0
 var sensitivity: float = 0.0
-var held_s: float = 0.0
 var sprinting: bool = false
 var configured: bool = false
 
 
-## stats: data/stats.json "movement"; sprint: data/input.json "sprint"; sens: data/input.json "sprint_sensitivity".
-func configure(stats: Dictionary, sprint: Dictionary, sens: Dictionary) -> void:
-	hold_s = float(stats["sprint_hold_s"]["value"])
+## stats: data/stats.json "movement" (unused here, kept for the call signature); sprint: data/input.json "sprint";
+## sens: data/input.json "sprint_sensitivity".
+func configure(_stats: Dictionary, sprint: Dictionary, sens: Dictionary) -> void:
 	threshold_at_0 = float(sprint["threshold_at_sensitivity_0"]["value"])
 	threshold_at_100 = float(sprint["threshold_at_sensitivity_100"]["value"])
 	cone_half_angle_deg = float(sprint["forward_cone_half_angle_deg"]["value"])
@@ -43,16 +42,11 @@ func at_forward_extreme(move: Vector2) -> bool:
 	return rad_to_deg(atan2(absf(move.x), -move.y)) <= cone_half_angle_deg
 
 
-func update(move: Vector2, delta: float) -> void:
+func update(move: Vector2, _delta: float) -> void:
 	if not configured:
 		return
-	if at_forward_extreme(move):
-		held_s += delta
-	else:
-		held_s = 0.0
-	sprinting = held_s >= hold_s
+	sprinting = at_forward_extreme(move)
 
 
 func reset() -> void:
-	held_s = 0.0
 	sprinting = false

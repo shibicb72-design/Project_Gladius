@@ -21,7 +21,7 @@ var pause_just_pressed: bool = false
 ## World point under the camera centre (right-shoulder camera, GBTN4); set by the match, not by a provider.
 var has_aim_point: bool = false
 var aim_point: Vector3 = Vector3.ZERO
-## Sprint requested (held at the forward extreme for sprint_hold_s, or locked). The pawn eases its speed.
+## Sprint requested (stick at the forward extreme threshold, or locked). The pawn eases its speed.
 var sprint: bool = false
 
 
