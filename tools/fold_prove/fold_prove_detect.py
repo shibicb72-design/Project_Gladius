@@ -56,7 +56,10 @@ def detect_menu(a, use_ocr=True):
         reasons.append("dark_bg")
     if gold_text:
         reasons.append("gold_text")
-    pixel_menu = (rows and (dark_bg or back)) or (back and dark_bg and gold_text)
+    maroon_any = _frac(maroon) > 0.02
+    # Sensitivity is near-black + gold labels + maroon chrome; do NOT require gray77
+    sens = dark_bg and gold_text and maroon_any
+    pixel_menu = sens or (rows and (dark_bg or back)) or (back and dark_bg and gold_text)
     if use_ocr:
         txt = ocr_text(a)
         hits = [wd for wd in MENU_WORDS if wd in txt]
