@@ -256,7 +256,7 @@ func _place_sprint_elements() -> void:
 	lock_button.size = r.size
 	lock_button.text = "Locked" if provider.sprint_locked else "Sprint\nlock"
 	lock_button.add_theme_font_size_override("font_size", int(r.size.x * float(_layout.get("button_font_frac_of_size", 0.24))))
-	_style_round(lock_button, r.size.x, 0.6 if provider.sprint_locked else 0.22)
+	_style_round(lock_button, r.size.x, 0.6 if provider.sprint_locked else float(_layout["button_idle_alpha"]))
 	lock_button.modulate.a = _alpha(LOCK_KEY)
 	var t := get_lock_target_rect()
 	lock_target.position = t.position - global_position
@@ -279,7 +279,7 @@ func _style_round(b: Button, side: float, alpha: float) -> void:
 func _make_stick_visual(node_name: String) -> StickVisual:
 	var v := StickVisual.new()
 	v.name = node_name
-	v.ring_alpha = float(_layout.get("ring_alpha", 0.35))
+	v.ring_alpha = float(_layout["ring_alpha"])
 	v.knob_frac = float(_layout.get("knob_frac_of_radius", 0.4))
 	return v
 
@@ -360,7 +360,7 @@ func _make_virtual_joystick() -> VirtualJoystick:
 	j.visibility_mode = VirtualJoystick.VISIBILITY_WHEN_TOUCHED if String(vj["visibility"]) == "when_touched" else VirtualJoystick.VISIBILITY_ALWAYS
 	j.deadzone_ratio = float(feel["vjoy_deadzone_ratio"]["value"])
 	j.clampzone_ratio = float(feel["vjoy_clampzone_ratio"]["value"])
-	var ring := Color(1, 1, 1, float(_layout.get("ring_alpha", 0.35)))
+	var ring := Color(1, 1, 1, float(_layout["ring_alpha"]))
 	var held := Color(1, 1, 1, minf(1.0, ring.a * 1.5))
 	j.add_theme_stylebox_override("normal_joystick", _disc(Color(1, 1, 1, ring.a * 0.3), ring))
 	j.add_theme_stylebox_override("pressed_joystick", _disc(Color(1, 1, 1, ring.a * 0.5), ring))
@@ -496,11 +496,22 @@ func get_move_visual_rect() -> Rect2:
 	return Rect2(get_global_rect().position + local.position, local.size)
 
 
-## Where a touch grabs the move stick: the stick itself when fixed, else the whole move zone.
+## Hit-test space (P0): event.position is viewport space, so every hit rect (buttons, lock, zones, grab)
+## is shifted by global_position through this one helper.
+func _to_global_rect(local: Rect2) -> Rect2:
+	return Rect2(local.position + global_position, local.size)
+
+
+## Viewport-space rect of a touch zone (the local _zone_rect shifted into event space).
+func _zone_hit_rect(key: String) -> Rect2:
+	return _to_global_rect(_zone_rect(key))
+
+
+## Where a touch grabs the move stick, in viewport space: the stick itself when fixed, else the whole move zone.
 func _move_grab_rect() -> Rect2:
 	if move_mode == "virtual" and vjoy_layout == "fixed":
-		return _move_visual_local()
-	return _zone_rect("move_zone")
+		return _to_global_rect(_move_visual_local())
+	return _zone_hit_rect("move_zone")
 
 
 ## Button side in px: its data fraction of the HUD height, never below button_min_dp (touch target floor).
@@ -531,9 +542,7 @@ func _cell_rect(action: String) -> Rect2:
 
 ## Screen rect of the button for an action (the HUD is full-screen, so this is viewport space).
 func get_button_rect(action: String) -> Rect2:
-	var r := _cell_rect(action)
-	r.position += global_position
-	return r
+	return _to_global_rect(_cell_rect(action))
 
 
 func get_button_label(action: String) -> String:
@@ -546,7 +555,7 @@ func get_button_actions() -> Array:
 
 func _style_button(b: Button, held: bool) -> void:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(1, 1, 1, 0.5 if held else 0.22)
+	sb.bg_color = Color(1, 1, 1, float(_layout["button_held_alpha"]) if held else float(_layout["button_idle_alpha"]))
 	sb.border_color = Color(1, 1, 1, 0.6)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(int(ceil(maxf(b.size.x, 1.0) * 0.5)))
@@ -628,7 +637,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_move_origin = pos
 		_move_pos = pos
 		_update_sticks()
-	elif _look_touch == -1 and (_zone_rect("look_zone").has_point(pos) or (vjoy_layout == "fixed" and move_mode == "virtual" and _zone_rect("move_zone").has_point(pos))):
+	elif _look_touch == -1 and (_zone_hit_rect("look_zone").has_point(pos) or (vjoy_layout == "fixed" and move_mode == "virtual" and _zone_hit_rect("move_zone").has_point(pos))):
 		_look_touch = idx
 		_look_origin = pos
 		_look_pos = pos

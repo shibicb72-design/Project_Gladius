@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/classes/pawn.gd" id="1"]
 
@@ -17,6 +17,16 @@ height = 1.6
 radius = 0.22
 height = 0.44
 
+; TEMPORARY playtest visibility (P0): bright unshaded materials so the pawn is obvious on device.
+; Replace with the real character art/material later.
+[sub_resource type="StandardMaterial3D" id="body_mat"]
+shading_mode = 0
+albedo_color = Color(1, 0.55, 0.1, 1)
+
+[sub_resource type="StandardMaterial3D" id="head_mat"]
+shading_mode = 0
+albedo_color = Color(1, 0.9, 0.2, 1)
+
 [node name="Pawn" type="CharacterBody3D"]
 collision_layer = 2
 collision_mask = 1
@@ -29,6 +39,7 @@ shape = SubResource("body_shape")
 [node name="Body" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 mesh = SubResource("body_mesh")
+material_override = SubResource("body_mat")
 
 [node name="Head" type="Area3D" parent="." groups=["head_hitbox"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
@@ -40,3 +51,4 @@ shape = SubResource("head_shape")
 
 [node name="HeadMesh" type="MeshInstance3D" parent="Head"]
 mesh = SubResource("head_mesh")
+material_override = SubResource("head_mat")
