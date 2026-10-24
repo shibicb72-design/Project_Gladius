@@ -3491,3 +3491,131 @@ VERDICT: APPROVE
 G3a does what fixG/G3a.txt asks. All inputs are present, including the four named shots at true Fold sizes. The step
 diff stays inside its 3 files with no changed assertions, and all three mandatory mutations are caught by the named
 tests. Open (Shibi): OQ-SPRINT-HOLD.
+
+## G3a2 review
+
+Opus check of 49b2138 ("fix: G3a2 start sprint on the threshold like PUBG; remove sprint_hold_s") against fixG/G3a2.txt.
+Prev = ce5f88b.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius tests_G3a2.log; fixG.log:276 "GATE G3a2 apk=True tests=0 shots=105") ;
+apk = FOUND (build/gladius-debug.apk, re-exported by this check) ; shots = FOUND (n>100; all 4 named shots present) ;
+step commit = FOUND (49b2138, 9 files, +44 -58)
+
+### Gates (run by this check, live repo, one command each)
+- `mkdir -p build`: exit 0.
+- `godot --headless --path . --import`: exit 0, no project errors.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, "Signed", APK found by Glob.
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, "TESTS: 300 passed, 0 failed". The only
+  "ERROR:" line is the push_error that test_button_capture_far_target.gd::test_place_far_target_stops_when_no_lane_is_usable
+  triggers on purpose (it passes); this step did not touch that test.
+
+### Shots (opened and checked)
+- sprint_lock_cover_landscape.png, 2520x1080: cover-screen landscape HUD. The move stick is bottom-left, the "Lock" target
+  sits above it, a "Sprint lock" button is near the top centre, and Jump/Swap/Aim/Reload/Fire plus the look stick are
+  bottom-right. A yellow banner says "desktop render, not device - sprint" and a green line says "touch auto-detected
+  (simulated touchscreen), not forced".
+- sprint_lock_inner_landscape.png, 2176x1812: the same layout on the inner screen, scaled up, with no overlaps.
+- sprint_locked_cover_landscape.png, 2520x1080: the lock target is gone, the centre button reads "Locked" (lighter
+  fill), and the move knob is back at rest.
+- sprint_locked_inner_landscape.png, 2176x1812: the same locked state on the inner screen.
+- The inner shots are 2176x1812 (--offscreen worked). G3a2.json records "sprint_state_ok=true" and both sizes.
+
+### Scope: `git diff ce5f88b --stat`
+data/stats.json, docs/CONTROLS.md, docs/OPEN_QUESTIONS.md, scripts/classes/pawn.gd, scripts/input/input_frame.gd,
+scripts/input/input_provider.gd, scripts/input/providers/touch_provider.gd, scripts/input/sprint_detector.gd,
+tests/test_sprint.gd. These are exactly the allowed files. Nothing changed under scenes/ or tools/, and nothing in
+.claude/settings.json, tests/test_physics_baseline.gd or data/physics_baseline.json. test_physics_baseline still passes
+(walk_speed_mps 5.375).
+
+### Item by item (fixG/G3a2.txt)
+1. data/stats.json: the whole `sprint_hold_s` line (old :25) is removed, and no 0.0 value is left. Grep finds no
+   `sprint_hold_s` in data/. The step adds no new data values; the remaining sprint values keep `"_placeholder": true`
+   (data/stats.json:25-26), and nothing is labelled as PUBG's.
+2. scripts/input/sprint_detector.gd: `hold_s` and `held_s` are gone. configure no longer reads `sprint_hold_s`
+   (:19, the param is renamed `_stats`). update is `sprinting = at_forward_extreme(move)` with `_delta` (:45-48), and
+   reset only clears sprinting (:51-52). The doc comment quotes "Start on the threshold like PUBG" (:5) and says
+   sensitivity only moves the threshold (:7).
+3. Comment-only changes, the same meaning: input_frame.gd:24, pawn.gd:270, input_provider.gd:29, touch_provider.gd:23.
+4. docs/OPEN_QUESTIONS.md:69 OQ-SPRINT now says "move stick at the forward extreme, no hold (Shibi Oct 23 2026)", is
+   still CLOSED, and keeps the placeholders. OPEN_QUESTIONS.md:70 OQ-SPRINT-HOLD is "CLOSED Oct 23 2026 (Shibi):" and
+   quotes "Start on the threshold like PUBG". In docs/CONTROLS.md the sprint_hold_s table row is removed, Trigger (:85)
+   says sprint starts on the tick the stick reaches the extreme and stops at once when it leaves, Sprint sensitivity
+   (:88) no longer mentions the hold, and the PUBG comparison (:100) says G3a2 closed the difference and points to the
+   closed OQ-SPRINT-HOLD.
+5. tests/test_sprint.gd: test_sprint_starts_on_the_threshold (:103) asserts `_first_sprint_tick(rec) == 1` and
+   `not _move_cfg().has("sprint_hold_s")`. test_leaving_the_threshold_stops_and_returning_restarts_at_once (:167) checks
+   true past the threshold, false on the tick the stick leaves, and true on the first tick back; it has no `held_s`.
+   The data markers (:185) assert `not m.has("sprint_hold_s")`. Walk speed (:207-212) is measured with
+   InputFrame move (0,-1) and sprint=false for 25 ticks. Sensitivity (:254) asserts first tick == 1 at every sens.
+   Release on target (:358-359) does one update_frame and asserts fr.sprint. The header (:2-3) mentions G3a2.
+6. Sweep: the only `sprint_hold_s` hits outside docs/REVIEW_sprint1.md are OPEN_QUESTIONS.md:70 (closure text) and
+   the two "has not" asserts in tests/test_sprint.gd:109 and :185. The only "0.5 s hold" hit is CONTROLS.md:100
+   ("the former difference (a 0.5 s hold) is closed"). These are all expected.
+7. Shots: retaken and checked above.
+
+### Exception diff check (line numbers at ce5f88b)
+Every changed or removed existing line in tests/test_sprint.gd, quoted from `git diff ce5f88b`:
+- :2 `## Sprint (G2c, Shibi Oct 22 2026): 0.5 s forward-extreme hold, ...` (header, listed).
+- :102 `func test_no_sprint_before_hold_and_sprint_after()` (renamed, listed).
+- :106 `_sim(... 27, rec)  # 0.45 s`, :107 `assert_true(not rec["sprint"].has(true), "no sprint request before 0.5 s")`,
+  :108 `assert_true(absf(_speed(p) - _run_speed(p)) < 1e-3, "speed == run speed at 0.45 s, ...")`, :109 `_sim(... 10, rec)`,
+  :110 `var first := ...`, :111 `assert_true(first >= 30 and first <= 31, "sprint starts after 0.5 s ...")`,
+  :112 `assert_eq(float(_move_cfg()["sprint_hold_s"]["value"]), 0.5, "hold is 0.5 s")`. All are inside the listed
+  :102-113.
+- :170 rename; :173 `_sim(... 24, rec)  # 0.4 s`, :174 `_sim(... Vector2.ZERO, 1, rec)`, :175
+  `assert_eq(g[2].detector.held_s, 0.0, "timer reset to zero")`, :177 `_sim(... 27, rec2)  # 0.45 s again`, :178
+  `assert_true(not rec2["sprint"].has(true), "0.4 s + 0.45 s is not 0.5 s of continuous hold")`, :179 `_sim(... 6, rec2)`,
+  :180 `assert_true(rec2["sprint"].has(true), "sprints 0.5 s after the restart")`. All are inside the listed :170-181.
+- :188-190 the three `sprint_hold_s` asserts (value 0.5, _source "Shibi Oct 22", not a placeholder). Listed.
+- :212 `var rec := _rec()`, :213 `_sim(p, g[2], g[3], Vector2(0.0, -1.0), 25, rec)  # before the sprint hold ends`.
+  The list names :213-214. :212 is a local setup line that only fed :213, and fixG/G3a2.txt item 5 prescribes this
+  rewrite. It is not an assertion. The walk-speed assert (:214) is unchanged.
+- :255 `assert_true(_first_sprint_tick(rec) >= 30 and ... <= 31, "hold stays 0.5 s at sens %s" % sens)`. Listed.
+- :356 comment, :359 `var fr: InputFrame`, :360-361 `for i in 27: fr = r.update_frame(DT)`, :362
+  `assert_true(not fr.sprint, tag + ": no sprint at 0.45 s")`, :363-364 `for i in 6: ...`, :365
+  `assert_true(fr.sprint, tag + ": sprint after 0.5 s")`. :356/:362/:365 are listed. :359-361/:363-364 are the
+  "0.45 s / 0.5 s hold timing" that item 5 says to replace with one update_frame.
+- The multiplier, ramp, lock, cone/threshold, sensitivity-range and walk/accel asserts are unchanged; the -U6 context
+  shows them untouched. No retries were added.
+Other locked hold sites match the list: stats.json:25, sprint_detector.gd:3-6/:8/:13/:18-20/:46-53/:57, input_frame.gd:24,
+pawn.gd:270, input_provider.gd:29, touch_provider.gd:23, CONTROLS.md:75/:86/:89/:101, OPEN_QUESTIONS.md:69/:70.
+sprint_detector.gd:18 (the configure doc comment) is next to the listed :20 and now notes that `_stats` is unused. That
+is a comment only.
+
+### Other checks
+- Banned-word check (word list kept off-repo): none of the added lines of `git diff ce5f88b -U0` contains a listed
+  word. The commit message is clean too.
+- P-check: no added line contains C:\Users.
+- iOS/cross-platform: the step adds no OS, platform, plugin or Android API. Gameplay still reads only InputFrame.sprint.
+- Touch targets: no layout change. test_touch_layout_g2l.gd::test_targets_at_least_48dp_at_dpi_0_and_420 and
+  test_pause_menu.gd::test_gear_touch_rect_at_least_48dp pass.
+- GODOT API RULE: the step adds no new engine API. The code keeps the existing atan2/rad_to_deg/lerpf/clampf in
+  sprint_detector.gd and the existing Dictionary.has in the tests.
+- The scratch copy is cc_gladius scratch/vG3a2b at 49b2138 (fixG.log:277-279). This check ran the scratch import,
+  which exited 0. The orch script was not run here (this session's shell allows only godot/git); the orchestrator
+  created the copy per fixG.log:278.
+
+### Mutations (scratch vG3a2b only, each undone afterwards)
+- M1: restored the hold in scripts/input/sprint_detector.gd only (`held_s += _delta` at the forward extreme, else 0;
+  `sprinting = held_s >= 0.5`), with stats.json still lacking sprint_hold_s. CAUGHT. The full suite gave
+  "296 passed, 4 failed", exit 1; `--only=test_sprint.gd` gave 12/4:
+  - test_sprint_starts_on_the_threshold: "sprint requested on the first tick past the threshold (expected 1, got -1)".
+  - test_leaving_the_threshold_stops_and_returning_restarts_at_once: "sprint true past the threshold; sprint true again
+    on the first tick back".
+  - test_higher_sensitivity_needs_a_shorter_push_but_same_speed: "sprint starts on the first tick at sens 0.0/50.0/100.0
+    (expected 1, got 31)".
+  - test_release_on_target_locks_release_elsewhere_stops: "custom/floating, virtual/floating, virtual/fixed: sprint on
+    the first tick past the threshold".
+  Then the edit was undone, sprint_detector.gd:45-48 is back to the commit text, and the copy is left in place.
+
+### Minor (not blocking)
+- docs/CONTROLS.md:100 still cites `scripts/input/sprint_detector.gd:35-43`. After the change, the threshold and
+  extreme check are at :33-42. The citation is stale by about one line.
+- scripts/input/sprint_detector.gd:19 keeps an unused `_stats` param to preserve the call signature. This is harmless
+  and documented at :17.
+
+VERDICT: APPROVE
+G3a2 does what fixG/G3a2.txt asks. All inputs are present, including the four named retaken shots at true Fold sizes
+(2520x1080 cover, 2176x1812 inner). The diff stays inside the allowed files. Every changed existing test line is a
+listed hold site or the hold timing that item 5 prescribes. The gates pass (300/0), and mutation M1 is caught by all
+four named tests.
