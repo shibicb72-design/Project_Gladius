@@ -1,6 +1,7 @@
 class_name CameraRig
 extends Node3D
 ## Third-person SpringArm3D + Camera3D. FOV comes from data/camera.json by viewport aspect ratio.
+## Path A: AMSG shoulder swap + GDQuest-style ADS over-shoulder pivot (code only; no NC art).
 
 @onready var _arm: SpringArm3D = $SpringArm3D
 @onready var _camera: Camera3D = $SpringArm3D/Camera3D
@@ -10,6 +11,10 @@ var _cfg: Dictionary = {}
 var base_fov: float = 75.0
 var _aim_blend: float = 0.0
 var _aim_fov_mult: float = 1.0
+## "right" | "left" - AMSG view_angle pattern via data/camera.json (no addon vendored).
+var shoulder_side: String = "right"
+## GDQuest camera_controller pattern: RayCast3D on the camera for ADS aim target.
+var _aim_ray: RayCast3D
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -22,17 +27,28 @@ static func fov_for_aspect(cfg: Dictionary, aspect: float) -> float:
 	return 75.0
 
 
-## "right" | "left" ? AMSG view_angle pattern via data/camera.json (no addon vendored).
-var shoulder_side: String = "right"
-
-
 func _ready() -> void:
 	_cfg = DataRegistry.new().get_camera_cfg()
 	shoulder_side = str(_cfg.get("shoulder_side", "right"))
 	position.y = float(_cfg.get("height_m", 1.6))
 	_apply_shoulder()
+	_ensure_aim_ray()
 	get_viewport().size_changed.connect(apply_fov)
 	apply_fov()
+
+
+## Creates a camera-forward RayCast3D (GDQuest CameraRayCast pattern). Code only ? no demo scenes.
+func _ensure_aim_ray() -> void:
+	if _aim_ray != null or _camera == null:
+		return
+	_aim_ray = RayCast3D.new()
+	_aim_ray.name = "AimRayCast"
+	_aim_ray.enabled = true
+	_aim_ray.collide_with_areas = true
+	_aim_ray.collision_mask = Hitscan.MASK_WORLD | Hitscan.MASK_BODY | Hitscan.MASK_HEAD
+	var far_m := float(_cfg["aim_ray_length_m"]["value"])
+	_aim_ray.target_position = Vector3(0.0, 0.0, -far_m)
+	_camera.add_child(_aim_ray)
 
 
 ## Applies spring_length + lateral arm offset for the current shoulder_side from camera.json.
@@ -44,10 +60,27 @@ func _apply_shoulder() -> void:
 	# SpringArm3D rewrites its child camera's transform every physics frame (measured: tools/measure_shoulder.gd),
 	# so the shoulder offset goes on the arm itself.
 	_arm.position.x = left_x if use_left else right_x
+	_apply_arm_length()
+
+
+func _hip_arm_length() -> float:
+	var use_left := shoulder_side == "left"
 	if use_left and _cfg.has("arm_length_left_m"):
-		_arm.spring_length = float(_cfg["arm_length_left_m"]["value"])
-	else:
-		_arm.spring_length = float(_cfg.get("arm_length_m", 3.5))
+		return float(_cfg["arm_length_left_m"]["value"])
+	return float(_cfg.get("arm_length_m", 3.5))
+
+
+func _aim_arm_length() -> float:
+	if _cfg.has("arm_length_aim_m"):
+		return float(_cfg["arm_length_aim_m"]["value"])
+	return _hip_arm_length()
+
+
+## GDQuest OVER_SHOULDER vs THIRD_PERSON: blend spring_length between hip and ADS lengths.
+func _apply_arm_length() -> void:
+	if _arm == null:
+		return
+	_arm.spring_length = lerpf(_hip_arm_length(), _aim_arm_length(), _aim_blend)
 
 
 ## AMSG-style right/left shoulder swap. Unknown sides fall back to right.
@@ -69,16 +102,37 @@ func apply_fov() -> void:
 	_apply_zoom()
 
 
-## Aim zoom: `blend` 0..1 moves the FOV from the aspect-table base toward base * fov_mult.
+## Aim zoom + over-shoulder pivot: blend FOV and spring_length toward ADS values.
 func set_aim_blend(blend: float, fov_mult: float) -> void:
 	_aim_blend = clampf(blend, 0.0, 1.0)
 	_aim_fov_mult = fov_mult
 	_apply_zoom()
+	_apply_arm_length()
 
 
-## World point under the camera centre (hit, or aim_ray_length_m along the ray). `exclude` keeps the shooter out.
+## Sync SpringArm + AimRayCast exclusions (GDQuest add_excluded_object / add_exception_rid pattern).
+func set_aim_excludes(exclude: Array[RID]) -> void:
+	if _arm != null:
+		_arm.clear_excluded_objects()
+		for rid in exclude:
+			_arm.add_excluded_object(rid)
+	if _aim_ray != null:
+		_aim_ray.clear_exceptions()
+		for rid in exclude:
+			_aim_ray.add_exception_rid(rid)
+
+
+## World aim point: prefer AimRayCast hit (GDQuest), else AimMath camera-centre ray.
 func get_aim_point(exclude: Array[RID]) -> Vector3:
-	return AimMath.camera_aim_point(_camera, exclude, float(_cfg["aim_ray_length_m"]["value"]))
+	set_aim_excludes(exclude)
+	var far_m := float(_cfg["aim_ray_length_m"]["value"])
+	if _aim_ray != null and _aim_ray.is_inside_tree():
+		_aim_ray.target_position = Vector3(0.0, 0.0, -far_m)
+		_aim_ray.force_raycast_update()
+		if _aim_ray.is_colliding():
+			return _aim_ray.get_collision_point()
+		return _aim_ray.global_transform * _aim_ray.target_position
+	return AimMath.camera_aim_point(_camera, exclude, far_m)
 
 
 func get_camera() -> Camera3D:
@@ -95,6 +149,14 @@ func ensure_current() -> bool:
 
 func get_fov() -> float:
 	return _camera.fov
+
+
+func get_aim_blend() -> float:
+	return _aim_blend
+
+
+func get_spring_length() -> float:
+	return _arm.spring_length if _arm != null else 0.0
 
 
 func _apply_zoom() -> void:

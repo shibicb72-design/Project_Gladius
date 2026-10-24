@@ -2,6 +2,7 @@
   "_placeholder": true,
   "_todo": "OQ-37: placeholder third-person camera, not design values",
   "arm_length_m": 3.5,
+  "arm_length_aim_m": {"_placeholder": true, "value": 1.75, "unit": "m", "note": "Path A GDQuest over-shoulder ADS spring_length (code pattern only; no NC art)"},
   "shoulder_offset_m": {"_placeholder": true, "value": 0.6, "unit": "m", "note": "right-shoulder offset, tunable, no source"},
   "shoulder_offset_left_m": {"_placeholder": true, "value": -0.6, "unit": "m", "note": "left-shoulder offset (AMSG view_angle pattern), Path A"},
   "shoulder_side": "right",
