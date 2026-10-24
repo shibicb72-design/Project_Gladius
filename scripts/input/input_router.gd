@@ -5,6 +5,9 @@ extends Node
 var providers: Array[InputProvider] = []
 var _frame: InputFrame = InputFrame.new()
 var _prev_pressed: Dictionary = {}
+## Optional ADS hold-vs-toggle (data/stats.json aim.aim_toggle_enabled); default off.
+var aim_toggle: AimToggle = AimToggle.new()
+var _aim_toggle_configured: bool = false
 
 
 const _LookMath := preload("res://scripts/input/look_math.gd")
@@ -70,6 +73,7 @@ func get_frame() -> InputFrame:
 
 ## Rebuilds the frame from the providers. Called every physics tick; callable directly in tests.
 func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -> InputFrame:
+	_ensure_aim_toggle()
 	var f := InputFrame.new()
 	for p in providers:
 		p.tick(delta)
@@ -87,8 +91,18 @@ func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -
 				break
 		f.set_button(action, down, down and not _prev_pressed.get(action, false))
 		_prev_pressed[action] = down
+	# Path A: optional tps-demo aim toggle remaps effective aim_pressed.
+	var effective_aim: bool = aim_toggle.resolve(f.aim_pressed, delta)
+	f.aim_pressed = effective_aim
 	_frame = f
 	return f
+
+
+func _ensure_aim_toggle() -> void:
+	if _aim_toggle_configured:
+		return
+	aim_toggle.configure(DataRegistry.new().get_aim_cfg())
+	_aim_toggle_configured = true
 
 
 func _physics_process(delta: float) -> void:
