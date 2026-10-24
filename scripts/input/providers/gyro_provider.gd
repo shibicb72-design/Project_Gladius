@@ -4,8 +4,8 @@ extends InputProvider
 ## Modes: "off", "scope_on" (only while aiming, ADS), "always_on". The legacy value "on" means always_on.
 ## The engine sensor is switched on in project.godot (input_devices/sensors/enable_gyroscope); the
 ## profile mode is what gates use. No aim assist on gyro (DESIGN.md). Table percentages and inversion are
-## applied by InputRouter. iOS port: add the motion-usage permission string
-## (NSMotionUsageDescription) to the iOS export before shipping there.
+## applied by InputRouter. iOS motion permission string: export_presets.cfg [preset.1.options]
+## application/additional_plist_content (NSMotionUsageDescription).
 
 const _Platform := preload("res://scripts/platform/platform_services.gd")
 const MODES: Array[String] = ["off", "scope_on", "always_on"]

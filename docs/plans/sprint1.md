@@ -69,7 +69,7 @@ Files:
 - `tests/run_tests.gd` (`extends SceneTree`; discovers `res://tests/test_*.gd`; runs tests in
   `_initialize()`, then `quit(code)`). `tests/test_case.gd` provides assert helpers that record failures
   without push_error. `tests/test_stats_data.gd` holds the first test.
-- `export_presets.cfg` with exactly one preset `[preset.0]`:
+- `export_presets.cfg` with Android `[preset.0]` plus iOS `[preset.1]` (G3d):
   - `name="Android"`, `platform="Android"`, `runnable=true`
   - `export_filter="all_resources"`
   - `include_filter="data/*.json"`: required, because non-resource JSON files are not exported otherwise

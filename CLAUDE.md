@@ -13,4 +13,4 @@ CROSS-PLATFORM READINESS (Android ships first; Windows, Linux, Mac, iOS and web 
 - Platform-specific code (gyro, haptics, Android permissions, file paths) lives behind scripts/platform/ with an OS.get_name() switch and safe no-op fallbacks; use user:// for saves, never hard-coded paths.
 - Networking via Godot high-level multiplayer (ENet) only, no Android-only APIs, so PC players can join later.
 - Use the Compatibility or Mobile renderer settings that also run on desktop and web; keep graphics quality as data-driven presets.
-- Keep export_presets.cfg with only the Android preset for now, but nothing in code may assume Android.
+- Keep export_presets.cfg with the Android and iOS presets for now, but nothing in code may assume Android.
