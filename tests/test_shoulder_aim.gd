@@ -143,3 +143,29 @@ func test_far_tracer_ends_outside_the_shooter_screen_rect_at_fold_sizes() -> voi
 			var rect := _screen_rect(cam, pawn)
 			assert_true(not rect.has_point(far_px), "%s: far end %s outside shooter rect %s" % [size, far_px, rect])
 		await _Rig.teardown(ctx)
+
+
+func test_shoulder_swap_flips_arm_offset() -> void:
+	var rig: CameraRig = _RigScene.instantiate()
+	_tree().root.add_child(rig)
+	await _tree().physics_frame
+	var right_x := float(DataRegistry.new().get_camera_cfg()["shoulder_offset_m"]["value"])
+	var left_x := float(DataRegistry.new().get_camera_cfg()["shoulder_offset_left_m"]["value"])
+	assert_eq(rig.shoulder_side, "right", "default side from camera.json")
+	assert_true(absf(rig.get_node("SpringArm3D").position.x - right_x) < 0.001, "starts on right")
+	rig.set_shoulder_side("left")
+	assert_eq(rig.shoulder_side, "left", "side left")
+	assert_true(absf(rig.get_node("SpringArm3D").position.x - left_x) < 0.001, "arm on left offset")
+	rig.swap_shoulder()
+	assert_eq(rig.shoulder_side, "right", "swap back to right")
+	assert_true(absf(rig.get_node("SpringArm3D").position.x - right_x) < 0.001, "arm on right again")
+	rig.queue_free()
+
+
+func test_camera_json_exposes_left_shoulder_data() -> void:
+	var cfg := DataRegistry.new().get_camera_cfg()
+	assert_true(cfg.has("shoulder_offset_left_m"), "left offset key")
+	assert_true(cfg.has("shoulder_side"), "shoulder_side key")
+	assert_true(cfg.has("arm_length_left_m"), "arm_length_left_m key")
+	assert_eq(str(cfg["shoulder_side"]), "right", "default right")
+	assert_true(float(cfg["shoulder_offset_left_m"]["value"]) < 0.0, "left offset negative")

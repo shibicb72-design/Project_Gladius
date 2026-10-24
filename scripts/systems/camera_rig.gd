@@ -22,15 +22,43 @@ static func fov_for_aspect(cfg: Dictionary, aspect: float) -> float:
 	return 75.0
 
 
+## "right" | "left" ? AMSG view_angle pattern via data/camera.json (no addon vendored).
+var shoulder_side: String = "right"
+
+
 func _ready() -> void:
 	_cfg = DataRegistry.new().get_camera_cfg()
-	_arm.spring_length = float(_cfg.get("arm_length_m", 3.5))
+	shoulder_side = str(_cfg.get("shoulder_side", "right"))
 	position.y = float(_cfg.get("height_m", 1.6))
-	# SpringArm3D rewrites its child camera's transform every physics frame (measured: tools/measure_shoulder.gd),
-	# so the shoulder offset goes on the arm itself.
-	_arm.position.x = float(_cfg["shoulder_offset_m"]["value"])
+	_apply_shoulder()
 	get_viewport().size_changed.connect(apply_fov)
 	apply_fov()
+
+
+## Applies spring_length + lateral arm offset for the current shoulder_side from camera.json.
+func _apply_shoulder() -> void:
+	var right_x := float(_cfg["shoulder_offset_m"]["value"])
+	var left_entry: Dictionary = _cfg.get("shoulder_offset_left_m", {"value": -right_x})
+	var left_x := float(left_entry.get("value", -right_x))
+	var use_left := shoulder_side == "left"
+	# SpringArm3D rewrites its child camera's transform every physics frame (measured: tools/measure_shoulder.gd),
+	# so the shoulder offset goes on the arm itself.
+	_arm.position.x = left_x if use_left else right_x
+	if use_left and _cfg.has("arm_length_left_m"):
+		_arm.spring_length = float(_cfg["arm_length_left_m"]["value"])
+	else:
+		_arm.spring_length = float(_cfg.get("arm_length_m", 3.5))
+
+
+## AMSG-style right/left shoulder swap. Unknown sides fall back to right.
+func set_shoulder_side(side: String) -> void:
+	shoulder_side = "left" if side == "left" else "right"
+	if _arm != null:
+		_apply_shoulder()
+
+
+func swap_shoulder() -> void:
+	set_shoulder_side("left" if shoulder_side == "right" else "right")
 
 
 func apply_fov() -> void:
