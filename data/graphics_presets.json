@@ -1,0 +1,13 @@
+{
+	"default": "default",
+	"presets": {
+		"default": {
+			"max_fps": 60,
+			"msaa_3d": 0,
+			"scale_3d": 1.0
+		}
+	},
+	"_note": "TODO OQ-40: one preset and a 60 fps cap are placeholders, not design values. The 120 fps option is not exposed.",
+	"_placeholder": true,
+	"_todo": "OQ-40"
+}

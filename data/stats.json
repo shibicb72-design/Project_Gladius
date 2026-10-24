@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "classes": {
+    "hastati":    {"display_name": "Hastati",    "shield": 100, "health": 100, "speed_pct": 100, "enabled": true},
+    "principes":  {"display_name": "Principes",  "shield": 110, "health": 110, "speed_pct": 100, "enabled": false},
+    "triarii":    {"display_name": "Triarii",    "shield": 140, "health": 130, "speed_pct": 85,  "enabled": false},
+    "velites":    {"display_name": "Velites",    "shield": 70,  "health": 80,  "speed_pct": 115, "enabled": false, "skill": "mark"},
+    "sagittarii": {"display_name": "Sagittarii", "shield": 80,  "health": 90,  "speed_pct": 95,  "enabled": true},
+    "equites":    {"display_name": "Equites",    "shield": 90,  "health": 100, "speed_pct": 100, "enabled": false, "vehicle_speed_pct": 200, "role": "mobile support: vehicle, heal, ammo, cover"},
+    "gladiator":  {"display_name": "Gladiator",  "shield": 60,  "health": 120, "speed_pct": 110, "enabled": false, "role": "melee"}
+  },
+  "combat": {
+    "_placeholder": true, "_todo": "OQ-12 OQ-13 OQ-14",
+    "shield_regen_delay_s": 5.0,
+    "shield_regen_rate_per_s": 25.0,
+    "overflow_to_health": true
+  },
+  "movement": {
+    "_placeholder": true, "_todo": "OQ-18: jump itself is decided (jump_enabled true); all movement numbers are still placeholders",
+    "base_speed_mps": 4.7,
+    "base_speed_note": "Shibi Oct 22 asked for +5-10%; +7.5% chosen (5.0 x 1.075). base_speed_mps stays a placeholder.",
+    "base_speed_g3b_note": "G3b-1 Oct 23 2026: run 4.7 m/s, sprint 6.3 m/s (x1.34), MEASURED (PC), community sources pubg.fandom.com/wiki/Movement_Speed and samurai-gamers; community-measured, not official. The Japanese samurai-gamers page measures sprint at 6.2 m/s (known variance). Supersedes base_speed_note. Still a placeholder.",
+    "weapon_speed_penalty": {"_placeholder": true, "value": 1.0, "note": "placeholder multiplier on run speed while holding a weapon; 1.0 = no penalty; not wired yet (OQ-WEAPON-SPEED)"},
+    "gravity": 20.0,
+    "ground_accel": {"_placeholder": true, "time_s": 0.1175, "note": "seconds from rest to full speed; 0 = instant. 4.7 m/s / 40 m/s^2 keeps the ground acceleration at exactly 40 m/s^2"},
+    "ground_decel": {"_placeholder": true, "time_s": 0.1175, "note": "seconds from full speed to stop; 0 = instant. 4.7 m/s / 40 m/s^2 keeps the ground deceleration at exactly 40 m/s^2"},
+    "sprint_speed_multiplier": {"_placeholder": true, "value": 1.34, "note": "our placeholder starting value, no sourced number"},
+    "sprint_ramp_s": {"_placeholder": true, "value": 1.0, "unit": "seconds to ease between run speed and sprint speed, both directions"},
+    "strafe_back_ratio": {"_source": "TSG Forge Wiki community tag data: sideways 2 / forward 2.25, backward 2", "value": 0.889, "note": "sideways and backward speed as a ratio of forward speed"},
+    "jump_enabled": true,
+    "jump_velocity": 7.0,
+    "muzzle_height_m": 1.3
+  },
+  "melee": {
+    "_todo": "OQ-56 (DECIDED Oct 22 2026: Gladius Lux follows the DESIGN.md:15 melee rule). Only the entries listed in _placeholders are placeholders.",
+    "_placeholders": ["melee_back_angle_deg", "front_hit_no_shield_rule", "gladiator_front_hit_no_shield_rule"],
+    "melee_front_shield_fraction": 0.7,
+    "front_breaks_full_shield_classes": ["gladiator"],
+    "melee_back_angle_deg": 90,
+    "_back_angle_note": "PLACEHOLDER (OQ-56): a hit is from behind when the angle between the target's facing and the direction target->attacker is greater than this.",
+    "front_hit_no_shield_rule": "PLACEHOLDER (OQ-56), not a Shibi decision: the 70%-of-full-shield amount is applied to health through the normal shield-then-health path.",
+    "gladiator_front_hit_no_shield_rule": "PLACEHOLDER (OQ-56 item 3), not a Shibi decision: with a Gladiator attacker, a front hit on a target with no shield left takes the full max_shield amount off health."
+  },
+  "aim_assist": {
+    "_placeholder": true, "_todo": "OQ-19",
+    "friction": 0.0,
+    "follow": 0.0,
+    "magnetism": 0.0
+  },
+  "aim": {
+    "_placeholder": true, "_todo": "OQ-AIM (GBTN): holding Aim zooms the camera and tightens spread. No weapon has its own aim spread in the data yet, so one global multiplier applies. Not PUBG values, not design values.",
+    "aim_fov_mult": 0.6,
+    "aim_zoom_s": 0.15,
+    "aim_spread_mult": 0.5
+  },
+  "_weapons_comment": "Starter set, see docs/STATS.md. Shibi tunes these on the phone. Kinds: hitscan (burst/single, uses magazine) and melee (swing: melee_range_m, melee_arc_deg; no ammo).",
+  "weapons": {
+    "pilum_br": {
+      "display_name": "Pilum BR", "_placeholder": true, "_todo": "OQ-06 (DECIDED: starter set, tune on phone) OQ-11",
+      "kind": "hitscan", "tier": "standard",
+      "damage": 20, "headshot_multiplier": 1.5, "fire_interval_s": 0.5,
+      "burst_count": 3, "burst_interval_s": 0.07,
+      "magazine": 30, "reserve_ammo": 120, "reload_s": 2.0,
+      "range_m": 80, "spread_deg": 1.0
+    },
+    "gladius_lux": {
+      "display_name": "Gladius Lux", "_placeholder": true, "_todo": "OQ-06 (DECIDED: starter set, tune on phone) OQ-07 (DECIDED: energy blade, melee) OQ-11",
+      "kind": "melee", "tier": "standard",
+      "damage": 60, "headshot_multiplier": 1.0, "fire_interval_s": 0.6,
+      "melee_range_m": 2.2, "melee_arc_deg": 100, "swing_duration_s": 0.2,
+      "burst_count": 1, "burst_interval_s": 0.05,
+      "magazine": 0, "reserve_ammo": 0, "reload_s": 0.0,
+      "range_m": 2.2, "spread_deg": 0.0,
+      "_note": "Energy blade: no ammo, magazine/reload/spread unused. damage is no longer used by the front/back melee rule (see top-level melee, DESIGN.md:15); the key stays for the data checks. range_m mirrors melee_range_m. Swings do not test the head, so headshot_multiplier stays 1.0."
+    },
+    "sagittarii_rifle": {
+      "display_name": "Sagittarii Rifle (working name)", "_placeholder": true,
+      "_todo": "OQ-08 OQ-10 OQ-06: working name; PLACEHOLDER long-range single-shot design, NOT a Shibi decision. Every number below is a placeholder (# TUNE).",
+      "# TUNE": "all numbers are placeholders",
+      "kind": "hitscan", "tier": "standard",
+      "damage": 90, "headshot_multiplier": 2.0, "fire_interval_s": 1.2,
+      "burst_count": 1, "burst_interval_s": 0.05,
+      "magazine": 5, "reserve_ammo": 25, "reload_s": 2.5,
+      "range_m": 200, "spread_deg": 0.1
+    }
+  }
+}

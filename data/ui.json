@@ -1,0 +1,91 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-38 (addendum) OQ-52: presentation timing, not design values. OQ-54: menu touch-target and font fractions are placeholders; min_touch_target_dp is the Android 48 dp guideline floor, applied on top of the height fraction.",
+	"end_screen_delay_s": 3.0,
+	"hud": {
+		"_note": "OQ-38 DECIDED (Shibi, Oct 22 2026): no Roman numerals for now. Flip roman_numerals to true to bring them back (RomanNumerals code and tests are kept).",
+		"roman_numerals": false
+	},
+	"min_touch_target_frac_of_height": 0.09,
+	"min_touch_target_dp": 48.0,
+	"font_size_frac_of_height": 0.035,
+	"shot_fx": {
+		"_placeholder": true,
+		"_todo": "OQ-FEEDBACK (GBTN): placeholder look of the muzzle flash, tracer and weapon mesh. Not design values.",
+		"tracer_width_m": 0.08,
+		"tracer_duration_s": 0.08,
+		"tracer_max_length_m": 60.0,
+		"_gbtn2_note": "GBTN2 placeholders (not design values): the tracer measured 116 px on-screen at 2520x1080 but was hidden behind the pawn body, so tracer and flash draw on top; tracer_min_screen_px is the test floor for the projected length.",
+		"tracer_draw_on_top": true,
+		"tracer_render_priority": 10,
+		"tracer_min_screen_px": 60.0,
+		"tracer_color": [1.0, 0.9, 0.4, 1.0],
+		"flash_size_m": 0.25,
+		"flash_duration_s": 0.06,
+		"flash_color": [1.0, 0.75, 0.3, 1.0],
+		"weapon_mesh_size_m": [0.08, 0.1, 0.5],
+		"weapon_mesh_offset_m": [-0.55, 1.15, -0.35],
+		"weapon_mesh_color": [0.25, 0.25, 0.3, 1.0]
+	},
+	"capture": {
+		"_placeholder": true,
+		"_todo": "GBTN3: dev-tool only (tools/button_capture.gd). Distance of the target pawn placed ahead of the player, along the chord to the neighbouring spawn spot (past the central hill, which blocks the straight line), for the far tracer screenshots. Not a design value.",
+		"far_target_distance_m": 35.0
+	},
+	"feedback": {
+		"_placeholder": true,
+		"_todo": "OQ-FEEDBACK (GBTN): HUD feedback for the action buttons (hit marker, reload bar, cues, swap toast). Not design values.",
+		"hit_marker_duration_s": 0.15,
+		"hit_marker_text": "X",
+		"hit_marker_color": [1.0, 1.0, 1.0, 1.0],
+		"hit_marker_font_frac_of_height": 0.06,
+		"reload_text": "Reloading",
+		"reload_bar_size": [240, 12],
+		"cue_duration_s": 0.8,
+		"cue_full_text": "Full",
+		"cue_no_reserve_text": "No reserve",
+		"cue_empty_text": "Empty",
+		"toast_duration_s": 1.2,
+		"cue_color": [1.0, 0.85, 0.3, 1.0],
+		"toast_color": [1.0, 1.0, 1.0, 1.0],
+		"_layout_note": "GBTN2: rows sit in the centre band row_x_frac and above the stick tops / button column tops so they never overlap a stick or action button.",
+		"row_x_frac": [0.35, 0.65],
+		"cue_anchor_y_frac": 0.26,
+		"reload_anchor_y_frac": 0.32,
+		"toast_anchor_y_frac": 0.2
+	},
+	"touch_debug_overlay": {
+		"_placeholder": true,
+		"_todo": "OQ-DEVICE-TOUCH (GBTN): debug overlay showing each touch index and the button it hit. Default off.",
+		"enabled": false
+	},
+	"pause_gear": {
+		"_placeholder": true,
+		"_todo": "OQ-PAUSE-MENU: gear icon that opens the in-match menu (Shibi via EL, Oct 22 2026: top-right gear only, never Android Back). Position, sizes and look are placeholders, not design values. anchor = viewport corner [x, y] in 0..1; margin_dp = [from the right edge, from the top edge] to the touch rect, moved down/in via data if the top-right is crowded (the HUD top text is never shrunk). icon_dp is the drawn gear, touch_dp the tap target (>= 48 dp).",
+		"anchor": [1.0, 0.0],
+		"margin_dp": [8.0, 56.0],
+		"icon_dp": 28.0,
+		"touch_dp": 48.0,
+		"teeth": 8,
+		"color": [0.95, 0.85, 0.45, 0.9]
+	},
+	"pause_menu": {
+		"_placeholder": true,
+		"_todo": "OQ-PAUSE-MENU: layout of the in-match menu overlay. Sizes and tint are placeholders, not design values; every button is at least 48 dp.",
+		"button_dp": [320.0, 64.0],
+		"gap_dp": 12.0,
+		"dim_color": [0.0, 0.0, 0.0, 0.65],
+		"resume_text": "Resume",
+		"settings_text": "Settings",
+		"quit_text": "Quit to main menu",
+		"confirm_text": "Confirm",
+		"cancel_text": "Cancel",
+		"back_text": "Back",
+		"confirm_prompt": "Leave the match?"
+	},
+	"hud_layout": {
+		"_placeholder": true,
+		"_todo": "OQ-35: gameplay HUD stat block (bars, weapon, ammo) top-left corner as [x frac of width, y frac of height]; kept clear of the touch sticks and buttons. Not a design value.",
+		"stat_block_pos": [0.01, 0.08]
+	}
+}

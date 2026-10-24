@@ -1,0 +1,135 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-34, OQ-35, OQ-36: all values below are placeholders, not design values",
+	"invert_y": false,
+	"_gyro_note": "Gyro on/off is owned by the player profile (user://profile.json gyro_enabled, default off, OQ-34), not this file.",
+	"gyro": {
+		"_placeholder": true,
+		"_todo": "OQ-34, OQ-36: gyro sensitivity (look units per rad/s) is a placeholder, not a design value",
+		"sensitivity": 1.0
+	},
+	"force_touch_hud": false,
+	"sensitivity": {
+		"_placeholder": true,
+		"_todo": "OQ-36",
+		"stick_look": 1.0,
+		"touch_look": 1.0,
+		"mouse_look": 0.002
+	},
+	"_sensitivity_tables_todo": "G2d, OQ-SENS, OQ-ADS-ZOOM: sensitivity tables, in percent (100 = the base look rate above). Every min, default, step and preset value is a placeholder, not a design value. Only the gyro max of 400 has an official source. The key is sensitivity_tables because 'sensitivity' above already holds the base look rates.",
+	"sensitivity_tables": {
+		"default_preset": "medium",
+		"_default_preset_placeholder": true,
+		"_default_preset_note": "OQ-SENS: which preset new players start on is a placeholder, not a design value.",
+		"gyro_modes": ["off", "scope_on", "always_on"],
+		"default_gyro_mode": {"value": "off", "note": "OQ-34"},
+		"states": {
+			"_note": "InputRouter.set_aim_state(state) -> table row. Scope rows are data only until scopes exist (OQ-ADS-ZOOM); the state stays no_scope otherwise.",
+			"no_scope": "tpp_fpp_no_scope", "red_dot": "red_dot", "2x": "2x", "4x": "4x", "8x": "8x", "16x": "16x"
+		},
+		"scope_rows": ["tpp_fpp_no_scope", "red_dot", "2x", "4x", "8x", "16x"],
+		"free_look_rows": ["tpp_character", "fpp_character"],
+		"_free_look_note": "PUBG's parachuting row is skipped: our design has no parachute. 3x and 6x are skipped: our weapons have no such scopes (DESIGN.md scopes: red dot, 2x, 4x, 8x, 16x).",
+		"ranges": {
+			"camera": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 300, "_placeholder": true}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"ads": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 300, "_placeholder": true}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"gyro": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 400, "_source": "PUBG MOBILE Patch Notes 1.1: Increased the max sensitivity of the gyroscope to 400."}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"ads_gyro": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 400, "_source": "PUBG MOBILE Patch Notes 1.1: Increased the max sensitivity of the gyroscope to 400."}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}},
+			"free_look": {"min": {"value": 1, "_placeholder": true}, "max": {"value": 300, "_placeholder": true}, "default": {"value": 100, "_placeholder": true}, "step": {"value": 1, "_placeholder": true}}
+		},
+		"presets": {
+			"_placeholder": true,
+			"_todo": "Low / Medium / High: every value is a placeholder, one percent per table applied to every row of that table.",
+			"low": {"camera": 60, "ads": 60, "gyro": 60, "ads_gyro": 60, "free_look": 60},
+			"medium": {"camera": 100, "ads": 100, "gyro": 100, "ads_gyro": 100, "free_look": 100},
+			"high": {"camera": 150, "ads": 150, "gyro": 150, "ads_gyro": 150, "free_look": 150}
+		}
+	},
+	"dead_zones": {
+		"_placeholder": true,
+		"_todo": "OQ-35",
+		"gamepad_look": 0.15,
+		"touch_move": 0.1,
+		"touch_look": 0.1
+	},
+	"look": {
+		"_placeholder": true,
+		"_todo": "OQ-36, OQ-53: units are degrees/second (rates) and radians per screen height (drag); not design values",
+		"mode": "stick",
+		"max_turn_rate_deg_s": 360.0,
+		"stick_rate_deg_s": 180.0,
+		"drag_rad_per_screen_height": 3.14
+	},
+	"_move_feel_todo": "OQ-VJOY: move-stick feel. Every entry is a NEUTRAL placeholder (not a design value, not tuned). Applies to the VirtualJoystick move stick only; the custom stick keeps dead_zones.touch_move.",
+	"sprint_sensitivity": {"min": 0, "max": 100, "default": 50, "step": 5, "_source": "HT Tech report of BGMI 1.6 notes, single unofficial source; Shibi chose it as the starting point Oct 22 2026"},
+	"sprint": {
+		"_todo": "OQ-SPRINT-NUMBERS: every value below is a placeholder, not a design value. The forward threshold is a fraction of the stick radius; higher sprint sensitivity = lower threshold (docs/CONTROLS.md Sprint).",
+		"threshold_at_sensitivity_0": {"_placeholder": true, "value": 0.98, "unit": "fraction of stick radius"},
+		"threshold_at_sensitivity_100": {"_placeholder": true, "value": 0.7, "unit": "fraction of stick radius"},
+		"forward_cone_half_angle_deg": {"_placeholder": true, "value": 25.0, "unit": "degrees from straight forward"},
+		"lock_target": {"_placeholder": true, "distance_radii": 2.7, "size_frac_of_height": 0.12, "note": "centre of the lock target above the move-stick origin, in stick radii; its size as a fraction of the HUD height"},
+		"lock_button": {"_placeholder": true, "size_frac_of_height": 0.12, "note": "size of the movable Sprint lock button; its default position is touch_layout.sprint_lock_pos (G2L); always at least min_dp",
+			"min_dp": 48.0}
+	},
+	"move_feel": {
+		"vjoy_deadzone_ratio": {"_placeholder": true, "value": 0.0, "unit": "ratio of joystick radius", "note": "VirtualJoystick.deadzone_ratio; 0.0 is the engine default"},
+		"vjoy_clampzone_ratio": {"_placeholder": true, "value": 1.0, "unit": "ratio", "note": "VirtualJoystick.clampzone_ratio; 1.0 is the engine default"},
+		"radial_deadzone": {"_placeholder": true, "value": 0.1, "unit": "stick length 0..1", "note": "applied to the vector's length (not per axis); the rest is rescaled to 0..1"},
+		"response_exponent": {"_placeholder": true, "value": 1.0, "unit": "exponent", "note": "out = dir * pow(remapped_length, exponent); 1.0 = linear"}
+	},
+	"layout_editor": {
+		"_placeholder": true,
+		"_todo": "OQ-LAYOUT-EDITOR (G2e): every range below is a placeholder, not a design value and not PUBG's. size_pct is a percent of the element's default size; alpha_pct a percent of full opacity. An element's touch target never goes below min_target_dp, whatever the slider says.",
+		"slots": 3,
+		"default_size_pct": 100,
+		"default_alpha_pct": 100,
+		"min_target_dp": 48.0,
+		"size_pct": {"_placeholder": true, "min": 50, "max": 250, "step": 5},
+		"alpha_pct": {"_placeholder": true, "min": 10, "max": 100, "step": 5},
+		"check_sizes": {"_note": "Viewports checked for off-screen elements, landscape only (OQ-PORTRAIT): Fold cover, Fold inner, and the two small test sizes.",
+			"list": [[2520, 1080], [2176, 1812], [1512, 648], [1152, 959]]},
+		"overlap_policy": "warn_only"
+	},
+	"touch_layout": {
+		"_placeholder": true,
+		"_todo": "OQ-35",
+		"stick_radius_frac_of_height": 0.12,
+		"tap_slop_frac_of_height": 0.01,
+		"knob_frac_of_radius": 0.4,
+		"ring_alpha": 0.35,
+		"_sticks_todo": "OQ-35: rest centres of the always-visible sticks are placeholders: [x as fraction of width, y as fraction of height]. G2L: move bottom-left; look bottom-right, with the button cluster north-west of it.",
+		"move_stick_rest": [0.15, 0.76],
+		"look_stick_rest": [0.88, 0.78],
+		"_move_stick_note": "Which move stick the touch HUD builds. 'virtual' (the default) = Godot 4.7 VirtualJoystick; 'custom' = the hand-written stick, kept as a working fallback. The player profile (Settings in the main menu) overrides this value. See docs/CONTROLS.md and OQ-VJOY.",
+		"move_stick": "virtual",
+		"_vjoy_layout_note": "Only used when move_stick is 'virtual'. 'floating' (default): JOYSTICK_DYNAMIC, a touch anywhere in the left half (move_zone) spawns the base under the thumb. 'fixed': JOYSTICK_FIXED at move_stick_rest, only touches on the stick grab it; other touches go to look.",
+		"vjoy_layout": "floating",
+		"_vjoy_todo": "OQ-VJOY: all values below are trial placeholders, not design values. Sizes are fractions of the custom stick radius / ring.",
+		"vjoy": {
+			"_placeholder": true,
+			"visibility": "always",
+			"size_frac_of_ring": 1.0,
+			"tip_frac_of_size": 0.4
+		},
+		"move_zone": {"left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0},
+		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
+		"tap_fire_max_s": 0.2,
+		"fire_pulse_s": 0.08,
+		"_buttons_todo": "OQ-35, G2L: button size, min_dp, font and offsets are placeholders, not design values. offset = [dx, dy] of the button centre from the look stick rest centre, in button sizes (negative = west/north). Keys of buttons are InputMap actions.",
+		"_placeholder_buttons": true,
+		"button_size_frac_of_height": 0.12,
+		"button_min_dp": 48.0,
+		"button_font_frac_of_size": 0.24,
+		"buttons": {
+			"jump": {"label": "Jump", "offset": [-0.6, -2.4]},
+			"swap_weapon": {"label": "Swap", "offset": [-2.8, -1.25]},
+			"fire": {"label": "Fire", "offset": [-1.7, -0.1]},
+			"reload": {"label": "Reload", "offset": [-2.8, -0.1]},
+			"aim": {"label": "Aim", "offset": [-1.7, -1.25]}
+		},
+		"_sprint_lock_note": "G2L: the one default position of the movable Sprint lock button, [x of width, y of height] of its centre. The profile value (sprint_lock_pos) overrides it. Its size and min_dp stay in sprint.lock_button.",
+		"sprint_lock_pos": [0.56, 0.42],
+		"_left_fire_note": "G3e: optional second Fire button for the left thumb, off by default. pos = [x of width, y of height] of its centre, on the left half above the move stick and clear of the Sprint lock target. Placeholder position, not a design value (OQ-LEFT-FIRE-POS). Not a key of buttons: those are InputMap actions; this one presses the existing fire action.",
+		"left_fire": {"_placeholder": true, "enabled_default": false, "pos": [0.3, 0.5], "note": "optional second Fire button for the left thumb (G3e); size = button_size_frac_of_height, at least button_min_dp"}
+	}
+}

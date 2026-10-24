@@ -1,0 +1,23 @@
+{
+  "port": 7777,
+  "connect_timeout_s": 5.0,
+  "snapshot_rate_hz": 15,
+  "input_rate_hz": 30,
+  "_input_rate_hz_todo": "Placeholder (OQ-51): client input/position send rate; not a design value.",
+  "max_name_length": 24,
+  "_max_name_length_todo": "Placeholder (OQ-50): host-side cap on a lobby display name; not a design value.",
+  "_max_clients_note": "max_clients = match.json max_humans - 1 (the host is one of the humans); computed by NetSession.",
+  "validation": {
+    "_placeholder": true,
+    "_todo": "T-03 / OQ-41: tolerances for host-side checks are placeholders, not design values.",
+    "fire_rate_tolerance": 0.8,
+    "fire_origin_max_error_m": 2.0,
+    "move_speed_tolerance": 1.5,
+    "move_min_window_s": 0.05,
+    "move_vertical_tolerance": 1.5,
+    "max_fall_speed_mps": 60.0,
+    "_vertical_todo": "T-03 placeholders: move_vertical_tolerance scales the allowed vertical change per window; max_fall_speed_mps is a generous cap because the pawn has no terminal velocity. Not design values."
+  },
+  "_placeholder": true,
+  "_todo": "T-01: port 7777, 5 s timeout and 15 Hz snapshots are default placeholders, not design values."
+}

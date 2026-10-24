@@ -1,3 +1,11 @@
 build/
+build/shots/
 .godot/
+*.apk
+*.aab
+*.idsig
+*.jks
+*.keystore
+!android/debug.keystore
+android/build/
 

@@ -1,0 +1,8 @@
+{
+  "_placeholder": true,
+  "_todo": "OQ-09: sidearm slot exists but is empty. Weapon choices are decided (OQ-08/OQ-10, Shibi 2026-10-22); weapon numbers in stats.json are placeholders.",
+  "classes": {
+    "hastati":    {"primary": "pilum_br", "secondary": "gladius_lux", "sidearm": ""},
+    "sagittarii": {"primary": "sagittarii_rifle", "secondary": "gladius_lux", "sidearm": ""}
+  }
+}

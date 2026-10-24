@@ -1,0 +1,28 @@
+{
+	"_placeholder": true,
+	"_note": "TODO (OQ-HAPTICS-VALUES): every duration, amplitude, default and the damage-event precedence below is a placeholder. Neither DESIGN.md nor the PUBG Mobile research gives intensity values. Only the existence of weapon / status / sound-cue tactile feedback, a system vibration setting and a High/Low quality choice comes from the research. amplitude is 0.0..1.0 (Input.vibrate_handheld, class_input.md:1838).",
+	"defaults": {
+		"_placeholder": true,
+		"enabled": true,
+		"quality": "high",
+		"categories": {"weapons": true, "status": true, "sound_cues": true}
+	},
+	"qualities": ["high", "low"],
+	"categories": ["weapons", "status", "sound_cues"],
+	"events": {
+		"weapon_fire": {"_placeholder": true, "category": "weapons",
+			"high": {"duration_ms": 25, "amplitude": 0.6}, "low": {"duration_ms": 12, "amplitude": 0.3}},
+		"weapon_reload": {"_placeholder": true, "category": "weapons",
+			"high": {"duration_ms": 40, "amplitude": 0.4}, "low": {"duration_ms": 20, "amplitude": 0.2}},
+		"melee_hit": {"_placeholder": true, "category": "weapons",
+			"high": {"duration_ms": 60, "amplitude": 0.9}, "low": {"duration_ms": 30, "amplitude": 0.5}},
+		"damage_taken": {"_placeholder": true, "category": "status",
+			"high": {"duration_ms": 50, "amplitude": 0.7}, "low": {"duration_ms": 25, "amplitude": 0.4}},
+		"shield_break": {"_placeholder": true, "category": "status",
+			"high": {"duration_ms": 90, "amplitude": 0.9}, "low": {"duration_ms": 45, "amplitude": 0.5}},
+		"death": {"_placeholder": true, "category": "status",
+			"high": {"duration_ms": 400, "amplitude": 1.0}, "low": {"duration_ms": 200, "amplitude": 0.6}},
+		"sound_cue": {"_placeholder": true, "category": "sound_cues",
+			"high": {"duration_ms": 30, "amplitude": 0.5}, "low": {"duration_ms": 15, "amplitude": 0.25}}
+	}
+}
