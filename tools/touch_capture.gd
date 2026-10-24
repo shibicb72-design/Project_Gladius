@@ -3,6 +3,8 @@ extends Node
 ##   godot --path . --resolution 2520x1080 res://tools/touch_capture.tscn -- --out=build/shots --tag=folded
 ## Simulates a touchscreen through PlatformServices (the HUD is NOT forced on), drives it with real input
 ## events, saves PNGs with a "desktop render" overlay and writes <out>/<tag>_report.txt. Optional: --dpi=N (default: the desktop's reported DPI).
+## Optional for --sprint-shot: --offscreen=WxH renders into an offscreen SubViewport of exactly WxH px (same canvas_items
+## expand stretch as the window), for sizes taller than the desktop screen, where the OS clamps the window.
 
 const _LobbyScene := preload("res://scenes/ui/lobby.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
@@ -22,6 +24,8 @@ var _vjoy_shot_name: String = ""
 var _sprint_shot_name: String = ""
 var _menu_shot_name: String = ""
 var _layout_shot_name: String = ""
+var _offscreen := Vector2i.ZERO
+var _layer: CanvasLayer
 
 
 func _ready() -> void:
@@ -40,6 +44,10 @@ func _ready() -> void:
 			_menu_shot_name = a.substr(12)
 		elif a.begins_with("--sprint-shot="):  # sprint lock target mid-push ("sprint_lock_*") or locked state ("sprint_locked_*")
 			_sprint_shot_name = a.substr(14)
+		elif a.begins_with("--offscreen="):  # e.g. 2176x1812; only used by --sprint-shot
+			var wh := a.substr(12).split("x")
+			if wh.size() == 2:
+				_offscreen = Vector2i(int(wh[0]), int(wh[1]))
 	_Platform.dpi_override = _dpi  # 0 = leave the DisplayServer value alone
 	if _dpi <= 0.0:
 		_dpi = _Platform.new().get_screen_dpi()
@@ -49,6 +57,7 @@ func _ready() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 100
 	add_child(layer)
+	_layer = layer
 	# Overlay notes sit in the top-right corner: clear of the stat bars (top-left), the sticks and buttons
 	# (bottom) and the lobby action bar (bottom); lobby rows are left-aligned so their right side is empty.
 	var notes := VBoxContainer.new()
@@ -400,13 +409,20 @@ func _vjoy_rest_shot() -> void:
 ## G2c: the touch HUD with the sprint-lock target visible mid-push, or in the locked state. The HUD's touch handlers are
 ## called directly and the VirtualJoystick output is simulated through its InputMap actions (as the joystick would press them).
 func _sprint_shot() -> void:
+	var host: Node = self
+	var sv: SubViewport = null
+	if _offscreen.x > 0 and _offscreen.y > 0:
+		sv = _offscreen_viewport()
+		host = sv
 	var bg := ColorRect.new()
 	bg.color = Color(0.18, 0.2, 0.24)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	host.add_child(bg)
 	var hud: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
-	add_child(hud)
+	host.add_child(hud)
+	if sv != null:
+		_layer.reparent(sv)  # keep the "desktop render" overlay in the saved image
 	await _frames(4)
 	hud.relayout()
 	var start: Vector2 = hud.get_move_rest() if hud.vjoy_layout == "fixed" and hud.move_mode == "virtual" else Vector2(0.18, 0.7) * hud.size
@@ -428,7 +444,7 @@ func _sprint_shot() -> void:
 	_log("sprint shot %s: dp=%.1f target_or_locked=%s RESULT sprint_state_ok=%s" % [_sprint_shot_name, hud.get_lock_button_rect().size.x / _Platform.new().get_dp_scale(), str(ok), str(ok)])
 	await _frames(2)
 	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
+	var img := (sv.get_texture() if sv != null else get_viewport().get_texture()).get_image()
 	var err := img.save_png(_out.path_join("%s.png" % _sprint_shot_name))
 	_log("saved %s.png (%dx%d) err=%d" % [_sprint_shot_name, img.get_width(), img.get_height(), err])
 	Input.action_release("vjoy_move_up")
@@ -461,3 +477,22 @@ func _hold_drag(idx: int, from: Vector2, to: Vector2, seconds: float, _what: Str
 		prev = to
 		await get_tree().process_frame
 		t += get_process_delta_time()
+
+
+## Offscreen SubViewport of exactly _offscreen px. The canvas size follows the project's canvas_items/expand stretch
+## (base window size scaled to fit), so the HUD lays out as it would in a real window of that size.
+func _offscreen_viewport() -> SubViewport:
+	var base := Vector2(
+			float(ProjectSettings.get_setting("display/window/size/viewport_width", 1152)),
+			float(ProjectSettings.get_setting("display/window/size/viewport_height", 648)))
+	var px := Vector2(_offscreen)
+	var s: float = minf(px.x / base.x, px.y / base.y)
+	var sv := SubViewport.new()
+	sv.size = _offscreen
+	sv.size_2d_override = Vector2i(roundi(px.x / s), roundi(px.y / s))
+	sv.size_2d_override_stretch = true
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sv.transparent_bg = false
+	add_child(sv)
+	_log("offscreen SubViewport %s px, canvas %s" % [str(sv.size), str(sv.size_2d_override)])
+	return sv
