@@ -3735,3 +3735,127 @@ G3b-1 does what fixG/G3b-1.txt asks. All inputs are present, and I ran import, e
 The diff touches only the excepted lines in locked and test files. stats.json values and labels match the prompt,
 4.7/6.3 are called community-measured and never official, and both the banned-word check and the P-check are clean.
 The four named shots are true Fold-size retakes, and mutations M1-M4 are each caught by the named tests.
+
+## G3d review
+
+Step commit ff52846 "ios: G3d motion usage string in the iOS export preset", checked against fixG/G3d.txt. Prev = bfaf333.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_G3d.log; fixG.log:302 "GATE G3d apk=True tests=0 shots=105";
+re-run by me: suite exit 0, "TESTS: 306 passed, 0 failed") ; apk = FOUND (build/gladius-debug.apk after my own export) ;
+shots = FOUND (n=105 in build/shots; all four named shots present) ; step commit = FOUND (ff52846, non-empty diff)
+
+### Gates (run by me from the repo root, each as a separate command)
+- `godot --headless --path . --import`: exit 0, no "ERROR:", "SCRIPT ERROR" or "Parse Error" lines.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, "Signed", APK verified, and Glob
+  finds build/gladius-debug.apk. No "ERROR:" line at all, and none about export presets or missing preset keys.
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, "TESTS: 306 passed, 0 failed" (303 at G3b-1 plus
+  the 3 new ones). The only "ERROR:" line is the existing push_error from
+  test_button_capture_far_target.gd:148 (button_capture.gd:83 STOP path), which that test expects and which passes. It
+  is not caused by G3d.
+- `git status` was clean after import and export, so the engine did not rewrite export_presets.cfg (no missing keys
+  filled in).
+
+### Scope (`git diff bfaf333 --stat`)
+CLAUDE.md (+1/-1), docs/CONTROLS.md (+1), docs/OPEN_QUESTIONS.md (+3), docs/plans/sprint1.md (+1/-1), export_presets.cfg
+(+53), scripts/input/providers/gyro_provider.gd (+2/-2), tests/test_ios_export_preset.gd (+66, new),
+tests/test_ios_export_preset.gd.uid (+1, new). Every path is on the allowed list. The .uid is the engine-written sidecar
+of the allowed new test, and this file has always counted it with its test (see the G2/G3b-1 reviews above). Nothing
+else changed under scripts/, data/, scenes/ or tools/. .claude/settings.json, tests/test_physics_baseline.gd and
+data/physics_baseline.json are unchanged.
+- gyro_provider.gd: only the comment at :7-8 changed:
+  `-## applied by InputRouter. iOS port: add the motion-usage permission string`
+  `-## (NSMotionUsageDescription) to the iOS export before shipping there.`
+  `+## applied by InputRouter. iOS motion permission string: export_presets.cfg [preset.1.options]`
+  `+## application/additional_plist_content (NSMotionUsageDescription).`
+  There is no code change.
+- CLAUDE.md: only :16 changed, to "Keep export_presets.cfg with the Android and iOS presets for now, but nothing in code
+  may assume Android." The "nothing in code may assume Android" clause is kept.
+- docs/plans/sprint1.md: only :72 changed, to "`export_presets.cfg` with Android `[preset.0]` plus iOS `[preset.1]`
+  (G3d):".
+
+### Item-by-item against fixG/G3d.txt
+1. iOS preset. export_presets.cfg:76-127 adds `[preset.1]` with name="iOS" and platform="iOS" (:78-79), and
+   `[preset.1.options]`. :112 is `application/additional_plist_content="<key>NSMotionUsageDescription</key>\n<string>
+   Gladius uses motion data only for optional gyro aim.</string>"`, a key/string pair with a non-empty string.
+   [preset.0] is byte-identical. `git diff bfaf333 -U0 -- export_presets.cfg` has a single hunk, `@@ -74,0 +75,53 @@`:
+   zero lines removed, and every added line comes after old :74 (`keystore/release_password=""`, the last line of
+   [preset.0.options]). No line under [preset.0] or [preset.0.options] changed.
+   Signing fields are empty: application/app_store_team_id (:101), code_sign_identity_debug/release (:102, :104), and
+   provisioning_profile_uuid/specifier_debug/release (:115-118) are all "". There is no team ID, profile, identity,
+   password or other secret. application/signature (:108) is also "".
+   GODOT API RULE: docs/engine-reference/godot/ has no match for plist, additional_plist_content or NSMotion, so the
+   option is not staged. The step's summary (cc_gladius/out/G3d.json) says "**Godot API rule:**
+   `additional_plist_content` is not in the staged docs". Present.
+2. OQs. docs/OPEN_QUESTIONS.md:143 is OQ-IOS-MOTION-STRING: the wording is a placeholder and Shibi decides. :144 is
+   OQ-IOS-SIGNING, with Shibi's decision quoted verbatim ("We need ios provisioning"). It says signing needs an Apple
+   Developer account and a Mac or CI machine to sign, and is left open. :145 is OQ-GYRO-RECENTER (deferred).
+3. gyro_provider.gd:7-8: the TODO is replaced by a pointer to the preset key (quoted above).
+4. New test tests/test_ios_export_preset.gd loads the file with ConfigFile (:24-28) and finds the preset by platform
+   (:16-21).
+   - test_ios_motion_usage_string (:31-47) checks name "iOS", the `<key>NSMotionUsageDescription</key>`, that a
+     `<string>` follows it, and that the string is non-empty (:47, `close > "<string>".length()`).
+   - test_android_preset_still_present (:50-55) checks that a platform "Android" preset exists with name "Android".
+   - test_ios_signing_fields_empty (:58-66) checks that all 7 signing keys exist and are "".
+5. docs/CONTROLS.md:122 (gyro section) says the iOS permission string was added (G3d). It says gyro still needs a check
+   on a real phone (Android and, later, iOS), and that no device was tested. Recenter is deferred to OQ-GYRO-RECENTER.
+   There is no Android-only FLAG and no stop line.
+6. CLAUDE.md:16 and docs/plans/sprint1.md:72 are reworded to Android plus iOS (quoted above).
+
+### Rule checks
+- Data/placeholder: G3d adds no data/*.json value. The only new tunable-like text is the usage string, which the prompt
+  places in export_presets.cfg. OPEN_QUESTIONS.md:143 marks it as a placeholder. No value is labelled as PUBG's
+  (`PUBG` appears in no added line).
+- Banned-word check (word list kept off-repo): clean. No added line of `git diff bfaf333 -U0` contains the word, and
+  neither does the commit message. The pre-existing DESIGN.md:15 wording is not touched.
+- P-check: no added line of `git diff bfaf333 -U0` contains `C:\Users`. Empty.
+- Existing assertions: the commit touches no existing test file. Under tests/ it adds only the new test and its .uid.
+  No changed or removed assertion lines to quote.
+- iOS / cross-platform: no code change, and no Android-only API is added anywhere. The iOS preset adds no plugin or
+  GDExtension. The renderer and InputMap are untouched.
+- Touch targets: no UI change. test_touch_layout_g2l test_targets_at_least_48dp_at_dpi_0_and_420 and
+  test_pause_menu test_gear_touch_rect_at_least_48dp still pass.
+
+### Shots (opened; G3d adds no screen, these are the 4 sprint retakes)
+- sprint_lock_cover_landscape.png (2520x1080): move stick bottom-left with a light "Lock" target circle above it. A
+  "Sprint lock" button sits mid-screen. Jump is above the Swap/Aim/Reload/Fire cluster, and the look stick is
+  bottom-right. Corner labels read "desktop render, not device - cover" and "touch auto-detected (simulated
+  touchscreen), not forced". Nothing overlaps.
+- sprint_locked_cover_landscape.png (2520x1080): the Lock target is gone, and the sprint-lock button is lighter and
+  reads "Locked". The other controls are unchanged.
+- sprint_lock_inner_landscape.png (2176x1812): the same lock state at inner size, labelled "- inner". Controls are
+  larger and the cluster sits lower right. Lock, "Sprint lock", Jump, the four buttons and both sticks are all visible
+  without overlap.
+- sprint_locked_inner_landscape.png (2176x1812): the locked state at inner size, with the lighter "Locked" button and
+  no Lock target.
+The image reader reports the originals as 2520x1080 (cover) and 2176x1812 (inner), so the inner shots measure
+2176x1812. cc_gladius/out/G3d.json records `RESULT sprint_state_ok=true` for each of the four shots and says the inner
+shots were taken with `--offscreen=2176x1812`.
+
+### Mutations (scratch copy cc_gladius/scratch/vG3d only; `--import` run first; each edit undone before the next)
+- M1, deleting the key/string pair (additional_plist_content=""): full suite "305 passed, 1 failed", exit 1.
+  `--only=test_ios_export_preset.gd`: "FAIL test_ios_export_preset.gd::test_ios_motion_usage_string: plist content
+  lacks NSMotionUsageDescription". CAUGHT. Undone.
+- M2, an empty string (`<string></string>`): full suite "305 passed, 1 failed", exit 1. `--only`: "FAIL
+  ...::test_ios_motion_usage_string: usage <string> is empty or unterminated". CAUGHT. Undone.
+- M3, setting the iOS preset's platform to "Android-x": full suite "304 passed, 2 failed", exit 1. `--only`: "FAIL
+  ...::test_ios_motion_usage_string: no preset with platform iOS" and "FAIL ...::test_ios_signing_fields_empty: no
+  preset with platform iOS". CAUGHT. Undone.
+Grep confirms the copy's export_presets.cfg is back to platform="iOS" (:79) and the full string (:112). The copy is
+left in place.
+
+### Minor (not blocking)
+- tests/test_ios_export_preset.gd:47 accepts a whitespace-only string (`<string> </string>`). A later step could add
+  strip_edges() to the inner text.
+- The step's summary says ConfigFile was not checked against docs/engine-reference. It is not staged there either (no
+  match), so the summary could have said "not staged" for it too.
+- The other iOS options (min_ios_version "14.0" :111, targeted_device_family 2 :106, version/short_version "0.1.0"
+  :109-110) are not flagged as placeholders or decisions. The prompt asks for the keys the editor writes, and
+  bundle_identifier (:107) reuses the decided OQ-01 id. Before any iOS ship, Shibi should confirm these values with
+  OQ-IOS-SIGNING.
+
+VERDICT: APPROVE
+G3d does what fixG/G3d.txt asks. All inputs are present, and I ran import, export and the suite myself (306/0, no
+export-preset errors). The diff stays inside the allowed files and lines, and [preset.0] is byte-identical. The iOS
+preset has a non-empty NSMotionUsageDescription and empty signing fields, and holds no secrets. The three OQs and the
+real-phone note are present, and the banned-word check and the P-check are clean. The four named shots are Fold-size
+retakes, and mutations M1-M3 are each caught by the named test.
