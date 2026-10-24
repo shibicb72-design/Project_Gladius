@@ -128,6 +128,8 @@
 			"aim": {"label": "Aim", "offset": [-1.7, -1.25]}
 		},
 		"_sprint_lock_note": "G2L: the one default position of the movable Sprint lock button, [x of width, y of height] of its centre. The profile value (sprint_lock_pos) overrides it. Its size and min_dp stay in sprint.lock_button.",
-		"sprint_lock_pos": [0.56, 0.42]
+		"sprint_lock_pos": [0.56, 0.42],
+		"_left_fire_note": "G3e: optional second Fire button for the left thumb, off by default. pos = [x of width, y of height] of its centre, on the left half above the move stick and clear of the Sprint lock target. Placeholder position, not a design value (OQ-LEFT-FIRE-POS). Not a key of buttons: those are InputMap actions; this one presses the existing fire action.",
+		"left_fire": {"_placeholder": true, "enabled_default": false, "pos": [0.3, 0.5], "note": "optional second Fire button for the left thumb (G3e); size = button_size_frac_of_height, at least button_min_dp"}
 	}
 }

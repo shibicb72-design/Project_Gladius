@@ -27,6 +27,8 @@ var layout_layer: CanvasLayer
 const _HapticsScene := preload("res://scenes/ui/haptics_screen.tscn")
 var haptics_button: Button
 var haptics_layer: CanvasLayer
+var left_fire_button: Button
+var left_fire_enabled: bool = false
 var sprint_lock_pos: Array = []  # kept so saving does not drop the layout editor's value
 
 
@@ -47,6 +49,9 @@ func _ready() -> void:
 	_refresh_stick_text()
 	sprint_lock_pos = profile["sprint_lock_pos"]
 	_build_sprint_slider(float(profile["sprint_sensitivity"]))
+	left_fire_enabled = bool(profile["left_fire_enabled"])
+	left_fire_button = _button("", toggle_left_fire)  # G3e
+	_refresh_left_fire_text()
 	layout_button = _button("HUD layout", open_layout_editor)  # G2e
 	haptics_button = _button("Haptics", open_haptics)  # G2f
 	UiScale.apply_to(self)
@@ -167,6 +172,17 @@ func toggle_stick_layout() -> void:
 	persist()
 
 
+## G3e: the optional second Fire button for the left thumb (touch HUD).
+func toggle_left_fire() -> void:
+	left_fire_enabled = not left_fire_enabled
+	_refresh_left_fire_text()
+	persist()
+
+
+func _refresh_left_fire_text() -> void:
+	left_fire_button.text = "Left Fire button: %s" % ("On" if left_fire_enabled else "Off")
+
+
 func _refresh_stick_text() -> void:
 	move_stick_button.text = "Move stick: %s" % move_stick_mode.capitalize()
 	stick_layout_button.text = "Stick: %s" % vjoy_layout.capitalize()
@@ -201,7 +217,8 @@ func _refresh_sprint_text() -> void:
 ## The profile keys this panel owns.
 func fields() -> Dictionary:
 	return {"move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
-			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos}
+			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos,
+			"left_fire_enabled": left_fire_enabled}
 
 
 ## Writes the stored profile + the host screen's extra keys + this panel's keys, then reloads AppFlow.profile.

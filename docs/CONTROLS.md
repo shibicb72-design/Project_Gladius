@@ -136,6 +136,15 @@ Settings > "HUD layout" opens the editor (main menu and in-match menu). It shows
 - **Shots:** `tools/layout_editor_capture.tscn` writes `build/shots/layout_editor_{cover,inner}_landscape.png` and `layout_editor_{cover,inner}_small_landscape.png` (1512x648, 1152x959); the cover_small shot shows the off-screen warning.
 - **Tests:** `tests/test_layout_editor.gd` (temp `user://` profile, restores `AppFlow.profile`).
 
+## Left Fire button (G3e, off by default)
+
+PUBG Mobile offers a second Fire button on the left as an option; so do we, and it is off. Settings > "Left Fire button: Off/On" stores the profile key `left_fire_enabled` (`SaveService` keeps only a bool; default `touch_layout.left_fire.enabled_default`, false).
+
+- **Behaviour:** when on, `touch_hud.gd` builds one more round button (element key `fire_left`, label "Fire"), the same size as the right Fire button and never below `button_min_dp` (48 dp via the platform layer). It presses and releases the same `fire` action through `_on_down` / `_on_up`; `fire` stays down while either Fire button is held, so releasing one of two held buttons keeps firing. Off: no node is built and `fire_left` is not in `get_element_keys()`.
+- **Position:** `data/input.json` `touch_layout.left_fire.pos` (fractions of width/height of the centre; left half, above the move stick, clear of the Sprint lock target). It is a placeholder, not a design value (OQ-LEFT-FIRE-POS). It is not a key of `touch_layout.buttons` (those are InputMap actions).
+- **Layout editor:** "Left Fire" (`fire_left`) shows up only while enabled. Its `pos`, `size_pct` and `alpha_pct` save per slot like any element (`hud_layout_model.gd`), are covered by the off-screen/overlap check, and Reset returns it to the data default.
+- **Tests / shots:** `tests/test_left_fire.gd`; `touch_capture.tscn --left-fire --tag=left_fire_on --layout-shot=<cover|inner>_landscape` and `layout_editor_capture.tscn --left-fire-shot=<cover|inner>`.
+
 ## Haptics (G2f)
 
 Settings > "Haptics" opens the Haptics screen (main menu and in-match menu). Research (`pubg_mobile_movement_research.md`, official): tactile feedback for weapons, character status and sound visualisation, a system vibration setting, High and Low quality, on/off switches, "only available on select devices". We have no vehicles, so there is no vehicle category.

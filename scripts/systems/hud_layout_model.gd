@@ -7,6 +7,7 @@ extends RefCounted
 
 const ELEMENT_KEY_MAX_LEN := 40
 const LOCK_KEY := "sprint_lock"  # element key of the Sprint lock button (same as TouchHud.LOCK_KEY)
+const LEFT_FIRE_KEY := "fire_left"  # element key of the optional left Fire button (same as TouchHud.LEFT_FIRE_KEY)
 
 var active: int = 0
 var slots: Array = []  # slot index -> {element key -> {pos, size_pct, alpha_pct}}

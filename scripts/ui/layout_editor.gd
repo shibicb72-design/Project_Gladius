@@ -170,6 +170,8 @@ func element_name(key: String) -> String:
 			return "Look stick"
 		HudLayoutModel.LOCK_KEY:
 			return "Sprint lock"
+		HudLayoutModel.LEFT_FIRE_KEY:
+			return "Left Fire"
 	return String(preview.cfg["touch_layout"]["buttons"].get(key, {}).get("label", key))
 
 

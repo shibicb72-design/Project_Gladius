@@ -21,7 +21,7 @@ var _look_travel: float = 0.0
 var _look_down_s: float = 0.0
 var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
-var _button_touch: Dictionary = {}  # touch index -> action
+var _button_touch: Dictionary = {}  # touch index -> element key (an action, or LEFT_FIRE_KEY)
 var _buttons: Dictionary = {}  # action -> Control
 var debug_label: Label  # null unless the touch debug overlay is enabled in data/ui.json
 var _debug_touches: Dictionary = {}  # touch index -> overlay line
@@ -41,6 +41,9 @@ var suspended: bool = false  # true while the in-match menu is open
 ## G2e: the active saved layout slot (element key -> {pos, size_pct, alpha_pct}); {} = the data defaults.
 var slot_layout: Dictionary = {}
 const LOCK_KEY := "sprint_lock"
+## G3e: element key of the optional left Fire button (not an InputMap action: it presses "fire").
+const LEFT_FIRE_KEY := "fire_left"
+const LEFT_FIRE_LABEL := "Fire"
 ## false in the layout editor: the slots alone decide the lock button, not the profile's mirrored sprint_lock_pos.
 var use_profile_lock_fallback: bool = true
 var _emulation_overridden: bool = false
@@ -55,17 +58,9 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for action in _layout["buttons"]:
-		var spec: Dictionary = _layout["buttons"][action]
-		var b := Button.new()
-		b.text = String(spec.get("label", action))
-		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.focus_mode = Control.FOCUS_NONE
-		b.anchor_left = 0.0  # offsets below are absolute HUD positions (relayout)
-		b.anchor_right = 0.0
-		b.anchor_top = 0.0
-		b.anchor_bottom = 0.0
-		add_child(b)
-		_buttons[action] = b
+		_add_button(action, String(_layout["buttons"][action].get("label", action)))
+	if left_fire_enabled():
+		_add_button(LEFT_FIRE_KEY, LEFT_FIRE_LABEL)
 	if bool(_DataRegistry.new().load_file("res://data/ui.json")["touch_debug_overlay"]["enabled"]):
 		debug_label = Label.new()
 		debug_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -81,9 +76,54 @@ func _ready() -> void:
 	refresh_visibility()
 
 
+func _add_button(key: String, label: String) -> void:
+	var b := Button.new()
+	b.text = label
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.focus_mode = Control.FOCUS_NONE
+	b.anchor_left = 0.0  # offsets below are absolute HUD positions (relayout)
+	b.anchor_right = 0.0
+	b.anchor_top = 0.0
+	b.anchor_bottom = 0.0
+	add_child(b)
+	_buttons[key] = b
+
+
+## G3e: the InputMap action an element key presses (the left Fire button presses "fire").
+func _action_of(key: String) -> String:
+	return "fire" if key == LEFT_FIRE_KEY else key
+
+
+## G3e: the profile's left_fire_enabled flag (its default comes from data/input.json touch_layout.left_fire).
+func left_fire_enabled() -> bool:
+	return bool(AppFlow.profile.get("left_fire_enabled", _layout["left_fire"]["enabled_default"]))
+
+
+## G3e: builds or removes the left Fire button to match the profile flag (live toggle, tests). Touches held on
+## a removed button are released; "fire" stays down while the other Fire button is still held.
+func refresh_left_fire() -> void:
+	var on := left_fire_enabled()
+	if on and not _buttons.has(LEFT_FIRE_KEY):
+		_add_button(LEFT_FIRE_KEY, LEFT_FIRE_LABEL)
+	elif not on and _buttons.has(LEFT_FIRE_KEY):
+		for idx in _button_touch.keys():
+			if _button_touch[idx] == LEFT_FIRE_KEY:
+				_button_touch.erase(idx)
+		if not _button_touch.values().has("fire"):
+			Input.action_release("fire")
+		var b: Button = _buttons[LEFT_FIRE_KEY]
+		_buttons.erase(LEFT_FIRE_KEY)
+		remove_child(b)
+		b.free()
+	if is_inside_tree() and move_stick != null:
+		relayout()
+
+
 ## G2e: applies the profile's active layout slot over the data defaults.
 func reload_profile_layout() -> void:
 	apply_slot_layout(HudLayoutModel.from_dict(AppFlow.profile.get("hud_layouts", null)).active_slot())
+	if move_stick != null:
+		refresh_left_fire()  # G3e: a Settings toggle made while the HUD is live
 
 
 ## Applies a layout slot (also used live by the layout editor) and re-places everything.
@@ -273,7 +313,7 @@ func rebuild_move_stick() -> void:
 func _exit_tree() -> void:
 	_restore_emulation()
 	for idx in _button_touch:
-		Input.action_release(_button_touch[idx])
+		Input.action_release(_action_of(_button_touch[idx]))
 	_button_touch.clear()
 	if _fire_pulse_s > 0.0:
 		Input.action_release("fire")
@@ -477,8 +517,14 @@ func _button_side(action: String) -> float:
 ## rest centre (so moving the look stick in the editor does not drag the buttons along).
 func _cell_rect(action: String) -> Rect2:
 	var s := _button_size()
-	var o: Array = _layout["buttons"][action]["offset"]
-	var c := _center_px(action, _rest_center("look_stick_rest") + Vector2(float(o[0]), float(o[1])) * s)
+	var default_c: Vector2
+	if action == LEFT_FIRE_KEY:
+		var lp: Array = _layout["left_fire"]["pos"]
+		default_c = Vector2(float(lp[0]) * _area().x, float(lp[1]) * _area().y)
+	else:
+		var o: Array = _layout["buttons"][action]["offset"]
+		default_c = _rest_center("look_stick_rest") + Vector2(float(o[0]), float(o[1])) * s
+	var c := _center_px(action, default_c)
 	var side := _button_side(action)
 	return Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side)
 
@@ -537,9 +583,9 @@ func set_suspended(on: bool) -> void:
 		refresh_visibility()  # emulation off again: a thumb must not hold "fire"
 		return
 	_restore_emulation()  # menu buttons are clicked through emulated mouse events from touches
-	for action in _button_touch.values():
-		Input.action_release(action)
-		_style_button(_buttons[action], false)
+	for key in _button_touch.values():
+		Input.action_release(_action_of(key))
+		_style_button(_buttons[key], false)
 	_button_touch.clear()
 	for action in _VJOY_ACTIONS:
 		Input.action_release(action)
@@ -573,8 +619,8 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_lock_btn_touch = idx
 		provider.toggle_sprint_lock()
 	elif action != "":
-		_button_touch[idx] = action
-		Input.action_press(action)
+		_button_touch[idx] = action  # the element key; _action_of(key) is the InputMap action it presses
+		Input.action_press(_action_of(action))
 		_style_button(_buttons[action], true)
 	elif _move_touch == -1 and _move_grab_rect().has_point(pos):
 		provider.cancel_sprint_lock()  # a new move-stick touch ends the lock (speed eases down in the pawn)
@@ -619,11 +665,15 @@ func _on_up(idx: int) -> void:
 	if idx == _lock_btn_touch:
 		_lock_btn_touch = -1
 	elif _button_touch.has(idx):
-		var action: String = _button_touch[idx]
+		var key: String = _button_touch[idx]
 		_button_touch.erase(idx)
-		if not _button_touch.values().has(action):
-			Input.action_release(action)
-			_style_button(_buttons[action], false)
+		if not _button_touch.values().has(key):
+			_style_button(_buttons[key], false)
+		var still_held := false  # G3e: both Fire buttons press "fire"; it stays down while either is held
+		for k in _button_touch.values():
+			still_held = still_held or _action_of(k) == _action_of(key)
+		if not still_held:
+			Input.action_release(_action_of(key))
 	elif idx == _move_touch:
 		# Released ON the lock target while pushed past the trigger: lock forward sprint. Anywhere else: stop.
 		var on_target := provider.lock_target_visible() and get_lock_target_rect().has_point(_move_pos)

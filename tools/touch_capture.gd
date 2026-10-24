@@ -24,6 +24,7 @@ var _vjoy_shot_name: String = ""
 var _sprint_shot_name: String = ""
 var _menu_shot_name: String = ""
 var _layout_shot_name: String = ""
+var _left_fire: bool = false
 var _offscreen := Vector2i.ZERO
 var _layer: CanvasLayer
 
@@ -40,6 +41,8 @@ func _ready() -> void:
 			_vjoy_shot_name = a.substr(12)
 		elif a.begins_with("--layout-shot="):  # G2L: match HUD at rest with labels filled, saved as <tag>_<value>.png; use --tag=layout
 			_layout_shot_name = a.substr(14)
+		elif a == "--left-fire":  # G3e: shot with the optional left Fire button on (profile flag), e.g. --tag=left_fire_on --layout-shot=cover_landscape
+			_left_fire = true
 		elif a.begins_with("--menu-shot="):  # in-match menu: saves <tag>_closed_<value>_landscape.png and <tag>_open_...; use --tag=menu
 			_menu_shot_name = a.substr(12)
 		elif a.begins_with("--sprint-shot="):  # sprint lock target mid-push ("sprint_lock_*") or locked state ("sprint_locked_*")
@@ -272,6 +275,8 @@ func _lobby_shots() -> void:
 
 
 func _layout_shot() -> void:
+	if _left_fire:
+		AppFlow.profile["left_fire_enabled"] = true
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = false
@@ -409,6 +414,8 @@ func _vjoy_rest_shot() -> void:
 ## G2c: the touch HUD with the sprint-lock target visible mid-push, or in the locked state. The HUD's touch handlers are
 ## called directly and the VirtualJoystick output is simulated through its InputMap actions (as the joystick would press them).
 func _sprint_shot() -> void:
+	if _left_fire:
+		AppFlow.profile["left_fire_enabled"] = true  # G3e: exact-size (--offscreen) shot with the left Fire button on
 	var host: Node = self
 	var sv: SubViewport = null
 	if _offscreen.x > 0 and _offscreen.y > 0:

@@ -17,12 +17,15 @@ const SHOTS: Array = [
 ]
 
 var _out: String = "build/shots"
+var _left_fire_shot: String = ""
 
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.substr(6)
+		elif a.begins_with("--left-fire-shot="):  # G3e: one shot with the left Fire button on: "cover" or "inner"
+			_left_fire_shot = a.substr(17)
 	if not _out.is_absolute_path():
 		_out = ProjectSettings.globalize_path("res://").path_join(_out)
 	DirAccess.make_dir_recursive_absolute(_out)
@@ -33,7 +36,12 @@ func _run() -> void:
 	var failed := 0
 	var saved: Dictionary = AppFlow.profile
 	AppFlow.profile = {}
-	for spec in SHOTS:
+	var shots: Array = SHOTS
+	if _left_fire_shot != "":
+		AppFlow.profile = {"left_fire_enabled": true}
+		var sz := Vector2i(2520, 1080) if _left_fire_shot == "cover" else Vector2i(2176, 1812)
+		shots = [[sz, "layout_editor_left_fire_%s_landscape" % _left_fire_shot, "left_fire"]]
+	for spec in shots:
 		if not await _one(spec[0], spec[1], spec[2]):
 			failed += 1
 	AppFlow.profile = saved
@@ -62,6 +70,8 @@ func _one(size: Vector2i, name: String, scene: String) -> bool:
 			ed.alpha_slider.value = 60.0
 		"default":
 			ed.select_element("look_stick")
+		"left_fire":
+			ed.select_element("fire_left")
 		"offscreen":
 			ed.select_element("fire")
 			ed.move_selected_to(Vector2(0.995, 0.5))

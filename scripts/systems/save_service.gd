@@ -21,7 +21,17 @@ static func defaults() -> Dictionary:
 			"sprint_sensitivity": DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]["default"],
 			"sprint_lock_pos": [],  # [] = data/input.json touch_layout.sprint_lock_pos; G2e's layout editor writes [x, y] (fractions)
 				"hud_layouts": HudLayoutModel.new().to_dict(),  # G2e: 3 saved touch-HUD layouts + the active slot
-				"haptics": HapticsService.default_settings()}  # G2f: master switch, category toggles, High/Low quality
+				"haptics": HapticsService.default_settings(),  # G2f: master switch, category toggles, High/Low quality
+				"left_fire_enabled": _left_fire_default()}  # G3e: optional left Fire button, default from data (false)
+
+
+static func _left_fire_default() -> bool:
+	return bool(DataRegistry.new().load_file("res://data/input.json")["touch_layout"]["left_fire"]["enabled_default"])
+
+
+## A bool from a file or menu; anything else means the data default.
+static func _left_fire(value: Variant) -> bool:
+	return value if value is bool else _left_fire_default()
 
 
 ## Slider value from a file or menu: snapped to the step and clamped to the data range.
@@ -80,6 +90,7 @@ func load_profile() -> Dictionary:
 	profile["sprint_lock_pos"] = _lock_pos(data.get("sprint_lock_pos", null))
 	profile["hud_layouts"] = HudLayoutModel.from_dict(data.get("hud_layouts", null)).to_dict()
 	profile["haptics"] = HapticsService.sanitize(data.get("haptics", null))
+	profile["left_fire_enabled"] = _left_fire(data.get("left_fire_enabled", null))
 	return profile
 
 
@@ -97,5 +108,6 @@ func save_profile(profile: Dictionary) -> bool:
 	out["sprint_lock_pos"] = _lock_pos(profile.get("sprint_lock_pos", null))
 	out["hud_layouts"] = HudLayoutModel.from_dict(profile.get("hud_layouts", null)).to_dict()
 	out["haptics"] = HapticsService.sanitize(profile.get("haptics", null))
+	out["left_fire_enabled"] = _left_fire(profile.get("left_fire_enabled", null))
 	f.store_string(JSON.stringify(out, "\t"))
 	return true
