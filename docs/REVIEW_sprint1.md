@@ -3619,3 +3619,119 @@ G3a2 does what fixG/G3a2.txt asks. All inputs are present, including the four na
 (2520x1080 cover, 2176x1812 inner). The diff stays inside the allowed files. Every changed existing test line is a
 listed hold site or the hold timing that item 5 prescribes. The gates pass (300/0), and mutation M1 is caught by all
 four named tests.
+
+## G3b-1 review
+
+Opus check of d848f20 ("tune: G3b-1 run 4.7 m/s, sprint 6.3 m/s; baseline re-measured") against fixG/G3b-1.txt.
+Prev = 768f138.
+
+INPUTS: tests log/exit code = FOUND (cc_gladius/tests_G3b-1.log; fixG.log:290 "GATE G3b-1 apk=True tests=0 shots=105"),
+and my own runs: `--import` exit 0, `--export-debug "Android" build/gladius-debug.apk` exit 0, full suite
+"TESTS: 303 passed, 0 failed" exit 0 ; apk = FOUND (Glob finds build/gladius-debug.apk after my export) ;
+shots = FOUND (n>100 in build/shots/*.png, including all four named retakes) ; step commit = FOUND (d848f20, 9 files,
++95/-20).
+
+No project errors in my runs. The single "ERROR:" line is `[button_capture] STOP, no usable lane`, which comes from
+test_button_capture_far_target.gd:148. That test provokes the error on purpose and passes, and the line predates this step.
+
+### Exception diff check
+`git diff 768f138 --stat`: data/physics_baseline.json, data/stats.json, docs/CONTROLS.md, docs/OPEN_QUESTIONS.md,
+docs/PHYSICS_JOLT.md, tests/test_move_feel.gd, tests/test_speed_g3b.gd (new), tests/test_speed_g3b.gd.uid (new),
+tests/test_sprint.gd. Not in the stat: .claude/settings.json, tests/test_physics_baseline.gd, any other existing test
+file, scripts/, scenes/, tools/.
+
+`git diff 768f138 -U0` on the four exception files. Every hunk:
+- data/physics_baseline.json `@@ -6 +6 @@`: `-"walk_speed_mps": 5.37500381469727,` / `+"walk_speed_mps": 4.70000267028809,`
+- tests/test_move_feel.gd `@@ -185 +185 @@`: `-...speeds["forward"] - 5.375) < 0.05, "forward walk speed 5.375 m/s (5.0 + 7.5%%, Shibi Oct 22)..."`
+  / `+...speeds["forward"] - 4.7) < 0.05, "forward run speed 4.7 m/s (MEASURED (PC), community sources pubg.fandom.com/wiki/Movement_Speed and samurai-gamers, G3b-1)..."`
+- tests/test_move_feel.gd `@@ -200 +200 @@`: `-old = move_toward(old, 5.375, 40.0 * DT)` / `+old = move_toward(old, 4.7, 40.0 * DT)`
+- tests/test_move_feel.gd `@@ -203 +203 @@`: `-absf(old - 5.375) < 1e-6 and absf(_speed(p) - 5.375) < 0.05, "steady state at the new 5.375 walk speed"`
+  / `+absf(old - 4.7) < 1e-6 and absf(_speed(p) - 4.7) < 0.05, "steady state at the new 4.7 walk speed"`
+- tests/test_move_feel.gd `@@ -312,2 +312,2 @@`: `- ... - 5.375 / 40.0) < 1e-9, "accel time = 5.375 / 40.0"`, `- ... "decel time = 5.375 / 40.0"`
+  / `+ ... - 4.7 / 40.0) < 1e-9, "accel time = 4.7 / 40.0"`, `+ ... "decel time = 4.7 / 40.0"`
+- tests/test_sprint.gd `@@ -186 +186 @@`: `-assert_eq(m["sprint_speed_multiplier"]["value"], 1.3, "multiplier")` / `+... 1.34, "multiplier")`
+- tests/test_sprint.gd `@@ -192 +192 @@`: `-assert_eq(m["base_speed_mps"], 5.375, "walk speed 5.0 x 1.075")`
+  / `+assert_eq(m["base_speed_mps"], 4.7, "run speed 4.7 (MEASURED (PC), community sources pubg.fandom.com/wiki/Movement_Speed and samurai-gamers)")`
+- tests/test_sprint.gd `@@ -213 +213 @@`: `-absf(_speed(p) - 5.375) / 5.375 < 0.01, "walk speed 5.375 within 1%%..."` / `+absf(_speed(p) - 4.7) / 4.7 < 0.01, "walk speed 4.7 within 1%%..."`
+
+Each changed line sits at a listed Prev line (physics_baseline.json:6; test_move_feel.gd:185, :200, :203, :312, :313;
+test_sprint.gd:186, :192, :213). Tolerances are unchanged (0.05, 1e-6, 1e-9, 1%). No assertion was removed, and the
+messages match item 5 verbatim. test_physics_baseline.gd:47 was not touched, which is allowed because the re-measured
+baseline passes without changing it. fixG/G3b-1.txt:4 names the rebased :186 ("the :191 cite was at ce5f88b; after
+G3a2 the same assert is tests/test_sprint.gd:186") and has no stop-before-launch line. PASS.
+
+### Item by item (fixG/G3b-1.txt)
+1. Run 4.7 m/s: data/stats.json:20 `base_speed_mps` is 4.7. :19 movement `"_placeholder": true` is kept, and :21
+   base_speed_note is unchanged. :22 base_speed_g3b_note matches the prompt text exactly: it calls 4.7 and 6.3 MEASURED
+   (PC), cites pubg.fandom.com/wiki/Movement_Speed and samurai-gamers, says "community-measured, not official", and
+   notes the Japanese samurai-gamers 6.2 sprint as known variance. :25-26 ground_accel/decel time_s 0.1175 (= 4.7/40),
+   with the notes updated to 4.7. PASS.
+2. Sprint 6.3: stats.json:27 sprint_speed_multiplier is 1.34, keeps `"_placeholder": true` and the exact note "our
+   placeholder starting value, no sourced number", and has no `_source` (test_sprint.gd:187-190 still pass).
+   test_sprint.gd:186 was updated. PASS.
+3. Labels: strafe_back_ratio value and `_source` are unchanged (not in the stats.json diff). docs/CONTROLS.md:78 says
+   "COMMUNITY-sourced, NOT a placeholder". stats.json:23 weapon_speed_penalty matches the prompt object exactly
+   (`"_placeholder": true`, value 1.0). Grep finds it only in data/stats.json:23, docs/CONTROLS.md:76 and
+   docs/OPEN_QUESTIONS.md:142, so nothing under scripts/ reads it. OPEN_QUESTIONS.md:141 adds OQ-STANCE-SPEEDS (crouch,
+   prone and walk deferred, no values) and :142 adds OQ-WEAPON-SPEED. PASS.
+4. Baseline: my run printed `PHYSICS_METRICS {"jump_air_time_s":0.716666666666667,"jump_apex_m":1.28420352935791,
+   "max_slope_deg":45.5,"max_step_up_m":0.12,"walk_speed_mps":4.70000267028809}`. physics_baseline.json:6 is
+   4.70000267028809, which matches. The only hunk is :6, so engine, tolerance_pct 5.0 and the other four metrics
+   (:7-10) are byte-identical. PASS.
+5. Speed assertions: see the exception check. PASS.
+6. tests/test_speed_g3b.gd is new. It checks run settling at 4.7 within 1% (:45), full sprint at 6.3 within 1% (:53),
+   and a ramp rate of 40 from data plus three live ticks (:61-66). The checks are real: each one fails under M1-M3
+   below. PASS.
+7. Docs: CONTROLS.md:73-76 table and :80 text, Sprint multiplier at :87. OPEN_QUESTIONS.md:69 adds the G3b-1 values.
+   PHYSICS_JOLT.md:59 has one line, "Baseline re-measured at 4.7 ... under Shibi Oct 23 2026 exception". PASS.
+
+Labels: no number is called official or PUBG's own. Every new mention of 4.7, 6.3 or 1.34 says community-measured on
+PC, not official (stats.json:22, CONTROLS.md:75/:80/:87, OPEN_QUESTIONS.md:69, test_speed_g3b.gd:2). Banned-word check
+(word list kept off-repo): `git diff 768f138 -U0 -i -G <word> --stat` is empty, so none was added. P-check:
+`git diff 768f138 -U0 -G "C:.Users" --stat` is empty. iOS/platform: no code under scripts/ changed, so no
+Android-only API was added. Touch targets were not touched, and test_touch_layout_g2l / test_layout_editor 48 dp tests
+pass. Nothing under scripts/, scenes/ or tools/ changed.
+
+Remaining hits for 5.375, 0.134375 and 5.37500: docs/REVIEW_sprint1.md (history), docs/OPEN_QUESTIONS.md:69 (history,
+marked superseded), docs/PHYSICS_JOLT.md:25 (G2c history paragraph), and tests/test_move_feel.gd:285 (a comment; see
+Minor).
+
+### Shots (opened and checked)
+- sprint_lock_cover_landscape.png (2520x1080): stage s1 of the touch HUD. Move stick bottom-left, with a light "Lock"
+  target circle above it. A "Sprint lock" button sits left of the Swap/Aim/Reload/Fire cluster, with Jump at
+  upper-right and the look stick at bottom-right. Labels read "desktop render, not device - s1" and "touch
+  auto-detected (simulated touchscreen), not forced". Nothing overlaps.
+- sprint_locked_cover_landscape.png (2520x1080): stage s2. The Lock target is gone, and the sprint-lock button is
+  highlighted and reads "Locked". The other controls are unchanged.
+- sprint_lock_inner_landscape.png (2176x1812): the same s1 state at inner size. Stick bases are larger, and the button
+  cluster sits lower right. Lock target, "Sprint lock", Jump, Swap/Aim/Reload/Fire and both sticks are all visible
+  without overlap.
+- sprint_locked_inner_landscape.png (2176x1812): s2 at inner size, with the highlighted "Locked" button and no Lock
+  target.
+cc_gladius/out/G3b-1.json records `sprint_state_ok=true`.
+
+### Mutations (scratch copy cc_gladius/scratch/vG3b-1 only; `--import` run first; each edit undone before the next)
+- M1 stats.json base_speed_mps 4.7 -> 5.375: full suite exit 1. CAUGHT by test_sprint.gd:192 ("run speed 4.7 (...)
+  (expected 4.7, got 5.375)"), by test_speed_g3b test_run_speed_settles_at_4_7 ("got 5.375"),
+  test_full_sprint_settles_at_6_3 ("got 7.2025") and test_ramp_rate_is_still_40 ("got 45.74"), and also by
+  test_sprint.gd:213 and test_physics_baseline.gd:47. Undone.
+- M2 sprint_speed_multiplier 1.34 -> 1.3: full suite "301 passed, 2 failed", exit 1. `--only=test_s` names the two
+  failures: test_speed_g3b test_full_sprint_settles_at_6_3 ("got 6.10999965667725") and test_sprint.gd:186
+  ("multiplier (expected 1.34, got 1.3)"). CAUGHT. Undone.
+- M3 ground_accel.time_s 0.1175 -> 0.134375: full suite "297 passed, 6 failed", exit 1. CAUGHT by test_move_feel.gd:312
+  ("accel time = 4.7 / 40.0"), and also by test_move_feel ramp tests (3), test_speed_g3b test_ramp_rate_is_still_40
+  ("got 34.98") and test_sprint test_walk_speed_and_accel_rate. Undone.
+- M4 physics_baseline.json walk_speed_mps -> 5.37500381469727: `--only=test_physics_baseline` exit 1, "FAIL
+  ...test_movement_within_tolerance_of_physics_baseline: walk_speed_mps: 4.7000 vs baseline 5.3750 (12.56% > 5.0%)".
+  That message comes from test_physics_baseline.gd:47. CAUGHT. Undone. This run was filtered, not the full suite.
+The copy's stats.json and physics_baseline.json are back to the commit values, and the copy is left in place.
+
+### Minor (not blocking)
+- tests/test_move_feel.gd:285 is a stale comment, "At 5.375 m/s the 0.889 strafe ratio no longer separates...". It is
+  outside the exception lines, so G3b-1 correctly left it alone. A later allowed step may update it.
+
+VERDICT: APPROVE
+G3b-1 does what fixG/G3b-1.txt asks. All inputs are present, and I ran import, export and the suite myself (303/0).
+The diff touches only the excepted lines in locked and test files. stats.json values and labels match the prompt,
+4.7/6.3 are called community-measured and never official, and both the banned-word check and the P-check are clean.
+The four named shots are true Fold-size retakes, and mutations M1-M4 are each caught by the named tests.
