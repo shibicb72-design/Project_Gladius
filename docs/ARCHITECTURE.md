@@ -290,3 +290,16 @@ android/              debug.keystore (shared debug key only)
 | Map | `maps/<id>.json` + scene with matching markers | No |
 | Cosmetic / medal / rank | `cosmetics.json` / `medals.json` / `progression.json` | No |
 | Graphics preset | `graphics_presets.json` | No |
+
+## 7. Build note: tying a debug APK to a commit
+
+The Android preset in `export_presets.cfg` carries `version/code` and `version/name` (currently `0.1.0`). Those
+do not change per commit, so the APK itself does not record its commit. When you keep a debug APK
+(`build/gladius-debug.apk`, not committed), record next to it:
+
+```
+git rev-parse HEAD        # full commit SHA the APK was exported from
+```
+
+and note it together with `version/name` (for example in `build/status.txt` or your test log):
+`gladius-debug.apk  version/name=0.1.0  commit=<sha>`. Export from a clean tree (`git status`) so the SHA is exact.
