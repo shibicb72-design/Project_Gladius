@@ -491,3 +491,32 @@ func _check_lock_layout(sz: Vector2) -> void:
 func test_lock_button_clear_of_hud_at_four_sizes() -> void:
 	for sz in [Vector2(1512, 648), Vector2(2520, 1080), Vector2(1152, 959), Vector2(2176, 1812)]:
 		await _check_lock_layout(sz)
+
+
+## A whole tap on the stick (down, then up, no drag) cancels the lock and leaves the player stopped.
+func test_tap_on_stick_cancels_lock_and_stops() -> void:
+	for m in _modes():
+		var mode: String = m[0]
+		var layout: String = m[1]
+		var tag := "%s/%s" % [mode, layout]
+		var hud := _hud(mode, layout)
+		var r := InputRouter.new()
+		r.add_provider(hud.provider)
+		var start := _start(hud, mode, layout)
+		var rad: float = hud._radius()
+		_touch(hud, 0, start, true)
+		_push(hud, mode, 0, start + Vector2(0.0, -rad), Vector2(0.0, -1.0))
+		var target: Rect2 = hud.get_lock_target_rect()
+		_push(hud, mode, 0, target.get_center(), Vector2(0.0, -1.0))
+		_touch(hud, 0, target.get_center(), false)
+		var fr := r.update_frame(DT)
+		assert_true(hud.provider.sprint_locked, tag + ": release on target locks")
+		# Tap: down and up at the stick start, no drag.
+		_touch(hud, 1, start, true)
+		_touch(hud, 1, start, false)
+		assert_true(not hud.provider.sprint_locked, tag + ": tap cancels the lock")
+		fr = r.update_frame(DT)
+		assert_true(fr.move == Vector2.ZERO and not fr.sprint, tag + ": stopped after the tap, move %s" % fr.move)
+		r.free()
+		hud.free()
+	_TouchHud.move_stick_override = ""

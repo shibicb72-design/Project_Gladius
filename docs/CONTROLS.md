@@ -96,6 +96,12 @@ Research quotes (staging `pubg_mobile_movement_research.md`; PUBG publishes no n
 - Reddit 1rbgu31: "you don't have to move the joystick as much to start sprinting ... but not your actual speed."
 - PuK: "It defines how much you need to move the PuK Thumbstick forward before sprint is activated".
 
+### Compared with PUBG Mobile (G3a)
+
+- **Auto-sprint past an adjustable threshold** (OFFICIAL Google Play editorial plus COMMUNITY-REPORTED: "Sprint Sensitivity" sets how far you must push). Gladius: `scripts/input/sprint_detector.gd:35-43`, threshold from the slider at `data/input.json:64-69` and `scripts/ui/settings_panel.gd:177-198`. Difference: PUBG starts sprint when the stick passes the threshold; Gladius also needs the 0.5 s hold. Open: OQ-SPRINT-HOLD in OPEN_QUESTIONS.md.
+- **Drag onto the "Sprint Lock" icon above the stick locks sprint** (OFFICIAL Google Play editorial plus COMMUNITY-REPORTED). Gladius: release on the lock target, `scripts/ui/touch_hud.gd:628-633`, target size in `data/input.json:70`.
+- **Tapping the movement joystick again cancels the lock** (COMMUNITY-REPORTED). Gladius: `scripts/ui/touch_hud.gd:579-580`. Tests: `tests/test_sprint.gd:346-393` (new touch cancels) and `test_tap_on_stick_cancels_lock_and_stops` (whole tap, then stopped).
+
 ## In-match menu (gear)
 
 Shibi (via EL, Oct 22 2026): the menu opens ONLY from a small gear icon in the top-right corner. Android Back, `ui_cancel` and Escape do not open it, and no Back handling was added (Godot's default for Back is unchanged).
