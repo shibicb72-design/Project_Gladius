@@ -119,6 +119,25 @@ def back_button_xy(shape):
     return int(w * 0.05), int(h * 0.05)
 
 
+MAGENTA_FAIL_PX = 10000  # exact (255,0,255) pixels above which magenta "dominates" the frame
+PAWN_MIN_PX = 800        # orange/yellow pawn pixels that count as a visible pawn (same as visible_pass)
+
+
+def camera_fail_magenta(exact_magenta, orange_pawnish, yellow_pawnish):
+    """Magenta is the intentional Fold sky/clear colour, so a magenta sky alone is not a camera fail.
+    Fail-clear = magenta dominates AND no orange/yellow pawn is visible (the camera shows only clear colour)."""
+    return (exact_magenta > MAGENTA_FAIL_PX and orange_pawnish < PAWN_MIN_PX
+            and yellow_pawnish < PAWN_MIN_PX)
+
+
+def move_hold_target(origin, frame_h, radius_frac_of_h=0.12, deflection=0.8):
+    """Point straight up (forward) from the move-stick origin at `deflection` of the stick radius.
+    radius_frac_of_h mirrors data/input.json touch_layout.stick_radius_frac_of_height. 0.8 stays below the
+    sprint threshold at the default sprint sensitivity (0.84) so the gate measures plain movement."""
+    x, y = origin
+    return int(x), int(round(y - deflection * radius_frac_of_h * frame_h))
+
+
 def compute_gates(rest_is_match, frame_menu, metrics):
     """Combine pixel metrics with menu state. Any menu frame => everything FAIL, in_match=False.
 
