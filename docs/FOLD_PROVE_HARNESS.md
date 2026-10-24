@@ -34,3 +34,19 @@ for 1.5 s before the capture. 0.8 is below the default sprint threshold of 0.84.
 Caveats: thresholds are uncalibrated (no Python run in the authoring session). Run
 `python tools/fold_prove/test_fold_prove_detect.py`, then re-run the harness on device. Summaries written
 before this fix are unreliable.
+
+## Device harness ops (gitignored `build/fold_prove_0070099.py`)
+
+- `adb logcat -c` is **non-fatal**: short timeout (~12s). On `TimeoutExpired`, nonzero exit, or other failure the harness prints `WARN: adb logcat -c ...` and continues. Do not treat a clear failure as a hard abort (Fold disconnect / USB glitch during gym unplug killed pid 52912 on a 60s clear).
+- Re-prove after reconnect does **not** need a game rebuild for the P3 gate/hold changes already on tip `b0c26ee`; only re-run the harness once the Fold is online.
+
+### Resume checklist (Fold back)
+
+1. `cd C:\Users\shibi\Project_Gladius` and `git checkout opus/p0-fold-touch` (tip `b0c26ee` or later on that branch only — no merge to main).
+2. `adb -s RFGYA156D5V devices` — confirm `device`, not `unauthorized` / offline.
+3. Confirm gitignored harness exists: `build\fold_prove_0070099.py` (has `hold_and_cap`, `camera_fail_magenta_fn`, non-fatal `logcat -c`).
+4. Offline sanity: `python tools\fold_prove\test_fold_prove_detect.py` (expect OK).
+5. Run: `python build\fold_prove_0070099.py`
+6. Expect: no death on logcat clear; `visible_pawn` PASS with magenta sky + orange/yellow pawn; `move_world` should clear via 1.5s motionevent hold at 0.8 radius (`move_hold_target`).
+7. Offline cross-check: `python tools\fold_prove\measure_move.py build` and compare `02_move_held` center_world_pct vs prior 1.24.
+
