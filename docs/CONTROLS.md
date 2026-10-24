@@ -70,20 +70,21 @@ Aim with the shoulder camera: the client takes the point under the screen centre
 
 | Key | Unit | Value | Notes |
 |---|---|---|---|
-| `ground_accel.time_s` | seconds, rest to full speed | 0.134375 (placeholder) | = 5.375 m/s / 40 m/s^2, so the rate stays 40 m/s^2; 0 = instant |
-| `ground_decel.time_s` | seconds, full speed to stop | 0.134375 (placeholder) | same rate, 40 m/s^2; 0 = instant |
-| `sprint_speed_multiplier.value` | ratio of run speed | 1.3 (placeholder) | our placeholder starting value, no sourced number |
+| `ground_accel.time_s` | seconds, rest to full speed | 0.1175 (placeholder) | = 4.7 m/s / 40 m/s^2, so the rate stays 40 m/s^2; 0 = instant |
+| `ground_decel.time_s` | seconds, full speed to stop | 0.1175 (placeholder) | same rate, 40 m/s^2; 0 = instant |
+| `sprint_speed_multiplier.value` | ratio of run speed | 1.34 (placeholder) | community-measured on PC (not official): 4.7 x 1.34 = 6.298, about 6.3 m/s sprint |
+| `weapon_speed_penalty.value` | multiplier on run speed while holding a weapon | 1.0 (placeholder) | 1.0 = no penalty; not wired yet (OQ-WEAPON-SPEED) |
 | `sprint_ramp_s.value` | seconds | 1.0 (placeholder) | ease run <-> sprint, both directions |
-| `strafe_back_ratio.value` | ratio of forward speed | 0.889 (NOT a placeholder) | sideways and backward; `_source`: "TSG Forge Wiki community tag data: sideways 2 / forward 2.25, backward 2" |
+| `strafe_back_ratio.value` | ratio of forward speed | 0.889 (COMMUNITY-sourced, NOT a placeholder) | sideways and backward; `_source`: "TSG Forge Wiki community tag data: sideways 2 / forward 2.25, backward 2" |
 
-Speed scales continuously with stick length (full analog, no walk/run step). Forward walk speed (`base_speed_mps`) is 5.375 (5.0 + 7.5%, Shibi Oct 22 "+5-10%"). The ramp rate is `base_speed_mps / time_s` (5.375 / 0.134375 = 40 m/s^2 with the shipped data) for every class, applied per horizontal axis.
+Speed scales continuously with stick length (full analog, no walk/run step). Forward run speed (`base_speed_mps`) is 4.7 m/s, community-measured on PC (pubg.fandom.com/wiki/Movement_Speed and samurai-gamers), not an official PUBG number and still a placeholder (Shibi Oct 23 2026, G3b-1; supersedes the Oct 22 +7.5% value). Crouch, prone and walk speeds are deferred (OQ-STANCE-SPEEDS). The ramp rate is `base_speed_mps / time_s` (4.7 / 0.1175 = 40 m/s^2 with the shipped data) for every class, applied per horizontal axis.
 
 ## Sprint
 
 Sprint added by Shibi's decision, Oct 22 2026 (OQ-SPRINT, closed). Touch only for now; keyboard and gamepad bindings are undecided (TODO in OPEN_QUESTIONS.md).
 
 - **Trigger:** the move stick reaching the forward extreme starts sprint on that tick; there is no hold (Shibi Oct 23 2026: "Start on the threshold like PUBG"). "Forward extreme" = deflection >= the forward threshold AND the stick direction within `input.json` `sprint.forward_cone_half_angle_deg` of straight forward. Leaving the extreme (below the threshold or outside the cone) stops the sprint request at once, and returning starts it again on the first tick back. Works for the floating and fixed VirtualJoystick and the custom stick (the check is in `TouchProvider`/`SprintDetector`, on the provider's move vector).
-- **Speed:** `InputFrame.sprint` asks the pawn to ease its speed factor from 1 (run) to `movement.sprint_speed_multiplier` (1.3, our placeholder starting value, no sourced number) over `movement.sprint_ramp_s` (placeholder), with no snap. Releasing, dropping below the threshold, or leaving the cone eases back down over the same time.
+- **Speed:** `InputFrame.sprint` asks the pawn to ease its speed factor from 1 (run) to `movement.sprint_speed_multiplier` (1.34, giving 6.3 m/s sprint at 4.7 m/s run; community-measured on PC, not official, still a placeholder; Shibi Oct 23 2026) over `movement.sprint_ramp_s` (placeholder), with no snap. Releasing, dropping below the threshold, or leaving the cone eases back down over the same time.
 - **Sprint lock:** while the stick is past the trigger a lock target appears above the stick origin. Releasing the finger ON it locks forward sprint (no finger needed; movement is straight forward at sprint speed). Releasing anywhere else stops movement. A new move-stick touch or a tap on the lock button cancels the lock (speed eases down); look still works. The separate, movable Sprint lock button shows the lock state: tapping it while moving forward locks, tapping it while locked cancels. Its default position is `input.json` `touch_layout.sprint_lock_pos` (`"_placeholder": true`); the profile key `sprint_lock_pos` ([x, y] fractions) overrides it so the layout editor (G2e/G2L) can store it. At least 48 dp.
 - **Sprint sensitivity:** Settings slider (main menu), profile key `sprint_sensitivity`, `input.json` `sprint_sensitivity` min 0, max 100, default 50, step 5 (single unofficial source, HT Tech report of BGMI 1.6 notes; Shibi chose it as the starting point Oct 22 2026). It only sets the forward deflection threshold used by BOTH the sprint trigger and the lock target: threshold = lerp(`sprint.threshold_at_sensitivity_0`, `sprint.threshold_at_sensitivity_100`, sensitivity / 100), both ends placeholders. Higher sensitivity = lower threshold = shorter push. It never changes speed, the cone or `sprint_ramp_s`.
 

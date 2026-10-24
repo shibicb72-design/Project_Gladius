@@ -55,3 +55,5 @@ inside, drops it when inactive, ignores it outside.
 `build/shots/` (not committed) from `tools/touch_capture.tscn` at the Galaxy Z Fold 7 sizes: `cover_*.png` 2520x1080 (dpi 420) and
 `inner_*.png` 2184x1968 (dpi 373), each lobby before/after and HUD rest/walk/look. The game is landscape-only
 (`project.godot` `window/handheld/orientation=4`), so no portrait captures were taken.
+
+Baseline re-measured at 4.7 m/s (walk_speed_mps 4.70000267028809) under Shibi Oct 23 2026 exception (G3b-1); every other metric is unchanged.

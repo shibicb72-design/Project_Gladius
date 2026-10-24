@@ -182,7 +182,7 @@ func test_shipped_strafe_and_backpedal_are_0_889_of_forward() -> void:
 		p.velocity = Vector3.ZERO
 		f.move = {"forward": Vector2(0.0, -1.0), "sideways": Vector2(1.0, 0.0), "backward": Vector2(0.0, 1.0)}[dir]
 		speeds[dir] = _run(p, 40)
-	assert_true(absf(speeds["forward"] - 5.375) < 0.05, "forward walk speed 5.375 m/s (5.0 + 7.5%%, Shibi Oct 22), got %s" % speeds["forward"])
+	assert_true(absf(speeds["forward"] - 4.7) < 0.05, "forward run speed 4.7 m/s (MEASURED (PC), community sources pubg.fandom.com/wiki/Movement_Speed and samurai-gamers, G3b-1), got %s" % speeds["forward"])
 	assert_true(absf(speeds["sideways"] - 0.889 * speeds["forward"]) < 0.00889 * speeds["forward"], "strafe 0.889 x forward, got %s" % speeds)
 	assert_true(absf(speeds["backward"] - 0.889 * speeds["forward"]) < 0.00889 * speeds["forward"], "backpedal 0.889 x forward, got %s" % speeds)
 	s[0].queue_free()
@@ -197,10 +197,10 @@ func test_shipped_ramp_matches_old_accel_40_behaviour() -> void:
 	f.move = Vector2(0.0, -1.0)
 	var old := 0.0
 	for n in 12:
-		old = move_toward(old, 5.375, 40.0 * DT)
+		old = move_toward(old, 4.7, 40.0 * DT)
 		var v := _run(p, 1)
 		assert_true(absf(v - old) <= maxf(0.01 * old, 1e-3), "ramp up tick %d: %s vs old %s" % [n + 1, v, old])
-	assert_true(absf(old - 5.375) < 1e-6 and absf(_speed(p) - 5.375) < 0.05, "steady state at the new 5.375 walk speed")
+	assert_true(absf(old - 4.7) < 1e-6 and absf(_speed(p) - 4.7) < 0.05, "steady state at the new 4.7 walk speed")
 	f.move = Vector2.ZERO
 	for n in 12:
 		old = move_toward(old, 0.0, 40.0 * DT)
@@ -309,8 +309,8 @@ func test_shipped_data_markers() -> void:
 	assert_true(not m["strafe_back_ratio"].has("_placeholder"), "ratio is not a placeholder")
 	for k in ["ground_accel", "ground_decel"]:
 		assert_eq(m[k]["_placeholder"], true, k + " _placeholder")
-	assert_true(absf(float(m["ground_accel"]["time_s"]) - 5.375 / 40.0) < 1e-9, "accel time = 5.375 / 40.0")
-	assert_true(absf(float(m["ground_decel"]["time_s"]) - 5.375 / 40.0) < 1e-9, "decel time = 5.375 / 40.0")
+	assert_true(absf(float(m["ground_accel"]["time_s"]) - 4.7 / 40.0) < 1e-9, "accel time = 4.7 / 40.0")
+	assert_true(absf(float(m["ground_decel"]["time_s"]) - 4.7 / 40.0) < 1e-9, "decel time = 4.7 / 40.0")
 	var feel: Dictionary = _input_cfg()["move_feel"]
 	for k in ["vjoy_deadzone_ratio", "vjoy_clampzone_ratio", "radial_deadzone", "response_exponent"]:
 		assert_eq(feel[k]["_placeholder"], true, k + " _placeholder")

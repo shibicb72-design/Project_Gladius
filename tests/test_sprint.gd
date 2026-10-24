@@ -183,13 +183,13 @@ func test_leaving_the_threshold_stops_and_returning_restarts_at_once() -> void:
 func test_sprint_data_markers() -> void:
 	var m := _move_cfg()
 	assert_true(not m.has("sprint_hold_s"), "sprint_hold_s removed (no hold, G3a2)")
-	assert_eq(m["sprint_speed_multiplier"]["value"], 1.3, "multiplier")
+	assert_eq(m["sprint_speed_multiplier"]["value"], 1.34, "multiplier")
 	assert_eq(m["sprint_speed_multiplier"]["note"], "our placeholder starting value, no sourced number", "multiplier note")
 	assert_true(not m.has("sprint_speed_mult"), "exactly one multiplier key")
 	assert_true(not m["sprint_speed_multiplier"].has("_source"), "multiplier cites no source")
 	assert_eq(m["sprint_speed_multiplier"]["_placeholder"], true, "multiplier _placeholder")
 	assert_eq(m["sprint_ramp_s"]["_placeholder"], true, "sprint_ramp_s _placeholder")
-	assert_eq(m["base_speed_mps"], 5.375, "walk speed 5.0 x 1.075")
+	assert_eq(m["base_speed_mps"], 4.7, "run speed 4.7 (MEASURED (PC), community sources pubg.fandom.com/wiki/Movement_Speed and samurai-gamers)")
 	assert_eq(m["_placeholder"], true, "movement stays a placeholder")
 	assert_eq(m["base_speed_note"], "Shibi Oct 22 asked for +5-10%; +7.5% chosen (5.0 x 1.075). base_speed_mps stays a placeholder.", "walk note")
 	var sp: Dictionary = _input_cfg()["sprint"]
@@ -210,7 +210,7 @@ func test_walk_speed_and_accel_rate() -> void:
 	p.set_frame(wf)
 	for i in 25:
 		p._apply_movement(DT)
-	assert_true(absf(_speed(p) - 5.375) / 5.375 < 0.01, "walk speed 5.375 within 1%%, got %s" % _speed(p))
+	assert_true(absf(_speed(p) - 4.7) / 4.7 < 0.01, "walk speed 4.7 within 1%%, got %s" % _speed(p))
 	_free(g)
 	var s := await _pawn()
 	var q: Pawn = s[1]
