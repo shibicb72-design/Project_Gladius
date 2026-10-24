@@ -3360,3 +3360,62 @@ present) ; step commit = FOUND (76572d4, 5 files, +66/-2).
 VERDICT: APPROVE
 
 Note: G2f/G2f2 commits were rebuilt before push to remove an absolute user path; old->new SHAs: 6c87f90->129d0e5, 12a73ad->d0f9a35, b219360->a9f36a2, 76572d4->a39ddf3, 243e7c6->cc94fb6.
+
+## G3a review
+
+Task: fixG/G3a.txt. Step commit 91e3700, prev d3af596.
+
+INPUTS: step commit = FOUND (91e3700, `git diff d3af596 --stat`: 3 files, 36 insertions) ; test run = FOUND (run in this
+review: import exit 0, Android export exit 0, full suite exit 0 "TESTS: 300 passed, 0 failed"; the step log
+cc_gladius/tests_G3a.log also shows 300/0) ; apk = FOUND (build/gladius-debug.apk, re-exported in this review) ;
+Fold-size shots including the named ones = ABSENT (the count of build/shots/*.png is well over 4, and all four named files
+exist, but only the two cover shots are Fold size. sprint_lock_inner_landscape.png and sprint_locked_inner_landscape.png
+are 2176x1421, not the 2176x1812 Fold inner size the prompt asks for (fixG/G3a.txt:1, :12). The step's own report
+(cc_gladius/out/G3a.json) says the OS window was clamped to this desktop's screen height. The G2c inner shot of the same
+screen was 2176x1812 (see the G2c review above).)
+
+What the two inner files show (described anyway, for the retake): sprint_lock_inner_landscape shows the move stick at rest
+bottom-left, the light "Lock" target above it, "Sprint lock" in the button cluster, and Swap/Aim/Reload/Fire/Jump with the
+look stick bottom-right. sprint_locked_inner_landscape shows the same layout with the target gone and the button reading
+"Locked" (highlighted). At this shorter 1421 px height, the Sprint lock / Locked circle touches the top of Swap.
+test_lock_button_clear_of_hud_at_four_sizes passes at the real 2176x1812, so this is a side effect of the clamped window,
+not a G3a finding. The cover shots (2520x1080) show the same two states with clear gaps: "Lock" above the stick and
+"Sprint lock" in the first shot, "Locked" with no target in the second. Both carry the "desktop render, not device" label.
+
+Checks completed before the verdict, for the re-run (they do not replace it):
+- Scope: `git diff d3af596 --stat` lists only docs/CONTROLS.md, docs/OPEN_QUESTIONS.md and tests/test_sprint.gd.
+  Nothing changed under scripts/, data/, scenes/ or tools/. .claude/settings.json, tests/test_physics_baseline.gd and
+  data/physics_baseline.json are unchanged.
+- tests/test_sprint.gd: the diff is one added hunk at :494-522 (`@@ -493,0 +494,29 @@`) with no changed or removed line.
+  The new test_tap_on_stick_cancels_lock_and_stops loops `_modes()` (:498). It locks by release on the target (:507-511,
+  same calls as :374-378) and asserts the lock (:512). It then taps with `_touch(hud, 1, start, true)` and
+  `_touch(hud, 1, start, false)` (:514-515, no drag), asserts `not sprint_locked` (:516), and after one `update_frame(DT)`
+  asserts `fr.move == Vector2.ZERO and not fr.sprint` (:517-518). It frees the router and HUD and resets
+  move_stick_override (:519-522).
+- data/stats.json:25 `sprint_hold_s` is still `{"_source": "Shibi Oct 22", "value": 0.5}`. The trigger
+  (scripts/input/sprint_detector.gd:35-43) is unchanged.
+- docs/OPEN_QUESTIONS.md:70 adds OQ-SPRINT-HOLD (Shibi decides: keep the hold or start on the threshold).
+  docs/CONTROLS.md:99-103 adds "Compared with PUBG Mobile (G3a)" at the end of the Sprint section. The three findings are
+  labelled OFFICIAL plus COMMUNITY-REPORTED, OFFICIAL plus COMMUNITY-REPORTED, and COMMUNITY-REPORTED, as quoted in the
+  prompt. The only number, 0.5 s, is attributed to Gladius, not to PUBG. No value is labelled as PUBG's.
+- P-check: no added line of `git diff d3af596 -U0` contains an absolute user-home path (the P-check search string). Banned-word check (word list kept off-repo):
+  no added line contains a listed word.
+- iOS / cross-platform: no code change, so no new platform API. GODOT API: no new engine API was used.
+- Mutations, in the orchestrator's scratch copy (cc_gladius/scratch/vG3a) only, each undone before the next. The live
+  repo was never mutated.
+  - M1, delete `provider.cancel_sprint_lock()` at scripts/ui/touch_hud.gd:580: CAUGHT. 298/2. The new test fails in all 3
+    modes ("tap cancels the lock", "stopped after the tap, move (0.0, -1.0)"), and so does
+    test_release_on_target_locks_release_elsewhere_stops ("new move touch cancels the lock").
+  - M2, `var on_target := true` at scripts/ui/touch_hud.gd:629: CAUGHT. 293/7. The new test fails on sprint_locked and
+    fr.move in all 3 modes, and tests/test_sprint.gd:371 fails ("release elsewhere stops", all 3 modes). Also failing:
+    test_touch_controls_custom, plus test_touch_virtual's gui_routed, multitouch and floating_spawn tests.
+  - M3, get_threshold returns `threshold_at_0` at scripts/input/sprint_detector.gd:36: CAUGHT. 299/1.
+    tests/test_sprint.gd:244 fails: "push length shrinks with sensitivity: 0.98 0.98 0.98".
+  - Afterwards the copy is restored to the G3a code and left in place.
+
+VERDICT: NOT ASSESSED
+MISSING: Fold-size inner shots. build/shots/sprint_lock_inner_landscape.png and
+build/shots/sprint_locked_inner_landscape.png are 2176x1421 instead of 2176x1812, because the capture window was clamped to
+the desktop screen height. To fix, retake both with the existing tool (`res://tools/touch_capture.tscn`,
+`--resolution 2176x1812`) on a setup that does not clamp the window, so the PNGs really are 2176x1812, and confirm
+RESULT sprint_state_ok=true. Every other check above passed, including all three mandatory mutations.
