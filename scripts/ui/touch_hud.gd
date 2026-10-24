@@ -188,7 +188,7 @@ func get_element_rect(key: String) -> Rect2:
 	if key == "move_stick":
 		return get_move_visual_rect()
 	var r := _radius(key)
-	return Rect2(global_position + get_look_rest() - Vector2.ONE * r, Vector2.ONE * r * 2.0)
+	return _to_global_rect(Rect2(get_look_rest() - Vector2.ONE * r, Vector2.ONE * r * 2.0))
 
 
 ## Effective editable state of an element: centre as HUD fractions, size and opacity in percent.
@@ -236,16 +236,18 @@ func _lock_button_center() -> Vector2:
 
 func get_lock_button_rect() -> Rect2:
 	var s := _lock_side("lock_button")
-	return Rect2(global_position + _lock_button_center() - Vector2.ONE * s * 0.5, Vector2.ONE * s)
+	return _to_global_rect(Rect2(_lock_button_center() - Vector2.ONE * s * 0.5, Vector2.ONE * s))
 
 
 ## Lock target above where the move stick started (the finger origin), clamped onto the screen.
+## _move_origin is viewport space (event.position): it is converted to HUD space once here, the
+## HUD-space rect is then shifted back through _to_global_rect.
 func get_lock_target_rect() -> Rect2:
 	var s := _lock_side("lock_target")
-	var origin := _move_origin if _move_touch != -1 else get_move_rest()
+	var origin := _move_origin - global_position if _move_touch != -1 else get_move_rest()
 	var c := origin - Vector2(0.0, float(cfg["sprint"]["lock_target"]["distance_radii"]) * _radius())
 	c = c.clamp(Vector2.ONE * s * 0.5, _area() - Vector2.ONE * s * 0.5)
-	return Rect2(global_position + c - Vector2.ONE * s * 0.5, Vector2.ONE * s)
+	return _to_global_rect(Rect2(c - Vector2.ONE * s * 0.5, Vector2.ONE * s))
 
 
 func _place_sprint_elements() -> void:
@@ -471,7 +473,7 @@ func _update_sticks() -> void:
 		vj.joystick_size = side
 		vj.tip_size = side * float(_layout["vjoy"]["tip_frac_of_size"])
 	elif _move_touch != -1:
-		move_stick.place(_move_origin, r)
+		move_stick.place(_move_origin - global_position, r)  # _move_origin is viewport space, place() takes HUD space
 		move_stick.set_knob_offset(_move_pos - _move_origin)
 	else:
 		move_stick.place(get_move_rest(), r)
