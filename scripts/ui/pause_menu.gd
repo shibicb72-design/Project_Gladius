@@ -69,8 +69,13 @@ func _build() -> void:
 	confirm_button = _button(_confirm_box, _menu["confirm_text"], func() -> void: quit_confirmed.emit())
 	cancel_button = _button(_confirm_box, _menu["cancel_text"], func() -> void: _show(_main_box))
 	_settings_box = _box(holder)
-	settings = _SettingsScene.instantiate()  # the same scene the main menu uses
-	_settings_box.add_child(settings)
+	# Device export can return empty PackedScene for this preload (measured on Fold).
+	# Prefer runtime load()+instantiate; .new() fallback if PackedScene unusable.
+	settings = _make_settings_panel()
+	if settings != null:
+		_settings_box.add_child(settings)
+	else:
+		push_error("PauseMenu: settings panel failed to create; in-match Settings unavailable")
 	back_button = _button(_settings_box, _menu["back_text"], func() -> void: _show(_main_box))
 	UiScale.bind(_overlay)
 	_show(_main_box)
@@ -93,6 +98,23 @@ func _button(parent: Node, text: String, handler: Callable) -> Button:
 	parent.add_child(b)
 	return b
 
+
+
+## Builds the shared SettingsPanel. Prefer runtime load()+instantiate (same scene as main menu).
+## Const preload of settings_panel has been measured empty on Fold export ("scene state of """);
+## fall back to SettingsPanel.new() with PROCESS_MODE_ALWAYS so MatchRoot.begin() still runs.
+func _make_settings_panel() -> SettingsPanel:
+	var packed: PackedScene = load("res://scenes/ui/settings_panel.tscn") as PackedScene
+	if packed == null:
+		packed = _SettingsScene
+	if packed != null:
+		var inst := packed.instantiate()
+		if inst is SettingsPanel:
+			return inst as SettingsPanel
+	push_warning("PauseMenu: settings_panel PackedScene unusable; using SettingsPanel.new() fallback")
+	var panel := SettingsPanel.new()
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	return panel
 
 func _show(which: Control) -> void:
 	for b in [_main_box, _confirm_box, _settings_box]:

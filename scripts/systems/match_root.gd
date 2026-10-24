@@ -58,10 +58,13 @@ func _ready() -> void:
 	_gyro.configure({"sensitivity": gyro_cfg.get("sensitivity", 1.0)})
 	apply_sensitivity()
 	router.add_provider(_gyro)
-	pause_menu.settings.changed.connect(apply_sensitivity)  # in-match Settings / Sensitivity screen (G2d2)
+	# Null-guard: if PauseMenu settings failed to build on device, still run begin() (pawn/map/camera).
+	if pause_menu != null and pause_menu.settings != null:
+		pause_menu.settings.changed.connect(apply_sensitivity)  # in-match Settings / Sensitivity screen (G2d2)
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
-		pause_menu.settings.changed.connect(_touch_hud.reload_profile_layout)  # G2e: layout editor Save applies at once
+		if pause_menu != null and pause_menu.settings != null:
+			pause_menu.settings.changed.connect(_touch_hud.reload_profile_layout)  # G2e: layout editor Save applies at once
 	director.match_over.connect(_on_match_over)
 	pause_menu.opened.connect(_on_menu_opened)
 	pause_menu.closed.connect(_on_menu_closed)
