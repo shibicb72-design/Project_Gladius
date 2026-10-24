@@ -67,7 +67,9 @@ func _ready() -> void:
 	pause_menu.closed.connect(_on_menu_closed)
 	pause_menu.quit_confirmed.connect(quit_to_menu)
 	if auto_start:
-		begin()
+		var started: bool = begin()
+		if not started:
+			push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
 
 
 ## Re-reads the profile's sensitivity settings into the router (tables, inversion) and the gyro provider (mode).
@@ -79,14 +81,18 @@ func apply_sensitivity() -> void:
 
 ## Loads the map and starts the match. Returns false if the data is unusable.
 func begin() -> bool:
+	# P0c: temporary Fold presentation diagnostic. Magenta clear splits "world not drawing" from the engine default gray.
+	RenderingServer.set_default_clear_color(Color(1, 0, 1))
 	if director.mode_cfg.is_empty():
 		director.load_config()
 	map_def = DataRegistry.new().load_file(MAP_PATH)
 	var scene: PackedScene = load(str(map_def.get("scene", ""))) as PackedScene
 	if scene == null:
+		push_error("MatchRoot.begin: map scene is null (path '%s' from %s)" % [str(map_def.get("scene", "")), MAP_PATH])
 		return false
 	map = scene.instantiate()
 	add_child(map)
+	print("MatchRoot.begin: map load OK, scene non-null")
 	var nav := map.get_node_or_null("Nav") as NavigationRegion3D
 	if bake_navmesh and nav != null:
 		nav.bake_navigation_mesh(false)
@@ -149,6 +155,14 @@ func begin() -> bool:
 		var rig := _RigScene.instantiate()
 		rig.name = "CameraRig"
 		local_player.add_child(rig)
+		var cam: Camera3D = (rig as CameraRig).get_camera() if rig is CameraRig else null
+		if cam != null and cam.is_inside_tree():
+			cam.make_current()  # P0c: force the third-person camera current so the viewport never presents a camera-less frame
+		var active: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
+		print("MatchRoot.begin: local_player=%s CameraRig=%s camera_current=%s" % [
+				local_player != null, rig != null, active != null and active == cam])
+	else:
+		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
