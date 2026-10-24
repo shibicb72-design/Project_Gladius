@@ -3859,3 +3859,54 @@ export-preset errors). The diff stays inside the allowed files and lines, and [p
 preset has a non-empty NSMotionUsageDescription and empty signing fields, and holds no secrets. The three OQs and the
 real-phone note are present, and the banned-word check and the P-check are clean. The four named shots are Fold-size
 retakes, and mutations M1-M3 are each caught by the named test.
+
+## G3e review
+
+Task prompt: fixG/G3e.txt. Step commit 7955939, prev 15d7192. Reviewer: Opus (VG3e).
+
+INPUTS: tests log/exit code = FOUND (cc_gladius tests_G3e.log; fixG.log:314 "GATE G3e apk=True tests=0 shots=109"; and my own run below) ; apk = FOUND (build/gladius-debug.apk, re-exported by me) ; shots = FOUND (n>100 in build/shots, all four named shots present) ; step commit = FOUND (7955939, 12 files, +342/-28)
+
+### Gates (run by me, live repo)
+- `godot --headless --path . --import`: exit 0, no project errors.
+- `godot --headless --path . --export-debug "Android" build/gladius-debug.apk`: exit 0, "Signed", verified; Glob finds the APK. No export-preset "ERROR:" lines.
+- `godot --headless --path . --script res://tests/run_tests.gd`: exit 0, `TESTS: 315 passed, 0 failed` (306 at G3d + 9 new). The only "ERROR:" line is the existing expected push_error in test_button_capture_far_target.gd (the test that checks the STOP path), which passes.
+
+### Scope (`git diff 15d7192 --stat`)
+data/input.json, docs/CONTROLS.md, docs/OPEN_QUESTIONS.md, scripts/systems/hud_layout_model.gd, scripts/systems/save_service.gd, scripts/ui/layout_editor.gd, scripts/ui/settings_panel.gd, scripts/ui/touch_hud.gd, tests/test_left_fire.gd (new), tests/test_left_fire.gd.uid (new), tools/layout_editor_capture.gd, tools/touch_capture.gd. All are allowed. The .uid file is Godot's generated sidecar for the new test (not a separate edit). No existing test file is touched, so no assertion is changed or removed. .claude/settings.json, tests/test_physics_baseline.gd and data/physics_baseline.json are not in the diff.
+
+### Item by item against fixG/G3e.txt
+1. Data: data/input.json:133 `touch_layout.left_fire` = `{"_placeholder": true, "enabled_default": false, "pos": [0.3, 0.5], "note": ...}`, with the note text the prompt asks for, and an explanatory `_left_fire_note` at :132. `touch_layout.buttons` is unchanged (the only other change is the trailing comma at :131). The position is labelled a placeholder (OQ-LEFT-FIRE-POS), not a design value and not PUBG's. No value in the diff is labelled as PUBG's. docs/CONTROLS.md says only that PUBG Mobile offers the option, which is the prompt's own statement.
+2. HUD: scripts/ui/touch_hud.gd:62-63 builds the button only when `left_fire_enabled()` (:98-99, profile flag with data default) is true. `_add_button` (:79-89) is the old loop body, factored out without change. `_action_of` (:93-94) maps `fire_left` to "fire". `_on_down` (:622-623) presses `_action_of(key)`. `_on_up` (:670-676) releases "fire" only when no held touch still maps to it, so the two-button hold keeps firing. Size: `_cell_rect` (:520-527) only changes the default centre (`left_fire.pos` × area), so size is the same path as every button. `get_element_keys()` (:157-160) and `get_element_min_px()` (:164-170, `button_min_dp` × platform dp scale) include `fire_left` only because it is in `_buttons`, so only while enabled. `_exit_tree` and `set_suspended` release through `_action_of` too. The move-stick, lock and look paths are untouched. `refresh_left_fire()` (:104-119) handles a live toggle and releases "fire" only if the other Fire button is not held.
+3. Settings: scripts/ui/settings_panel.gd:52-54 adds one "Left Fire button: Off/On" toggle (:176-184), which persists `left_fire_enabled` in `fields()` (:220-221). scripts/systems/save_service.gd:25 sets the default from data, :28-34 `_left_fire` keeps only a bool, and anything else falls back to the data default (false). It is applied on load (:93) and save (:111).
+4. Layout editor: scripts/ui/layout_editor.gd:173-174 names it "Left Fire". The editor preview is a TouchHud, so the element appears only while enabled. hud_layout_model.gd is key-generic, so `pos`/`size_pct`/`alpha_pct` for `fire_left` save per slot like any element. The off-screen/overlap check iterates `get_element_keys()`, so it covers the element. hud_layout_model.gd:10 adds only a `LEFT_FIRE_KEY` constant (unused there; harmless).
+5. Tests (tests/test_left_fire.gd, 9 tests): off by default (:51), enabled at Fire size and >= 48 dp on cover and inner (:61), press/release drives fire (:80), both held, release either one, still firing (:92), SaveService round trip plus non-bool sanitizing (:111), Settings toggle persists (:126), editor hides it while off (:154), slot pos/size/alpha saved, reloaded into a real HUD, applied, and Reset back to `left_fire.pos` (:162), default on-screen at every checked size and clear of the Sprint lock button and lock target (:192). Every test restores AppFlow.profile and removes its temp file.
+6. Docs: docs/CONTROLS.md:139-147 (left Fire button, off by default) and docs/OPEN_QUESTIONS.md:146 OQ-LEFT-FIRE-POS are present.
+
+### Rule checks
+- Banned-word check (word list kept off-repo): no added line in `git diff 15d7192 -U0` contains a listed word, and neither does the commit message. A grep over the touched files hits only a pre-existing OPEN_QUESTIONS.md line (OQ-12), which this diff does not touch.
+- P-check: no added line in `git diff 15d7192 -U0` contains a C:\Users path.
+- Touch targets: `get_element_min_px` uses `button_min_dp` (48) × `PlatformServices.get_dp_scale()`, and test :61 asserts it.
+- iOS / cross-platform: no Android-only API. The new code uses only Input.action_press/action_release, Button and AppFlow.profile, and dp comes through scripts/platform/. Input still goes through the InputMap "fire" action.
+- Data-driven: the position and default are read from data/input.json with no numeric fallback.
+
+### Named shots (opened and checked)
+- left_fire_on_cover_landscape.png (2520x1080, overlay "left_fire_on"): the in-match HUD. A round "Fire" button sits at about (756, 540) px (x 0.30, y 0.50), the same size as the right-hand Fire/Reload/Swap/Aim buttons. It is well above and right of the move stick (bottom left, centre about (378, 820)), with a clear gap. It is far left of the Sprint lock button (about x 0.56, y 0.42). The lock target is not drawn in this rest shot; test :192 asserts it is clear.
+- left_fire_on_inner_landscape.png (2176x1812): the HUD on a plain background, with the lock target "Lock" drawn at upper left (about x 0.18, y 0.38). The left "Fire" sits at about (654, 908) px (x 0.30, y 0.50), below-right of the Lock target with a clear gap, and well above-right of the move stick (centre about (327, 1380)). The Sprint lock button is far to the right. There is no overlap with the stick, the lock target or any other button. The overlay tag reads "shot" rather than "left_fire_on" (cosmetic; see Minor).
+- layout_editor_left_fire_cover_landscape.png: the editor with Slot 1 active. The selected element row reads "Left Fire" with its sliders, and a gold selection box surrounds the left "Fire" at about x 0.30, y 0.50. It is clear of the move stick and of the Sprint lock button, and no warning is shown.
+- layout_editor_left_fire_inner_landscape.png: the same on the inner screen. "Left Fire" is selected, boxed at about x 0.30, y 0.50, clear of the move stick, Sprint lock and the right-hand cluster.
+
+### Mutations (scratch copy only: cc_gladius/scratch/vG3e; imported first; each edit undone before the next)
+Each mutation was run with `run_tests.gd`. M1 used the full suite and then `-- --only=test_left_fire.gd`, because the full log was truncated in the tool output. M2-M4 used `-- --only=test_left_fire.gd`.
+- M1 `enabled_default` true (data/input.json:133): full suite 307/8. **test_off_by_default FAILS** ("left Fire is not an element while disabled; no left Fire button is built while disabled; profile default is off"). Round-trip, settings and editor-hidden tests and three existing five-button tests also fail. CAUGHT.
+- M2 `_action_of` returns "aim" for `fire_left` (touch_hud.gd:94): **test_press_and_release_drive_fire FAILS** ("pressing left Fire presses fire"), and so does test_both_fire_buttons_release_one_keeps_firing. CAUGHT.
+- M3 `left_fire_enabled` lines dropped from SaveService load (:93) and save (:111) sanitizing: **test_toggle_round_trips_through_save_service FAILS** ("true survives a reload"), and so does test_settings_panel_toggle_persists. CAUGHT.
+- M4 `HudLayoutModel.to_dict()` erases `fire_left` from every slot: **test_slot_position_saved_reloaded_applied_and_reset FAILS** (script error, missing `fire_left` key at test_left_fire.gd:170, reported as FAIL). CAUGHT.
+- After undoing M4, the copy's left-fire file passes 9/0 again. The copy is left in place.
+
+### Minor (not blocking)
+- left_fire_on_inner_landscape.png's overlay says "shot", not "left_fire_on". The inner shot appears to come from the exact-size path (tools/touch_capture.gd:417-418), which does not use --tag. This is cosmetic, and the file name is correct.
+- save_service.gd:28-29 `_left_fire_default()` reloads data/input.json on every `defaults()`/sanitize call. This is cheap at profile load and save, but it could be cached later.
+- hud_layout_model.gd:10 `LEFT_FIRE_KEY` is declared but unused in that file.
+
+VERDICT: APPROVE
+G3e does what fixG/G3e.txt asks. All inputs are present, and I ran import, export and the suite myself (315/0). The diff stays inside the allowed files, and no existing test is changed. The left Fire data is a placeholder with enabled_default false, and buttons is unchanged. The button is off by default, the same size as Fire and at least 48 dp. It drives the existing "fire" action and keeps firing while either Fire button is held. The toggle saves a sanitized bool, and the layout editor saves, reloads, resets and checks `fire_left` per slot. The banned-word check and the P-check are clean, and the four named shots show the button clear of the move stick and the Sprint lock target. Mutations M1-M4 are each caught by the named test.
