@@ -57,6 +57,14 @@ func get_camera() -> Camera3D:
 	return _camera
 
 
+## Path A / P0c: force this rig camera current (tps-demo authority make_current pattern). True iff the viewport presents it.
+func ensure_current() -> bool:
+	if _camera == null or not _camera.is_inside_tree():
+		return false
+	_camera.make_current()
+	return get_viewport().get_camera_3d() == _camera
+
+
 func get_fov() -> float:
 	return _camera.fov
 

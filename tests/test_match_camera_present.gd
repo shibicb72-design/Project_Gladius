@@ -20,6 +20,7 @@ func test_begin_attaches_current_camera() -> void:
 	var rig := m.local_player.get_node_or_null("CameraRig") as CameraRig
 	assert_true(rig != null, "local_player has a CameraRig")
 	if rig != null:
+		assert_true(rig.ensure_current(), "ensure_current() keeps / restores current")
 		var cam: Camera3D = rig.get_camera()
 		assert_true(cam.is_current() or m.get_viewport().get_camera_3d() == cam,
 				"rig camera is current / the viewport camera")

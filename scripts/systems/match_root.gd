@@ -149,20 +149,21 @@ func begin() -> bool:
 		director.add_player(0, local_player)
 		if fill_bots:
 			bots = BotSpawner.spawn_bots(self, director, {0: 1}, squads.size(), center, radius)
-	if local_player != null:
-		hud.bind(director, local_player)
-		HapticsEvents.bind_pawn(local_player)
-		var rig := _RigScene.instantiate()
-		rig.name = "CameraRig"
-		local_player.add_child(rig)
-		var cam: Camera3D = (rig as CameraRig).get_camera() if rig is CameraRig else null
-		if cam != null and cam.is_inside_tree():
-			cam.make_current()  # P0c: force the third-person camera current so the viewport never presents a camera-less frame
-		var active: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
-		print("MatchRoot.begin: local_player=%s CameraRig=%s camera_current=%s" % [
-				local_player != null, rig != null, active != null and active == cam])
-	else:
+	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
+		return false
+	hud.bind(director, local_player)
+	HapticsEvents.bind_pawn(local_player)
+	var rig := _RigScene.instantiate()
+	rig.name = "CameraRig"
+	local_player.add_child(rig)
+	# Path A / P0c: fail closed if the third-person camera never becomes current (tps-demo make_current pattern).
+	var cam_ok := rig is CameraRig and (rig as CameraRig).ensure_current()
+	print("MatchRoot.begin: local_player=%s CameraRig=%s camera_current=%s" % [
+			local_player != null, rig != null, cam_ok])
+	if not cam_ok:
+		push_error("MatchRoot.begin: CameraRig failed to become current; match did not start")
+		return false
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
