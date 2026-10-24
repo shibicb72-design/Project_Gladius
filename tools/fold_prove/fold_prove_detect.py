@@ -74,6 +74,45 @@ def classify_frame(a, use_ocr=True):
     return {"menu": is_menu, "reasons": reasons}
 
 
+def maroon_bands(a, min_row_frac=0.08, min_height=20):
+    """Horizontal bands of maroon menu buttons, top to bottom: [(y0, y1, x0, x1), ...].
+    Lets the harness tap real buttons (Host, Start) instead of spraying blind taps that can hit Sensitivity."""
+    _, maroon, _ = chrome_masks(a)
+    rows = maroon.mean(axis=1) > min_row_frac
+    bands = []
+    y = 0
+    h = len(rows)
+    while y < h:
+        if not rows[y]:
+            y += 1
+            continue
+        y0 = y
+        while y < h and rows[y]:
+            y += 1
+        if y - y0 >= min_height:
+            cols = np.where(maroon[y0:y].any(axis=0))[0]
+            bands.append((y0, y, int(cols[0]), int(cols[-1])))
+    return bands
+
+
+def host_button_xy(a):
+    """Centre of the first maroon band on the main menu (Host sits first, above Join/Sensitivity)."""
+    bands = maroon_bands(a)
+    if not bands:
+        return None
+    y0, y1, x0, x1 = bands[0]
+    return (x0 + x1) // 2, (y0 + y1) // 2
+
+
+def start_button_xy(a):
+    """Lobby Start = middle third of the bottom maroon row (Class | Start | Back)."""
+    bands = maroon_bands(a)
+    if not bands:
+        return None
+    y0, y1, x0, x1 = bands[-1]
+    return x0 + (x1 - x0) // 2, (y0 + y1) // 2
+
+
 def back_button_xy(shape):
     """Approximate centre of the top-left Back button for a frame of the given (h, w, ...) shape."""
     h, w = shape[:2]

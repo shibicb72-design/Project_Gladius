@@ -36,4 +36,11 @@ g = compute_gates(True, {"01_rest": False, "c_final": True}, METRICS)
 assert not g["in_match"] and set(g["gates_strict"].values()) == {"FAIL"}
 g = compute_gates(True, {"01_rest": False}, METRICS)
 assert g["in_match"] and set(g["gates_strict"].values()) == {"PASS"}
+from fold_prove_detect import host_button_xy, start_button_xy
+_a = np.full((1000, 600, 3), 77, dtype=np.uint8)
+_a[100:200, 200:400] = (130, 20, 20)  # Host
+_a[300:400, 200:400] = (130, 20, 20)  # Sensitivity
+_a[900:960, 0:600] = (130, 20, 20)    # lobby bottom row
+assert host_button_xy(_a) == (299, 150)
+assert start_button_xy(_a) == (299, 930)
 print("OK")
