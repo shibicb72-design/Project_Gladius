@@ -46,17 +46,28 @@ func test_kick_adds_the_data_pitch_and_a_random_sign_yaw() -> void:
 	assert_true(signs.has(1.0) and signs.has(-1.0), "yaw sign varies between kicks (Kenney random_vec2): %s" % [signs.keys()])
 
 
-func test_offset_recovers_linearly_to_zero_over_recover_s() -> void:
+func test_offset_recovers_ease_out_to_zero_over_recover_s() -> void:
 	var k := _knock(2.0, 1.0, 0.2)
 	var add := k.kick()
 	k.tick(0.05)
-	assert_true(k.offset.is_equal_approx(add * 0.75), "a quarter of recover_s in, 75%% is left (got %s)" % k.offset)
+	assert_true(k.offset.is_equal_approx(add * 0.5625), "remaining fraction 0.75 squared (got %s)" % k.offset)
 	k.tick(0.1)
-	assert_true(k.offset.is_equal_approx(add * 0.25), "three quarters in, 25%% is left (got %s)" % k.offset)
+	assert_true(k.offset.is_equal_approx(add * 0.0625), "remaining fraction 0.25 squared (got %s)" % k.offset)
 	k.tick(0.05)
 	assert_eq(k.offset, Vector2.ZERO, "at rest once recover_s has passed")
 	k.tick(1.0)
 	assert_eq(k.offset, Vector2.ZERO, "stays at rest")
+
+
+func test_recovery_magnitude_decreases_monotonically_and_ends_exactly_at_rest() -> void:
+	var k := _knock(2.0, 1.0, 0.2)
+	var previous := k.kick().length()
+	for i in 20:
+		var magnitude := k.tick(0.01).length()
+		assert_true(magnitude <= previous, "recovery magnitude never increases")
+		previous = magnitude
+	assert_eq(k.offset, Vector2.ZERO, "summed deltas reach exact rest via REST_EPS_S")
+	assert_eq(k.tick(0.2), Vector2.ZERO, "further ticks remain exactly at rest")
 
 
 func test_kicks_stack_but_stay_bounded_under_sustained_fire() -> void:
@@ -69,8 +80,10 @@ func test_kicks_stack_but_stay_bounded_under_sustained_fire() -> void:
 		top = maxf(top, k.offset.x)
 		k.tick(interval)
 	assert_true(top > kick * 1.5, "kicks inside recover_s stack (peak %s rad)" % top)
-	# Each kick restarts a linear recovery from the current peak, so the peak converges to kick * recover_s / interval.
-	assert_true(top <= kick * 0.2 / interval + 1e-4, "peak %s rad stays under kick * recover_s / interval" % top)
+	# Each interval keeps (1 - interval / recover_s)^2 = 0.5625 of the peak.
+	# Restarting on each kick converges to kick / (1 - 0.5625), about 2.286 kicks.
+	var bound := kick / (1.0 - pow(1.0 - interval / 0.2, 2.0)) + 1e-4
+	assert_true(top <= bound, "peak %s rad stays under the derived ease-out bound %s" % [top, bound])
 	k.tick(0.2)
 	assert_eq(k.offset, Vector2.ZERO, "at rest recover_s after the last kick")
 
