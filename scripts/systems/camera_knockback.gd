@@ -3,8 +3,8 @@ extends RefCounted
 ## Camera knockback on fire (Path A phase 2). Pattern from Kenney Starter-Kit-FPS objects/player.gd action_shoot (MIT):
 ## each shot kicks the view up and sideways, the sideways sign random per shot (random_vec2). Unlike Kenney, which also
 ## adds the kick to rotation_target so it stays, this offset recovers: it falls linearly to zero over recover_s after
-## the latest kick. Pure math (no Node; time comes in as delta). Values: data/camera.json camera_knockback_* (placeholders,
-## OQ-CAM-KNOCKBACK).
+## the latest kick. Pure math (no Node; time comes in as delta). Values: data/camera.json camera_knockback_* (Shibi-approved
+## industry defaults 2026-10-28, OQ-CAM-KNOCKBACK).
 
 ## Recovery time left (seconds) that already counts as rest.
 const REST_EPS_S := 1e-6

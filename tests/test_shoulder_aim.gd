@@ -210,7 +210,10 @@ func _shoulder_settled() -> void:
 
 func test_shoulder_ease_is_monotonic_and_aim_tracks_the_current_camera() -> void:
 	var cfg := DataRegistry.new().get_camera_cfg()
-	assert_true(bool(cfg["shoulder_ease_s"]["_placeholder"]), "ease timing stays a placeholder")
+	# Shibi-approved industry default 2026-10-28 (OQ-SHOULDER addendum), not a DESIGN.md value.
+	assert_true(not cfg["shoulder_ease_s"].has("_placeholder"), "ease timing is no longer a placeholder")
+	assert_true(is_equal_approx(float(cfg["shoulder_ease_s"]["value"]), 0.20),
+		"ease timing ships 0.20 s (got %s)" % cfg["shoulder_ease_s"]["value"])
 	var rig: CameraRig = _RigScene.instantiate()
 	_tree().root.add_child(rig)
 	await _tree().physics_frame

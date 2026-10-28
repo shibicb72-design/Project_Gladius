@@ -1,8 +1,8 @@
 extends "res://tests/test_case.gd"
 ## Path A phase 2, Goal A: Kenney Starter-Kit-FPS camera knockback on fire, made to recover and driven by
-## data/camera.json camera_knockback_* (placeholders). CameraKnockback is the pure kick/recover math; CameraRig adds it
-## to its rotation and keeps the aim point on the un-kicked camera (view only); Pawn.fire_shot kicks the local rig for
-## ranged shots only.
+## data/camera.json camera_knockback_* (Shibi-approved industry defaults, OQ-CAM-KNOCKBACK). CameraKnockback is the
+## pure kick/recover math; CameraRig adds it to its rotation and keeps the aim point on the un-kicked camera (view
+## only); Pawn.fire_shot kicks the local rig for ranged shots only.
 
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
@@ -85,14 +85,19 @@ func test_missing_keys_or_zero_recover_turn_knockback_off() -> void:
 	assert_eq(zero.offset, Vector2.ZERO, "recover_s 0: no offset")
 
 
-func test_camera_json_knockback_keys_are_marked_placeholders() -> void:
+func test_camera_json_knockback_keys_are_locked_industry_defaults() -> void:
+	# Shibi-approved industry defaults 2026-10-28 (OQ-CAM-KNOCKBACK), not DESIGN.md values.
 	var cfg := DataRegistry.new().get_camera_cfg()
-	for key in ["camera_knockback_pitch_deg", "camera_knockback_yaw_deg", "camera_knockback_recover_s"]:
+	var keys: Array[String] = ["camera_knockback_pitch_deg", "camera_knockback_yaw_deg", "camera_knockback_recover_s"]
+	var shipped: Array[float] = [2.0, 1.2, 0.22]
+	for i in keys.size():
+		var key := keys[i]
 		assert_true(cfg.has(key), "camera.json has %s" % key)
 		if cfg.has(key):
 			var e: Dictionary = cfg[key]
-			assert_true(bool(e.get("_placeholder", false)), "%s is marked _placeholder" % key)
-			assert_true(float(e.get("value", -1.0)) >= 0.0, "%s is not negative" % key)
+			assert_true(not e.has("_placeholder"), "%s is no longer marked _placeholder" % key)
+			var value := float(e.get("value", -1.0))
+			assert_true(is_equal_approx(value, shipped[i]), "%s ships %s (got %s)" % [key, shipped[i], value])
 	assert_true(_cfg_value("camera_knockback_recover_s") > 0.0, "the shipped knockback recovers (recover_s > 0)")
 	assert_true(_cfg_value("camera_knockback_pitch_deg") > 0.0, "the shipped knockback kicks the view up")
 	assert_true(_cfg_value("camera_knockback_pitch_deg") < 5.0, "the kick is small (under 5 deg)")
