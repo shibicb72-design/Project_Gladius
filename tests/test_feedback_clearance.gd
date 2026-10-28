@@ -1,7 +1,8 @@
 extends "res://tests/test_case.gd"
-## GBTN2: every action-feedback widget (reload bar/text, hit marker, swap toast, Full/Empty/No reserve cues), shown in
-## its visible state, must not overlap a stick or an action button. Same assertions as tests/test_touch_controls.gd
-## _check_hud_clear, at the four landscape sizes and both move-stick modes.
+## GBTN2: every action-feedback widget (reload bar/text, hit marker, swap toast, Full/Empty/No reserve cues) and the
+## permanent centre crosshair (OQ-CROSSHAIR), shown in its visible state, must not overlap a stick or an action
+## button. Same assertions as tests/test_touch_controls.gd _check_hud_clear, at the four landscape sizes and both
+## move-stick modes.
 
 const _HudScene := preload("res://scenes/ui/touch_hud.tscn")
 const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
@@ -37,7 +38,7 @@ func _check(sz: Vector2, mode: String) -> void:
 	await tree.process_frame
 	await tree.process_frame
 	var widgets := {"reload_box": game.reload_box, "cue_label": game.cue_label, "toast_label": game.toast_label,
-			"hit_marker": game.hit_marker}
+			"hit_marker": game.hit_marker, "crosshair": game.crosshair}
 	var touch_items := {"move_stick": touch.get_move_visual_rect(), "look_stick": touch.look_stick.get_global_rect()}
 	for action in ACTIONS:
 		touch_items["button_" + action] = touch.get_button_rect(action)

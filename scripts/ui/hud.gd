@@ -24,8 +24,12 @@ var reload_bar: ProgressBar
 var cue_label: Label
 var toast_label: Label
 var hit_marker: Label
+## Permanent centre aim reticle (data/ui.json "crosshair", OQ-CROSSHAIR); hidden while the local pawn is dead.
+var crosshair: Control
 
 var _fb: Dictionary = {}
+var _ch: Dictionary = {}
+var _crosshair_arms: Array[ColorRect] = []
 var _cue_left_s: float = 0.0
 var _toast_left_s: float = 0.0
 var _marker_left_s: float = 0.0
@@ -87,6 +91,7 @@ func _build_feedback() -> void:
 	reload_box.visible = false
 	cue_label = _row_label(float(_fb["cue_anchor_y_frac"]), _color(_fb["cue_color"]))
 	toast_label = _row_label(float(_fb["toast_anchor_y_frac"]), _color(_fb["toast_color"]))
+	_build_crosshair()  # before the hit marker, so the marker (a later sibling) draws on top of the reticle
 	hit_marker = _row_label(0.5, _color(_fb["hit_marker_color"]))
 	hit_marker.text = String(_fb["hit_marker_text"])
 	resized.connect(_size_hit_marker)
@@ -118,6 +123,48 @@ func _color(c: Array) -> Color:
 func _size_hit_marker() -> void:
 	hit_marker.add_theme_font_size_override("font_size",
 			int(float(_fb["hit_marker_font_frac_of_height"]) * size.y))
+
+
+## Screen-centre reticle: at rest the camera-centre aim ray (AimMath / CameraRig.get_aim_point) points through the
+## HUD centre. A root Control anchored at the centre encloses four ColorRect arms around an open centre gap.
+func _build_crosshair() -> void:
+	_ch = DataRegistry.new().load_file("res://data/ui.json")["crosshair"]
+	crosshair = Control.new()
+	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	crosshair.anchor_left = 0.5
+	crosshair.anchor_top = 0.5
+	crosshair.anchor_right = 0.5
+	crosshair.anchor_bottom = 0.5
+	add_child(crosshair)
+	for i in 4:
+		var arm := ColorRect.new()
+		arm.color = _color(_ch["color"])
+		arm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		crosshair.add_child(arm)
+		_crosshair_arms.append(arm)
+	crosshair.visible = bool(_ch["enabled"])
+	resized.connect(_size_crosshair)
+	_size_crosshair()
+
+
+## Sizes the reticle from the HUD height (folding the phone resizes the HUD at runtime). Offsets of +-half the span
+## keep the root centred; the arms are left, right, top, bottom.
+func _size_crosshair() -> void:
+	var span := float(_ch["size_frac_of_height"]) * size.y
+	var gap := float(_ch["gap_frac_of_height"]) * size.y
+	var thick := maxf(1.0, float(_ch["thickness_frac_of_height"]) * size.y)  # never thinner than 1 px
+	var half := span * 0.5
+	crosshair.offset_left = -half
+	crosshair.offset_top = -half
+	crosshair.offset_right = half
+	crosshair.offset_bottom = half
+	var arm := maxf(0.0, (span - gap) * 0.5)
+	var mid := half - thick * 0.5
+	var rects: Array[Rect2] = [Rect2(0.0, mid, arm, thick), Rect2(span - arm, mid, arm, thick),
+			Rect2(mid, 0.0, thick, arm), Rect2(mid, span - arm, thick, arm)]
+	for i in rects.size():
+		_crosshair_arms[i].position = rects[i].position
+		_crosshair_arms[i].size = rects[i].size
 
 
 func show_cue(text: String) -> void:
@@ -256,6 +303,7 @@ func refresh_pawn() -> void:
 		reload_bar.value = w.reload_fraction(pawn.get_clock())
 	var waiting := not pawn.is_alive()
 	respawn_label.visible = waiting
+	crosshair.visible = bool(_ch["enabled"]) and not waiting  # no shot is possible while dead
 	if waiting and director != null and director.spawn_rules != null:
 		var left := director.spawn_rules.respawn_remaining(_pawn_player_id())
 		respawn_label.text = "Respawn in %d" % int(ceil(left))

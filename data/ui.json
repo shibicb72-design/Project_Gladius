@@ -63,6 +63,15 @@
 		"reload_anchor_y_frac": 0.32,
 		"toast_anchor_y_frac": 0.2
 	},
+	"crosshair": {
+		"_placeholder": true,
+		"_todo": "OQ-CROSSHAIR: permanent centre aim reticle on GameHud (EL default, Oct 28 2026: always on while the local pawn is alive). The four-arm shape, size, gap, thickness and colour are placeholders for Shibi's Fold check, not design values; DESIGN.md gives no reticle spec. Fractions are of the HUD height; the thickness is never drawn below 1 px. The colour is kept apart from the white hit marker X.",
+		"enabled": true,
+		"size_frac_of_height": 0.04,
+		"gap_frac_of_height": 0.012,
+		"thickness_frac_of_height": 0.004,
+		"color": [1.0, 0.85, 0.3, 0.9]
+	},
 	"touch_debug_overlay": {
 		"_placeholder": true,
 		"_todo": "OQ-DEVICE-TOUCH (GBTN): debug overlay showing each touch index and the button it hit. Default off.",
