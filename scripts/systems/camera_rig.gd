@@ -23,6 +23,12 @@ var knockback: CameraKnockback = CameraKnockback.new()
 var _look_pitch: float = 0.0
 ## Physics frame of the latest kick: that frame shows the kick whole, recovery starts on the next one.
 var _kick_frame: int = -1
+## Presentation blend: x is the lateral offset, y the hip arm length before ADS.
+var _shoulder_from: Vector2 = Vector2.ZERO
+var _shoulder_target: Vector2 = Vector2.ZERO
+var _shoulder_hip_length: float = 0.0
+var _shoulder_elapsed_s: float = 0.0
+var _shoulder_duration_s: float = 0.0
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -49,6 +55,7 @@ func _ready() -> void:
 ## Recovers the knockback. The pawn (this rig's parent) runs first in a physics frame and may kick during it, so a
 ## kick from the current frame is left whole for one frame.
 func _physics_process(delta: float) -> void:
+	_tick_shoulder(delta)
 	if knockback.offset == Vector2.ZERO or Engine.get_physics_frames() == _kick_frame:
 		return
 	knockback.tick(delta)
@@ -70,14 +77,37 @@ func _ensure_aim_ray() -> void:
 
 
 ## Applies spring_length + lateral arm offset for the current shoulder_side from camera.json.
-func _apply_shoulder() -> void:
+func _apply_shoulder(ease_motion: bool = false) -> void:
 	var right_x := float(_cfg["shoulder_offset_m"]["value"])
 	var left_entry: Dictionary = _cfg.get("shoulder_offset_left_m", {"value": -right_x})
 	var left_x := float(left_entry.get("value", -right_x))
 	var use_left := shoulder_side == "left"
 	# SpringArm3D rewrites its child camera's transform every physics frame (measured: tools/measure_shoulder.gd),
 	# so the shoulder offset goes on the arm itself.
-	_arm.position.x = left_x if use_left else right_x
+	_shoulder_from = Vector2(_arm.position.x, _shoulder_hip_length)
+	_shoulder_target = Vector2(left_x if use_left else right_x, _hip_arm_length())
+	_shoulder_elapsed_s = 0.0
+	var entry: Dictionary = _cfg.get("shoulder_ease_s", {})
+	_shoulder_duration_s = maxf(0.0, float(entry.get("value", 0.0))) if ease_motion else 0.0
+	if _shoulder_duration_s <= 0.0:
+		_arm.position.x = _shoulder_target.x
+		_shoulder_hip_length = _shoulder_target.y
+	_apply_arm_length()
+
+
+## Smoothstep between the current pose and the new side; rapid swaps restart from that pose.
+## No aim undo: the existing AimRayCast follows the camera throughout the move.
+func _tick_shoulder(delta: float) -> void:
+	if _shoulder_duration_s <= 0.0:
+		return
+	_shoulder_elapsed_s = minf(_shoulder_elapsed_s + maxf(delta, 0.0), _shoulder_duration_s)
+	var weight := smoothstep(0.0, 1.0, _shoulder_elapsed_s / _shoulder_duration_s)
+	var pose := _shoulder_from.lerp(_shoulder_target, weight)
+	if _shoulder_elapsed_s >= _shoulder_duration_s:
+		pose = _shoulder_target
+		_shoulder_duration_s = 0.0
+	_arm.position.x = pose.x
+	_shoulder_hip_length = pose.y
 	_apply_arm_length()
 
 
@@ -91,21 +121,24 @@ func _hip_arm_length() -> float:
 func _aim_arm_length() -> float:
 	if _cfg.has("arm_length_aim_m"):
 		return float(_cfg["arm_length_aim_m"]["value"])
-	return _hip_arm_length()
+	return _shoulder_hip_length
 
 
 ## GDQuest OVER_SHOULDER vs THIRD_PERSON: blend spring_length between hip and ADS lengths.
 func _apply_arm_length() -> void:
 	if _arm == null:
 		return
-	_arm.spring_length = lerpf(_hip_arm_length(), _aim_arm_length(), _aim_blend)
+	_arm.spring_length = lerpf(_shoulder_hip_length, _aim_arm_length(), _aim_blend)
 
 
 ## AMSG-style right/left shoulder swap. Unknown sides fall back to right.
 func set_shoulder_side(side: String) -> void:
-	shoulder_side = "left" if side == "left" else "right"
+	var next_side := "left" if side == "left" else "right"
+	if next_side == shoulder_side:
+		return
+	shoulder_side = next_side
 	if _arm != null:
-		_apply_shoulder()
+		_apply_shoulder(true)
 
 
 func swap_shoulder() -> void:

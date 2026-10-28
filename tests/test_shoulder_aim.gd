@@ -155,9 +155,11 @@ func test_shoulder_swap_flips_arm_offset() -> void:
 	assert_true(absf(rig.get_node("SpringArm3D").position.x - right_x) < 0.001, "starts on right")
 	rig.set_shoulder_side("left")
 	assert_eq(rig.shoulder_side, "left", "side left")
+	await _shoulder_settled()
 	assert_true(absf(rig.get_node("SpringArm3D").position.x - left_x) < 0.001, "arm on left offset")
 	rig.swap_shoulder()
 	assert_eq(rig.shoulder_side, "right", "swap back to right")
+	await _shoulder_settled()
 	assert_true(absf(rig.get_node("SpringArm3D").position.x - right_x) < 0.001, "arm on right again")
 	rig.queue_free()
 
@@ -184,6 +186,7 @@ func test_shoulder_button_swaps_the_match_camera_and_back() -> void:
 		_Rig.press(ctx, "swap_shoulder", true)
 		await _Rig.frames(4)
 		assert_eq(rig.shoulder_side, "left", "%s: one tap (held 4 frames) moves the camera to the left shoulder" % tag)
+		await _shoulder_settled()
 		assert_true(absf(rig.get_node("SpringArm3D").position.x - left_x) < 0.001, "%s: arm on the left offset" % tag)
 		_Rig.press(ctx, "swap_shoulder", false)
 		await _Rig.frames(2)
@@ -193,3 +196,82 @@ func test_shoulder_button_swaps_the_match_camera_and_back() -> void:
 		await _Rig.frames(2)
 		assert_eq(rig.shoulder_side, "right", "%s: a second tap moves it back" % tag)
 		await _Rig.teardown(ctx)
+
+
+func _shoulder_ticks() -> int:
+	var seconds := float(DataRegistry.new().get_camera_cfg()["shoulder_ease_s"]["value"])
+	return int(ceil(seconds * Engine.physics_ticks_per_second)) + 2
+
+
+func _shoulder_settled() -> void:
+	for i in _shoulder_ticks():
+		await _tree().physics_frame
+
+
+func test_shoulder_ease_is_monotonic_and_aim_tracks_the_current_camera() -> void:
+	var cfg := DataRegistry.new().get_camera_cfg()
+	assert_true(bool(cfg["shoulder_ease_s"]["_placeholder"]), "ease timing stays a placeholder")
+	var rig: CameraRig = _RigScene.instantiate()
+	_tree().root.add_child(rig)
+	await _tree().physics_frame
+	await _tree().physics_frame
+	var arm: SpringArm3D = rig.get_node("SpringArm3D")
+	var right_x := arm.position.x
+	# Compare the exact target in Godot's vector precision, rather than JSON's double precision.
+	var left_x := Vector2(float(cfg["shoulder_offset_left_m"]["value"]), 0.0).x
+	_wall(rig, -10.0)
+	await _tree().physics_frame
+	rig.swap_shoulder()
+	assert_eq(rig.shoulder_side, "left", "side changes immediately")
+	# physics_frame signals precede node processing; process_frame observes the completed tick.
+	await _tree().physics_frame
+	await _tree().process_frame
+	var previous := arm.position.x
+	assert_true(previous < right_x and previous > left_x, "first tick is strictly between shoulders")
+	var cam := rig.get_camera()
+	var aim := rig.get_aim_point([])
+	var forward := -cam.global_transform.basis.z.normalized()
+	var ray := aim - cam.global_position
+	assert_eq(rig.get_knockback(), Vector2.ZERO, "knockback at rest during ease")
+	assert_true(ray.dot(forward) > 0.0 and ray.length() < 15.0, "current ray hits the wall ahead")
+	assert_true((ray - forward * ray.dot(forward)).length() < 1e-3, "mid-ease aim lies on current camera forward ray")
+	for i in _shoulder_ticks():
+		await _tree().physics_frame
+		await _tree().process_frame
+		var current := arm.position.x
+		assert_true(current <= previous and current >= left_x, "moves monotonically without overshoot")
+		previous = current
+	assert_eq(arm.position.x, left_x, "finishes exactly at target")
+	rig.queue_free()
+
+
+func test_shoulder_ease_composes_ads_reverses_continuously_and_can_snap() -> void:
+	var rig: CameraRig = _RigScene.instantiate()
+	_tree().root.add_child(rig)
+	rig.set_physics_process(false)
+	var arm: SpringArm3D = rig.get_node("SpringArm3D")
+	var right_x := arm.position.x
+	# Local test fixture makes left/right lengths differ; production data is untouched.
+	rig._cfg = rig._cfg.duplicate(true)
+	var right_length := float(rig._cfg["arm_length_m"])
+	var left_length := right_length * 2.0
+	rig._cfg["arm_length_left_m"]["value"] = left_length
+	var aim_length := float(rig._cfg["arm_length_aim_m"]["value"])
+	var duration := float(rig._cfg["shoulder_ease_s"]["value"])
+	rig.set_aim_blend(0.5, 1.0)
+	rig.swap_shoulder()
+	rig._physics_process(duration * 0.5)
+	assert_true(absf(arm.spring_length - lerpf(lerpf(right_length, left_length, 0.5), aim_length, 0.5)) < 0.001,
+		"ADS composes with eased hip length at mid-swap")
+	var midway_x := arm.position.x
+	rig.swap_shoulder()
+	assert_eq(arm.position.x, midway_x, "reversing does not jump")
+	rig._physics_process(duration)
+	assert_eq(arm.position.x, right_x, "reverse finishes exactly on right")
+	assert_true(absf(arm.spring_length - lerpf(right_length, aim_length, 0.5)) < 0.001, "ADS still composed at rest")
+	rig._cfg["shoulder_ease_s"]["value"] = 0.0
+	rig.swap_shoulder()
+	var left_x := Vector2(float(rig._cfg["shoulder_offset_left_m"]["value"]), 0.0).x
+	assert_eq(arm.position.x, left_x, "zero duration restores immediate lateral snap")
+	assert_true(absf(arm.spring_length - lerpf(left_length, aim_length, 0.5)) < 0.001, "zero duration snaps hip length before ADS")
+	rig.queue_free()
