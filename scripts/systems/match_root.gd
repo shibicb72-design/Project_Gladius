@@ -235,6 +235,8 @@ func _physics_process(delta: float) -> void:
 		frame = router.get_frame()
 		var rig := local_player.get_node_or_null("CameraRig") as CameraRig
 		if rig != null:
+			if frame.swap_shoulder_just_pressed:
+				rig.swap_shoulder()  # Path A phase 2: this device's view only (a LOCAL_BUTTONS entry, never sent)
 			frame.aim_point = rig.get_aim_point(local_player.hitscan_exclude())
 			frame.has_aim_point = true
 	local_player.set_frame(frame)

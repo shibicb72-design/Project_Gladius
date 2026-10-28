@@ -83,7 +83,7 @@ func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -
 		f.look += _scaled_look(p)
 	if f.move.length() > 1.0:
 		f.move = f.move.normalized()
-	for action in InputFrame.BUTTONS:
+	for action in InputFrame.BUTTONS + InputFrame.LOCAL_BUTTONS:
 		var down := false
 		for p in providers:
 			if p.is_pressed(action):

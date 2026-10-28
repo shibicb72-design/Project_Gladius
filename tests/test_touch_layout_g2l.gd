@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
 
-## G2L: the default touch layout. Look stick bottom-right, the five buttons smaller and north-west of it,
+## G2L: the default touch layout. Look stick bottom-right, the six buttons smaller and north-west of it,
 ## one data default for the Sprint lock button (touch_layout.sprint_lock_pos), 48 dp targets, no overlaps.
 
 const _TouchScene := preload("res://scenes/ui/touch_hud.tscn")
@@ -49,7 +49,7 @@ func test_buttons_smaller_than_before_and_data_driven() -> void:
 	var frac: float = touch.cfg["touch_layout"]["button_size_frac_of_height"]
 	assert_true(frac < OLD_BUTTON_SIZE_FRAC, "button size frac %s < old %s" % [frac, OLD_BUTTON_SIZE_FRAC])
 	assert_true(touch.cfg["touch_layout"]["_placeholder"], "touch_layout is marked placeholder")
-	assert_eq(touch.get_button_actions().size(), 5, "five buttons")
+	assert_eq(touch.get_button_actions().size(), 6, "six buttons (Path A phase 2 added Shoulder)")
 	touch.free()
 
 
@@ -70,7 +70,7 @@ func test_targets_at_least_48dp_at_dpi_0_and_420() -> void:
 	PlatformServices.dpi_override = 0.0
 
 
-## Every control (both sticks, five buttons, Sprint lock button and target, gear) is clear of each other and of the HUD labels.
+## Every control (both sticks, six buttons, Sprint lock button and target, gear) is clear of each other and of the HUD labels.
 func _check_pairwise(sz: Vector2) -> void:
 	var touch := _new_touch(sz)
 	var game: GameHud = _HudScene.instantiate()

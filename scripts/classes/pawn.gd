@@ -187,6 +187,7 @@ func fire_shot() -> Dictionary:
 			hit_authority, _rng, get_spread_mult())
 	var end: Vector3 = res["position"] if res.has("position") else origin + dir * w.def.range_m
 	show_shot_fx(origin, end)
+	_kick_camera()
 	shot_resolved.emit(origin, end, res)
 	return res
 
@@ -200,6 +201,14 @@ func get_spread_mult() -> float:
 func show_shot_fx(origin: Vector3, end: Vector3) -> void:
 	if shot_fx != null:
 		shot_fx.show_shot(origin, end)
+
+
+## Path A phase 2: camera knockback for this pawn's own ranged shot. Only the local player's pawn carries a CameraRig
+## (bots, host-side remote pawns and replicas have none). View only: the next aim point ignores it.
+func _kick_camera() -> void:
+	var rig := get_node_or_null("CameraRig") as CameraRig
+	if rig != null:
+		rig.apply_knockback()
 
 
 ## One melee swing from `origin` along `direction`; shows the placeholder swing visual.

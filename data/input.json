@@ -128,8 +128,10 @@
 			"swap_weapon": {"label": "Swap", "offset": [-2.8, -1.25]},
 			"fire": {"label": "Fire", "offset": [-1.7, -0.1]},
 			"reload": {"label": "Reload", "offset": [-2.8, -0.1]},
-			"aim": {"label": "Aim", "offset": [-1.7, -1.25]}
+			"aim": {"label": "Aim", "offset": [-1.7, -1.25]},
+			"swap_shoulder": {"label": "Shoulder", "offset": [-0.6, -3.5]}
 		},
+		"_swap_shoulder_note": "Path A phase 2 (Shibi GO via EL, Oct 27 2026): the Shoulder button flips the local camera between the right (default, camera.json shoulder_side) and left shoulder. View only, never sent to the host. Its offset (above Jump) is a placeholder, not a design value (OQ-SHOULDER). The WIP slot [-1.7, -2.4] (left of Jump, above Aim) covered the look-zone centre on the Fold inner display (2176x1812) and the (900, 300) look touch of the 1152x648 tests, so look touches there pressed Shoulder; right of Jump is not north-west of the look stick (G2L) and hit the gear at 420 dpi. -3.5 is the highest row that stays inside 1512x648 at 420 dpi. The swap_shoulder InputMap action has no keyboard or gamepad binding yet (OQ-SHOULDER).",
 		"_sprint_lock_note": "G2L: the one default position of the movable Sprint lock button, [x of width, y of height] of its centre. The profile value (sprint_lock_pos) overrides it. Its size and min_dp stay in sprint.lock_button.",
 		"sprint_lock_pos": [0.56, 0.42],
 		"_left_fire_note": "G3e: optional second Fire button for the left thumb, off by default. pos = [x of width, y of height] of its centre, on the left half above the move stick and clear of the Sprint lock target. Placeholder position, not a design value (OQ-LEFT-FIRE-POS). Not a key of buttons: those are InputMap actions; this one presses the existing fire action.",

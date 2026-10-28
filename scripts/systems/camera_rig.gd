@@ -2,6 +2,8 @@ class_name CameraRig
 extends Node3D
 ## Third-person SpringArm3D + Camera3D. FOV comes from data/camera.json by viewport aspect ratio.
 ## Path A: AMSG shoulder swap + GDQuest-style ADS over-shoulder pivot (code only; no NC art).
+## Path A phase 2: Kenney-style camera knockback on fire (CameraKnockback). It is view only: it turns the rig, but
+## get_aim_point casts from the un-kicked camera, so shots, Hitscan and the host's aim check never see it.
 
 @onready var _arm: SpringArm3D = $SpringArm3D
 @onready var _camera: Camera3D = $SpringArm3D/Camera3D
@@ -15,6 +17,12 @@ var _aim_fov_mult: float = 1.0
 var shoulder_side: String = "right"
 ## GDQuest camera_controller pattern: RayCast3D on the camera for ADS aim target.
 var _aim_ray: RayCast3D
+## View kick per shot and its recovery (data/camera.json camera_knockback_*).
+var knockback: CameraKnockback = CameraKnockback.new()
+## Look pitch from the pawn (radians, clamped), before the knockback offset is added.
+var _look_pitch: float = 0.0
+## Physics frame of the latest kick: that frame shows the kick whole, recovery starts on the next one.
+var _kick_frame: int = -1
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -31,10 +39,20 @@ func _ready() -> void:
 	_cfg = DataRegistry.new().get_camera_cfg()
 	shoulder_side = str(_cfg.get("shoulder_side", "right"))
 	position.y = float(_cfg.get("height_m", 1.6))
+	knockback.configure(_cfg)
 	_apply_shoulder()
 	_ensure_aim_ray()
 	get_viewport().size_changed.connect(apply_fov)
 	apply_fov()
+
+
+## Recovers the knockback. The pawn (this rig's parent) runs first in a physics frame and may kick during it, so a
+## kick from the current frame is left whole for one frame.
+func _physics_process(delta: float) -> void:
+	if knockback.offset == Vector2.ZERO or Engine.get_physics_frames() == _kick_frame:
+		return
+	knockback.tick(delta)
+	_apply_rotation()
 
 
 ## Creates a camera-forward RayCast3D (GDQuest CameraRayCast pattern). Code only ? no demo scenes.
@@ -122,11 +140,13 @@ func set_aim_excludes(exclude: Array[RID]) -> void:
 			_aim_ray.add_exception_rid(rid)
 
 
-## World aim point: prefer AimRayCast hit (GDQuest), else AimMath camera-centre ray.
+## World aim point: prefer AimRayCast hit (GDQuest), else AimMath camera-centre ray. The ray is cast from the
+## un-kicked camera, so a knockback in progress never moves the aim.
 func get_aim_point(exclude: Array[RID]) -> Vector3:
 	set_aim_excludes(exclude)
 	var far_m := float(_cfg["aim_ray_length_m"]["value"])
 	if _aim_ray != null and _aim_ray.is_inside_tree():
+		_aim_ray.transform = _knockback_undo()
 		_aim_ray.target_position = Vector3(0.0, 0.0, -far_m)
 		_aim_ray.force_raycast_update()
 		if _aim_ray.is_colliding():
@@ -163,8 +183,44 @@ func _apply_zoom() -> void:
 	_camera.fov = base_fov * lerpf(1.0, _aim_fov_mult, _aim_blend)
 
 
-## Orients the rig; pitch in radians, clamped by data.
+## Orients the rig; pitch in radians, clamped by data. Any knockback in progress is added on top.
 func set_pitch(pitch: float) -> void:
+	_look_pitch = _clamp_pitch(pitch)
+	_apply_rotation()
+
+
+## Kenney-style kick for one ranged shot (the pawn calls it). Returns the kick added (x pitch, y yaw, radians).
+func apply_knockback() -> Vector2:
+	var add := knockback.kick()
+	_kick_frame = Engine.get_physics_frames()
+	_apply_rotation()
+	return add
+
+
+## Current knockback offset in radians (x pitch, + up; y yaw); zero at rest.
+func get_knockback() -> Vector2:
+	return knockback.offset
+
+
+func _clamp_pitch(pitch: float) -> float:
 	var lo := deg_to_rad(float(_cfg.get("pitch_min_deg", -70.0)))
 	var hi := deg_to_rad(float(_cfg.get("pitch_max_deg", 70.0)))
-	rotation.x = clampf(pitch, lo, hi)
+	return clampf(pitch, lo, hi)
+
+
+## Look pitch plus the knockback offset. The kicked pitch stays inside the data limits; the yaw kick turns the rig
+## about the pawn's vertical axis (the pawn's own yaw is the look yaw).
+func _apply_rotation() -> void:
+	rotation.x = _clamp_pitch(_look_pitch + knockback.offset.x)
+	rotation.y = knockback.offset.y
+
+
+## AimRayCast pose on the camera that undoes the knockback: identity at rest, else the un-kicked camera seen from the
+## kicked one. Un-kicked camera = the parent's frame * the rig at the look pitch only * the camera's pose in the rig.
+func _knockback_undo() -> Transform3D:
+	if knockback.offset == Vector2.ZERO:
+		return Transform3D.IDENTITY
+	var cam := _camera.global_transform
+	var parent_xf := global_transform * transform.affine_inverse()
+	var look_xf := Transform3D(Basis.from_euler(Vector3(_look_pitch, 0.0, 0.0)), position)
+	return cam.affine_inverse() * parent_xf * look_xf * global_transform.affine_inverse() * cam

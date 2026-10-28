@@ -3,6 +3,9 @@ extends RefCounted
 ## One tick of merged input. Plain data, serializable for networking.
 
 const BUTTONS: Array[String] = ["fire", "aim", "reload", "swap_weapon", "jump", "pause"]
+## View-only buttons for this device (Path A phase 2: shoulder swap). The router fills them like BUTTONS, but
+## to_array() leaves them out, so the frame a client sends to the host is unchanged.
+const LOCAL_BUTTONS: Array[String] = ["swap_shoulder"]
 
 var move: Vector2 = Vector2.ZERO
 var look: Vector2 = Vector2.ZERO
@@ -18,6 +21,8 @@ var reload_just_pressed: bool = false
 var swap_weapon_just_pressed: bool = false
 var jump_just_pressed: bool = false
 var pause_just_pressed: bool = false
+var swap_shoulder_pressed: bool = false
+var swap_shoulder_just_pressed: bool = false
 ## World point under the camera centre (right-shoulder camera, GBTN4); set by the match, not by a provider.
 var has_aim_point: bool = false
 var aim_point: Vector3 = Vector3.ZERO
