@@ -152,6 +152,8 @@ func get_aim_point(exclude: Array[RID]) -> Vector3:
 		if _aim_ray.is_colliding():
 			return _aim_ray.get_collision_point()
 		return _aim_ray.global_transform * _aim_ray.target_position
+	# Unreachable in a match: _ready always adds the AimRayCast under the scene's Camera3D. This fallback casts from
+	# the camera as it is, so it would include a knockback in progress.
 	return AimMath.camera_aim_point(_camera, exclude, far_m)
 
 

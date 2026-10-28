@@ -169,3 +169,27 @@ func test_camera_json_exposes_left_shoulder_data() -> void:
 	assert_true(cfg.has("arm_length_left_m"), "arm_length_left_m key")
 	assert_eq(str(cfg["shoulder_side"]), "right", "default right")
 	assert_true(float(cfg["shoulder_offset_left_m"]["value"]) < 0.0, "left offset negative")
+
+
+## Path A phase 2, Goal B: through the match, a tap on the touch HUD Shoulder button (InputMap swap_shoulder ->
+## InputFrame LOCAL_BUTTONS -> MatchRoot) moves the local camera to the left shoulder; holding it does not keep
+## swapping, and a second tap moves it back. Both Fold sizes of tests/button_rig.gd.
+func test_shoulder_button_swaps_the_match_camera_and_back() -> void:
+	var left_x := float(DataRegistry.new().get_camera_cfg()["shoulder_offset_left_m"]["value"])
+	for sz in _Rig.SIZES:
+		var ctx: Dictionary = await _Rig.setup(sz, "virtual")
+		var tag: String = ctx["tag"]
+		var rig := (ctx["pawn"] as Pawn).get_node("CameraRig") as CameraRig
+		assert_eq(rig.shoulder_side, "right", "%s: the match starts on the right shoulder" % tag)
+		_Rig.press(ctx, "swap_shoulder", true)
+		await _Rig.frames(4)
+		assert_eq(rig.shoulder_side, "left", "%s: one tap (held 4 frames) moves the camera to the left shoulder" % tag)
+		assert_true(absf(rig.get_node("SpringArm3D").position.x - left_x) < 0.001, "%s: arm on the left offset" % tag)
+		_Rig.press(ctx, "swap_shoulder", false)
+		await _Rig.frames(2)
+		_Rig.press(ctx, "swap_shoulder", true)
+		await _Rig.frames(2)
+		_Rig.press(ctx, "swap_shoulder", false)
+		await _Rig.frames(2)
+		assert_eq(rig.shoulder_side, "right", "%s: a second tap moves it back" % tag)
+		await _Rig.teardown(ctx)

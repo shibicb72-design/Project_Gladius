@@ -70,6 +70,22 @@ func test_input_frame_roundtrip_serialization() -> void:
 	assert_true(not g.fire_pressed, "fire")
 
 
+## Path A phase 2: LOCAL_BUTTONS (swap_shoulder) are this device's view only, so they never reach the host.
+func test_local_buttons_stay_out_of_the_net_frame() -> void:
+	var f := InputFrame.new()
+	f.move = Vector2(0.5, -0.25)
+	f.set_button("fire", true, true)
+	var plain: Array = f.to_array()
+	f.set_button("swap_shoulder", true, true)
+	assert_true(f.swap_shoulder_pressed and f.swap_shoulder_just_pressed, "swap_shoulder is set on the local frame")
+	assert_eq(f.to_array(), plain, "to_array() is the same with swap_shoulder pressed")
+	var g: InputFrame = _Frame.from_array(f.to_array())
+	assert_true(not g.swap_shoulder_pressed and not g.swap_shoulder_just_pressed, "from_array() gives swap_shoulder false")
+	assert_true(g.fire_pressed and g.fire_just_pressed, "BUTTONS still round-trip")
+	for action in InputFrame.LOCAL_BUTTONS:
+		assert_true(not InputFrame.BUTTONS.has(action), "%s is not a net button" % action)
+
+
 func test_touch_hud_scene_instantiates() -> void:
 	var scene: PackedScene = load("res://scenes/ui/touch_hud.tscn")
 	assert_true(scene != null, "scene failed to load")
