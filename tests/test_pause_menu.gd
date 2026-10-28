@@ -277,6 +277,142 @@ func test_settings_panel_is_shared_and_persists() -> void:
 	await _finish(ctx)
 
 
+## Offline match at a Fold 7 size (cases as tests/test_ui.gd test_lobby_buttons_inside_viewport_at_both_fold_sizes),
+## the gear menu filling the view. dpi_override is set first so every dp size is built for that screen; the caller
+## resets it before _finish (which restores the window and removes the temp profile).
+func _new_fold_match(size: Vector2i, dpi: float) -> Dictionary:
+	PlatformServices.dpi_override = dpi
+	var ctx := await _new_match(false)
+	_root().size = size
+	(ctx["match"] as MatchRoot).pause_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for i in 4:
+		await _tree().process_frame
+	return ctx
+
+
+## Fold 7 sizes: in-match Settings (shared panel + Back) is taller than the folded cover, so it scrolls in its own
+## full-screen ScrollContainer that is shown only with Settings (left visible it would take the Resume/Settings/Quit
+## taps). Every button and the slider, Left Fire / HUD layout / Haptics / Back included, scrolls fully inside the scroll
+## AND the viewport at >= 48 dp, while the offline match is paused; then a real click on Back returns to the list.
+func test_settings_view_scrolls_every_control_into_view_at_both_fold_sizes() -> void:
+	var old_profile: Dictionary = AppFlow.profile
+	for case in [[Vector2i(2520, 1080), 420.0], [Vector2i(2176, 1812), 373.0]]:
+		var size: Vector2i = case[0]
+		var dpi: float = case[1]
+		var at := "%s/%d dpi" % [size, int(dpi)]
+		var ctx := await _new_fold_match(size, dpi)
+		var m: MatchRoot = ctx["match"]
+		var pm := m.pause_menu
+		var scroll := pm.settings_scroll
+		assert_true(scroll.is_ancestor_of(pm.settings) and scroll.is_ancestor_of(pm.back_button), "panel and Back inside the settings scroll")
+		assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "no sideways scroll")
+		assert_eq(scroll.vertical_scroll_mode, ScrollContainer.SCROLL_MODE_AUTO, "vertical scroll when needed")
+		var n: Node = scroll
+		while n != null:
+			assert_true(not (n is CenterContainer), "no CenterContainer at or above the settings scroll: %s" % n)
+			n = n.get_parent()
+		assert_eq(pm.back_button.mouse_filter, Control.MOUSE_FILTER_PASS, "Back passes touch drags to the scroll")
+		pm.open()
+		await _frames(1)
+		assert_true(not scroll.visible, "settings scroll hidden while the list shows at %s" % at)
+		await _click_button(pm.settings_button)
+		assert_true(scroll.is_visible_in_tree() and pm.settings.is_visible_in_tree(), "Settings shows its scroll at %s" % at)
+		assert_true(_tree().paused and scroll.can_process(), "offline match paused, the settings scroll still processes")
+		var bar := scroll.get_v_scroll_bar()
+		if size == Vector2i(2520, 1080):
+			var max_scroll := int(bar.max_value - bar.page)
+			assert_true(max_scroll > 0, "folded cover: Settings overflows so it can scroll (max %d)" % max_scroll)
+		assert_eq(scroll.scroll_vertical, 0, "starts at the top at %s" % at)
+		var vp := _root().get_visible_rect()
+		var px_scale := _root().get_screen_transform().get_scale().y
+		var dp_scale := PlatformServices.new().get_dp_scale()
+		var checked := {}
+		for c: Control in scroll.find_children("*", "Control", true, false):
+			if not (c is Button or c is HSlider) or not c.is_visible_in_tree():
+				continue
+			scroll.ensure_control_visible(c)
+			await _tree().process_frame  # containers sort on the idle frame
+			await _tree().process_frame
+			var r := c.get_global_rect()
+			var what := "%s at %s" % [(c as Button).text if c is Button else c.get_class(), at]
+			assert_true(scroll.get_global_rect().encloses(r), "%s fully inside the scroll: %s in %s" % [what, r, scroll.get_global_rect()])
+			assert_true(vp.encloses(r), "%s fully inside the viewport: %s in %s" % [what, r, vp])
+			if c is Button:
+				assert_true(r.size.y * px_scale / dp_scale >= 48.0 - 0.5, "%s >= 48 dp" % what)
+			checked[c] = true
+		for b: Button in [pm.settings.left_fire_button, pm.settings.layout_button, pm.settings.haptics_button, pm.back_button]:
+			assert_true(checked.has(b), "%s scrolled into view and checked at %s" % [b.text, at])
+		scroll.ensure_control_visible(pm.back_button)
+		await _click_button(pm.back_button)
+		assert_true(pm.is_open and pm.resume_button.is_visible_in_tree(), "Back returns to the list at %s" % at)
+		assert_true(not scroll.visible, "settings scroll hidden again at %s" % at)
+		pm.close()
+		PlatformServices.dpi_override = 0.0
+		AppFlow.profile = old_profile
+		await _finish(ctx)
+
+
+## Folded cover, in-match Settings: a touch drag that starts ON a settings button must reach the settings scroll (the
+## button must not swallow it), as tests/test_ui.gd test_lobby_roster_scrolls_by_touch_drag_from_a_row. The release
+## lands 240 units up, off the button: nothing opens.
+func test_settings_view_scrolls_by_touch_drag_from_a_settings_button() -> void:
+	var old_profile: Dictionary = AppFlow.profile
+	var ctx := await _new_fold_match(Vector2i(2520, 1080), 420.0)
+	var m: MatchRoot = ctx["match"]
+	var pm := m.pause_menu
+	pm.open()
+	await _frames(1)
+	await _click_button(pm.settings_button)
+	var scroll := pm.settings_scroll
+	var max_scroll := int(scroll.get_v_scroll_bar().max_value - scroll.get_v_scroll_bar().page)
+	assert_true(max_scroll > 0, "folded in-match Settings overflows so it can scroll (max %d)" % max_scroll)
+	assert_eq(scroll.scroll_vertical, 0, "starts at the top")
+	var button: Button = pm.settings.sensitivity_button
+	var start := button.get_global_rect()
+	assert_true(_root().get_visible_rect().encloses(start) and scroll.get_global_rect().encloses(start),
+			"the drag starts on an on-screen settings button: %s" % start)
+	# is_touchscreen_available() is false headless, so the scroll itself only moves on a touch device; what must hold
+	# everywhere is that the press and drags REACH the scroll.
+	var seen := {"touch": 0, "drag": 0}
+	scroll.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventScreenTouch:
+			seen["touch"] += 1
+		elif e is InputEventScreenDrag:
+			seen["drag"] += 1)
+	var xf := _root().get_screen_transform()
+	var from := start.get_center()
+	var press := InputEventScreenTouch.new()
+	press.index = 0
+	press.position = xf * from
+	press.pressed = true
+	Input.parse_input_event(press)
+	await _tree().process_frame
+	var prev_pos := from
+	for step in 12:
+		var to := from + Vector2(0.0, -20.0 * float(step + 1))
+		var drag := InputEventScreenDrag.new()
+		drag.index = 0
+		drag.position = xf * to
+		drag.relative = xf * to - xf * prev_pos
+		Input.parse_input_event(drag)
+		prev_pos = to
+		await _tree().process_frame
+	var release := InputEventScreenTouch.new()
+	release.index = 0
+	release.position = xf * prev_pos
+	release.pressed = false
+	Input.parse_input_event(release)
+	await _tree().process_frame
+	assert_true(seen["touch"] >= 2 and seen["drag"] == 12, "settings button does not swallow touch: scroll saw %s" % str(seen))
+	assert_true(pm.settings.sensitivity_layer == null, "released off the button: the Sensitivity screen did not open")
+	if DisplayServer.is_touchscreen_available():
+		assert_true(scroll.scroll_vertical > 0, "touch drag starting on a settings button scrolled Settings (scroll_vertical=%d)" % scroll.scroll_vertical)
+	pm.close()
+	PlatformServices.dpi_override = 0.0
+	AppFlow.profile = old_profile
+	await _finish(ctx)
+
+
 func test_gear_touch_rect_at_least_48dp() -> void:
 	var pm: PauseMenu = _PauseScene.instantiate()
 	_root().add_child(pm)

@@ -19,6 +19,8 @@ var quit_button: Button
 var confirm_button: Button
 var cancel_button: Button
 var back_button: Button
+## Settings (panel + Back) scrolls full-screen: on short screens (Fold cover) it is taller than the view.
+var settings_scroll: ScrollContainer
 
 var _gear: Dictionary = {}
 var _menu: Dictionary = {}
@@ -68,7 +70,16 @@ func _build() -> void:
 	_confirm_box.add_child(prompt)
 	confirm_button = _button(_confirm_box, _menu["confirm_text"], func() -> void: quit_confirmed.emit())
 	cancel_button = _button(_confirm_box, _menu["cancel_text"], func() -> void: _show(_main_box))
-	_settings_box = _box(holder)
+	# Settings lives outside the CenterContainer (that would shrink a scroll to its own minimum size). The
+	# expand + shrink-center flags keep it centred while it fits; taller than the view, it scrolls.
+	settings_scroll = ScrollContainer.new()
+	settings_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	settings_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_overlay.add_child(settings_scroll)
+	_settings_box = _box(settings_scroll)
+	_settings_box.size_flags_horizontal = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
+	_settings_box.size_flags_vertical = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
 	# Device export can return empty PackedScene for this preload (measured on Fold).
 	# Prefer runtime load()+instantiate; .new() fallback if PackedScene unusable.
 	settings = _make_settings_panel()
@@ -77,6 +88,7 @@ func _build() -> void:
 	else:
 		push_error("PauseMenu: settings panel failed to create; in-match Settings unavailable")
 	back_button = _button(_settings_box, _menu["back_text"], func() -> void: _show(_main_box))
+	back_button.mouse_filter = Control.MOUSE_FILTER_PASS  # STOP would swallow touch drags before the ScrollContainer
 	UiScale.bind(_overlay)
 	_show(_main_box)
 
@@ -119,6 +131,7 @@ func _make_settings_panel() -> SettingsPanel:
 func _show(which: Control) -> void:
 	for b in [_main_box, _confirm_box, _settings_box]:
 		b.visible = b == which
+	settings_scroll.visible = which == _settings_box  # full-screen: left visible it would take every list tap
 
 
 func open() -> void:
