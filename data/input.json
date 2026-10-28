@@ -99,6 +99,8 @@
 		"ring_alpha": 0.6,
 		"button_idle_alpha": 0.4,
 		"button_held_alpha": 0.65,
+		"shoulder_pulse_scale": {"value": 0.97, "unit": "scale", "note": "OQ-SHOULDER: immediate Shoulder press scale; Shibi-approved industry default 2026-10-28 (Shibi's pick, not a DESIGN.md value), Material / Ainur press-feedback band (Shibi's citation; no local reference); scale only, alongside the existing camera shoulder ease"},
+		"shoulder_pulse_release_s": {"value": 0.12, "unit": "s", "note": "OQ-SHOULDER: return to ONE starts immediately on touch-down and restarts on a new press; Shibi-approved industry default 2026-10-28 (Shibi's pick, not a DESIGN.md value), Material / Ainur press-feedback band (Shibi's citation; no local reference). Release curve: ease-out quadratic, scale = 1.0 - (1.0 - shoulder_pulse_scale) * f * f, f = time left / shoulder_pulse_release_s; EL's pick 2026-10-28, not a Shibi number, not a Material spec claim, not a DESIGN.md value"},
 		"_contrast_note": "P0 playtest contrast: ring_alpha was 0.35 and the button idle fill 0.22 (too faint on the Fold). Values here are placeholders pending playtest (OQ-35).",
 		"_sticks_todo": "OQ-35: rest centres of the always-visible sticks are placeholders: [x as fraction of width, y as fraction of height]. G2L: move bottom-left; look bottom-right, with the button cluster north-west of it.",
 		"move_stick_rest": [0.15, 0.76],

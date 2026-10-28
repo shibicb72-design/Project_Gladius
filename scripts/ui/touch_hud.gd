@@ -21,6 +21,7 @@ var _look_travel: float = 0.0
 var _look_down_s: float = 0.0
 var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
+var _shoulder_pulse_left_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> element key (an action, or LEFT_FIRE_KEY)
 var _buttons: Dictionary = {}  # action -> Control
 var debug_label: Label  # null unless the touch debug overlay is enabled in data/ui.json
@@ -397,6 +398,22 @@ func _process(delta: float) -> void:
 		_fire_pulse_s -= delta
 		if _fire_pulse_s <= 0.0:
 			Input.action_release("fire")
+	if _shoulder_pulse_left_s > 0.0:
+		_shoulder_pulse_left_s = maxf(0.0, _shoulder_pulse_left_s - delta)
+		_apply_shoulder_pulse()
+
+
+## View-only press feedback, separate from the camera shoulder ease and the held-state style.
+## Quadratic ease-out release: EL's pick 2026-10-28 (OQ-SHOULDER presentation addendum).
+func _apply_shoulder_pulse() -> void:
+	var b: Button = _buttons["swap_shoulder"]
+	b.pivot_offset = b.size * 0.5
+	if _shoulder_pulse_left_s <= 0.0:
+		b.scale = Vector2.ONE
+		return
+	var f := _shoulder_pulse_left_s / float(_layout["shoulder_pulse_release_s"]["value"])
+	var press_scale := float(_layout["shoulder_pulse_scale"]["value"])
+	b.scale = Vector2.ONE * (1.0 - (1.0 - press_scale) * f * f)
 
 
 func _area() -> Vector2:
@@ -602,6 +619,8 @@ func set_suspended(on: bool) -> void:
 		Input.action_release(action)
 	Input.action_release("fire")
 	_fire_pulse_s = 0.0
+	_shoulder_pulse_left_s = 0.0
+	_apply_shoulder_pulse()
 	_lock_btn_touch = -1
 	_move_touch = -1
 	_look_touch = -1
@@ -633,6 +652,9 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_button_touch[idx] = action  # the element key; _action_of(key) is the InputMap action it presses
 		Input.action_press(_action_of(action))
 		_style_button(_buttons[action], true)
+		if action == "swap_shoulder":
+			_shoulder_pulse_left_s = maxf(0.0, float(_layout["shoulder_pulse_release_s"]["value"]))
+			_apply_shoulder_pulse()
 	elif _move_touch == -1 and _move_grab_rect().has_point(pos):
 		provider.cancel_sprint_lock()  # a new move-stick touch ends the lock (speed eases down in the pawn)
 		_move_touch = idx  # under "virtual" this only tracks the finger; the VirtualJoystick gets the touch via the GUI
