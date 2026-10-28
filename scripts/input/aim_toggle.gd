@@ -1,47 +1,36 @@
 class_name AimToggle
 extends RefCounted
-## Optional ADS hold-vs-toggle (tps-demo player_input.gd timing pattern).
-## Short press (< hold_threshold_s) latches aim until pressed again; longer hold is hold-to-aim.
-## Disabled by default so existing hold-to-aim UX and tests stay unchanged.
+## ADS pure tap toggle (OQ-AIM, Shibi pick 1.1, Fold eye-test 2026-10-28). Each rising edge of the Aim button
+## flips the latch; aim stays on after release until the next press. On by default (stats.json
+## aim.aim_toggle_enabled); disabled = hold-to-aim passthrough. aim.aim_hold_threshold_s is not read (kept for data shape).
 
-var enabled: bool = false
-var hold_threshold_s: float = 0.4
+var enabled: bool = true
 var toggled_aim: bool = false
-var aiming_timer: float = 0.0
 var _was_pressed: bool = false
 
 
 func configure(cfg: Dictionary) -> void:
-	enabled = bool(cfg.get("aim_toggle_enabled", false))
-	hold_threshold_s = float(cfg.get("aim_hold_threshold_s", 0.4))
+	enabled = bool(cfg.get("aim_toggle_enabled", true))
 
 
 ## Maps raw aim-button pressed into effective aiming for this tick.
-func resolve(raw_pressed: bool, delta: float) -> bool:
-	if not enabled:
-		_was_pressed = raw_pressed
-		toggled_aim = false
-		aiming_timer = 0.0
-		return raw_pressed
-	var just_released := _was_pressed and not raw_pressed
-	var just_pressed := (not _was_pressed) and raw_pressed
+func resolve(raw_pressed: bool) -> bool:
+	var just_pressed := raw_pressed and not _was_pressed
 	_was_pressed = raw_pressed
-	var current_aim := false
-	if just_released and aiming_timer <= hold_threshold_s:
-		current_aim = true
-		toggled_aim = true
-	else:
-		current_aim = toggled_aim or raw_pressed
-		if just_pressed:
-			toggled_aim = false
-	if current_aim:
-		aiming_timer += delta
-	else:
-		aiming_timer = 0.0
-	return current_aim
+	if not enabled:
+		toggled_aim = false
+		return raw_pressed
+	if just_pressed:
+		toggled_aim = not toggled_aim
+	return toggled_aim
+
+
+## Drops the latch (local death). The button's edge state is kept, so a finger still on Aim does not re-latch
+## until it is lifted and pressed again.
+func clear_latch() -> void:
+	toggled_aim = false
 
 
 func reset() -> void:
 	toggled_aim = false
-	aiming_timer = 0.0
 	_was_pressed = false

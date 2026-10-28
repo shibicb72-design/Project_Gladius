@@ -11,6 +11,7 @@ const SIZES: Array[Vector2i] = [Vector2i(2520, 1080), Vector2i(2176, 1812)]
 const MODES: Array[String] = ["virtual", "custom"]
 const BUTTON_TOUCH := 1
 const STICK_TOUCH := 0
+const LOOK_TOUCH := 2
 
 
 func _root() -> Window:
@@ -87,6 +88,14 @@ func _press(ctx: Dictionary, action: String) -> void:
 
 func _release(ctx: Dictionary, action: String) -> void:
 	_touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(action).get_center(), false)
+
+
+## One quick tap on a HUD button: press, two frames, release, two frames.
+func _tap(ctx: Dictionary, action: String) -> void:
+	_press(ctx, action)
+	await _frames(2)
+	_release(ctx, action)
+	await _frames(2)
 
 
 ## Runs `body` for every size x mode x stick-held combination.
@@ -177,21 +186,80 @@ func test_swap_button_changes_slot_and_shows_toast() -> void:
 		_release(ctx, "swap_weapon"))
 
 
-func test_aim_button_zooms_and_releases() -> void:
+## OQ-AIM pure tap toggle (Shibi pick 1.1): a tap zooms and the zoom stays after release; a second tap restores.
+func test_aim_button_tap_toggles_zoom() -> void:
 	await _each_combo(func(ctx: Dictionary) -> void:
 		var pawn: Pawn = ctx["pawn"]
 		var rig: CameraRig = pawn.get_node("CameraRig")
 		var base := rig.base_fov
+		var half_s := int(ceil(0.5 * Engine.physics_ticks_per_second))
 		assert_true(is_equal_approx(rig.get_fov(), base), "%s: starts at base FOV" % ctx["tag"])
-		_press(ctx, "aim")
-		await _frames(int(ceil(0.5 * Engine.physics_ticks_per_second)))
-		assert_true(pawn.aiming, "%s: pawn aiming" % ctx["tag"])
-		assert_true(rig.get_fov() < base, "%s: FOV zoomed (%s < %s)" % [ctx["tag"], rig.get_fov(), base])
+		await _tap(ctx, "aim")
+		await _frames(half_s)
+		assert_true(pawn.aiming, "%s: still aiming 0.5 s after the tap's release" % ctx["tag"])
+		assert_true(rig.get_fov() < base, "%s: FOV stays zoomed (%s < %s)" % [ctx["tag"], rig.get_fov(), base])
 		assert_true(pawn.get_spread_mult() < 1.0, "%s: aim tightens spread" % ctx["tag"])
-		_release(ctx, "aim")
-		await _frames(int(ceil(0.5 * Engine.physics_ticks_per_second)))
+		await _tap(ctx, "aim")
+		await _frames(half_s)
+		assert_true(not pawn.aiming, "%s: second tap ends aiming" % ctx["tag"])
 		assert_true(is_equal_approx(rig.get_fov(), base), "%s: FOV back to base (%s vs %s)" % [ctx["tag"], rig.get_fov(), base])
 		assert_true(is_equal_approx(pawn.get_spread_mult(), 1.0), "%s: spread back to normal" % ctx["tag"]))
+
+
+## OQ-AIM: Fire does not cancel ADS. A Fire-button tap and a look-zone tap-to-fire both spend ammo while aiming.
+func test_fire_while_aim_latched_keeps_ads() -> void:
+	await _each_combo(func(ctx: Dictionary) -> void:
+		var pawn: Pawn = ctx["pawn"]
+		var w := pawn.loadout.get_active()
+		await _tap(ctx, "aim")
+		assert_true(pawn.aiming, "%s: Aim tap latched ADS" % ctx["tag"])
+		var before := w.ammo_in_mag
+		await _tap(ctx, "fire")
+		assert_true(w.ammo_in_mag < before, "%s: Fire button spent ammo while aiming (%d -> %d)" % [ctx["tag"], before, w.ammo_in_mag])
+		assert_true(pawn.aiming, "%s: Fire button did not cancel ADS" % ctx["tag"])
+		await _frames(int(ceil((w.def.fire_interval_s + 0.1) * Engine.physics_ticks_per_second)))
+		before = w.ammo_in_mag
+		var look: Vector2 = (ctx["touch"] as Control)._zone_hit_rect("look_zone").get_center()
+		_touch(LOOK_TOUCH, look, true)
+		_touch(LOOK_TOUCH, look, false)
+		await _frames(4)
+		assert_true(w.ammo_in_mag < before, "%s: look-zone tap fired while aiming (%d -> %d)" % [ctx["tag"], before, w.ammo_in_mag])
+		assert_true(pawn.aiming, "%s: tap-to-fire did not cancel ADS" % ctx["tag"]))
+
+
+## OQ-AIM: only Aim flips the latch. Reload, Swap, Jump, Shoulder and Sprint-lock taps and a look drag keep ADS on.
+func test_other_controls_keep_the_aim_latch() -> void:
+	await _each_combo(func(ctx: Dictionary) -> void:
+		var pawn: Pawn = ctx["pawn"]
+		var touch: Control = ctx["touch"]
+		var w := pawn.loadout.get_active()
+		await _tap(ctx, "aim")
+		assert_true(pawn.aiming, "%s: Aim tap latched ADS" % ctx["tag"])
+		await _tap(ctx, "fire")
+		await _frames(15)  # let the burst finish so Reload has room
+		await _tap(ctx, "reload")
+		assert_true(w.reloading and pawn.aiming, "%s: reload runs and ADS stays on" % ctx["tag"])
+		var slot := pawn.loadout.active
+		await _tap(ctx, "swap_weapon")
+		assert_true(pawn.loadout.active != slot and pawn.aiming, "%s: weapon swap keeps ADS" % ctx["tag"])
+		await _tap(ctx, "jump")
+		assert_true(pawn.aiming, "%s: jump keeps ADS" % ctx["tag"])
+		await _tap(ctx, "swap_shoulder")
+		assert_true(pawn.aiming, "%s: shoulder swap keeps ADS" % ctx["tag"])
+		var lock: Vector2 = touch.get_lock_button_rect().get_center()
+		_touch(BUTTON_TOUCH, lock, true)
+		await _frames(2)
+		_touch(BUTTON_TOUCH, lock, false)
+		await _frames(2)
+		assert_true(pawn.aiming, "%s: sprint-lock tap keeps ADS" % ctx["tag"])
+		var look: Vector2 = touch._zone_hit_rect("look_zone").get_center()
+		_touch(LOOK_TOUCH, look, true)
+		for k in range(1, 4):
+			_drag(LOOK_TOUCH, look + Vector2(30, 20) * k, Vector2(30, 20))
+			await _frames(2)
+		_touch(LOOK_TOUCH, look + Vector2(90, 60), false)
+		await _frames(2)
+		assert_true(pawn.aiming, "%s: look drag keeps ADS" % ctx["tag"]))
 
 
 func test_jump_button_lifts_pawn() -> void:

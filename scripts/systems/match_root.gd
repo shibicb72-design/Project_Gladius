@@ -230,6 +230,8 @@ func _physics_process(delta: float) -> void:
 	if local_player == null or router == null:
 		return
 	router.set_ads(local_player.aim_blend > 0.0)  # picks the ADS sensitivity tables (G2d)
+	if not local_player.is_alive():
+		router.aim_toggle.clear_latch()  # OQ-AIM latch lifecycle (EL default): death drops the Aim tap-toggle latch
 	var frame := InputFrame.new()  # zero frame while the menu is open: no move, look, fire, jump or sprint
 	if not menu_open:
 		frame = router.get_frame()

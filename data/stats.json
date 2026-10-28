@@ -48,21 +48,21 @@
     "magnetism": 0.0
   },
   "aim": {
-    "_placeholder": true, "_todo": "OQ-AIM (GBTN): holding Aim zooms the camera and tightens spread. No weapon has its own aim spread in the data yet, so one global multiplier applies. Not PUBG values, not design values. Path A: optional tps-demo hold-vs-toggle behind aim_toggle_enabled (default false).",
+    "_placeholder": true, "_todo": "OQ-AIM (GBTN): tapping Aim zooms the camera and tightens spread; the zoom stays on after release until Aim is tapped again (pure tap toggle, aim_toggle_enabled true = Shibi pick 1.1, Fold eye-test 2026-10-28; false = hold-to-aim). No weapon has its own aim spread in the data yet, so one global multiplier applies. aim_fov_mult, aim_zoom_s and aim_spread_mult are placeholders: not PUBG values, not design values. aim_hold_threshold_s: unused since pure tap toggle (kept for data shape).",
     "aim_fov_mult": 0.6,
     "aim_zoom_s": 0.15,
     "aim_spread_mult": 0.5,
-    "aim_toggle_enabled": false,
+    "aim_toggle_enabled": true,
     "aim_hold_threshold_s": 0.4
   },
-  "_weapons_comment": "Starter set, see docs/STATS.md. Shibi tunes these on the phone. Kinds: hitscan (burst/single, uses magazine) and melee (swing: melee_range_m, melee_arc_deg; no ammo).",
+  "_weapons_comment": "Starter set, see docs/STATS.md. Shibi tunes these on the phone. Shibi Fold eye-test 2026-10-28: reload times halved (pilum_br 2.0 -> 1.0, sagittarii_rifle 2.5 -> 1.25; still placeholders, OQ-06). Kinds: hitscan (burst/single, uses magazine) and melee (swing: melee_range_m, melee_arc_deg; no ammo).",
   "weapons": {
     "pilum_br": {
       "display_name": "Pilum BR", "_placeholder": true, "_todo": "OQ-06 (DECIDED: starter set, tune on phone) OQ-11",
       "kind": "hitscan", "tier": "standard",
       "damage": 20, "headshot_multiplier": 1.5, "fire_interval_s": 0.5,
       "burst_count": 3, "burst_interval_s": 0.07,
-      "magazine": 30, "reserve_ammo": 120, "reload_s": 2.0,
+      "magazine": 30, "reserve_ammo": 120, "reload_s": 1.0,
       "range_m": 80, "spread_deg": 1.0
     },
     "gladius_lux": {
@@ -82,7 +82,7 @@
       "kind": "hitscan", "tier": "standard",
       "damage": 90, "headshot_multiplier": 2.0, "fire_interval_s": 1.2,
       "burst_count": 1, "burst_interval_s": 0.05,
-      "magazine": 5, "reserve_ammo": 25, "reload_s": 2.5,
+      "magazine": 5, "reserve_ammo": 25, "reload_s": 1.25,
       "range_m": 200, "spread_deg": 0.1
     }
   }

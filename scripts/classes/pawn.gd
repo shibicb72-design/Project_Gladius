@@ -43,7 +43,7 @@ var class_def: ClassDef
 var hit_authority: Callable = Callable(self, "_local_authority")
 var pitch: float = 0.0
 var net_mode: NetMode = NetMode.LOCAL
-## True while the Aim button is held (InputFrame.aim_pressed); read by the shot code and the zoom.
+## True while ADS is on (InputFrame.aim_pressed: the Aim tap-toggle latch, OQ-AIM); read by the shot code and the zoom.
 var aiming: bool = false
 ## 0..1 aim zoom blend, eased by stats.json aim.aim_zoom_s.
 var aim_blend: float = 0.0
@@ -259,7 +259,7 @@ func _apply_look() -> void:
 		rig.set_pitch(pitch)
 
 
-## Aim button held (InputFrame.aim_pressed): zooms the camera FOV and tightens spread; release eases back.
+## ADS on (InputFrame.aim_pressed): zooms the camera FOV and tightens spread; ADS off eases back.
 func _apply_aim(delta: float) -> void:
 	aiming = _frame.aim_pressed
 	var zoom_s: float = _aim["aim_zoom_s"]

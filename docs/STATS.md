@@ -10,7 +10,8 @@ Reasoning for the starter numbers (short):
   to empty a Hastati, about 7 with headshots (x1.5 = 30, 200/30 = 6.7). Fire interval 0.5 s per burst:
   4 bursts = about 1.5 s on body hits (the 4th burst starts 3 x 0.5 s after the first). Derived from
   data/stats.json by tests/test_stats_doc.gd, which also checks this text.
-- Pilum BR is the all-rounder: mid range 80 m, 1 degree spread, 30 round magazine, 2 s reload.
+- Pilum BR is the all-rounder: mid range 80 m, 1 degree spread, 30 round magazine, 1 s reload
+  (was 2 s; Shibi Fold eye-test 2026-10-28: reload times halved).
 - Gladius Lux is an ENERGY BLADE (OQ-07): melee swing, 0.6 s between swings, 2.2 m reach, 100 degree
   arc. Damage follows the DESIGN.md:15 melee rule (OQ-56, see below), not a flat number. No ammo, so
   magazine, reload and spread are zero/unused. It does not test the head, so its headshot_multiplier is 1.0.
@@ -31,10 +32,13 @@ Reasoning for the starter numbers (short):
 | burst_count / burst_interval_s | 3 / 0.07 | 1 / 0.05 | 1 / 0.05 |
 | range_m | 80 | 2.2 (= melee_range_m) | 200 |
 | spread_deg | 1.0 | unused | 0.1 |
-| magazine / reserve_ammo / reload_s | 30 / 120 / 2.0 | none | 5 / 25 / 2.5 |
+| magazine / reserve_ammo / reload_s | 30 / 120 / 1.0 | none | 5 / 25 / 1.25 |
 | melee_range_m / melee_arc_deg / swing_duration_s | - | 2.2 / 100 / 0.2 | - |
 
 Status:
+- **Reload times: Shibi Fold eye-test 2026-10-28: reload times halved.** Pilum BR `reload_s` 2.0 -> 1.0 s,
+  Sagittarii rifle 2.5 -> 1.25 s; Gladius Lux has no reload (0). Still placeholders (`"_placeholder": true`):
+  Shibi keeps tuning them on the phone (OQ-06). Moving while reloading: OQ-RELOAD-MOVE.
 - **Sagittarii rifle: PLACEHOLDER design.** "Long-range single-shot" comes from the Oct 22 decision
   OQ-08/OQ-10 but its numbers, and the weapon's real name, are not a Shibi decision.
 - Not yet statted (no design numbers, outside milestone 1, OQ-16): Scorpio Rail, Onager Launcher,
