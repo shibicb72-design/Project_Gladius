@@ -22,6 +22,12 @@ var left_ik: TwoBoneIK3D
 var right_hand_bone := -1
 var pose_cache: Array[Transform3D] = []
 var hand_error_m := 0.0
+var recoil_left_s := 0.0
+var _recoil_recover_s := 0.0
+var _recoil_power := 0.0
+var _recoil_pitch := 0.0
+var _recoil_kick := Vector3.ZERO
+var _rifle_rest := Transform3D.IDENTITY
 var sway_enabled := true
 var _clock := 0.0
 var _pawn: CharacterBody3D
@@ -64,6 +70,11 @@ func _ready() -> void:
 	add_child(animation_tree)
 	_previous_position = _pawn.global_position
 	_upper_cfg = SoldierRig.config()["upper_body"]
+	var shot_cfg: Dictionary = registry.load_file("res://data/ui.json")["shot_fx"]
+	_recoil_recover_s = float(shot_cfg["viewmodel_recoil_recover_s"])
+	_recoil_kick = LowpolyKit.vec(shot_cfg["viewmodel_recoil_m"])
+	_recoil_pitch = deg_to_rad(float(SoldierRig.config()["recoil"]["rifle_pitch_deg"]))
+	_recoil_power = float(SoldierRig.config()["recoil"]["recover_power"])
 	var pawn := _pawn as Pawn
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.weapon_switched.connect(_on_weapon_switched)
@@ -118,6 +129,7 @@ func mount_rifle(mesh: MeshInstance3D) -> void:
 			foregrip.position = LowpolyKit.vec(part["at"])
 		elif part["name"] == "barrel":
 			barrel_tip.position = LowpolyKit.vec(part["at"]) + Vector3.FORWARD * float(part["size"][2]) * 0.5
+	_rifle_rest = rifle.transform
 	var sync := SoldierHandSync.new()
 	sync.name = "HandTargetSync"
 	sync.model = self
@@ -142,6 +154,7 @@ func _process(delta: float) -> void:
 	if _pawn == null or not is_visible_in_tree():
 		return
 	_clock += delta
+	_update_recoil(delta)
 	var pawn := _pawn as Pawn
 	var observed := (_pawn.global_position - _previous_position) / delta if delta > 0.0 else Vector3.ZERO
 	_previous_position = _pawn.global_position
@@ -169,6 +182,16 @@ func _on_shot_shown(_origin: Vector3, _end: Vector3) -> void:
 	var weapon := pawn.loadout.get_active()
 	if pawn.is_alive() and weapon != null and not weapon.def.is_melee():
 		animation_tree.set("parameters/fire/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+		recoil_left_s = _recoil_recover_s
+		_update_recoil(0.0)
+
+
+func _update_recoil(delta: float) -> void:
+	if rifle == null:
+		return
+	recoil_left_s = maxf(0.0, recoil_left_s - delta)
+	var weight := pow(recoil_left_s / _recoil_recover_s, _recoil_power) if _recoil_recover_s > 0.0 else 0.0
+	rifle.transform = Transform3D(_rifle_rest.basis * Basis(Vector3.RIGHT, _recoil_pitch * weight), _rifle_rest.origin + _recoil_kick * weight)
 
 
 func _on_reload_started() -> void:

@@ -16,6 +16,7 @@ func test_own_arms_and_rifle_clear_crosshair_cpu_poses() -> void:
 		var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
 		tree.root.add_child(pawn)
 		pawn.set_physics_process(false)
+		pawn.shot_fx.set_physics_process(false)
 		var rig: CameraRig = load("res://scenes/player/camera_rig.tscn").instantiate()
 		pawn.add_child(rig)
 		assert_true(rig.ensure_current(), "own third-person camera current")
@@ -35,8 +36,11 @@ func test_own_arms_and_rifle_clear_crosshair_cpu_poses() -> void:
 				model.animation_tree.set("parameters/locomotion/blend_position", Vector2(0, -1) if clip == "walk" else Vector2.ZERO)
 				if clip == "fire":
 					pawn.show_shot_fx(pawn.get_muzzle_position(), Vector3(0, 1, -10))
-				for sample in 8:
-					model.animation_tree.advance(float(SoldierRig.config()["locomotion"]["walk_s"]) / 8.0 if clip != "fire" else float(pawn.shot_fx._cfg["viewmodel_recoil_recover_s"]) / 8.0)
+				for sample in 9:
+					var delta := 0.0 if sample == 0 else float(SoldierRig.config()["locomotion"]["walk_s"]) / 8.0 if clip != "fire" else float(pawn.shot_fx._cfg["viewmodel_recoil_recover_s"]) / 8.0
+					model._update_recoil(delta)
+					pawn.shot_fx._physics_process(delta)
+					model.animation_tree.advance(delta)
 					await tree.process_frame
 					await tree.process_frame
 					model.posed_bounds(pose_bounds)
