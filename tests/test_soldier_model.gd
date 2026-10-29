@@ -28,13 +28,22 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 	var head_bounds: AABB = (pawn.get_node("Head") as Node3D).transform * head.get_aabb()
 	for bounds in model.part_bounds:
 		assert_true(not head_bounds.grow(0.02).intersects(bounds), "part clear of yellow shell and margin")
-	var motion: Dictionary = LowpolyKit.config()["soldier"]
-	for vertical in [-1, 1]:
-		for roll in [-1, 1]:
-			model.position.y = vertical * float(motion["bob_amplitude_m"])
-			model.rotation.z = roll * float(motion["idle_sway_rad"])
-			for part_bounds in model.part_bounds:
-				assert_true(not head_bounds.grow(0.02).intersects(model.transform * part_bounds), "shell clearance at motion extremes")
+	model.animation_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	model.set_process(false)
+	var posed: Array[AABB] = []
+	posed.resize(model.part_bounds.size())
+	model.posed_bounds(posed)
+	model.skeleton.skeleton_updated.connect(model.posed_bounds.bind(posed))
+	var poses := [Vector2.ZERO, Vector2(0, -1), Vector2(0, 1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, -pawn.get_max_move_speed() / pawn.get_move_speed())]
+	for pose in poses:
+		model.animation_tree.set("parameters/locomotion/blend_position", pose)
+		for sample in int(SoldierRig.config()["locomotion"]["samples"]):
+			model.animation_tree.advance(float(SoldierRig.config()["locomotion"]["walk_s"]) / int(SoldierRig.config()["locomotion"]["samples"]))
+			await tree.process_frame
+			await tree.process_frame  # callback caches bounds only after a skeleton update; unchanged idle needs none
+			for bounds in posed:
+				assert_true(not (pawn.global_transform * head_bounds.grow(0.02)).intersects(bounds), "CPU shell clearance across clip samples")
+	await tree.process_frame  # leave the skeleton_updated emission before later freeing the pawn
 	model.transform = Transform3D.IDENTITY
 	var rifle := pawn.shot_fx.weapon_mesh.get_node("RifleModel") as MeshInstance3D
 	assert_true(rifle.mesh is ArrayMesh and rifle.mesh.get_surface_count() == 1, "merged rifle present")

@@ -8,6 +8,10 @@ var skeleton: Skeleton3D
 var armor: MeshInstance3D
 var local_part_bounds: Array[AABB] = []
 var part_bones := PackedInt32Array()
+var animation_tree: AnimationTree
+var _animation_cfg: Dictionary
+var _previous_position := Vector3.ZERO
+var _replica_velocity := Vector3.ZERO
 var sway_enabled := true
 var _clock := 0.0
 var _pawn: CharacterBody3D
@@ -38,6 +42,11 @@ func _ready() -> void:
 	set_meta("parts", names)
 	if _pawn != null:
 		(_pawn.get_node("Body") as MeshInstance3D).visible = false
+	_animation_cfg = SoldierRig.config()["locomotion"]
+	var movement := DataRegistry.new().get_movement_cfg()
+	animation_tree = SoldierAnimation.build(skeleton, float(movement["sprint_speed_multiplier"]["value"]))
+	add_child(animation_tree)
+	_previous_position = _pawn.global_position
 
 ## Fill a caller-owned array; no allocation in the animation path.
 func posed_bounds(out: Array[AABB]) -> void:
@@ -55,12 +64,23 @@ static func add_rifle(parent: MeshInstance3D) -> MeshInstance3D:
 	return rifle
 
 func _process(delta: float) -> void:
-	if not sway_enabled or _pawn == null or not is_visible_in_tree():
+	if _pawn == null or not is_visible_in_tree():
 		return
 	_clock += delta
-	var speed := Vector2(_pawn.velocity.x, _pawn.velocity.z).length()
-	position.y = sin(_clock * float(_cfg["bob_frequency"])) * float(_cfg["bob_amplitude_m"]) * minf(speed / float(_cfg["bob_full_speed_mps"]), 1.0)
-	rotation.z = sin(_clock * float(_cfg["idle_frequency"])) * float(_cfg["idle_sway_rad"])
+	var pawn := _pawn as Pawn
+	var observed := (_pawn.global_position - _previous_position) / delta if delta > 0.0 else Vector3.ZERO
+	_previous_position = _pawn.global_position
+	observed.y = 0.0
+	if observed.length() > pawn.get_max_move_speed() * float(_animation_cfg["teleport_speed_multiplier"]):
+		observed = Vector3.ZERO
+	var smooth_s := float(_animation_cfg["replica_smoothing_s"])
+	_replica_velocity = _replica_velocity.lerp(observed, 1.0 - exp(-delta / smooth_s) if smooth_s > 0.0 else 1.0)
+	var velocity := _pawn.velocity
+	velocity.y = 0.0
+	if velocity.is_zero_approx():
+		velocity = _replica_velocity
+	var local := _pawn.global_transform.basis.inverse() * velocity
+	animation_tree.set("parameters/locomotion/blend_position", Vector2(local.x, local.z) / pawn.get_move_speed())
 
 ## Explicit collider-free copy: avoids duplicating scripts or hitboxes and never re-runs _ready.
 func make_corpse() -> Node3D:

@@ -1,6 +1,12 @@
 {
 	"_placeholder": true,
 	"_todo": "OQ-ANIM: procedural rig hierarchy/pivots are derived from art_astra's rest parts; all new animation values are provisional presentation values, never approved design values.",
+	"locomotion": {
+		"_placeholder": true, "_todo": "OQ-ANIM: clip periods, sample count, limb angles and replica smoothing are presentation placeholders.",
+		"idle_s": 1.6, "walk_s": 0.8, "run_s": 0.6, "samples": 16,
+		"walk_hip_deg": 28.0, "run_hip_deg": 42.0, "knee_deg": 36.0, "ankle_deg": 8.0,
+		"replica_smoothing_s": 0.08, "teleport_speed_multiplier": 4.0
+	},
 	"bones": [
 		{"name":"Hips", "parent":"", "part":"pelvis", "pivot":"center"},
 		{"name":"Spine", "parent":"Hips", "part":"torso", "pivot":"center"},
