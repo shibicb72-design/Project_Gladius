@@ -151,6 +151,8 @@ Path A2 slot swap: the live Jump slot becomes round FIRE/Quick draw; the live Sp
 
 Every shot ray is checked for the full weapon range against cover. Turning back into the wall blocks firing and spends no ammo, even when the pose gate is disabled. Gyro is unchanged: Always steers every pose; ADS (`scope_on`) steers only with the existing Aim zoom, not quick draw or unzoomed drag lean. The hold rule is shared: the pawn remains out while ANY of Aim, an active look drag, held cover FIRE, a buffered round or a locked weapon round still needs it. Geometry, blend/return times, edge band, crouch heights and button positions are marked placeholders (OQ-COVER).
 
+An accepted green tap stays buffered until Pawn confirms an actual shot; the weapon interval cannot silently discard it. After that shot, return starts on the next tick unless Aim, look, held FIRE or pending weapon rounds keep the pose out. The 0.15 s lean/return and 0.06 s camera follow damping in `data/cover.json` are placeholders. Motion keeps the existing pawn speed bound; at the full 0.5 m edge band the measured first shot is 0.2000 s (OQ-COVER). The visual rest layer holds the gun in with the back toward the wall and fades into the existing aim pose during lean. The transient Sprint target above the move stick remains unchanged and can still lock sprint in cover; that behavior remains OPEN.
+
 ## Left Fire button (G3e, off by default)
 
 PUBG Mobile offers a second Fire button on the left as an option; so do we, and it is off. Settings > "Left Fire button: Off/On" stores the profile key `left_fire_enabled` (`SaveService` keeps only a bool; default `touch_layout.left_fire.enabled_default`, false).

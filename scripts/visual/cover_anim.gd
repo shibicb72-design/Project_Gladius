@@ -68,8 +68,32 @@ func _build_graph() -> void:
 	graph.disconnect_node(&"output", 0)
 	graph.connect_node(&"cover_mix", 0, &"reload")
 	graph.connect_node(&"cover_mix", 1, &"cover")
-	graph.connect_node(&"output", 0, &"cover_mix")
+	# A separate upper-body rest layer fades away with the controller's lean.
+	# Left-hand IK continues to follow the existing right-hand-mounted rifle.
+	var rest_clip := Animation.new()
+	rest_clip.length = float(_cfg["animation"]["idle_s"])
+	rest_clip.loop_mode = Animation.LOOP_LINEAR
+	var rest_mix := AnimationNodeBlend2.new()
+	rest_mix.filter_enabled = true
+	for bone: String in _cfg["animation"]["rest_upper_pose_deg"]:
+		var path := NodePath("Skeleton3D:" + bone)
+		rest_mix.set_filter_path(path, true)
+		var angles: Array = _cfg["animation"]["rest_upper_pose_deg"][bone]
+		var rotation := Quaternion.from_euler(Vector3(deg_to_rad(float(angles[0])), deg_to_rad(float(angles[1])), deg_to_rad(float(angles[2]))))
+		var track := rest_clip.add_track(Animation.TYPE_ROTATION_3D)
+		rest_clip.track_set_path(track, path)
+		rest_clip.rotation_track_insert_key(track, 0.0, rotation)
+		rest_clip.rotation_track_insert_key(track, rest_clip.length, rotation)
+	library.add_animation(&"cover_rest_upper", rest_clip)
+	var rest_animation := AnimationNodeAnimation.new()
+	rest_animation.animation = &"cover_rest_upper"
+	graph.add_node(&"cover_rest_upper", rest_animation)
+	graph.add_node(&"cover_rest_mix", rest_mix)
+	graph.connect_node(&"cover_rest_mix", 0, &"cover_mix")
+	graph.connect_node(&"cover_rest_mix", 1, &"cover_rest_upper")
+	graph.connect_node(&"output", 0, &"cover_rest_mix")
 	tree.set("parameters/cover_mix/blend_amount", 0.0)
+	tree.set("parameters/cover_rest_mix/blend_amount", 0.0)
 	playback = tree.get("parameters/cover/playback")
 	playback.start(&"cover_idle_r")
 
@@ -117,10 +141,13 @@ func sync_pose(delta: float) -> void:
 	var name := "" if controller == null else state_clip(controller.state, controller.side)
 	if name.is_empty():
 		tree.set("parameters/cover_mix/blend_amount", 0.0)
+		tree.set("parameters/cover_rest_mix/blend_amount", 0.0)
 		model.rotation.y = _rest_yaw
 		_last = ""
 		return
 	tree.set("parameters/cover_mix/blend_amount", 1.0)
+	var resting := controller.state == CoverController.State.IN_COVER or controller.state == CoverController.State.ENTERING
+	tree.set("parameters/cover_rest_mix/blend_amount", 1.0 - controller.aim_out_amount if resting else 0.0)
 	if playback.get_current_node() == &"Start" or String(playback.get_current_node()).is_empty():
 		playback.start(name)
 		_last = name
@@ -129,7 +156,7 @@ func sync_pose(delta: float) -> void:
 		_last = name
 	var yaw := _rest_yaw
 	if (controller.state == CoverController.State.IN_COVER or controller.state == CoverController.State.ENTERING) and controller.aim_out_amount == 0.0:
-		var forward := -controller.normal
-		yaw += atan2(-forward.x, -forward.z) + controller.side * PI * 0.5 - pawn.global_rotation.y
+		var forward := controller.normal
+		yaw += atan2(-forward.x, -forward.z) - pawn.global_rotation.y
 	var step := deg_to_rad(float(_cfg["animation"]["visual_turn_deg_s"])) * delta
 	model.rotation.y += clampf(angle_difference(model.rotation.y, yaw), -step, step)

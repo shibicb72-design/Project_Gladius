@@ -24,8 +24,9 @@
 	"crouch_blend_s": 0.2,
 	"crouch_height_m": 1,
 	"crouch_head_y_m": 0.85,
-	"aim_out_s": 0.3,
-	"aim_return_s": 0.3,
+	"aim_out_s": 0.15,
+	"aim_return_s": 0.15,
+	"camera_follow_damping_s": 0.06,
 	"quick_draw_stay_out": false,
 	"cover_edge_quickdraw_m": 0.5,
 	"animation": {
@@ -36,6 +37,8 @@
 		"xfade_s": 0.08,
 		"idle_s": 1,
 		"visual_turn_deg_s": 360,
+		"_rest_todo": "OQ-COVER Path A2: back-to-wall orientation and held-in upper-arm/forearm rest angles are procedural placeholders; lean blends back to the existing aimed pose. No soldier asset changes.",
+		"rest_upper_pose_deg": {"RightUpperArm": [15, 0, 0], "RightForeArm": [65, 0, 0], "RightHand": [-80, 0, 0]},
 		"bones": [
 			"LeftUpperLeg",
 			"RightUpperLeg",

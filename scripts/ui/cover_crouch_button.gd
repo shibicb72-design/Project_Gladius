@@ -102,8 +102,10 @@ func _draw() -> void:
 	var alpha := float(style["pressed_fill_alpha"] if _is_pressed() else style["fill_alpha"])
 	if config_key == "cover_fire" and not enabled_for_drawing():
 		alpha = float(style["disabled_fill_alpha"])
-	draw_circle(size * 0.5, size.x * 0.5, ring)
-	draw_circle(size * 0.5, maxf(0.0, size.x * 0.5 - float(style["ring_dp"]) * PlatformServices.new().get_dp_scale()), Color(tint.r, tint.g, tint.b, alpha))
+	var width := float(style["ring_dp"]) * PlatformServices.new().get_dp_scale()
+	ring.a *= alpha
+	draw_circle(size * 0.5, size.x * 0.5, Color(tint.r, tint.g, tint.b, alpha))
+	draw_arc(size * 0.5, maxf(0.0, (size.x - width) * 0.5), 0.0, TAU, int(style["ring_points"]), ring, width, true)
 
 func enabled_for_drawing() -> bool:
 	return true

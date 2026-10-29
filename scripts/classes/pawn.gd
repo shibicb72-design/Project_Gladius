@@ -365,6 +365,8 @@ func _apply_weapon() -> void:
 		w._next_burst_time = pending[4]
 		w._last_mode_shot = pending[5]
 		shots = 0
+	if in_cover and shots > 0:
+		cover.round_fired()
 	for i in shots:
 		fire_shot()
 

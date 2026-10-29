@@ -29,6 +29,8 @@ var _shoulder_target: Vector2 = Vector2.ZERO
 var _shoulder_hip_length: float = 0.0
 var _shoulder_elapsed_s: float = 0.0
 var _shoulder_duration_s: float = 0.0
+var _cover_follow_active := false
+var _cover_follow_position := Vector3.ZERO
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -55,11 +57,30 @@ func _ready() -> void:
 ## Recovers the knockback. The pawn (this rig's parent) runs first in a physics frame and may kick during it, so a
 ## kick from the current frame is left whole for one frame.
 func _physics_process(delta: float) -> void:
+	_tick_cover_follow(delta)
 	_tick_shoulder(delta)
 	if knockback.offset == Vector2.ZERO or Engine.get_physics_frames() == _kick_frame:
 		return
 	knockback.tick(delta)
 	_apply_rotation()
+
+## Presentation-only translation damping. FREE follows the original parent exactly.
+func _tick_cover_follow(delta: float) -> void:
+	var pawn := get_parent() as Pawn
+	if pawn == null or pawn.cover == null or pawn.cover.state == CoverController.State.FREE:
+		if _cover_follow_active:
+			position.x = 0.0
+			position.z = 0.0
+			position.y = float(_cfg.get("height_m", 1.6))
+		_cover_follow_active = false
+		return
+	var desired := pawn.global_transform * Vector3(0, float(_cfg.get("height_m", 1.6)), 0)
+	if not _cover_follow_active:
+		_cover_follow_position = desired
+		_cover_follow_active = true
+	var duration := float(pawn.cover.config["camera_follow_damping_s"])
+	_cover_follow_position = _cover_follow_position.lerp(desired, 1.0 - exp(-delta / duration) if duration > 0.0 else 1.0)
+	global_position = _cover_follow_position
 
 
 ## Creates a camera-forward RayCast3D (GDQuest CameraRayCast pattern). Code only ? no demo scenes.

@@ -190,6 +190,7 @@
 		"hidden_slots": ["jump", "sprint_lock", "swap_shoulder"],
 		"clearance_dp": 0.1,
 		"ring_dp": 2.0,
+		"ring_points": 64,
 		"fill_alpha": 0.55,
 		"disabled_fill_alpha": 0.18,
 		"pressed_fill_alpha": 0.85,

@@ -111,11 +111,16 @@ func quick_draw_trigger() -> bool:
 	if blocks_fire() or not (_quick_held or _buffered_round):
 		_trigger_held = false
 		return false
-	_buffered_round = false
 	if not _trigger_held or bool(_facts.get("weapon_repeats", false)):
 		_round_hold = float(_facts.get("weapon_hold_s", 0.0))
 	_trigger_held = true
 	return true
+
+## Weapon acceptance is not a shot: an auto tap can arrive during its interval.
+## Pawn acknowledges only rounds that survived the muzzle/pose guard.
+func round_fired() -> void:
+	_buffered_round = false
+	_round_hold = 0.0
 
 func refresh_shot_clear(clear: bool) -> void:
 	_facts["shot_clear"] = clear
