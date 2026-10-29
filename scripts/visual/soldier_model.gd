@@ -3,7 +3,6 @@ extends Node3D
 ## One shared vertex-colour surface, no hitboxes. Only reads pawn velocity.
 static var _mesh: ArrayMesh
 static var _rifle: ArrayMesh
-static var _corpse_mesh: ArrayMesh
 var skeleton: Skeleton3D
 var armor: MeshInstance3D
 var local_part_bounds: Array[AABB] = []
@@ -216,21 +215,4 @@ func _on_visibility_changed() -> void:
 
 ## Explicit collider-free copy: avoids duplicating scripts or hitboxes and never re-runs _ready.
 func make_corpse() -> Node3D:
-	var corpse := Node3D.new()
-	corpse.name = "SoldierCorpse"
-	corpse.set_meta("corpse", true)
-	var mesh := MeshInstance3D.new()
-	# F will replace this rest-mesh fallback with a frozen independent rig.
-	if _corpse_mesh == null:
-		_corpse_mesh = LowpolyKit.merge(_cfg["parts"])
-	mesh.mesh = _corpse_mesh
-	mesh.transform = transform
-	corpse.add_child(mesh)
-	# The locked yellow shell belongs to the pawn; reproduce it for a complete corpse silhouette.
-	var shell := MeshInstance3D.new()
-	var head := _pawn.get_node("Head/HeadMesh") as MeshInstance3D
-	shell.mesh = head.mesh
-	shell.material_override = head.material_override
-	shell.transform = (_pawn.get_node("Head") as Node3D).transform * head.transform
-	corpse.add_child(shell)
-	return corpse
+	return SoldierCorpse.build(self)

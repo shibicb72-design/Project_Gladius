@@ -117,14 +117,19 @@ static func aim_clip(skeleton: Skeleton3D, cfg: Dictionary, pitch: float) -> Ani
 	animation.loop_mode = Animation.LOOP_LINEAR
 	for side in ["Left", "Right"]:
 		var key: String = side.to_lower()
-		var poses := SoldierRig.arm_rotations(skeleton, side, LowpolyKit.vec(cfg[key + "_hand_m"]), LowpolyKit.vec(cfg[key + "_pole"]), float(cfg["epsilon_m"]))
+		var shift := shoulder_offset(side, cfg)
+		var poses := SoldierRig.arm_rotations(skeleton, side, LowpolyKit.vec(cfg[key + "_hand_m"]) - shift, LowpolyKit.vec(cfg[key + "_pole"]), float(cfg["epsilon_m"]))
 		for i in 3:
 			_rotation_track(animation, side + ["UpperArm", "ForeArm", "Hand"][i], [0.0], [poses[i]])
 		var position_track := animation.add_track(Animation.TYPE_POSITION_3D)
 		animation.track_set_path(position_track, NodePath("Skeleton3D:" + side + "UpperArm"))
-		animation.position_track_insert_key(position_track, 0.0, skeleton.get_bone_rest(skeleton.find_bone(side + "UpperArm")).origin - Vector3.UP * float(cfg["shoulder_drop_m"]))
+		animation.position_track_insert_key(position_track, 0.0, skeleton.get_bone_rest(skeleton.find_bone(side + "UpperArm")).origin + shift)
 	_rotation_track(animation, "Chest", [0.0], [Quaternion(Vector3.RIGHT, pitch * deg_to_rad(float(cfg["aim_pitch_limit_deg"])) )])
 	return animation
+
+
+static func shoulder_offset(side: String, cfg: Dictionary) -> Vector3:
+	return Vector3(float(cfg["shoulder_inset_m"]) * (1.0 if side == "Left" else -1.0), -float(cfg["shoulder_drop_m"]), 0.0)
 
 
 static func fire_clip(cfg: Dictionary) -> Animation:
@@ -149,7 +154,7 @@ static func reload_clip(skeleton: Skeleton3D, duration: float, cfg: Dictionary) 
 		var times: Array = []
 		var rotations: Array[Quaternion] = []
 		for i in fractions.size():
-			var target := LowpolyKit.vec(cfg["left_hand_m"]) + LowpolyKit.vec(cfg["reload_hand_offset_m"]) * float(cfg["reload_key_weights"][i])
+			var target := LowpolyKit.vec(cfg["left_hand_m"]) - shoulder_offset("Left", cfg) + LowpolyKit.vec(cfg["reload_hand_offset_m"]) * float(cfg["reload_key_weights"][i])
 			var poses := SoldierRig.arm_rotations(skeleton, "Left", target, LowpolyKit.vec(cfg["left_pole"]), float(cfg["epsilon_m"]))
 			times.append(float(fractions[i]) * duration)
 			rotations.append(poses[bone])

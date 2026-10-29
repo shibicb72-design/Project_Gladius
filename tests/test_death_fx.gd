@@ -25,8 +25,10 @@ func test_death_adds_one_visible_corpse_and_respawn_adds_none() -> void:
 		assert_true(corpse.get_parent() == match_parent and corpse.is_visible_in_tree(), "corpse visible outside hidden pawn")
 		assert_eq(corpse.global_transform, pawn.global_transform, "starts at pawn transform")
 		assert_true(corpse.get_script() == null, "no sway or gameplay script on corpse")
-		for child in corpse.get_children():
-			assert_true(child is MeshInstance3D, "corpse has no collider")
+		for child in corpse.find_children("*", "", true, false):
+			assert_true(child is Node3D or child is MeshInstance3D or child is Skeleton3D or child is BoneAttachment3D or child is AnimationPlayer, "native visual corpse nodes only")
+			assert_true(not child is CollisionObject3D and not child is CollisionShape3D, "corpse has no collider")
+			assert_true(child.get_script() == null, "no script anywhere in corpse subtree")
 		pawn.set_active(false)
 		assert_eq(_corpses(match_parent).size(), 1, "repeated hide adds none")
 		pawn.set_active(true)
