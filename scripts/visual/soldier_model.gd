@@ -12,6 +12,8 @@ var animation_tree: AnimationTree
 var _animation_cfg: Dictionary
 var _previous_position := Vector3.ZERO
 var _replica_velocity := Vector3.ZERO
+var _upper_cfg: Dictionary
+var reload_duration_s := 0.0
 var sway_enabled := true
 var _clock := 0.0
 var _pawn: CharacterBody3D
@@ -43,10 +45,17 @@ func _ready() -> void:
 	if _pawn != null:
 		(_pawn.get_node("Body") as MeshInstance3D).visible = false
 	_animation_cfg = SoldierRig.config()["locomotion"]
-	var movement := DataRegistry.new().get_movement_cfg()
-	animation_tree = SoldierAnimation.build(skeleton, float(movement["sprint_speed_multiplier"]["value"]))
+	var registry := DataRegistry.new()
+	var movement := registry.get_movement_cfg()
+	var initial_weapon := registry.get_weapon_def(registry.get_loadout_ids((_pawn as Pawn).class_id)["primary"])
+	animation_tree = SoldierAnimation.build(skeleton, float(movement["sprint_speed_multiplier"]["value"]), initial_weapon.reload_s)
 	add_child(animation_tree)
 	_previous_position = _pawn.global_position
+	_upper_cfg = SoldierRig.config()["upper_body"]
+	var pawn := _pawn as Pawn
+	pawn.reload_started.connect(_on_reload_started)
+	pawn.weapon_switched.connect(_on_weapon_switched)
+	pawn.visibility_changed.connect(_on_visibility_changed)
 
 ## Fill a caller-owned array; no allocation in the animation path.
 func posed_bounds(out: Array[AABB]) -> void:
@@ -81,6 +90,40 @@ func _process(delta: float) -> void:
 		velocity = _replica_velocity
 	var local := _pawn.global_transform.basis.inverse() * velocity
 	animation_tree.set("parameters/locomotion/blend_position", Vector2(local.x, local.z) / pawn.get_move_speed())
+	var pitch_limit := deg_to_rad(float(_upper_cfg["aim_pitch_limit_deg"]))
+	animation_tree.set("parameters/aim/blend_position", clampf(pawn.pitch / pitch_limit, -1.0, 1.0))
+
+
+func bind_shot_fx(fx: ShotFx) -> void:
+	fx.shot_shown.connect(_on_shot_shown)
+
+
+func _on_shot_shown(_origin: Vector3, _end: Vector3) -> void:
+	var pawn := _pawn as Pawn
+	var weapon := pawn.loadout.get_active()
+	if pawn.is_alive() and weapon != null and not weapon.def.is_melee():
+		animation_tree.set("parameters/fire/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+
+func _on_reload_started() -> void:
+	var weapon := (_pawn as Pawn).loadout.get_active()
+	if weapon == null or weapon.def.is_melee():
+		return
+	reload_duration_s = weapon.def.reload_s
+	var library := animation_tree.get_animation_library(&"")
+	library.remove_animation(&"reload")
+	library.add_animation(&"reload", SoldierAnimation.reload_clip(skeleton, reload_duration_s, _upper_cfg))
+	animation_tree.set("parameters/reload/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+
+func _on_weapon_switched(_slot: int) -> void:
+	animation_tree.set("parameters/reload/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
+	animation_tree.set("parameters/fire/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
+
+
+func _on_visibility_changed() -> void:
+	if not _pawn.visible:
+		_on_weapon_switched(0)
 
 ## Explicit collider-free copy: avoids duplicating scripts or hitboxes and never re-runs _ready.
 func make_corpse() -> Node3D:

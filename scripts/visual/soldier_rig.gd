@@ -54,3 +54,24 @@ static func part_local_bounds(parts: Array, skeleton: Skeleton3D) -> Array[AABB]
 		var bounds := AABB(LowpolyKit.vec(part["at"]) - size * 0.5, size)
 		result.append(skeleton.get_bone_global_rest(bone).affine_inverse() * bounds)
 	return result
+
+
+## Analytic authoring helper: rotate the two rest segments to a reachable hand target.
+static func arm_rotations(skeleton: Skeleton3D, side: String, target: Vector3, pole: Vector3, epsilon: float) -> Array[Quaternion]:
+	var upper := skeleton.find_bone(side + "UpperArm")
+	var fore := skeleton.find_bone(side + "ForeArm")
+	var hand := skeleton.find_bone(side + "Hand")
+	var root := skeleton.get_bone_global_rest(upper).origin
+	var first := skeleton.get_bone_rest(fore).origin
+	var second := skeleton.get_bone_rest(hand).origin
+	var a := first.length()
+	var b := second.length()
+	var distance := clampf(root.distance_to(target), absf(a - b) + epsilon, a + b - epsilon)
+	var direction := (target - root).normalized()
+	var bend := (pole - direction * pole.dot(direction)).normalized()
+	var along := (a * a + distance * distance - b * b) / (2.0 * distance)
+	var elbow := root + direction * along + bend * sqrt(maxf(a * a - along * along, 0.0))
+	var end := root + direction * distance
+	var upper_rotation := Quaternion(first.normalized(), (elbow - root).normalized())
+	var fore_rotation := Quaternion(second.normalized(), (end - elbow).normalized())
+	return [upper_rotation, upper_rotation.inverse() * fore_rotation, fore_rotation.inverse()]

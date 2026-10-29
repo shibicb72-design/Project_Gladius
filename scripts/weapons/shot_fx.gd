@@ -1,5 +1,6 @@
 class_name ShotFx
 extends Node3D
+signal shot_shown(origin: Vector3, end: Vector3)
 ## Shot visuals for one pawn: muzzle flash, tracer, impact, placeholder weapon mesh.
 ## Sizes/colours/durations from data/ui.json "shot_fx". Presentation only ? Hitscan stays elsewhere.
 ## Path A: Kenney Starter-Kit-FPS muzzle/impact/viewmodel patterns (procedural CC0-style; no NC art).
@@ -59,6 +60,9 @@ func _ready() -> void:
 	_weapon_rest = _vec3("weapon_mesh_offset_m")
 	weapon_mesh.position = _weapon_rest
 	SoldierModel.add_rifle(weapon_mesh)
+	var model := get_parent().get_node_or_null("SoldierModel") as SoldierModel
+	if model != null:
+		model.bind_shot_fx(self)
 
 
 func _flash_mesh() -> ArrayMesh:
@@ -147,6 +151,7 @@ func _vec3(key: String) -> Vector3:
 func show_shot(origin: Vector3, end: Vector3) -> void:
 	if tracer == null:
 		return
+	shot_shown.emit(origin, end)
 	# Draw from the tip of the placeholder weapon mesh (beside the pawn) so the line is not hidden behind
 	# the body in the third-person view.
 	var mesh_len: float = (weapon_mesh.mesh as BoxMesh).size.z

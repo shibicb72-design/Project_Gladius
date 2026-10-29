@@ -7,6 +7,15 @@
 		"walk_hip_deg": 28.0, "run_hip_deg": 42.0, "knee_deg": 36.0, "ankle_deg": 8.0,
 		"replica_smoothing_s": 0.08, "teleport_speed_multiplier": 4.0
 	},
+	"upper_body": {
+		"_placeholder": true, "_todo": "OQ-ANIM: hand targets, poles, pitch clamp, reload gesture, fire angles and fades are procedural presentation trials, not design values. Reload length comes only from WeaponDef.reload_s; fire length comes from ui.shot_fx recovery.",
+		"right_hand_m": [0.0, 1.1, -0.15], "left_hand_m": [0.0, 1.19, -0.355], "shoulder_drop_m": 0.04,
+		"right_pole": [1, -3, 0], "left_pole": [-1, -3, 0], "epsilon_m": 0.00001,
+		"aim_pitch_limit_deg": 4.0,
+		"reload_hand_offset_m": [0, -0.2, 0.1], "reload_key_fractions": [0, 0.35, 0.7, 1], "reload_key_weights": [0, 1, 1, 0],
+		"fire_chest_deg": -1.0, "fire_spine_deg": -0.6, "fire_arm_deg": -2.0,
+		"fade_in_s": 0.0, "fade_out_s": 0.0
+	},
 	"bones": [
 		{"name":"Hips", "parent":"", "part":"pelvis", "pivot":"center"},
 		{"name":"Spine", "parent":"Hips", "part":"torso", "pivot":"center"},
