@@ -157,3 +157,42 @@ func test_sprint_lock_forward_intent_snaps_and_stays_in_cover() -> void:
 	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "sprint lock does not exit cover")
 	assert_true(absf(_pawn.global_position.z - start.z) < 0.02, "sprint lock adds no normal motion")
 	await _cleanup()
+
+func test_cover_animation_nested_playback_preserves_existing_paths_and_head() -> void:
+	await _fixture()
+	var presentation := _pawn.get_node("CoverAnim") as CoverAnim
+	presentation.set_process(false)
+	var model := _pawn.get_node("SoldierModel") as SoldierModel
+	model.set_process(false)
+	var tree := model.animation_tree
+	tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	var graph := tree.tree_root as AnimationNodeBlendTree
+	assert_true(graph.has_node(&"locomotion") and graph.has_node(&"upper") and graph.has_node(&"fire") and graph.has_node(&"reload"), "animation dig graph nodes preserved")
+	assert_true(graph.get_node(&"cover") is AnimationNodeStateMachine and graph.get_node(&"cover_mix") is AnimationNodeBlend2, "one nested machine and one mix")
+	tree.set("parameters/locomotion/blend_position", Vector2(0, -1))
+	assert_eq(tree.get("parameters/locomotion/blend_position"), Vector2(0, -1), "locomotion parameter unchanged")
+	assert_true(tree.get("parameters/fire/request") != null and tree.get("parameters/reload/request") != null, "OneShot request paths preserved")
+	var head := _pawn.get_node("Head") as Node3D
+	var head_transform := head.transform
+	var body_shape: Shape3D = _pawn.get_node("CollisionShape3D").shape
+	_pawn.cover.normal = Vector3.BACK
+	for pair in [[CoverController.State.FREE, 1], [CoverController.State.ENTERING, 1], [CoverController.State.IN_COVER, -1], [CoverController.State.IN_COVER, 1], [CoverController.State.PEEK_LEFT, -1], [CoverController.State.PEEK_RIGHT, 1], [CoverController.State.EXITING, 1], [CoverController.State.FREE, 1]]:
+		_pawn.cover.state = pair[0]
+		_pawn.cover.side = pair[1]
+		var expected := CoverAnim.state_clip(_pawn.cover.state, _pawn.cover.side)
+		for i in ceili(float(_pawn.cover.config["animation"]["xfade_s"]) / DT) + 2:
+			presentation.sync_pose(DT)
+			tree.advance(DT)
+			await _tree().process_frame
+		if expected.is_empty():
+			assert_eq(tree.get("parameters/cover_mix/blend_amount"), 0.0, "FREE original output")
+			assert_eq(model.rotation.y, 0.0, "FREE visual yaw restored")
+		else:
+			assert_eq(String(presentation.playback.get_current_node()), expected, "actual nested playback after transition")
+			assert_eq(tree.get("parameters/cover_mix/blend_amount"), 1.0, "cover layer active")
+		assert_eq(head.transform, head_transform, "head hitbox and yellow shell unchanged")
+		var bone_head := model.skeleton.global_transform * model.skeleton.get_bone_global_pose(model.skeleton.find_bone("Head")).origin
+		assert_true(bone_head.distance_to(head.global_position) < 0.00001, "rig head stays at fixed hitbox")
+		assert_true(_pawn.get_node("CollisionShape3D").shape == body_shape, "body hit shape unchanged")
+		assert_eq(_pawn.rotation, Vector3.ZERO, "presentation never rotates Pawn")
+	await _cleanup()

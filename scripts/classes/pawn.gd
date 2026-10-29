@@ -359,6 +359,10 @@ func enable_cover(cfg: Dictionary) -> void:
 	cover = CoverController.new(cfg)
 	_cover_probe.reset()
 	_cover_auto_disabled = false
+	if not has_node("CoverAnim"):
+		var presentation := CoverAnim.new()
+		presentation.name = "CoverAnim"
+		add_child(presentation)
 
 
 func disable_cover() -> void:

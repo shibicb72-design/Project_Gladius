@@ -27,5 +27,56 @@
 	"aim_out_s": 0.3,
 	"aim_return_s": 0.3,
 	"quick_draw_stay_out": false,
-	"cover_edge_quickdraw_m": 0.5
+	"cover_edge_quickdraw_m": 0.5,
+	"animation": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER: procedural leg pose angles, visual turn speed, loop and crossfade timings are provisional. Only the model turns; Pawn/Head/collision/camera do not.",
+		"xfade_s": 0.08,
+		"idle_s": 1,
+		"visual_turn_deg_s": 360,
+		"bones": [
+			"LeftUpperLeg",
+			"RightUpperLeg",
+			"LeftLowerLeg",
+			"RightLowerLeg"
+		],
+		"poses_deg": {
+			"cover_enter": [
+				-8,
+				-8,
+				16,
+				16
+			],
+			"cover_idle_l": [
+				-10,
+				-6,
+				20,
+				12
+			],
+			"cover_idle_r": [
+				-6,
+				-10,
+				12,
+				20
+			],
+			"peek_left": [
+				-12,
+				4,
+				20,
+				5
+			],
+			"peek_right": [
+				4,
+				-12,
+				5,
+				20
+			],
+			"cover_exit": [
+				-8,
+				-8,
+				16,
+				16
+			]
+		}
+	}
 }
