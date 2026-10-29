@@ -115,6 +115,397 @@
 		"shadow_max_distance_m": 48,
 		"light_angular_distance": 0
 	},
+	"soldier": {
+		"bob_amplitude_m": 0.025,
+		"bob_frequency": 8,
+		"idle_sway_rad": 0.012,
+		"idle_frequency": 1.7,
+		"parts": [
+			{
+				"name": "torso",
+				"size": [
+					0.52,
+					0.43,
+					0.3
+				],
+				"at": [
+					0,
+					1.23,
+					0
+				],
+				"color": "cloth"
+			},
+			{
+				"name": "vest",
+				"size": [
+					0.56,
+					0.35,
+					0.12
+				],
+				"at": [
+					0,
+					1.23,
+					-0.19
+				],
+				"color": "armor"
+			},
+			{
+				"name": "pelvis",
+				"size": [
+					0.43,
+					0.22,
+					0.3
+				],
+				"at": [
+					0,
+					0.91,
+					0
+				],
+				"color": "dark"
+			},
+			{
+				"name": "backpack",
+				"size": [
+					0.38,
+					0.39,
+					0.19
+				],
+				"at": [
+					0,
+					1.22,
+					0.23
+				],
+				"color": "dark"
+			},
+			{
+				"name": "upper_arm_l",
+				"size": [
+					0.19,
+					0.3,
+					0.23
+				],
+				"at": [
+					-0.37,
+					1.27,
+					0
+				],
+				"color": "armor"
+			},
+			{
+				"name": "lower_arm_l",
+				"size": [
+					0.16,
+					0.28,
+					0.21
+				],
+				"at": [
+					-0.39,
+					1,
+					-0.04
+				],
+				"color": "cloth"
+			},
+			{
+				"name": "glove_l",
+				"size": [
+					0.18,
+					0.14,
+					0.22
+				],
+				"at": [
+					-0.39,
+					0.81,
+					-0.06
+				],
+				"color": "dark"
+			},
+			{
+				"name": "thigh_l",
+				"size": [
+					0.2,
+					0.32,
+					0.24
+				],
+				"at": [
+					-0.135,
+					0.65,
+					0
+				],
+				"color": "cloth"
+			},
+			{
+				"name": "shin_l",
+				"size": [
+					0.19,
+					0.29,
+					0.23
+				],
+				"at": [
+					-0.135,
+					0.33,
+					-0.01
+				],
+				"color": "armor"
+			},
+			{
+				"name": "boot_l",
+				"size": [
+					0.23,
+					0.16,
+					0.34
+				],
+				"at": [
+					-0.135,
+					0.09,
+					-0.06
+				],
+				"color": "dark"
+			},
+			{
+				"name": "upper_arm_r",
+				"size": [
+					0.19,
+					0.3,
+					0.23
+				],
+				"at": [
+					0.37,
+					1.27,
+					0
+				],
+				"color": "armor"
+			},
+			{
+				"name": "lower_arm_r",
+				"size": [
+					0.16,
+					0.28,
+					0.21
+				],
+				"at": [
+					0.39,
+					1,
+					-0.04
+				],
+				"color": "cloth"
+			},
+			{
+				"name": "glove_r",
+				"size": [
+					0.18,
+					0.14,
+					0.22
+				],
+				"at": [
+					0.39,
+					0.81,
+					-0.06
+				],
+				"color": "dark"
+			},
+			{
+				"name": "thigh_r",
+				"size": [
+					0.2,
+					0.32,
+					0.24
+				],
+				"at": [
+					0.135,
+					0.65,
+					0
+				],
+				"color": "cloth"
+			},
+			{
+				"name": "shin_r",
+				"size": [
+					0.19,
+					0.29,
+					0.23
+				],
+				"at": [
+					0.135,
+					0.33,
+					-0.01
+				],
+				"color": "armor"
+			},
+			{
+				"name": "boot_r",
+				"size": [
+					0.23,
+					0.16,
+					0.34
+				],
+				"at": [
+					0.135,
+					0.09,
+					-0.06
+				],
+				"color": "dark"
+			},
+			{
+				"name": "visor",
+				"size": [
+					0.3,
+					0.075,
+					0.035
+				],
+				"at": [
+					0,
+					1.75,
+					-0.265
+				],
+				"color": "dark"
+			},
+			{
+				"name": "visor_accent",
+				"size": [
+					0.25,
+					0.025,
+					0.038
+				],
+				"at": [
+					0,
+					1.75,
+					-0.286
+				],
+				"color": "accent"
+			},
+			{
+				"name": "vest_stripe",
+				"size": [
+					0.35,
+					0.035,
+					0.025
+				],
+				"at": [
+					0,
+					1.32,
+					-0.26
+				],
+				"color": "accent"
+			},
+			{
+				"name": "neck",
+				"size": [
+					0.18,
+					0.045,
+					0.18
+				],
+				"at": [
+					0,
+					1.4525,
+					0
+				],
+				"color": "cloth"
+			}
+		],
+		"bob_full_speed_mps": 5
+	},
+	"rifle": {
+		"parts": [
+			{
+				"name": "receiver",
+				"size": [
+					0.09,
+					0.11,
+					0.22
+				],
+				"at": [
+					0,
+					0,
+					0.005
+				],
+				"color": "dark"
+			},
+			{
+				"name": "barrel",
+				"size": [
+					0.045,
+					0.045,
+					0.13
+				],
+				"at": [
+					0,
+					0.015,
+					-0.185
+				],
+				"color": "dark"
+			},
+			{
+				"name": "handguard",
+				"size": [
+					0.075,
+					0.07,
+					0.12
+				],
+				"at": [
+					0,
+					0,
+					-0.105
+				],
+				"color": "armor"
+			},
+			{
+				"name": "stock",
+				"size": [
+					0.085,
+					0.09,
+					0.13
+				],
+				"at": [
+					0,
+					-0.015,
+					0.18
+				],
+				"color": "armor"
+			},
+			{
+				"name": "magazine",
+				"size": [
+					0.055,
+					0.15,
+					0.07
+				],
+				"at": [
+					0,
+					-0.115,
+					0.015
+				],
+				"color": "dark"
+			},
+			{
+				"name": "grip",
+				"size": [
+					0.05,
+					0.1,
+					0.06
+				],
+				"at": [
+					0,
+					-0.09,
+					0.1
+				],
+				"color": "dark"
+			},
+			{
+				"name": "sight",
+				"size": [
+					0.045,
+					0.045,
+					0.07
+				],
+				"at": [
+					0,
+					0.077,
+					0.015
+				],
+				"color": "accent"
+			}
+		]
+	},
 	"performance": {
 		"draw_budget": 250,
 		"triangle_budget": 150000,

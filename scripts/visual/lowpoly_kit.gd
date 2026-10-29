@@ -1,9 +1,10 @@
 class_name LowpolyKit
 extends RefCounted
 ## Deterministic, flat shaded procedural geometry. Shape ratios are placeholder art data.
+static var _registry := DataRegistry.new()
 
 static func config() -> Dictionary:
-	return DataRegistry.new().load_file("res://data/art_astra.json")
+	return _registry.load_file("res://data/art_astra.json")
 
 static func vec(a: Array) -> Vector3:
 	return Vector3(a[0], a[1], a[2])

@@ -1,7 +1,8 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/classes/pawn.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/visual/greybox_art.gd" id="art"]
+[ext_resource type="Script" path="res://scripts/visual/soldier_model.gd" id="soldier"]
 
 [sub_resource type="CapsuleShape3D" id="body_shape"]
 radius = 0.4
@@ -54,3 +55,6 @@ shape = SubResource("head_shape")
 [node name="HeadMesh" type="MeshInstance3D" parent="Head"]
 mesh = SubResource("head_mesh")
 material_override = SubResource("head_mat")
+
+[node name="SoldierModel" type="Node3D" parent="."]
+script = ExtResource("soldier")

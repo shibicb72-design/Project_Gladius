@@ -50,6 +50,7 @@ func _ready() -> void:
 	(weapon_mesh.mesh as BoxMesh).size = _vec3("weapon_mesh_size_m")
 	_weapon_rest = _vec3("weapon_mesh_offset_m")
 	weapon_mesh.position = _weapon_rest
+	SoldierModel.add_rifle(weapon_mesh)
 
 
 func _make_mesh(mesh: Mesh, color: Color) -> MeshInstance3D:
