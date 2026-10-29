@@ -50,6 +50,10 @@ var aim_blend: float = 0.0
 var shot_fx: ShotFx
 ## 1.0 at run speed, up to stats.json movement.sprint_speed_multiplier at full sprint.
 var sprint_factor: float = 1.0
+## Owner-only cover; absent on bots, host-side remote pawns and replicas.
+var cover: CoverController
+var _cover_probe := CoverProbe.new()
+var _cover_auto_disabled := false
 
 var _frame: InputFrame = InputFrame.new()
 var _aim: Dictionary = {}
@@ -94,6 +98,9 @@ func is_alive() -> bool:
 
 ## Enables or disables the pawn (dead pawns are hidden and not hittable).
 func set_active(active: bool) -> void:
+	if not active and cover != null:
+		cover.reset()
+		_cover_probe.reset()
 	visible = active
 	collision_layer = 2 if active else 0
 	var head := get_node_or_null("Head")
@@ -104,6 +111,9 @@ func set_active(active: bool) -> void:
 
 ## Fresh health and loadout at a new position; the caller sets protection.
 func respawn_at(xform: Transform3D) -> void:
+	if cover != null:
+		cover.reset()
+		_cover_probe.reset()
 	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
 	loadout = Loadout.from_class(class_id, registry)
 	global_transform = xform
@@ -244,6 +254,7 @@ func _physics_process(delta: float) -> void:
 	bridge.tick(delta)
 	if net_mode == NetMode.HOST_REMOTE:
 		return
+	_ensure_cover()
 	_apply_look()
 	_apply_aim(delta)
 	_apply_movement(delta)
@@ -298,6 +309,17 @@ func _apply_movement(delta: float) -> void:
 			velocity.y = float(_movement.get("jump_velocity", 0.0))
 	else:
 		velocity.y -= float(_movement.get("gravity", 20.0)) * delta
+	if cover != null:
+		if not is_alive():
+			cover.reset()
+			_cover_probe.reset()
+		else:
+			var probe := _cover_probe.sample(self, cover.config, cover.state != CoverController.State.FREE)
+			cover.tick(delta, _frame.move, _frame.fire_pressed, probe)
+			if cover.state != CoverController.State.FREE:
+				var cover_velocity := cover.movement_velocity(global_position, wish, get_max_move_speed(), delta)
+				velocity.x = cover_velocity.x
+				velocity.z = cover_velocity.z
 	move_and_slide()
 
 
@@ -324,6 +346,35 @@ func _apply_weapon() -> void:
 			reload_rejected.emit("full" if w.ammo_in_mag >= w.def.magazine else "no_reserve")
 	if _frame.fire_just_pressed and not w.has_ammo() and not w.reloading:
 		fire_empty.emit()
-	var shots := w.update(_clock, _frame.fire_pressed)
+	var trigger := _frame.fire_pressed and not (cover != null and cover.blocks_fire())
+	var shots := w.update(_clock, trigger)
 	for i in shots:
 		fire_shot()
+
+
+## Explicit test seam; normal play uses the first-physics-tick CameraRig/no-Brain gate.
+func enable_cover(cfg: Dictionary) -> void:
+	if cfg.is_empty() or net_mode != NetMode.LOCAL:
+		return
+	cover = CoverController.new(cfg)
+	_cover_probe.reset()
+	_cover_auto_disabled = false
+
+
+func disable_cover() -> void:
+	if cover != null:
+		cover.reset()
+	cover = null
+	_cover_probe.reset()
+	_cover_auto_disabled = true
+
+
+func _ensure_cover() -> void:
+	if cover != null or _cover_auto_disabled or net_mode != NetMode.LOCAL or not is_alive():
+		return
+	# MatchRoot/BotSpawner attach these children after Pawn._ready().
+	if not has_node("CameraRig") or has_node("Brain"):
+		return
+	var cfg := registry.load_file("res://data/cover.json")
+	if not cfg.is_empty():
+		enable_cover(cfg)
