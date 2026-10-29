@@ -5,6 +5,12 @@ var _press_index := -1
 var _mouse_held := false
 var enabled := false
 
+func enabled_for_drawing() -> bool:
+	return enabled
+
+func _is_pressed() -> bool:
+	return _press_index != -1 or _mouse_held
+
 func _init() -> void:
 	config_key = "cover_fire"
 
@@ -18,6 +24,7 @@ func refresh() -> void:
 	if label != null:
 		var color: Array = cfg["enabled_color" if enabled else "disabled_color"]
 		label.self_modulate = Color(color[0], color[1], color[2], color[3])
+	queue_redraw()
 
 func _release(cancel_buffer: bool = false) -> void:
 	if is_instance_valid(pawn) and pawn.cover != null:

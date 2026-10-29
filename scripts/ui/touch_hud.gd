@@ -44,6 +44,30 @@ var suspended: bool = false  # true while the in-match menu is open
 ## G2e: the active saved layout slot (element key -> {pos, size_pct, alpha_pct}); {} = the data defaults.
 var slot_layout: Dictionary = {}
 const LOCK_KEY := "sprint_lock"
+var cover_controls_active := false
+var _cover_hidden_slots: Array = []
+
+## Context siblings call this synchronously, including refresh() before the next frame.
+func set_cover_controls_active(active: bool) -> void:
+	if _cover_hidden_slots.is_empty():
+		_cover_hidden_slots = _DataRegistry.new().load_file("res://data/ui.json")["cover_buttons"]["hidden_slots"]
+	if cover_controls_active != active:
+		cover_controls_active = active
+		for idx in _button_touch.keys():
+			var key: String = _button_touch[idx]
+			if is_cover_slot_hidden(key):
+				Input.action_release(_action_of(key))
+				_button_touch.erase(idx)
+		_lock_btn_touch = -1
+		_shoulder_pulse_left_s = 0.0
+		_sync_fire_action()
+	for key in _buttons:
+		_buttons[key].visible = not is_cover_slot_hidden(key)
+	if lock_button != null:
+		lock_button.visible = not is_cover_slot_hidden(LOCK_KEY)
+
+func is_cover_slot_hidden(key: String) -> bool:
+	return cover_controls_active and key in _cover_hidden_slots
 ## G3e: element key of the optional left Fire button (not an InputMap action: it presses "fire").
 const LEFT_FIRE_KEY := "fire_left"
 const LEFT_FIRE_LABEL := "Fire"
@@ -163,6 +187,9 @@ func _center_px(key: String, default_px: Vector2) -> Vector2:
 func get_element_keys() -> Array:
 	var keys: Array = ["move_stick", "look_stick", LOCK_KEY]
 	keys.append_array(_buttons.keys())
+	if cover_controls_active:
+		for key in _cover_hidden_slots:
+			keys.erase(key)
 	return keys
 
 
@@ -592,7 +619,7 @@ func _style_button(b: Button, held: bool) -> void:
 
 func _button_at(pos: Vector2) -> String:
 	for action in _buttons:
-		if get_button_rect(action).has_point(pos):
+		if not is_cover_slot_hidden(action) and get_button_rect(action).has_point(pos):
 			return action
 	return ""
 
@@ -654,8 +681,13 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_down(idx: int, pos: Vector2) -> void:
+	# Hidden movement slots must not fall through into stick gestures either.
+	if cover_controls_active:
+		for key in _cover_hidden_slots:
+			if get_element_rect(key).has_point(pos):
+				return
 	var action := _button_at(pos)
-	if get_lock_button_rect().has_point(pos):
+	if not is_cover_slot_hidden(LOCK_KEY) and get_lock_button_rect().has_point(pos):
 		_lock_btn_touch = idx
 		provider.toggle_sprint_lock()
 	elif action != "":
@@ -746,7 +778,7 @@ func _sync_fire_action() -> void:
 	var held := _look_hold_fire or _fire_pulse_s > 0.0
 	for key in _button_touch.values():
 		held = held or _action_of(key) == "fire"
-	if held and not suspended:
+	if held and not suspended and not cover_controls_active:
 		Input.action_press("fire")
 		_hud_fire_down = true
 	elif _hud_fire_down:

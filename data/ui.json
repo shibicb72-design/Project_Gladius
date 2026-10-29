@@ -175,14 +175,26 @@
 	},
 	"cover_crouch": {
 		"_placeholder": true,
-		"_todo": "OQ-COVER: contextual control position, margin, font and label are placeholders; 48 dp minimum target.",
-		"anchor": [0.6, 0.04], "margin_dp": [8.0, 20.0], "touch_dp": 48.0, "font_dp": 12.0, "label": "Crouch"
+		"_todo": "OQ-COVER: Sprint lock slot becomes Crouch; round size and styling are placeholders, not design values.",
+		"slot": "sprint_lock", "preferred_dp": 96.0, "font_dp": 12.0, "label": "Crouch"
 	},
 	"cover_fire": {
 		"_placeholder": true,
 		"_todo": "OQ-COVER: contextual control layout/font/label and red/green colours are placeholders, not design values.",
-		"anchor": [0.4, 0.04], "margin_dp": [8.0, 20.0], "touch_dp": 48.0, "font_dp": 12.0, "label": "FIRE",
+		"slot": "jump", "preferred_dp": 96.0, "font_dp": 12.0, "label": "FIRE",
 		"enabled_color": [0.2, 1.0, 0.3, 1.0], "disabled_color": [1.0, 0.2, 0.2, 1.0]
+	},
+	"cover_buttons": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER Path A2: live Jump -> FIRE, Sprint lock -> Crouch; Shoulder is hidden too. Largest clear square at each slot, floor from input.touch_layout.button_min_dp. Reserved old label regions are exclusion zones only, never drawn. Styling/clearance values remain placeholders.",
+		"hidden_slots": ["jump", "sprint_lock", "swap_shoulder"],
+		"clearance_dp": 0.1,
+		"ring_dp": 2.0,
+		"fill_alpha": 0.55,
+		"disabled_fill_alpha": 0.18,
+		"pressed_fill_alpha": 0.85,
+		"ring_color": [1.0, 1.0, 1.0, 0.9],
+		"reserved_top_row": {"anchors": [[0.4, 0.04], [0.6, 0.04]], "margin_dp": [8.0, 20.0], "touch_dp": 48.0}
 	},
 	"pause_menu": {
 		"_placeholder": true,
