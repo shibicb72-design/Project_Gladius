@@ -82,17 +82,24 @@ func test_match_uses_ads_table_while_aiming_and_camera_table_otherwise() -> void
 	while m.local_player.aim_blend <= 0.0 and n < 120:
 		await _tree().physics_frame
 		n += 1
-	assert_true(m.local_player.aim_blend > 0.0, "aim_blend rose while Aim is held")
+	assert_true(m.local_player.aim_blend > 0.0, "aim_blend rose after the Aim press")
 	await _tree().physics_frame
 	assert_true(is_equal_approx(_look_percent(m, touch), ADS_VALUE), "aiming: ADS value, got %s" % _look_percent(m, touch))
+	Input.action_release("aim")
+	await _tree().physics_frame
+	await _tree().physics_frame
+	assert_true(m.local_player.aim_blend > 0.0, "pure tap toggle (OQ-AIM): still aiming after release")
+	assert_true(is_equal_approx(_look_percent(m, touch), ADS_VALUE), "latched: ADS value after release")
+	Input.action_press("aim")  # the second Aim press clears the latch
+	await _tree().physics_frame
 	Input.action_release("aim")
 	n = 0
 	while m.local_player.aim_blend > 0.0 and n < 240:
 		await _tree().physics_frame
 		n += 1
-	assert_true(is_equal_approx(m.local_player.aim_blend, 0.0), "aim_blend fell after release")
+	assert_true(is_equal_approx(m.local_player.aim_blend, 0.0), "aim_blend fell after the second Aim press")
 	await _tree().physics_frame
-	assert_true(is_equal_approx(_look_percent(m, touch), CAMERA_VALUE), "released: Camera value again")
+	assert_true(is_equal_approx(_look_percent(m, touch), CAMERA_VALUE), "toggled off: Camera value again")
 	await _finish(m)
 
 

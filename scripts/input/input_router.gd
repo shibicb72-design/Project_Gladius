@@ -5,6 +5,9 @@ extends Node
 var providers: Array[InputProvider] = []
 var _frame: InputFrame = InputFrame.new()
 var _prev_pressed: Dictionary = {}
+## ADS pure tap toggle (data/stats.json aim.aim_toggle_enabled, default on; false = hold-to-aim). OQ-AIM.
+var aim_toggle: AimToggle = AimToggle.new()
+var _aim_toggle_configured: bool = false
 
 
 const _LookMath := preload("res://scripts/input/look_math.gd")
@@ -70,6 +73,7 @@ func get_frame() -> InputFrame:
 
 ## Rebuilds the frame from the providers. Called every physics tick; callable directly in tests.
 func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -> InputFrame:
+	_ensure_aim_toggle()
 	var f := InputFrame.new()
 	for p in providers:
 		p.tick(delta)
@@ -79,7 +83,7 @@ func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -
 		f.look += _scaled_look(p)
 	if f.move.length() > 1.0:
 		f.move = f.move.normalized()
-	for action in InputFrame.BUTTONS:
+	for action in InputFrame.BUTTONS + InputFrame.LOCAL_BUTTONS:
 		var down := false
 		for p in providers:
 			if p.is_pressed(action):
@@ -87,8 +91,17 @@ func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -
 				break
 		f.set_button(action, down, down and not _prev_pressed.get(action, false))
 		_prev_pressed[action] = down
+	# The Aim tap toggle remaps aim_pressed to the latched ADS state (aim_just_pressed stays the raw edge).
+	f.aim_pressed = aim_toggle.resolve(f.aim_pressed)
 	_frame = f
 	return f
+
+
+func _ensure_aim_toggle() -> void:
+	if _aim_toggle_configured:
+		return
+	aim_toggle.configure(DataRegistry.new().get_aim_cfg())
+	_aim_toggle_configured = true
 
 
 func _physics_process(delta: float) -> void:

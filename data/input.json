@@ -5,7 +5,7 @@
 	"_gyro_note": "Gyro on/off is owned by the player profile (user://profile.json gyro_enabled, default off, OQ-34), not this file.",
 	"gyro": {
 		"_placeholder": true,
-		"_todo": "OQ-34, OQ-36: gyro sensitivity (look units per rad/s) is a placeholder, not a design value",
+		"_todo": "OQ-34, OQ-36: gyro sensitivity is a plain scale on device rotation (look radians per radian the phone turns, so 1.0 at 100 % = 1:1). The value is a placeholder, not a design value",
 		"sensitivity": 1.0
 	},
 	"force_touch_hud": false,
@@ -96,7 +96,12 @@
 		"stick_radius_frac_of_height": 0.12,
 		"tap_slop_frac_of_height": 0.01,
 		"knob_frac_of_radius": 0.4,
-		"ring_alpha": 0.35,
+		"ring_alpha": 0.6,
+		"button_idle_alpha": 0.4,
+		"button_held_alpha": 0.65,
+		"shoulder_pulse_scale": {"value": 0.97, "unit": "scale", "note": "OQ-SHOULDER: immediate Shoulder press scale; Shibi-approved industry default 2026-10-28 (Shibi's pick, not a DESIGN.md value), Material / Ainur press-feedback band (Shibi's citation; no local reference); scale only, alongside the existing camera shoulder ease"},
+		"shoulder_pulse_release_s": {"value": 0.12, "unit": "s", "note": "OQ-SHOULDER: return to ONE starts immediately on touch-down and restarts on a new press; Shibi-approved industry default 2026-10-28 (Shibi's pick, not a DESIGN.md value), Material / Ainur press-feedback band (Shibi's citation; no local reference). Release curve: ease-out quadratic, scale = 1.0 - (1.0 - shoulder_pulse_scale) * f * f, f = time left / shoulder_pulse_release_s; EL's pick 2026-10-28, not a Shibi number, not a Material spec claim, not a DESIGN.md value"},
+		"_contrast_note": "P0 playtest contrast: ring_alpha was 0.35 and the button idle fill 0.22 (too faint on the Fold). Values here are placeholders pending playtest (OQ-35).",
 		"_sticks_todo": "OQ-35: rest centres of the always-visible sticks are placeholders: [x as fraction of width, y as fraction of height]. G2L: move bottom-left; look bottom-right, with the button cluster north-west of it.",
 		"move_stick_rest": [0.15, 0.76],
 		"look_stick_rest": [0.88, 0.78],
@@ -114,6 +119,7 @@
 		"move_zone": {"left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0},
 		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
 		"tap_fire_max_s": 0.2,
+		"look_hold_fire": {"_placeholder": true, "hold_min_s": 0.2, "note": "OQ-FIRE-BUTTON: = tap_fire_max_s, so a still touch is either a tap or a hold"},
 		"fire_pulse_s": 0.08,
 		"_buttons_todo": "OQ-35, G2L: button size, min_dp, font and offsets are placeholders, not design values. offset = [dx, dy] of the button centre from the look stick rest centre, in button sizes (negative = west/north). Keys of buttons are InputMap actions.",
 		"_placeholder_buttons": true,
@@ -123,10 +129,11 @@
 		"buttons": {
 			"jump": {"label": "Jump", "offset": [-0.6, -2.4]},
 			"swap_weapon": {"label": "Swap", "offset": [-2.8, -1.25]},
-			"fire": {"label": "Fire", "offset": [-1.7, -0.1]},
 			"reload": {"label": "Reload", "offset": [-2.8, -0.1]},
-			"aim": {"label": "Aim", "offset": [-1.7, -1.25]}
+			"aim": {"label": "Aim", "offset": [-1.7, -1.25]},
+			"swap_shoulder": {"label": "Shoulder", "offset": [-0.6, -3.5]}
 		},
+		"_swap_shoulder_note": "Path A phase 2 (Shibi GO via EL, Oct 27 2026): the Shoulder button flips the local camera between the right (default, camera.json shoulder_side) and left shoulder. View only, never sent to the host. Its offset (above Jump) is a placeholder, not a design value (OQ-SHOULDER). The WIP slot [-1.7, -2.4] (left of Jump, above Aim) covered the look-zone centre on the Fold inner display (2176x1812) and the (900, 300) look touch of the 1152x648 tests, so look touches there pressed Shoulder; right of Jump is not north-west of the look stick (G2L) and hit the gear at 420 dpi. -3.5 is the highest row that stays inside 1512x648 at 420 dpi. The swap_shoulder InputMap action has no keyboard or gamepad binding yet (OQ-SHOULDER).",
 		"_sprint_lock_note": "G2L: the one default position of the movable Sprint lock button, [x of width, y of height] of its centre. The profile value (sprint_lock_pos) overrides it. Its size and min_dp stay in sprint.lock_button.",
 		"sprint_lock_pos": [0.56, 0.42],
 		"_left_fire_note": "G3e: optional second Fire button for the left thumb, off by default. pos = [x of width, y of height] of its centre, on the left half above the move stick and clear of the Sprint lock target. Placeholder position, not a design value (OQ-LEFT-FIRE-POS). Not a key of buttons: those are InputMap actions; this one presses the existing fire action.",

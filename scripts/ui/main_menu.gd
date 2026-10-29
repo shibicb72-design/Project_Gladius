@@ -14,6 +14,8 @@ var save := SaveService.new():
 		if settings != null:
 			settings.save = value
 var settings: SettingsPanel
+## The whole column scrolls: on short screens (Fold cover) it is taller than the view.
+var scroll: ScrollContainer
 var name_edit: LineEdit
 var ip_edit: LineEdit
 var status_label: Label
@@ -44,12 +46,18 @@ func _ready() -> void:
 	theme = _Theme
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var profile := save.load_profile()
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	# Full-screen scroll, not inside a CenterContainer (that would shrink it to its own minimum size). The
+	# expand + shrink-center flags keep the column centred while it fits; taller than the view, it scrolls.
+	scroll = ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	add_child(scroll)
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(360, 0)
-	center.add_child(box)
+	box.size_flags_horizontal = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
+	box.size_flags_vertical = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
+	scroll.add_child(box)
 	var title := Label.new()
 	title.text = "PROJECT GLADIUS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -80,6 +88,7 @@ func _ready() -> void:
 func _button(parent: Node, text: String, handler: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
+	b.mouse_filter = Control.MOUSE_FILTER_PASS  # STOP would swallow touch drags before the ScrollContainer
 	if handler.is_valid():
 		b.pressed.connect(handler)
 	parent.add_child(b)

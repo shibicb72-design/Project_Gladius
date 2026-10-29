@@ -1,6 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/classes/pawn.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/visual/greybox_art.gd" id="art"]
+[ext_resource type="Script" path="res://scripts/visual/soldier_model.gd" id="soldier"]
+[ext_resource type="Script" path="res://scripts/visual/death_fx.gd" id="death"]
 
 [sub_resource type="CapsuleShape3D" id="body_shape"]
 radius = 0.4
@@ -17,6 +20,16 @@ height = 1.6
 radius = 0.22
 height = 0.44
 
+; Replaceable greybox body palette is loaded by GreyboxArt from data/art_greybox.json.
+; The yellow unshaded head accent stays locked for the Fold prove colour gate.
+[sub_resource type="StandardMaterial3D" id="body_mat"]
+shading_mode = 0
+resource_name = "Placeholder_body_loaded_from_data"
+
+[sub_resource type="StandardMaterial3D" id="head_mat"]
+shading_mode = 0
+albedo_color = Color(1, 0.9, 0.2, 1)
+
 [node name="Pawn" type="CharacterBody3D"]
 collision_layer = 2
 collision_mask = 1
@@ -29,6 +42,8 @@ shape = SubResource("body_shape")
 [node name="Body" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 mesh = SubResource("body_mesh")
+material_override = SubResource("body_mat")
+script = ExtResource("art")
 
 [node name="Head" type="Area3D" parent="." groups=["head_hitbox"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
@@ -40,3 +55,10 @@ shape = SubResource("head_shape")
 
 [node name="HeadMesh" type="MeshInstance3D" parent="Head"]
 mesh = SubResource("head_mesh")
+material_override = SubResource("head_mat")
+
+[node name="SoldierModel" type="Node3D" parent="."]
+script = ExtResource("soldier")
+
+[node name="DeathFx" type="Node" parent="."]
+script = ExtResource("death")

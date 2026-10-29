@@ -1,13 +1,14 @@
 extends "res://tests/test_case.gd"
-## GBTN2: every action-feedback widget (reload bar/text, hit marker, swap toast, Full/Empty/No reserve cues), shown in
-## its visible state, must not overlap a stick or an action button. Same assertions as tests/test_touch_controls.gd
-## _check_hud_clear, at the four landscape sizes and both move-stick modes.
+## GBTN2: every action-feedback widget (reload bar/text, hit marker, swap toast, Full/Empty/No reserve cues) and the
+## permanent centre crosshair (OQ-CROSSHAIR), shown in its visible state, must not overlap a stick or an action
+## button. Same assertions as tests/test_touch_controls.gd _check_hud_clear, at the four landscape sizes and both
+## move-stick modes.
 
 const _HudScene := preload("res://scenes/ui/touch_hud.tscn")
 const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
 const SIZES: Array[Vector2] = [Vector2(1512, 648), Vector2(2520, 1080), Vector2(1152, 959), Vector2(2176, 1812)]
 const MODES: Array[String] = ["virtual", "custom"]
-const ACTIONS: Array[String] = ["fire", "aim", "reload", "swap_weapon", "jump"]
+const ACTIONS: Array[String] = ["aim", "reload", "swap_weapon", "jump", "swap_shoulder"]
 
 
 func _root() -> Window:
@@ -33,15 +34,26 @@ func _check(sz: Vector2, mode: String) -> void:
 	game.show_cue("No reserve")
 	game.show_toast("Gladius Rifle")
 	game.show_hit_marker()
+	game.show_banner("HILL CONTESTED")
+	game.own_death_label.visible = true
+	game.respawn_label.visible = true
+	game.respawn_label.text = "Respawn in 5"
 	game.reload_box.visible = true
 	await tree.process_frame
 	await tree.process_frame
 	var widgets := {"reload_box": game.reload_box, "cue_label": game.cue_label, "toast_label": game.toast_label,
-			"hit_marker": game.hit_marker}
+			"hit_marker": game.hit_marker, "crosshair": game.crosshair, "banner_label": game.banner_label,
+			"own_death_label": game.own_death_label}
 	var touch_items := {"move_stick": touch.get_move_visual_rect(), "look_stick": touch.look_stick.get_global_rect()}
 	for action in ACTIONS:
 		touch_items["button_" + action] = touch.get_button_rect(action)
 	var view := Rect2(Vector2.ZERO, sz)
+	game.respawn_label.text = "Respawn in 5"
+	assert_true(not game.own_death_label.get_global_rect().intersects(game.respawn_label.get_global_rect()), "own death clear of respawn")
+	for other: Control in [game.crosshair, game.hit_marker, game.respawn_label, game.toast_label, game.cue_label, game.reload_box]:
+		assert_true(not game.banner_label.get_global_rect().intersects(other.get_global_rect()),
+				"banner clear of %s at %s" % [other, sz])
+	assert_true(not game.banner_label.get_global_rect().intersects(game.own_death_label.get_global_rect()), "banners clear")
 	for wname in widgets:
 		var c: Control = widgets[wname]
 		var r := c.get_global_rect()
@@ -51,6 +63,23 @@ func _check(sz: Vector2, mode: String) -> void:
 		assert_true(view.encloses(r), "%s inside viewport, got %s" % [tag, r])
 		for tname in touch_items:
 			assert_true(not r.intersects(touch_items[tname]), "%s %s overlaps %s %s" % [tag, r, tname, touch_items[tname]])
+	# Mode button is a new peer of TouchHud; reserve its entire input rect, including optional left Fire.
+	var mode_cfg: Dictionary = DataRegistry.new().load_file("res://data/ui.json")["fire_mode_button"]
+	var mode_rect := FireModeButton.touch_rect(mode_cfg, sz)
+	assert_true(view.encloses(mode_rect), "mode button inside viewport")
+	var reserved := touch_items.duplicate()
+	reserved["lock"] = touch.get_lock_button_rect()
+	reserved["lock_target"] = touch.get_lock_target_rect()
+	reserved["gear"] = PauseMenu.gear_touch_rect(DataRegistry.new().load_file("res://data/ui.json")["pause_gear"], sz)
+	for key in touch.get_button_actions():
+		reserved["action_" + key] = touch.get_element_rect(key)
+	for key in widgets:
+		reserved[key] = (widgets[key] as Control).get_global_rect()
+	for c: Control in [game.respawn_label, game.scores_label, game.timer_label, game.hill_label, game.shield_bar, game.health_bar, game.weapon_label, game.ammo_label]:
+		reserved[str(c)] = c.get_global_rect()
+	for key in reserved:
+		assert_true(not mode_rect.intersects(reserved[key]), "mode button %s clear of %s %s at %s/%s" % [mode_rect, key, reserved[key], sz, mode])
+	print("FIRE_MODE_BUTTON ", sz, " ", mode, " rect=", mode_rect)
 	game.free()
 	touch.free()
 
@@ -59,3 +88,12 @@ func test_feedback_widgets_clear_of_sticks_and_buttons() -> void:
 	for sz in SIZES:
 		for mode in MODES:
 			await _check(sz, mode)
+
+
+func test_fire_mode_clearance_with_left_fire() -> void:
+	var profile := AppFlow.profile
+	AppFlow.profile = {"left_fire_enabled": true}
+	for sz in SIZES:
+		for mode in MODES:
+			await _check(sz, mode)
+	AppFlow.profile = profile

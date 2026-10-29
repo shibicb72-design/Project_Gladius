@@ -284,6 +284,174 @@ func test_lobby_roster_scrolls_by_touch_drag_from_a_row() -> void:
 	await tree.process_frame
 
 
+## Entry menu (shared scene, so it fills the view) on the temp profile: nothing here can touch the player's profile.
+func _entry_menu() -> MainMenu:
+	var menu: MainMenu = load("res://scenes/ui/main_menu.tscn").instantiate()
+	menu.save = SaveService.new(_TMP)
+	_root().add_child(menu)
+	return menu
+
+
+## Every control of the entry column that must be reachable: text fields, Host/Join, the whole settings panel
+## (Left Fire included) and the later entries.
+func _entry_controls(menu: MainMenu) -> Array:
+	var s := menu.settings
+	var out: Array = [menu.name_edit, menu.host_button, menu.ip_edit, menu.join_button, s.sensitivity_button,
+			s.gyro_button, s.move_stick_button, s.stick_layout_button, s.sprint_slider, s.left_fire_button,
+			s.layout_button, s.haptics_button]
+	out.append_array(menu.later_buttons)
+	return out
+
+
+func _what(c: Control) -> String:
+	if c is Button:
+		return "%s '%s'" % [c.get_class(), (c as Button).text]
+	if c is LineEdit:
+		return "%s '%s'" % [c.get_class(), (c as LineEdit).placeholder_text]
+	return c.get_class()
+
+
+## The entry stack (Host/Join/settings) lives in one full-screen ScrollContainer with the settings panel and its Left
+## Fire button inside, and no CenterContainer at or above it (that would shrink the scroll to its own minimum size).
+## Buttons pass touch drags on to the scroll; the slider and the text fields keep theirs.
+func test_main_menu_column_is_inside_a_scroll() -> void:
+	_remove_tmp()
+	var menu := _entry_menu()
+	var scroll := menu.scroll
+	assert_true(scroll != null and scroll.is_ancestor_of(menu.settings), "settings panel inside the menu's scroll")
+	assert_true(scroll != null and scroll.is_ancestor_of(menu.settings.left_fire_button), "Left Fire button inside the scroll")
+	if scroll == null:
+		menu.free()
+		return
+	assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "no sideways scroll")
+	assert_eq(scroll.vertical_scroll_mode, ScrollContainer.SCROLL_MODE_AUTO, "vertical scroll when needed")
+	var n: Node = scroll
+	while n != null:
+		assert_true(not (n is CenterContainer), "no CenterContainer at or above the scroll: %s" % n)
+		n = n.get_parent()
+	for c: Control in _entry_controls(menu):
+		assert_true(scroll.is_ancestor_of(c), "%s inside the scroll" % _what(c))
+	for b: Button in scroll.find_children("*", "Button", true, false):
+		assert_eq(b.mouse_filter, Control.MOUSE_FILTER_PASS, "%s passes touch drags to the scroll" % _what(b))
+	for c: Control in [menu.sprint_slider, menu.name_edit, menu.ip_edit]:
+		assert_eq(c.mouse_filter, Control.MOUSE_FILTER_STOP, "%s keeps its own drags and taps" % _what(c))
+	menu.free()
+	_remove_tmp()
+
+
+## Fold 7 sizes (as the lobby test above): the entry column overflows the folded cover and starts at the top; every
+## button, text field and the sprint slider (Left Fire included) scrolls fully inside the scroll AND the viewport
+## (enclosed, not "visible enough to tap"), and buttons stay >= 48 dp.
+func test_main_menu_scrolls_every_control_into_view_at_both_fold_sizes() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var prev := _root().size
+	var old_profile: Dictionary = AppFlow.profile
+	_remove_tmp()
+	for case in [[Vector2i(2520, 1080), 420.0], [Vector2i(2176, 1812), 373.0]]:
+		var size: Vector2i = case[0]
+		var dpi: float = case[1]
+		PlatformServices.dpi_override = dpi
+		_root().size = size
+		var menu := _entry_menu()
+		for i in 4:
+			await tree.process_frame
+		var scroll := menu.scroll
+		var bar := scroll.get_v_scroll_bar()
+		if size == Vector2i(2520, 1080):
+			var max_scroll := int(bar.max_value - bar.page)
+			assert_true(max_scroll > 0, "folded cover: the entry column overflows so it can scroll (max %d)" % max_scroll)
+		assert_eq(scroll.scroll_vertical, 0, "starts at the top at %s" % size)
+		var vp := _root().get_visible_rect()
+		var px_scale := _root().get_screen_transform().get_scale().y
+		var dp_scale := PlatformServices.new().get_dp_scale()
+		var checked := {}
+		for c: Control in scroll.find_children("*", "Control", true, false):
+			if not (c is Button or c is LineEdit or c is HSlider) or not c.is_visible_in_tree():
+				continue
+			scroll.ensure_control_visible(c)
+			await tree.process_frame  # containers sort on the idle frame
+			await tree.process_frame
+			var r := c.get_global_rect()
+			var what := "%s at %s/%d dpi" % [_what(c), size, int(dpi)]
+			assert_true(scroll.get_global_rect().encloses(r), "%s fully inside the scroll: %s in %s" % [what, r, scroll.get_global_rect()])
+			assert_true(vp.encloses(r), "%s fully inside the viewport: %s in %s" % [what, r, vp])
+			if c is Button:
+				assert_true(r.size.y * px_scale / dp_scale >= 48.0 - 0.5, "%s >= 48 dp" % what)
+			checked[c] = true
+		for c: Control in _entry_controls(menu):
+			assert_true(checked.has(c), "%s scrolled into view and checked at %s" % [_what(c), size])
+		menu.free()
+	PlatformServices.dpi_override = 0.0
+	_root().size = prev
+	AppFlow.profile = old_profile
+	_remove_tmp()
+	await tree.process_frame
+
+
+## Folded cover: a touch drag that starts ON a settings button must reach the entry menu's ScrollContainer (the button
+## must not swallow it), as the lobby roster test above. The release lands 240 units up, off the button: nothing opens.
+func test_main_menu_scrolls_by_touch_drag_from_a_settings_button() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var prev := _root().size
+	var old_profile: Dictionary = AppFlow.profile
+	_remove_tmp()
+	PlatformServices.dpi_override = 420.0
+	_root().size = Vector2i(2520, 1080)
+	var menu := _entry_menu()
+	for i in 4:
+		await tree.process_frame
+	var scroll := menu.scroll
+	var max_scroll := int(scroll.get_v_scroll_bar().max_value - scroll.get_v_scroll_bar().page)
+	assert_true(max_scroll > 0, "folded entry menu overflows so it can scroll (max %d)" % max_scroll)
+	assert_eq(scroll.scroll_vertical, 0, "starts at the top")
+	var button: Button = menu.settings.sensitivity_button
+	var start := button.get_global_rect()
+	assert_true(_root().get_visible_rect().encloses(start) and scroll.get_global_rect().encloses(start),
+			"the drag starts on an on-screen settings button: %s" % start)
+	# Same delivery check as the roster test: is_touchscreen_available() is false headless, so the scroll itself
+	# only moves on a touch device; what must hold everywhere is that the press and drags REACH the scroll.
+	var seen := {"touch": 0, "drag": 0}
+	scroll.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventScreenTouch:
+			seen["touch"] += 1
+		elif e is InputEventScreenDrag:
+			seen["drag"] += 1)
+	var xf := _root().get_screen_transform()
+	var from := start.get_center()
+	var press := InputEventScreenTouch.new()
+	press.index = 0
+	press.position = xf * from
+	press.pressed = true
+	Input.parse_input_event(press)
+	await tree.process_frame
+	var prev_pos := from
+	for step in 12:
+		var to := from + Vector2(0.0, -20.0 * float(step + 1))
+		var drag := InputEventScreenDrag.new()
+		drag.index = 0
+		drag.position = xf * to
+		drag.relative = xf * to - xf * prev_pos
+		Input.parse_input_event(drag)
+		prev_pos = to
+		await tree.process_frame
+	var release := InputEventScreenTouch.new()
+	release.index = 0
+	release.position = xf * prev_pos
+	release.pressed = false
+	Input.parse_input_event(release)
+	await tree.process_frame
+	assert_true(seen["touch"] >= 2 and seen["drag"] == 12, "settings button does not swallow touch: scroll saw %s" % str(seen))
+	assert_true(menu.settings.sensitivity_layer == null, "released off the button: the Sensitivity screen did not open")
+	if DisplayServer.is_touchscreen_available():
+		assert_true(scroll.scroll_vertical > 0, "touch drag starting on a settings button scrolled the menu (scroll_vertical=%d)" % scroll.scroll_vertical)
+	menu.free()
+	PlatformServices.dpi_override = 0.0
+	_root().size = prev
+	AppFlow.profile = old_profile
+	_remove_tmp()
+	await tree.process_frame
+
+
 func test_touch_hud_hidden_when_not_touch() -> void:
 	var n: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
 	_root().add_child(n)

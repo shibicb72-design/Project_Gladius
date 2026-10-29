@@ -17,6 +17,10 @@ Scorestreaks (player kills only, reset on death, any class): ammo drop 3, suppor
 Deployables (carry 5, spawn randomly on map over time): Testudo bubble (30 s, rallies squad bots, open to fire out), radar jammer, turret, healing station, grav lift, decoy, mine field, regen field (first to cut).
 Aim assist: Halo friction + light follow when aiming + small per-weapon magnetism, ADS snap off; controller strongest, touch lighter, none on gyro; angle zones shrink with zoom, distance falloff; all values low and in stats file.
 
+## Cover crouch (decided by Shibi, Oct 29 2026)
+
+While in cover, a Crouch toggle switches standing and crouched stances with a smooth pose and lowered body/head hitboxes. Crouch here applies only in cover; free crouch, prone and radar behavior are separate work. The contextual cover FIRE button draws out and fires only from a completed clear pose, then returns automatically; Aim or a look drag can hold the pawn out without firing. Low cover uses a standing rise; high cover requires a nearby usable edge. The cover FIRE button is the only firing control in cover, including peeks. Dimensions, timings and control placement remain placeholders in data pending review.
+
 ## Classes (shield/health/speed, editable core table)
 Hastati 100/100/100%, Principes 110/110/100%, Triarii 140/130/85%, Velites 70/80/115% (Mark skill), Sagittarii 80/90/95%, Equites 90/100/100% (200% in chariot; mobile support: vehicle, heal, ammo, cover), Gladiator 60/120/110% (melee). Hastati->Principes->Triarii unlock by rank or Denarii; specialists open from start. Counters: Gladiators beat line infantry, Sagittarii one-shot Gladiators, Velites hunt Sagittarii. Bots can't use tiers above their player.
 

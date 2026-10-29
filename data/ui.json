@@ -20,12 +20,75 @@
 		"tracer_render_priority": 10,
 		"tracer_min_screen_px": 60.0,
 		"tracer_color": [1.0, 0.9, 0.4, 1.0],
-		"flash_size_m": 0.25,
+		"flash_size_m": 0.38,
+		"flash_planes": 3,
+		"flash_arm_fraction": 0.16,
+		"impact_radial_segments": 8,
+		"impact_rings": 4,
+		"sparks": {
+			"_placeholder": true,
+			"_todo": "OQ-ART-ASTRA: bounded CPU impact sparks; presentation trial.",
+			"amount": 12,
+			"lifetime_s": 0.28,
+			"spread_degrees": 75,
+			"gravity_mps2": [
+				0,
+				-4,
+				0
+			],
+			"velocity_min_mps": 0.6,
+			"velocity_max_mps": 2.8,
+			"size_m": [
+				0.025,
+				0.025,
+				0.09
+			],
+			"color": [
+				1,
+				0.7,
+				0.25,
+				1
+			]
+		},
+		"dust": {
+			"_placeholder": true,
+			"_todo": "OQ-ART-ASTRA: bounded CPU impact dust; presentation trial.",
+			"amount": 8,
+			"lifetime_s": 0.4,
+			"spread_degrees": 90,
+			"gravity_mps2": [
+				0,
+				0.5,
+				0
+			],
+			"velocity_min_mps": 0.15,
+			"velocity_max_mps": 0.8,
+			"size_m": [
+				0.09,
+				0.07,
+				0.09
+			],
+			"color": [
+				0.55,
+				0.5,
+				0.42,
+				0.6
+			]
+		},
 		"flash_duration_s": 0.06,
 		"flash_color": [1.0, 0.75, 0.3, 1.0],
 		"weapon_mesh_size_m": [0.08, 0.1, 0.5],
 		"weapon_mesh_offset_m": [-0.55, 1.15, -0.35],
-		"weapon_mesh_color": [0.25, 0.25, 0.3, 1.0]
+		"weapon_mesh_color": [0.25, 0.25, 0.3, 1.0],
+		"_kenney_note": "Path A: muzzle/impact/viewmodel presentation patterns from KenneyNL/Starter-Kit-FPS (CC0/MIT code patterns). Procedural meshes only - no GDQuest NC art. Hitscan gameplay unchanged.",
+		"flash_scale_min": 0.4,
+		"flash_scale_max": 0.75,
+		"flash_spin_deg": 45.0,
+		"impact_size_m": 0.22,
+		"impact_duration_s": 0.16,
+		"impact_color": [1.0, 0.85, 0.4, 1.0],
+		"viewmodel_recoil_m": [0.0, 0.02, 0.06],
+		"viewmodel_recoil_recover_s": 0.08
 	},
 	"capture": {
 		"_placeholder": true,
@@ -54,6 +117,39 @@
 		"reload_anchor_y_frac": 0.32,
 		"toast_anchor_y_frac": 0.2
 	},
+	"kill_feed": {
+		"_placeholder": true,
+		"_todo": "OQ-FEEDBACK: local kills only; no global feed. Own death uses the separate own_death label (OQ-ART-ASTRA). English copy may become Latin. Red/gold family from DESIGN.md:31; all layout, colour, font and timing values are placeholders.",
+		"kill_text": "ELIMINATED",
+		"secured_text": "HILL SECURED",
+		"contested_text": "HILL CONTESTED",
+		"duration_s": 1.6,
+		"anchor_y_frac": 0.11,
+		"font_frac_of_height": 0.045,
+		"color": [1.0, 0.80, 0.30, 1.0],
+		"contested_color": [1.0, 0.35, 0.25, 1.0],
+		"outline_color": [0.16, 0.05, 0.03, 1.0],
+		"outline_size_frac_of_height": 0.004
+	},
+	"own_death": {
+		"_placeholder": true,
+		"_todo": "OQ-ART-ASTRA / OQ-FEEDBACK: separate own-death English copy, color, font and row position are presentation placeholders, not design values.",
+		"text": "YOU WERE HIT",
+		"anchor_y_frac": 0.41,
+		"font_frac_of_height": 0.045,
+		"color": [1.0, 0.35, 0.25, 1.0],
+		"outline_color": [0.16, 0.05, 0.03, 1.0],
+		"outline_size_frac_of_height": 0.004
+	},
+	"crosshair": {
+		"_placeholder": true,
+		"_todo": "OQ-CROSSHAIR: permanent centre aim reticle on GameHud (EL default, Oct 28 2026: always on while the local pawn is alive). The four-arm shape, size, gap, thickness and colour are placeholders for Shibi's Fold check, not design values; DESIGN.md gives no reticle spec. Fractions are of the HUD height; the thickness is never drawn below 1 px. The colour is kept apart from the white hit marker X.",
+		"enabled": true,
+		"size_frac_of_height": 0.04,
+		"gap_frac_of_height": 0.012,
+		"thickness_frac_of_height": 0.004,
+		"color": [1.0, 0.85, 0.3, 0.9]
+	},
 	"touch_debug_overlay": {
 		"_placeholder": true,
 		"_todo": "OQ-DEVICE-TOUCH (GBTN): debug overlay showing each touch index and the button it hit. Default off.",
@@ -68,6 +164,38 @@
 		"touch_dp": 48.0,
 		"teeth": 8,
 		"color": [0.95, 0.85, 0.45, 0.9]
+	},
+	"fire_mode_button": {
+		"_placeholder": true,
+		"_todo": "OQ-FIRE-MODE: every layout/font value in this block is a placeholder, not a design value. Anchor and margin locate the square like pause_gear; target >= 48 dp.",
+		"anchor": [0.8, 0.04],
+		"margin_dp": [8.0, 20.0],
+		"touch_dp": 48.0,
+		"font_dp": 12.0
+	},
+	"cover_crouch": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER: Sprint lock slot becomes Crouch; round size and styling are placeholders, not design values.",
+		"slot": "sprint_lock", "preferred_dp": 96.0, "font_dp": 12.0, "label": "Crouch"
+	},
+	"cover_fire": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER: contextual control layout/font/label and red/green colours are placeholders, not design values.",
+		"slot": "jump", "preferred_dp": 96.0, "font_dp": 12.0, "label": "FIRE",
+		"enabled_color": [0.2, 1.0, 0.3, 1.0], "disabled_color": [1.0, 0.2, 0.2, 1.0]
+	},
+	"cover_buttons": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER Path A2: live Jump -> FIRE, Sprint lock -> Crouch; Shoulder is hidden too. Largest clear square at each slot, floor from input.touch_layout.button_min_dp. Reserved old label regions are exclusion zones only, never drawn. Styling/clearance values remain placeholders.",
+		"hidden_slots": ["jump", "sprint_lock", "swap_shoulder"],
+		"clearance_dp": 0.1,
+		"ring_dp": 2.0,
+		"ring_points": 64,
+		"fill_alpha": 0.55,
+		"disabled_fill_alpha": 0.18,
+		"pressed_fill_alpha": 0.85,
+		"ring_color": [1.0, 1.0, 1.0, 0.9],
+		"reserved_top_row": {"anchors": [[0.4, 0.04], [0.6, 0.04]], "margin_dp": [8.0, 20.0], "touch_dp": 48.0}
 	},
 	"pause_menu": {
 		"_placeholder": true,

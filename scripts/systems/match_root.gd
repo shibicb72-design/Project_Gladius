@@ -58,16 +58,21 @@ func _ready() -> void:
 	_gyro.configure({"sensitivity": gyro_cfg.get("sensitivity", 1.0)})
 	apply_sensitivity()
 	router.add_provider(_gyro)
-	pause_menu.settings.changed.connect(apply_sensitivity)  # in-match Settings / Sensitivity screen (G2d2)
+	# Null-guard: if PauseMenu settings failed to build on device, still run begin() (pawn/map/camera).
+	if pause_menu != null and pause_menu.settings != null:
+		pause_menu.settings.changed.connect(apply_sensitivity)  # in-match Settings / Sensitivity screen (G2d2)
 	if _touch_hud != null and "provider" in _touch_hud:
 		router.add_provider(_touch_hud.provider)
-		pause_menu.settings.changed.connect(_touch_hud.reload_profile_layout)  # G2e: layout editor Save applies at once
+		if pause_menu != null and pause_menu.settings != null:
+			pause_menu.settings.changed.connect(_touch_hud.reload_profile_layout)  # G2e: layout editor Save applies at once
 	director.match_over.connect(_on_match_over)
 	pause_menu.opened.connect(_on_menu_opened)
 	pause_menu.closed.connect(_on_menu_closed)
 	pause_menu.quit_confirmed.connect(quit_to_menu)
 	if auto_start:
-		begin()
+		var started: bool = begin()
+		if not started:
+			push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
 
 
 ## Re-reads the profile's sensitivity settings into the router (tables, inversion) and the gyro provider (mode).
@@ -79,14 +84,18 @@ func apply_sensitivity() -> void:
 
 ## Loads the map and starts the match. Returns false if the data is unusable.
 func begin() -> bool:
+	# P0c: temporary Fold presentation diagnostic. Magenta clear splits "world not drawing" from the engine default gray.
+	RenderingServer.set_default_clear_color(Color(1, 0, 1))
 	if director.mode_cfg.is_empty():
 		director.load_config()
 	map_def = DataRegistry.new().load_file(MAP_PATH)
 	var scene: PackedScene = load(str(map_def.get("scene", ""))) as PackedScene
 	if scene == null:
+		push_error("MatchRoot.begin: map scene is null (path '%s' from %s)" % [str(map_def.get("scene", "")), MAP_PATH])
 		return false
 	map = scene.instantiate()
 	add_child(map)
+	print("MatchRoot.begin: map load OK, scene non-null")
 	var nav := map.get_node_or_null("Nav") as NavigationRegion3D
 	if bake_navmesh and nav != null:
 		nav.bake_navigation_mesh(false)
@@ -143,12 +152,22 @@ func begin() -> bool:
 		director.add_player(0, local_player)
 		if fill_bots:
 			bots = BotSpawner.spawn_bots(self, director, {0: 1}, squads.size(), center, radius)
-	if local_player != null:
-		hud.bind(director, local_player)
-		HapticsEvents.bind_pawn(local_player)
-		var rig := _RigScene.instantiate()
-		rig.name = "CameraRig"
-		local_player.add_child(rig)
+	if local_player == null:
+		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
+		return false
+	hud.bind(director, local_player)
+	if roster != null and roster.bridge != null: hud.bind_kill_bridge(roster.bridge)
+	HapticsEvents.bind_pawn(local_player)
+	var rig := _RigScene.instantiate()
+	rig.name = "CameraRig"
+	local_player.add_child(rig)
+	# Path A / P0c: fail closed if the third-person camera never becomes current (tps-demo make_current pattern).
+	var cam_ok := rig is CameraRig and (rig as CameraRig).ensure_current()
+	print("MatchRoot.begin: local_player=%s CameraRig=%s camera_current=%s" % [
+			local_player != null, rig != null, cam_ok])
+	if not cam_ok:
+		push_error("MatchRoot.begin: CameraRig failed to become current; match did not start")
+		return false
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
@@ -212,11 +231,15 @@ func _physics_process(delta: float) -> void:
 	if local_player == null or router == null:
 		return
 	router.set_ads(local_player.aim_blend > 0.0)  # picks the ADS sensitivity tables (G2d)
+	if not local_player.is_alive():
+		router.aim_toggle.clear_latch()  # OQ-AIM latch lifecycle (EL default): death drops the Aim tap-toggle latch
 	var frame := InputFrame.new()  # zero frame while the menu is open: no move, look, fire, jump or sprint
 	if not menu_open:
 		frame = router.get_frame()
 		var rig := local_player.get_node_or_null("CameraRig") as CameraRig
 		if rig != null:
+			if frame.swap_shoulder_just_pressed:
+				rig.swap_shoulder()  # Path A phase 2: this device's view only (a LOCAL_BUTTONS entry, never sent)
 			frame.aim_point = rig.get_aim_point(local_player.hitscan_exclude())
 			frame.has_aim_point = true
 	local_player.set_frame(frame)

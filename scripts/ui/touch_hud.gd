@@ -21,6 +21,9 @@ var _look_travel: float = 0.0
 var _look_down_s: float = 0.0
 var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
+var _look_hold_fire := false
+var _hud_fire_down := false
+var _shoulder_pulse_left_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> element key (an action, or LEFT_FIRE_KEY)
 var _buttons: Dictionary = {}  # action -> Control
 var debug_label: Label  # null unless the touch debug overlay is enabled in data/ui.json
@@ -41,6 +44,30 @@ var suspended: bool = false  # true while the in-match menu is open
 ## G2e: the active saved layout slot (element key -> {pos, size_pct, alpha_pct}); {} = the data defaults.
 var slot_layout: Dictionary = {}
 const LOCK_KEY := "sprint_lock"
+var cover_controls_active := false
+var _cover_hidden_slots: Array = []
+
+## Context siblings call this synchronously, including refresh() before the next frame.
+func set_cover_controls_active(active: bool) -> void:
+	if _cover_hidden_slots.is_empty():
+		_cover_hidden_slots = _DataRegistry.new().load_file("res://data/ui.json")["cover_buttons"]["hidden_slots"]
+	if cover_controls_active != active:
+		cover_controls_active = active
+		for idx in _button_touch.keys():
+			var key: String = _button_touch[idx]
+			if is_cover_slot_hidden(key):
+				Input.action_release(_action_of(key))
+				_button_touch.erase(idx)
+		_lock_btn_touch = -1
+		_shoulder_pulse_left_s = 0.0
+		_sync_fire_action()
+	for key in _buttons:
+		_buttons[key].visible = not is_cover_slot_hidden(key)
+	if lock_button != null:
+		lock_button.visible = not is_cover_slot_hidden(LOCK_KEY)
+
+func is_cover_slot_hidden(key: String) -> bool:
+	return cover_controls_active and key in _cover_hidden_slots
 ## G3e: element key of the optional left Fire button (not an InputMap action: it presses "fire").
 const LEFT_FIRE_KEY := "fire_left"
 const LEFT_FIRE_LABEL := "Fire"
@@ -48,6 +75,10 @@ const LEFT_FIRE_LABEL := "Fire"
 var use_profile_lock_fallback: bool = true
 var _emulation_overridden: bool = false
 var _prev_emulation: bool = true
+
+## Read-only contextual-cover fact; gameplay never reads touch events.
+func is_look_active() -> bool:
+	return _look_touch != -1 and _look_moved
 
 
 func _ready() -> void:
@@ -109,8 +140,7 @@ func refresh_left_fire() -> void:
 		for idx in _button_touch.keys():
 			if _button_touch[idx] == LEFT_FIRE_KEY:
 				_button_touch.erase(idx)
-		if not _button_touch.values().has("fire"):
-			Input.action_release("fire")
+		_sync_fire_action()
 		var b: Button = _buttons[LEFT_FIRE_KEY]
 		_buttons.erase(LEFT_FIRE_KEY)
 		remove_child(b)
@@ -157,6 +187,9 @@ func _center_px(key: String, default_px: Vector2) -> Vector2:
 func get_element_keys() -> Array:
 	var keys: Array = ["move_stick", "look_stick", LOCK_KEY]
 	keys.append_array(_buttons.keys())
+	if cover_controls_active:
+		for key in _cover_hidden_slots:
+			keys.erase(key)
 	return keys
 
 
@@ -188,7 +221,7 @@ func get_element_rect(key: String) -> Rect2:
 	if key == "move_stick":
 		return get_move_visual_rect()
 	var r := _radius(key)
-	return Rect2(global_position + get_look_rest() - Vector2.ONE * r, Vector2.ONE * r * 2.0)
+	return _to_global_rect(Rect2(get_look_rest() - Vector2.ONE * r, Vector2.ONE * r * 2.0))
 
 
 ## Effective editable state of an element: centre as HUD fractions, size and opacity in percent.
@@ -236,16 +269,18 @@ func _lock_button_center() -> Vector2:
 
 func get_lock_button_rect() -> Rect2:
 	var s := _lock_side("lock_button")
-	return Rect2(global_position + _lock_button_center() - Vector2.ONE * s * 0.5, Vector2.ONE * s)
+	return _to_global_rect(Rect2(_lock_button_center() - Vector2.ONE * s * 0.5, Vector2.ONE * s))
 
 
 ## Lock target above where the move stick started (the finger origin), clamped onto the screen.
+## _move_origin is viewport space (event.position): it is converted to HUD space once here, the
+## HUD-space rect is then shifted back through _to_global_rect.
 func get_lock_target_rect() -> Rect2:
 	var s := _lock_side("lock_target")
-	var origin := _move_origin if _move_touch != -1 else get_move_rest()
+	var origin := _move_origin - global_position if _move_touch != -1 else get_move_rest()
 	var c := origin - Vector2(0.0, float(cfg["sprint"]["lock_target"]["distance_radii"]) * _radius())
 	c = c.clamp(Vector2.ONE * s * 0.5, _area() - Vector2.ONE * s * 0.5)
-	return Rect2(global_position + c - Vector2.ONE * s * 0.5, Vector2.ONE * s)
+	return _to_global_rect(Rect2(c - Vector2.ONE * s * 0.5, Vector2.ONE * s))
 
 
 func _place_sprint_elements() -> void:
@@ -256,7 +291,7 @@ func _place_sprint_elements() -> void:
 	lock_button.size = r.size
 	lock_button.text = "Locked" if provider.sprint_locked else "Sprint\nlock"
 	lock_button.add_theme_font_size_override("font_size", int(r.size.x * float(_layout.get("button_font_frac_of_size", 0.24))))
-	_style_round(lock_button, r.size.x, 0.6 if provider.sprint_locked else 0.22)
+	_style_round(lock_button, r.size.x, 0.6 if provider.sprint_locked else float(_layout["button_idle_alpha"]))
 	lock_button.modulate.a = _alpha(LOCK_KEY)
 	var t := get_lock_target_rect()
 	lock_target.position = t.position - global_position
@@ -279,7 +314,7 @@ func _style_round(b: Button, side: float, alpha: float) -> void:
 func _make_stick_visual(node_name: String) -> StickVisual:
 	var v := StickVisual.new()
 	v.name = node_name
-	v.ring_alpha = float(_layout.get("ring_alpha", 0.35))
+	v.ring_alpha = float(_layout["ring_alpha"])
 	v.knob_frac = float(_layout.get("knob_frac_of_radius", 0.4))
 	return v
 
@@ -315,8 +350,10 @@ func _exit_tree() -> void:
 	for idx in _button_touch:
 		Input.action_release(_action_of(_button_touch[idx]))
 	_button_touch.clear()
-	if _fire_pulse_s > 0.0:
-		Input.action_release("fire")
+	_look_hold_fire = false
+	_fire_pulse_s = 0.0
+	_hud_fire_down = false
+	Input.action_release("fire")
 
 
 func should_show() -> bool:
@@ -360,7 +397,7 @@ func _make_virtual_joystick() -> VirtualJoystick:
 	j.visibility_mode = VirtualJoystick.VISIBILITY_WHEN_TOUCHED if String(vj["visibility"]) == "when_touched" else VirtualJoystick.VISIBILITY_ALWAYS
 	j.deadzone_ratio = float(feel["vjoy_deadzone_ratio"]["value"])
 	j.clampzone_ratio = float(feel["vjoy_clampzone_ratio"]["value"])
-	var ring := Color(1, 1, 1, float(_layout.get("ring_alpha", 0.35)))
+	var ring := Color(1, 1, 1, float(_layout["ring_alpha"]))
 	var held := Color(1, 1, 1, minf(1.0, ring.a * 1.5))
 	j.add_theme_stylebox_override("normal_joystick", _disc(Color(1, 1, 1, ring.a * 0.3), ring))
 	j.add_theme_stylebox_override("pressed_joystick", _disc(Color(1, 1, 1, ring.a * 0.5), ring))
@@ -391,10 +428,27 @@ func _process(delta: float) -> void:
 	_place_sprint_elements()
 	if _look_touch != -1:
 		_look_down_s += delta
+		if not _look_moved and _look_down_s > float(_layout["look_hold_fire"]["hold_min_s"]):
+			_look_hold_fire = true
 	if _fire_pulse_s > 0.0:
-		_fire_pulse_s -= delta
-		if _fire_pulse_s <= 0.0:
-			Input.action_release("fire")
+		_fire_pulse_s = maxf(0.0, _fire_pulse_s - delta)
+	_sync_fire_action()
+	if _shoulder_pulse_left_s > 0.0:
+		_shoulder_pulse_left_s = maxf(0.0, _shoulder_pulse_left_s - delta)
+		_apply_shoulder_pulse()
+
+
+## View-only press feedback, separate from the camera shoulder ease and the held-state style.
+## Quadratic ease-out release: EL's pick 2026-10-28 (OQ-SHOULDER presentation addendum).
+func _apply_shoulder_pulse() -> void:
+	var b: Button = _buttons["swap_shoulder"]
+	b.pivot_offset = b.size * 0.5
+	if _shoulder_pulse_left_s <= 0.0:
+		b.scale = Vector2.ONE
+		return
+	var f := _shoulder_pulse_left_s / float(_layout["shoulder_pulse_release_s"]["value"])
+	var press_scale := float(_layout["shoulder_pulse_scale"]["value"])
+	b.scale = Vector2.ONE * (1.0 - (1.0 - press_scale) * f * f)
 
 
 func _area() -> Vector2:
@@ -471,7 +525,7 @@ func _update_sticks() -> void:
 		vj.joystick_size = side
 		vj.tip_size = side * float(_layout["vjoy"]["tip_frac_of_size"])
 	elif _move_touch != -1:
-		move_stick.place(_move_origin, r)
+		move_stick.place(_move_origin - global_position, r)  # _move_origin is viewport space, place() takes HUD space
 		move_stick.set_knob_offset(_move_pos - _move_origin)
 	else:
 		move_stick.place(get_move_rest(), r)
@@ -496,11 +550,22 @@ func get_move_visual_rect() -> Rect2:
 	return Rect2(get_global_rect().position + local.position, local.size)
 
 
-## Where a touch grabs the move stick: the stick itself when fixed, else the whole move zone.
+## Hit-test space (P0): event.position is viewport space, so every hit rect (buttons, lock, zones, grab)
+## is shifted by global_position through this one helper.
+func _to_global_rect(local: Rect2) -> Rect2:
+	return Rect2(local.position + global_position, local.size)
+
+
+## Viewport-space rect of a touch zone (the local _zone_rect shifted into event space).
+func _zone_hit_rect(key: String) -> Rect2:
+	return _to_global_rect(_zone_rect(key))
+
+
+## Where a touch grabs the move stick, in viewport space: the stick itself when fixed, else the whole move zone.
 func _move_grab_rect() -> Rect2:
 	if move_mode == "virtual" and vjoy_layout == "fixed":
-		return _move_visual_local()
-	return _zone_rect("move_zone")
+		return _to_global_rect(_move_visual_local())
+	return _zone_hit_rect("move_zone")
 
 
 ## Button side in px: its data fraction of the HUD height, never below button_min_dp (touch target floor).
@@ -531,9 +596,7 @@ func _cell_rect(action: String) -> Rect2:
 
 ## Screen rect of the button for an action (the HUD is full-screen, so this is viewport space).
 func get_button_rect(action: String) -> Rect2:
-	var r := _cell_rect(action)
-	r.position += global_position
-	return r
+	return _to_global_rect(_cell_rect(action))
 
 
 func get_button_label(action: String) -> String:
@@ -546,7 +609,7 @@ func get_button_actions() -> Array:
 
 func _style_button(b: Button, held: bool) -> void:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(1, 1, 1, 0.5 if held else 0.22)
+	sb.bg_color = Color(1, 1, 1, float(_layout["button_held_alpha"]) if held else float(_layout["button_idle_alpha"]))
 	sb.border_color = Color(1, 1, 1, 0.6)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(int(ceil(maxf(b.size.x, 1.0) * 0.5)))
@@ -556,7 +619,7 @@ func _style_button(b: Button, held: bool) -> void:
 
 func _button_at(pos: Vector2) -> String:
 	for action in _buttons:
-		if get_button_rect(action).has_point(pos):
+		if not is_cover_slot_hidden(action) and get_button_rect(action).has_point(pos):
 			return action
 	return ""
 
@@ -591,6 +654,10 @@ func set_suspended(on: bool) -> void:
 		Input.action_release(action)
 	Input.action_release("fire")
 	_fire_pulse_s = 0.0
+	_look_hold_fire = false
+	_hud_fire_down = false
+	_shoulder_pulse_left_s = 0.0
+	_apply_shoulder_pulse()
 	_lock_btn_touch = -1
 	_move_touch = -1
 	_look_touch = -1
@@ -614,25 +681,37 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_down(idx: int, pos: Vector2) -> void:
+	# Hidden movement slots must not fall through into stick gestures either.
+	if cover_controls_active:
+		for key in _cover_hidden_slots:
+			if get_element_rect(key).has_point(pos):
+				return
 	var action := _button_at(pos)
-	if get_lock_button_rect().has_point(pos):
+	if not is_cover_slot_hidden(LOCK_KEY) and get_lock_button_rect().has_point(pos):
 		_lock_btn_touch = idx
 		provider.toggle_sprint_lock()
 	elif action != "":
 		_button_touch[idx] = action  # the element key; _action_of(key) is the InputMap action it presses
-		Input.action_press(_action_of(action))
+		if _action_of(action) == "fire":
+			_sync_fire_action()
+		else:
+			Input.action_press(_action_of(action))
 		_style_button(_buttons[action], true)
+		if action == "swap_shoulder":
+			_shoulder_pulse_left_s = maxf(0.0, float(_layout["shoulder_pulse_release_s"]["value"]))
+			_apply_shoulder_pulse()
 	elif _move_touch == -1 and _move_grab_rect().has_point(pos):
 		provider.cancel_sprint_lock()  # a new move-stick touch ends the lock (speed eases down in the pawn)
 		_move_touch = idx  # under "virtual" this only tracks the finger; the VirtualJoystick gets the touch via the GUI
 		_move_origin = pos
 		_move_pos = pos
 		_update_sticks()
-	elif _look_touch == -1 and (_zone_rect("look_zone").has_point(pos) or (vjoy_layout == "fixed" and move_mode == "virtual" and _zone_rect("move_zone").has_point(pos))):
+	elif _look_touch == -1 and (_zone_hit_rect("look_zone").has_point(pos) or (vjoy_layout == "fixed" and move_mode == "virtual" and _zone_hit_rect("move_zone").has_point(pos))):
 		_look_touch = idx
 		_look_origin = pos
 		_look_pos = pos
 		_look_down_s = 0.0
+		_look_hold_fire = false
 		_look_moved = false
 		_look_travel = 0.0
 		provider.clear_look()
@@ -672,7 +751,9 @@ func _on_up(idx: int) -> void:
 		var still_held := false  # G3e: both Fire buttons press "fire"; it stays down while either is held
 		for k in _button_touch.values():
 			still_held = still_held or _action_of(k) == _action_of(key)
-		if not still_held:
+		if _action_of(key) == "fire":
+			_sync_fire_action()
+		elif not still_held:
 			Input.action_release(_action_of(key))
 	elif idx == _move_touch:
 		# Released ON the lock target while pushed past the trigger: lock forward sprint. Anywhere else: stop.
@@ -683,12 +764,26 @@ func _on_up(idx: int) -> void:
 			provider.lock_sprint()
 		_update_sticks()
 	elif idx == _look_touch:
-		if not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
-			Input.action_press("fire")
+		if not _look_hold_fire and not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
 			_fire_pulse_s = float(_layout.get("fire_pulse_s", 0.08))
 		_look_touch = -1
+		_look_hold_fire = false
+		_sync_fire_action()
 		provider.clear_look()
 		_update_sticks()
+
+
+## The general fire action is the union of Left Fire, a latched look hold and a tap pulse.
+func _sync_fire_action() -> void:
+	var held := _look_hold_fire or _fire_pulse_s > 0.0
+	for key in _button_touch.values():
+		held = held or _action_of(key) == "fire"
+	if held and not suspended and not cover_controls_active:
+		Input.action_press("fire")
+		_hud_fire_down = true
+	elif _hud_fire_down:
+		Input.action_release("fire")
+		_hud_fire_down = false
 
 
 func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:

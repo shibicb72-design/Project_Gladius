@@ -24,6 +24,7 @@ var _vjoy_shot_name: String = ""
 var _sprint_shot_name: String = ""
 var _menu_shot_name: String = ""
 var _layout_shot_name: String = ""
+var _pawn_shot_name: String = ""
 var _left_fire: bool = false
 var _offscreen := Vector2i.ZERO
 var _layer: CanvasLayer
@@ -41,6 +42,8 @@ func _ready() -> void:
 			_vjoy_shot_name = a.substr(12)
 		elif a.begins_with("--layout-shot="):  # G2L: match HUD at rest with labels filled, saved as <tag>_<value>.png; use --tag=layout
 			_layout_shot_name = a.substr(14)
+		elif a.begins_with("--pawn-shot="):  # P0: match view with a pawn ahead, saved as <tag>_<value>.png; use --tag=p0_pawn
+			_pawn_shot_name = a.substr(12)
 		elif a == "--left-fire":  # G3e: shot with the optional left Fire button on (profile flag), e.g. --tag=left_fire_on --layout-shot=cover_landscape
 			_left_fire = true
 		elif a.begins_with("--menu-shot="):  # in-match menu: saves <tag>_closed_<value>_landscape.png and <tag>_open_...; use --tag=menu
@@ -125,6 +128,10 @@ func _run() -> void:
 		return
 	if _layout_shot_name != "":
 		await _layout_shot()
+		get_tree().quit(0)
+		return
+	if _pawn_shot_name != "":
+		await _pawn_shot()
 		get_tree().quit(0)
 		return
 	if _menu_shot_name != "":
@@ -271,6 +278,31 @@ func _lobby_shots() -> void:
 	remove_child(lobby)
 	lobby.free()
 	AppFlow.end_session()
+	await _frames(2)
+
+
+## P0: match view with an inert enemy pawn 5 m ahead, so the temporary bright pawn material is on screen.
+func _pawn_shot() -> void:
+	var m: MatchRoot = _MatchScene.instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.fill_bots = false
+	add_child(m)
+	await _frames(2)
+	m.begin()
+	await _frames(5)
+	var shooter: Pawn = m.local_player
+	var target: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	target.squad_id = shooter.squad_id + 1
+	m.add_child(target)
+	target.set_physics_process(false)
+	var flat := shooter.get_aim_direction()
+	flat.y = 0.0
+	target.global_position = shooter.global_position + flat.normalized() * 5.0
+	m.director.add_player(99, target)
+	await _frames(5)
+	await _shot(_pawn_shot_name)
+	m.queue_free()
 	await _frames(2)
 
 

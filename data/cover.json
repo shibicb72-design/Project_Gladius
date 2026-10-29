@@ -1,0 +1,87 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-COVER: every numeric value and switch is provisional except the requested mechanic. About half a second comes from Shibi's Oct 29 2026 4:33 AM ask; exact timings/geometry remain placeholders. CR1 fields are reserved for the later slice.",
+	"snap_hold_s": 0.5,
+	"enter_stick_min": 0.7,
+	"probe_m": 0.7,
+	"max_wall_angle_deg": 35,
+	"wall_offset_m": 0.45,
+	"enter_s": 0.25,
+	"peek_stick_min": 0.5,
+	"edge_margin_m": 0.35,
+	"peek_offset_m": 0.65,
+	"peek_s": 0.15,
+	"exit_stick_min": 0.9,
+	"exit_hold_s": 0.3,
+	"exit_s": 0.3,
+	"back_exit_min": 0.6,
+	"fire_requires_peek": true,
+	"bots_use_cover": false,
+	"min_cover_height_m": 0.9,
+	"probe_height_m": 0.6,
+	"motion_epsilon_m": 0.01,
+	"crouch_blend_s": 0.2,
+	"crouch_height_m": 1,
+	"crouch_head_y_m": 0.85,
+	"aim_out_s": 0.15,
+	"aim_return_s": 0.15,
+	"camera_follow_damping_s": 0.06,
+	"quick_draw_stay_out": false,
+	"cover_edge_quickdraw_m": 0.5,
+	"animation": {
+		"_placeholder": true,
+		"crouch_pose_deg": [-65, -65, 130, 130],
+		"_crouch_todo": "OQ-COVER: crouch leg angles are procedural placeholders; nested state blend follows crouch_amount; hips/head lowering derives from configured hitbox heights.",
+		"_todo": "OQ-COVER: procedural leg pose angles, visual turn speed, loop and crossfade timings are provisional. Only the model turns; Pawn/Head/collision/camera do not.",
+		"xfade_s": 0.08,
+		"idle_s": 1,
+		"visual_turn_deg_s": 360,
+		"_rest_todo": "OQ-COVER Path A2: back-to-wall orientation and held-in upper-arm/forearm rest angles are procedural placeholders; lean blends back to the existing aimed pose. No soldier asset changes.",
+		"rest_upper_pose_deg": {"RightUpperArm": [15, 0, 0], "RightForeArm": [65, 0, 0], "RightHand": [-80, 0, 0]},
+		"bones": [
+			"LeftUpperLeg",
+			"RightUpperLeg",
+			"LeftLowerLeg",
+			"RightLowerLeg"
+		],
+		"poses_deg": {
+			"cover_enter": [
+				-8,
+				-8,
+				16,
+				16
+			],
+			"cover_idle_l": [
+				-10,
+				-6,
+				20,
+				12
+			],
+			"cover_idle_r": [
+				-6,
+				-10,
+				12,
+				20
+			],
+			"peek_left": [
+				-12,
+				4,
+				20,
+				5
+			],
+			"peek_right": [
+				4,
+				-12,
+				5,
+				20
+			],
+			"cover_exit": [
+				-8,
+				-8,
+				16,
+				16
+			]
+		}
+	}
+}

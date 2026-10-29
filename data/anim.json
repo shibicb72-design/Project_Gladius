@@ -1,0 +1,64 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-ANIM: procedural rig hierarchy/pivots are derived from art_astra's rest parts; all new animation values are provisional presentation values, never approved design values.",
+	"locomotion": {
+		"_placeholder": true, "_todo": "OQ-ANIM: clip periods, sample count, limb angles and replica smoothing are presentation placeholders.",
+		"idle_s": 1.6, "walk_s": 0.8, "run_s": 0.6, "samples": 16,
+		"walk_hip_deg": 28.0, "run_hip_deg": 42.0, "knee_deg": 36.0, "ankle_deg": 8.0,
+		"replica_smoothing_s": 0.08, "teleport_speed_multiplier": 4.0
+	},
+	"upper_body": {
+		"_placeholder": true, "_todo": "OQ-ANIM: hand targets, poles, pitch clamp, reload gesture, fire angles and fades are procedural presentation trials, not design values. Reload length comes only from WeaponDef.reload_s; fire length comes from ui.shot_fx recovery.",
+		"right_hand_m": [0.15, 1.2, -0.15], "left_hand_m": [0.15, 1.29, -0.355], "shoulder_drop_m": 0.08, "shoulder_inset_m": 0.17,
+		"right_pole": [1, -3, 0], "left_pole": [-1, -3, 0], "epsilon_m": 0.00001,
+		"aim_pitch_limit_deg": 4.0,
+		"reload_hand_offset_m": [0, -0.2, 0.1], "reload_key_fractions": [0, 0.35, 0.7, 1], "reload_key_weights": [0, 1, 1, 0],
+		"fire_chest_deg": -1.0, "fire_spine_deg": -0.6, "fire_arm_deg": -2.0,
+		"fade_in_s": 0.0, "fade_out_s": 0.0
+	},
+	"death": {
+		"_placeholder": true, "_todo": "OQ-ANIM: collapse end rotations in degrees are procedural presentation trials; duration/topple/drop/lifetime reuse art_astra death keys unchanged.",
+		"end_rotations_deg": {
+			"Hips": [18,0,0], "Spine": [-10,0,0], "Chest": [0,0,0], "Head": [4,0,0],
+			"LeftUpperArm": [12,0,-12], "RightUpperArm": [8,0,12],
+			"LeftForeArm": [-25,0,0], "RightForeArm": [-30,0,0],
+			"LeftUpperLeg": [18,0,0], "RightUpperLeg": [12,0,0],
+			"LeftLowerLeg": [-30,0,0], "RightLowerLeg": [-25,0,0]
+		}
+	},
+	"recoil": {
+		"_placeholder": true, "_todo": "OQ-ANIM: rifle muzzle-up angle and recovery power are presentation trials. Kick vector/recovery time reuse data/ui.json shot_fx, and arm/chest angles are upper_body fire_* keys.",
+		"rifle_pitch_deg": 3.0, "recover_power": 2.0
+	},
+	"hands": {
+		"_placeholder": true, "_todo": "OQ-ANIM: analytic IK acceptance tolerance is a provisional test/art target, not a design value. Grip and muzzle positions derive from art_astra rifle parts.",
+		"ik_tolerance_m": 0.015, "stock_shoulder_tolerance_m": 0.12
+	},
+	"bones": [
+		{"name":"Hips", "parent":"", "part":"pelvis", "pivot":"center"},
+		{"name":"Spine", "parent":"Hips", "part":"torso", "pivot":"center"},
+		{"name":"Chest", "parent":"Spine", "part":"torso", "pivot":"top"},
+		{"name":"Neck", "parent":"", "part":"neck", "pivot":"center"},
+		{"name":"Head", "parent":"Neck", "part":"visor", "pivot":"head_shell"},
+		{"name":"LeftUpperArm", "parent":"Chest", "part":"upper_arm_l", "pivot":"top"},
+		{"name":"LeftForeArm", "parent":"LeftUpperArm", "part":"lower_arm_l", "pivot":"top"},
+		{"name":"LeftHand", "parent":"LeftForeArm", "part":"glove_l", "pivot":"center"},
+		{"name":"RightUpperArm", "parent":"Chest", "part":"upper_arm_r", "pivot":"top"},
+		{"name":"RightForeArm", "parent":"RightUpperArm", "part":"lower_arm_r", "pivot":"top"},
+		{"name":"RightHand", "parent":"RightForeArm", "part":"glove_r", "pivot":"center"},
+		{"name":"LeftUpperLeg", "parent":"Hips", "part":"thigh_l", "pivot":"top"},
+		{"name":"LeftLowerLeg", "parent":"LeftUpperLeg", "part":"shin_l", "pivot":"top"},
+		{"name":"LeftFoot", "parent":"LeftLowerLeg", "part":"boot_l", "pivot":"center"},
+		{"name":"RightUpperLeg", "parent":"Hips", "part":"thigh_r", "pivot":"top"},
+		{"name":"RightLowerLeg", "parent":"RightUpperLeg", "part":"shin_r", "pivot":"top"},
+		{"name":"RightFoot", "parent":"RightLowerLeg", "part":"boot_r", "pivot":"center"}
+	],
+	"part_bones": {
+		"torso":"Spine", "vest":"Spine", "pelvis":"Hips", "backpack":"Spine",
+		"upper_arm_l":"LeftUpperArm", "lower_arm_l":"LeftForeArm", "glove_l":"LeftHand",
+		"upper_arm_r":"RightUpperArm", "lower_arm_r":"RightForeArm", "glove_r":"RightHand",
+		"thigh_l":"LeftUpperLeg", "shin_l":"LeftLowerLeg", "boot_l":"LeftFoot",
+		"thigh_r":"RightUpperLeg", "shin_r":"RightLowerLeg", "boot_r":"RightFoot",
+		"visor":"Head", "visor_accent":"Head", "vest_stripe":"Spine", "neck":"Neck"
+	}
+}

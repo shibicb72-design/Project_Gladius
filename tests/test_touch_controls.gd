@@ -338,7 +338,8 @@ func test_move_touch_never_fires_or_aims() -> void:
 	hud.free()
 
 
-const BUTTON_LABELS := {"fire": "Fire", "aim": "Aim", "reload": "Reload", "swap_weapon": "Swap", "jump": "Jump"}
+const BUTTON_LABELS := {"aim": "Aim", "reload": "Reload", "swap_weapon": "Swap", "jump": "Jump",
+	"swap_shoulder": "Shoulder"}
 
 
 func test_each_button_presses_and_releases_its_action() -> void:
@@ -359,20 +360,22 @@ func test_fire_button_works_with_move_finger_held() -> void:
 	var hud := _new_hud()
 	_touch(hud, 0, Vector2(200, 400), true)
 	_drag(hud, 0, Vector2(200, 320), Vector2(0, -80))
-	_touch(hud, 1, hud.get_button_rect("fire").get_center(), true)
+	var point: Vector2 = hud.get_element_rect("look_stick").get_center()
+	_touch(hud, 1, point, true)
+	_touch(hud, 1, point, false)
 	assert_true(Input.is_action_pressed("fire"), "fire pressed by second finger")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still non-zero")
-	_touch(hud, 1, hud.get_button_rect("fire").get_center(), false)
+	hud._process(float(hud._layout["fire_pulse_s"]) + 0.01)
 	assert_true(not Input.is_action_pressed("fire"), "fire released")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still held")
 	_touch(hud, 0, Vector2(200, 320), false)
 	hud.free()
 
 
-func test_hud_has_five_labelled_buttons_and_no_sprint() -> void:
+func test_hud_has_six_labelled_buttons_and_no_sprint() -> void:
 	var hud := _new_hud()
 	assert_true(hud.visible, "HUD visible with force_touch_hud")
-	assert_eq(hud.get_button_actions().size(), 5, "five buttons")
+	assert_eq(hud.get_button_actions().size(), 5, "five buttons after F1 main Fire removal")
 	for action in BUTTON_LABELS:
 		assert_true(hud.get_button_actions().has(action), "button %s" % action)
 		assert_eq(hud.get_button_label(action), BUTTON_LABELS[action], "label of %s" % action)

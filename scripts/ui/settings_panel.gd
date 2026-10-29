@@ -60,6 +60,7 @@ func _ready() -> void:
 func _button(text: String, handler: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
+	b.mouse_filter = Control.MOUSE_FILTER_PASS  # both host menus scroll this panel: STOP would swallow touch drags
 	b.pressed.connect(handler)
 	add_child(b)
 	return b

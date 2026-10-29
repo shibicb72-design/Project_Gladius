@@ -8,4 +8,5 @@ build/shots/
 *.keystore
 !android/debug.keystore
 android/build/
+__pycache__/
 
