@@ -1,6 +1,7 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/visual/greybox_art.gd" id="art"]
+[ext_resource type="Script" path="res://scripts/visual/astra_map.gd" id="astra"]
 
 [sub_resource type="BoxMesh" id="m_ground"]
 size = Vector3(160, 1, 160)
@@ -123,6 +124,11 @@ mesh = SubResource("m_camp")
 shape = SubResource("s_camp")
 
 [node name="HillCenter" type="Marker3D" parent="."]
+
+[node name="ArtBuilder" type="Node3D" parent="."]
+script = ExtResource("astra")
+
+[node name="Decor" type="Node3D" parent="."]
 
 [node name="SquadSpawns" type="Node3D" parent="."]
 

@@ -1,0 +1,107 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-ART-ASTRA: all procedural geometry ratios, colors, counts, animation and budgets are replaceable presentation trials, not approved design values.",
+	"colors": {
+		"stone": [
+			0.55,
+			0.53,
+			0.47,
+			1
+		],
+		"trim": [
+			0.68,
+			0.64,
+			0.53,
+			1
+		],
+		"dark": [
+			0.26,
+			0.29,
+			0.3,
+			1
+		],
+		"cloth": [
+			0.42,
+			0.4,
+			0.34,
+			1
+		],
+		"armor": [
+			0.68,
+			0.64,
+			0.53,
+			1
+		],
+		"accent": [
+			0.28,
+			0.78,
+			0.84,
+			1
+		]
+	},
+	"kit": {
+		"camp_grid": [2, 2, 2],
+		"camp_fill": 0.97,
+		"bevel_fraction": 0.12,
+		"pillar_sides": 8,
+		"rock_sides": 5,
+		"roughness": 0.95,
+		"arch_leg_fraction": [
+			0.23,
+			0.75,
+			1
+		],
+		"arch_lintel_fraction": [
+			1,
+			0.25,
+			1
+		],
+		"arch_lintel_y": 0.375,
+		"bag_columns": 4,
+		"bag_rows": 2,
+		"bag_fill": 0.96,
+		"bag_bevel": 0.24,
+		"cap_fraction": [
+			1,
+			0.12,
+			1
+		],
+		"wall_core_fraction": [
+			0.94,
+			0.76,
+			0.88
+		],
+		"crenel_count": 8,
+		"crenel_fill": 0.55,
+		"barrier_base_fraction": [
+			1,
+			0.36,
+			1
+		],
+		"barrier_base_y": 0.32,
+		"barrier_top_fraction": [
+			0.92,
+			0.64,
+			0.45
+		],
+		"barrier_top_y": 0.18,
+		"crate_core_fraction": [
+			0.92,
+			0.8,
+			0.92
+		],
+		"crate_lid_fraction": [
+			1,
+			0.1,
+			1
+		]
+	},
+	"performance": {
+		"draw_budget": 250,
+		"triangle_budget": 150000,
+		"pawn_triangle_budget": 10000,
+		"representative_pawns": 6,
+		"shadow_splits": 1
+	}
+}

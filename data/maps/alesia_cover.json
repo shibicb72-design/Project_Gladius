@@ -1,0 +1,590 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-ART-ASTRA: cover collision addition authorized for this pass; all placement, geometry and test limits are placeholders. Exact Astra layout is not recorded.",
+	"rules": {
+		"min_radius_m": 3,
+		"max_radius_m": 32,
+		"hill_radius_m": 8,
+		"hill_max_height_m": 1.3,
+		"minimum_count": 24
+	},
+	"types": {
+		"low_wall": {
+			"kind": "low_wall",
+			"size": [
+				2.4,
+				1.1,
+				0.8
+			]
+		},
+		"crate": {
+			"kind": "crate",
+			"size": [
+				1.3,
+				1.2,
+				1.3
+			]
+		},
+		"sandbags": {
+			"kind": "sandbags",
+			"size": [
+				2.4,
+				0.9,
+				1
+			]
+		},
+		"barrier": {
+			"kind": "barrier",
+			"size": [
+				2.2,
+				1.1,
+				1
+			]
+		},
+		"pillar": {
+			"kind": "pillar",
+			"size": [
+				1.1,
+				2.8,
+				1.1
+			]
+		},
+		"arch": {
+			"kind": "arch",
+			"size": [
+				2.5,
+				3,
+				1
+			]
+		},
+		"rock": {
+			"kind": "rock",
+			"size": [
+				2,
+				1.2,
+				1.6
+			]
+		}
+	},
+	"pieces": [
+		{
+			"id": "Cover_00",
+			"type": "low_wall",
+			"at": [
+				7,
+				0.55,
+				0
+			]
+		},
+		{
+			"id": "Cover_01",
+			"type": "crate",
+			"at": [
+				4.9497,
+				0.6,
+				4.9497
+			]
+		},
+		{
+			"id": "Cover_02",
+			"type": "sandbags",
+			"at": [
+				0,
+				0.45,
+				7
+			]
+		},
+		{
+			"id": "Cover_03",
+			"type": "barrier",
+			"at": [
+				-4.9497,
+				0.55,
+				4.9497
+			]
+		},
+		{
+			"id": "Cover_04",
+			"type": "low_wall",
+			"at": [
+				-7,
+				0.55,
+				0
+			]
+		},
+		{
+			"id": "Cover_05",
+			"type": "crate",
+			"at": [
+				-4.9497,
+				0.6,
+				-4.9497
+			]
+		},
+		{
+			"id": "Cover_06",
+			"type": "sandbags",
+			"at": [
+				0,
+				0.45,
+				-7
+			]
+		},
+		{
+			"id": "Cover_07",
+			"type": "barrier",
+			"at": [
+				4.9497,
+				0.55,
+				-4.9497
+			]
+		},
+		{
+			"id": "Cover_08",
+			"type": "low_wall",
+			"at": [
+				21,
+				0.55,
+				0
+			]
+		},
+		{
+			"id": "Cover_09",
+			"type": "crate",
+			"at": [
+				19.4015,
+				0.6,
+				8.0364
+			]
+		},
+		{
+			"id": "Cover_10",
+			"type": "sandbags",
+			"at": [
+				14.8492,
+				0.45,
+				14.8492
+			]
+		},
+		{
+			"id": "Cover_11",
+			"type": "barrier",
+			"at": [
+				8.0364,
+				0.55,
+				19.4015
+			]
+		},
+		{
+			"id": "Cover_12",
+			"type": "pillar",
+			"at": [
+				0,
+				1.4,
+				21
+			]
+		},
+		{
+			"id": "Cover_13",
+			"type": "arch",
+			"at": [
+				-8.0364,
+				1.5,
+				19.4015
+			]
+		},
+		{
+			"id": "Cover_14",
+			"type": "rock",
+			"at": [
+				-14.8492,
+				0.6,
+				14.8492
+			]
+		},
+		{
+			"id": "Cover_15",
+			"type": "low_wall",
+			"at": [
+				-19.4015,
+				0.55,
+				8.0364
+			]
+		},
+		{
+			"id": "Cover_16",
+			"type": "crate",
+			"at": [
+				-21,
+				0.6,
+				0
+			]
+		},
+		{
+			"id": "Cover_17",
+			"type": "sandbags",
+			"at": [
+				-19.4015,
+				0.45,
+				-8.0364
+			]
+		},
+		{
+			"id": "Cover_18",
+			"type": "barrier",
+			"at": [
+				-14.8492,
+				0.55,
+				-14.8492
+			]
+		},
+		{
+			"id": "Cover_19",
+			"type": "pillar",
+			"at": [
+				-8.0364,
+				1.4,
+				-19.4015
+			]
+		},
+		{
+			"id": "Cover_20",
+			"type": "arch",
+			"at": [
+				0,
+				1.5,
+				-21
+			]
+		},
+		{
+			"id": "Cover_21",
+			"type": "rock",
+			"at": [
+				8.0364,
+				0.6,
+				-19.4015
+			]
+		},
+		{
+			"id": "Cover_22",
+			"type": "low_wall",
+			"at": [
+				14.8492,
+				0.55,
+				-14.8492
+			]
+		},
+		{
+			"id": "Cover_23",
+			"type": "crate",
+			"at": [
+				19.4015,
+				0.6,
+				-8.0364
+			]
+		}
+	],
+	"decor": [
+		{
+			"id": "Rim_0",
+			"kind": "arch",
+			"size": [
+				7,
+				9,
+				3
+			],
+			"at": [
+				67,
+				4,
+				0
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Rim_1",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				58.024,
+				1,
+				33.5
+			],
+			"yaw": -30
+		},
+		{
+			"id": "Rim_2",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				33.5,
+				1,
+				58.024
+			],
+			"yaw": -60
+		},
+		{
+			"id": "Rim_3",
+			"kind": "arch",
+			"size": [
+				7,
+				9,
+				3
+			],
+			"at": [
+				0,
+				4,
+				67
+			],
+			"yaw": -90
+		},
+		{
+			"id": "Rim_4",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				-33.5,
+				1,
+				58.024
+			],
+			"yaw": -120
+		},
+		{
+			"id": "Rim_5",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				-58.024,
+				1,
+				33.5
+			],
+			"yaw": -150
+		},
+		{
+			"id": "Rim_6",
+			"kind": "arch",
+			"size": [
+				7,
+				9,
+				3
+			],
+			"at": [
+				-67,
+				4,
+				0
+			],
+			"yaw": -180
+		},
+		{
+			"id": "Rim_7",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				-58.024,
+				1,
+				-33.5
+			],
+			"yaw": -210
+		},
+		{
+			"id": "Rim_8",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				-33.5,
+				1,
+				-58.024
+			],
+			"yaw": -240
+		},
+		{
+			"id": "Rim_9",
+			"kind": "arch",
+			"size": [
+				7,
+				9,
+				3
+			],
+			"at": [
+				0,
+				4,
+				-67
+			],
+			"yaw": -270
+		},
+		{
+			"id": "Rim_10",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				33.5,
+				1,
+				-58.024
+			],
+			"yaw": -300
+		},
+		{
+			"id": "Rim_11",
+			"kind": "rock",
+			"size": [
+				8,
+				4,
+				7
+			],
+			"at": [
+				58.024,
+				1,
+				-33.5
+			],
+			"yaw": -330
+		},
+		{
+			"id": "Paving_0",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				-2.7,
+				0.025,
+				-8.25
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Paving_1",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				2.7,
+				0.025,
+				-8.25
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Paving_2",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				-2.7,
+				0.025,
+				-2.75
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Paving_3",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				2.7,
+				0.025,
+				-2.75
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Paving_4",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				-2.7,
+				0.025,
+				2.75
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Paving_5",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				2.7,
+				0.025,
+				2.75
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Paving_6",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				-2.7,
+				0.025,
+				8.25
+			],
+			"yaw": 0
+		},
+		{
+			"id": "Paving_7",
+			"kind": "box",
+			"size": [
+				5,
+				0.035,
+				5
+			],
+			"at": [
+				2.7,
+				0.025,
+				8.25
+			],
+			"yaw": 0
+		}
+	]
+}
