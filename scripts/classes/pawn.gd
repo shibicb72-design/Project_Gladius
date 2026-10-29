@@ -100,6 +100,7 @@ func is_alive() -> bool:
 func set_active(active: bool) -> void:
 	if not active and cover != null:
 		cover.reset()
+		_apply_cover_shapes()
 		_cover_probe.reset()
 	visible = active
 	collision_layer = 2 if active else 0
@@ -113,6 +114,7 @@ func set_active(active: bool) -> void:
 func respawn_at(xform: Transform3D) -> void:
 	if cover != null:
 		cover.reset()
+		_apply_cover_shapes()
 		_cover_probe.reset()
 	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
 	loadout = Loadout.from_class(class_id, registry)
@@ -315,12 +317,15 @@ func _apply_movement(delta: float) -> void:
 			_cover_probe.reset()
 		else:
 			var probe := _cover_probe.sample(self, cover.config, cover.state != CoverController.State.FREE)
-			cover.tick(delta, _frame.move, _frame.fire_pressed, probe)
+			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming)
+			_apply_cover_shapes()
 			if cover.state != CoverController.State.FREE:
 				var cover_velocity := cover.movement_velocity(global_position, wish, get_max_move_speed(), delta)
 				velocity.x = cover_velocity.x
 				velocity.z = cover_velocity.z
 	move_and_slide()
+	if cover != null and cover.state != CoverController.State.FREE:
+		cover.refresh_shot_clear(_cover_probe.shot_clear(self))
 
 
 ## One horizontal axis toward its wish value. The rate is base_speed_mps / ramp time, the same for every
@@ -346,8 +351,20 @@ func _apply_weapon() -> void:
 			reload_rejected.emit("full" if w.ammo_in_mag >= w.def.magazine else "no_reserve")
 	if _frame.fire_just_pressed and not w.has_ammo() and not w.reloading:
 		fire_empty.emit()
-	var trigger := _frame.fire_pressed and not (cover != null and cover.blocks_fire())
+	var in_cover := cover != null and cover.state != CoverController.State.FREE
+	var trigger := (cover.quick_draw_trigger() if in_cover else _frame.fire_pressed) and not (cover != null and cover.blocks_fire())
+	# A locked semi/burst may finish with a false trigger. Preserve its round while the
+	# ray is blocked, but still update every tick so reload completion remains unchanged.
+	var pending: Array = [w.ammo_in_mag, w._semi_armed, w._burst_left, w._next_fire_time, w._next_burst_time, w._last_mode_shot]
 	var shots := w.update(_clock, trigger)
+	if in_cover and cover.blocks_fire() and shots > 0:
+		w.ammo_in_mag = pending[0]
+		w._semi_armed = pending[1]
+		w._burst_left = pending[2]
+		w._next_fire_time = pending[3]
+		w._next_burst_time = pending[4]
+		w._last_mode_shot = pending[5]
+		shots = 0
 	for i in shots:
 		fire_shot()
 
@@ -357,6 +374,7 @@ func enable_cover(cfg: Dictionary) -> void:
 	if cfg.is_empty() or net_mode != NetMode.LOCAL:
 		return
 	cover = CoverController.new(cfg)
+	_init_cover_shapes()
 	_cover_probe.reset()
 	_cover_auto_disabled = false
 	if not has_node("CoverAnim"):
@@ -368,6 +386,7 @@ func enable_cover(cfg: Dictionary) -> void:
 func disable_cover() -> void:
 	if cover != null:
 		cover.reset()
+		_apply_cover_shapes()
 	cover = null
 	_cover_probe.reset()
 	_cover_auto_disabled = true
@@ -382,3 +401,34 @@ func _ensure_cover() -> void:
 	var cfg := registry.load_file("res://data/cover.json")
 	if not cfg.is_empty():
 		enable_cover(cfg)
+
+
+var _cover_body: CollisionShape3D
+var _cover_head: Node3D
+var _cover_height := 0.0
+var _cover_head_y := 0.0
+
+func cover_standing_height() -> float:
+	return _cover_height if _cover_height > 0.0 else (get_node("CollisionShape3D").shape as CapsuleShape3D).height
+
+func cover_standing_head_y() -> float:
+	return _cover_head_y if _cover_head_y > 0.0 else (get_node("Head") as Node3D).position.y
+
+func _init_cover_shapes() -> void:
+	if _cover_body != null:
+		return
+	_cover_body = get_node("CollisionShape3D") as CollisionShape3D
+	_cover_head = get_node("Head") as Node3D
+	_cover_height = (_cover_body.shape as CapsuleShape3D).height
+	_cover_head_y = _cover_head.position.y
+	_cover_body.shape = _cover_body.shape.duplicate()
+	var head_shape := get_node("Head/CollisionShape3D") as CollisionShape3D
+	head_shape.shape = head_shape.shape.duplicate()
+
+func _apply_cover_shapes() -> void:
+	if _cover_body == null or cover == null:
+		return
+	var capsule := _cover_body.shape as CapsuleShape3D
+	capsule.height = lerpf(_cover_height, maxf(float(cover.config["crouch_height_m"]), capsule.radius * 2.0), cover.crouch_amount)
+	_cover_body.position.y = capsule.height * 0.5
+	_cover_head.position.y = lerpf(_cover_head_y, float(cover.config["crouch_head_y_m"]), cover.crouch_amount)

@@ -173,6 +173,17 @@
 		"touch_dp": 48.0,
 		"font_dp": 12.0
 	},
+	"cover_crouch": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER: contextual control position, margin, font and label are placeholders; 48 dp minimum target.",
+		"anchor": [0.6, 0.04], "margin_dp": [8.0, 20.0], "touch_dp": 48.0, "font_dp": 12.0, "label": "Crouch"
+	},
+	"cover_fire": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER: contextual control layout/font/label and red/green colours are placeholders, not design values.",
+		"anchor": [0.4, 0.04], "margin_dp": [8.0, 20.0], "touch_dp": 48.0, "font_dp": 12.0, "label": "FIRE",
+		"enabled_color": [0.2, 1.0, 0.3, 1.0], "disabled_color": [1.0, 0.2, 0.2, 1.0]
+	},
 	"pause_menu": {
 		"_placeholder": true,
 		"_todo": "OQ-PAUSE-MENU: layout of the in-match menu overlay. Sizes and tint are placeholders, not design values; every button is at least 48 dp.",

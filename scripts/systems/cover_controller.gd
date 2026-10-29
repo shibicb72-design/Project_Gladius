@@ -24,6 +24,20 @@ var _anchor := Vector3.ZERO
 var _peek_target := Vector3.ZERO
 var _peek_complete := false
 var _returning := false
+var crouch_amount := 0.0
+var crouched := false
+var aimed_out := false
+var aim_out_amount := 0.0
+var _look_active := false
+var _quick_held := false
+var _buffered_round := false
+var _facts: Dictionary = {}
+var _draw_active := false
+var _draw_returning := false
+var _draw_anchor := Vector3.ZERO
+var _draw_target := Vector3.ZERO
+var _round_hold := 0.0
+var _trigger_held := false
 
 func _init(cfg: Dictionary) -> void:
 	config = cfg.duplicate(true)
@@ -43,15 +57,72 @@ func reset() -> void:
 	wall_key = null
 	target_offset = Vector3.ZERO
 	_peek_complete = false
+	crouch_amount = 0.0
+	crouched = false
+	aimed_out = false
+	aim_out_amount = 0.0
+	_look_active = false
+	_quick_held = false
+	_buffered_round = false
+	_draw_active = false
+	_draw_returning = false
+	_round_hold = 0.0
+	_trigger_held = false
+	_facts.clear()
 	if was_cover:
 		exited.emit()
 
 func blocks_fire() -> bool:
 	if state == State.FREE:
 		return false
-	return bool(config["fire_requires_peek"]) and not ((state == State.PEEK_LEFT or state == State.PEEK_RIGHT) and _peek_complete)
+	if not bool(_facts.get("shot_clear", false)):
+		return true
+	return bool(config["fire_requires_peek"]) and not (aimed_out or ((state == State.PEEK_LEFT or state == State.PEEK_RIGHT) and _peek_complete and crouch_amount == 0.0))
 
-func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary) -> void:
+func toggle_crouch() -> void:
+	if state == State.IN_COVER or state == State.PEEK_LEFT or state == State.PEEK_RIGHT:
+		if not crouched or bool(_facts.get("stand_clear", false)):
+			crouched = not crouched
+
+func set_look_active(active: bool) -> void:
+	_look_active = active
+
+func can_quick_draw() -> bool:
+	if state != State.IN_COVER and state != State.PEEK_LEFT and state != State.PEEK_RIGHT:
+		return false
+	if _draw_active or ((state == State.PEEK_LEFT or state == State.PEEK_RIGHT) and _peek_complete and bool(_facts.get("shot_clear", false))):
+		return true
+	if float(_facts.get("height_m", INF)) < float(_facts.get("muzzle_height_m", 0.0)):
+		return true
+	return minf(float(_facts.get("usable_left_m", INF)), float(_facts.get("usable_right_m", INF))) <= float(config["cover_edge_quickdraw_m"])
+
+## A red press is discarded. It cannot become a green press by sliding while held.
+func quick_draw(pressed: bool, cancel_buffer: bool = false) -> void:
+	if not pressed:
+		_quick_held = false
+		if cancel_buffer:
+			_buffered_round = false
+	elif not _quick_held and can_quick_draw():
+		_quick_held = true
+		_buffered_round = true
+
+## Only Pawn calls this, once per weapon tick. Buffered taps survive the lean motion.
+func quick_draw_trigger() -> bool:
+	if blocks_fire() or not (_quick_held or _buffered_round):
+		_trigger_held = false
+		return false
+	_buffered_round = false
+	if not _trigger_held or bool(_facts.get("weapon_repeats", false)):
+		_round_hold = float(_facts.get("weapon_hold_s", 0.0))
+	_trigger_held = true
+	return true
+
+func refresh_shot_clear(clear: bool) -> void:
+	_facts["shot_clear"] = clear
+
+func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary, aiming: bool = false) -> void:
+	_facts = probe.duplicate()
+	_round_hold = maxf(0.0, _round_hold - delta)
 	var basis: Basis = probe.get("basis", Basis.IDENTITY)
 	var wish := basis * Vector3(move.x, 0, move.y)
 	wish.y = 0
@@ -67,6 +138,10 @@ func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary) -
 			reset()
 			return
 	_phase += delta
+	if _tick_draw(delta, position, aiming):
+		target_offset = target_position - position
+		return
+	_update_crouch(delta, false)
 	match state:
 		State.ENTERING:
 			if _phase + 0.000001 >= float(config["enter_s"]):
@@ -109,7 +184,7 @@ func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary) -
 					_begin_exit()
 			else:
 				_exit_hold = 0.0
-				if along < float(config["peek_stick_min"]):
+				if along < float(config["peek_stick_min"]) and _round_hold <= 0.0 and not bool(probe.get("weapon_pending", false)):
 					state = State.IN_COVER
 					_returning = true
 					target_position = _anchor
@@ -120,6 +195,51 @@ func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary) -
 				reset()
 	if state != State.FREE:
 		target_offset = target_position - position
+
+func _update_crouch(delta: float, rising: bool) -> void:
+	var target := 1.0 if crouched and not rising else 0.0
+	if state == State.EXITING or state == State.FREE:
+		crouched = false
+		target = 0.0
+	if target < crouch_amount and not bool(_facts.get("stand_clear", false)):
+		target = crouch_amount
+	crouch_amount = move_toward(crouch_amount, target, delta / float(config["crouch_blend_s"]))
+
+func _tick_draw(delta: float, position: Vector3, aiming: bool) -> bool:
+	var wants_out := aiming or _look_active or _quick_held or _buffered_round or _round_hold > 0.0 or bool(_facts.get("weapon_pending", false))
+	if not _draw_active and wants_out and can_quick_draw():
+		_draw_active = true
+		_draw_returning = false
+		_draw_anchor = position
+		_draw_target = position
+		if state == State.PEEK_LEFT or state == State.PEEK_RIGHT:
+			_draw_target = _peek_target
+			_draw_anchor = _peek_target
+		elif float(_facts.get("height_m", INF)) >= float(_facts.get("muzzle_height_m", 0.0)):
+			var left := float(_facts.get("usable_left_m", INF))
+			var right := float(_facts.get("usable_right_m", INF))
+			side = -1 if left < right else 1
+			_draw_target += tangent * side * (maxf(minf(left, right), 0.0) + float(config["peek_offset_m"]))
+	if not _draw_active:
+		return false
+	# A held C peek already IS the lean-out position. Hand it back directly, so the
+	# existing peek-release / continued-push exit can proceed while that pose is held.
+	if not wants_out and (state == State.PEEK_LEFT or state == State.PEEK_RIGHT):
+		_draw_active = false
+		aimed_out = false
+		aim_out_amount = 0.0
+		return false
+	_draw_returning = not wants_out
+	var duration := float(config["aim_return_s"] if _draw_returning else config["aim_out_s"])
+	aim_out_amount = move_toward(aim_out_amount, 0.0 if _draw_returning else 1.0, delta / duration)
+	_update_crouch(delta, not _draw_returning)
+	target_position = _draw_anchor.lerp(_draw_target, aim_out_amount)
+	aimed_out = not _draw_returning and aim_out_amount >= 1.0 and crouch_amount == 0.0 and position.distance_to(_draw_target) <= float(config["motion_epsilon_m"])
+	if _draw_returning and aim_out_amount <= 0.0 and position.distance_to(_draw_anchor) <= float(config["motion_epsilon_m"]):
+		_draw_active = false
+		_draw_returning = false
+		return false
+	return true
 
 func _try_snap(delta: float, move: Vector2, wish: Vector3, probe: Dictionary, position: Vector3, basis: Basis) -> void:
 	var wall_normal: Vector3 = probe.get("normal", Vector3.ZERO)

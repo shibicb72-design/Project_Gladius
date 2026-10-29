@@ -30,6 +30,8 @@
 	"cover_edge_quickdraw_m": 0.5,
 	"animation": {
 		"_placeholder": true,
+		"crouch_pose_deg": [-65, -65, 130, 130],
+		"_crouch_todo": "OQ-COVER: crouch leg angles are procedural placeholders; nested state blend follows crouch_amount; hips/head lowering derives from configured hitbox heights.",
 		"_todo": "OQ-COVER: procedural leg pose angles, visual turn speed, loop and crossfade timings are provisional. Only the model turns; Pawn/Head/collision/camera do not.",
 		"xfade_s": 0.08,
 		"idle_s": 1,

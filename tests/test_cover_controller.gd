@@ -5,7 +5,7 @@ func _cfg() -> Dictionary:
 	return DataRegistry.new().load_file("res://data/cover.json")
 
 func _probe(at: Vector3 = Vector3(0, 0, 0.45), basis: Basis = Basis.IDENTITY) -> Dictionary:
-	return {"hit": true, "wall_key": 1, "normal": Vector3.BACK, "point": Vector3.ZERO, "position": at, "basis": basis, "distance_m": at.z, "left_m": at.x + 2.0, "right_m": 2.0 - at.x, "height_m": 2.2, "slide_speed_mps": 4.1783}
+	return {"hit": true, "wall_key": 1, "normal": Vector3.BACK, "point": Vector3.ZERO, "position": at, "basis": basis, "distance_m": at.z, "left_m": at.x + 2.0, "right_m": 2.0 - at.x, "height_m": 2.2, "slide_speed_mps": 4.1783, "shot_clear": true, "stand_clear": true}
 
 func _enter(c: CoverController) -> void:
 	for i in 47:

@@ -92,7 +92,13 @@ func test_real_wall_snap_lock_slide_peek_fire_and_exit() -> void:
 		assert_true(hit.is_empty() or hit["collider"] != _wall, "shot ray clears cover wall")
 	)
 	await _tick(Vector2(0.6, 0), true)
-	assert_eq(events, [1, 1], "fired and shot emitted while peeked (pre-CR1 source)")
+	assert_eq(events, [0, 0], "general fire action does not fire even while peeked")
+	assert_eq(weapon.ammo_in_mag, ammo, "general fire action spends no ammo in cover")
+	_pawn.cover.quick_draw(true)
+	for i in 30:
+		await _tick(Vector2(0.6, 0))
+	_pawn.cover.quick_draw(false)
+	assert_eq(events, [1, 1], "cover FIRE emits fired and shot while peeked")
 	assert_eq(weapon.ammo_in_mag, ammo - 1, "one semi round spent")
 	for i in 45:
 		await _tick(Vector2(1, 0))

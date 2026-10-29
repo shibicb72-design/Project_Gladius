@@ -50,6 +50,10 @@ var use_profile_lock_fallback: bool = true
 var _emulation_overridden: bool = false
 var _prev_emulation: bool = true
 
+## Read-only contextual-cover fact; gameplay never reads touch events.
+func is_look_active() -> bool:
+	return _look_touch != -1 and _look_moved
+
 
 func _ready() -> void:
 	cfg = _DataRegistry.new().load_file("res://data/input.json")

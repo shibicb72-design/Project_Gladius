@@ -137,6 +137,18 @@ Settings > "HUD layout" opens the editor (main menu and in-match menu). It shows
 - **Shots:** `tools/layout_editor_capture.tscn` writes `build/shots/layout_editor_{cover,inner}_landscape.png` and `layout_editor_{cover,inner}_small_landscape.png` (1512x648, 1152x959); the cover_small shot shows the off-screen warning.
 - **Tests:** `tests/test_layout_editor.gd` (temp `user://` profile, restores `AppFlow.profile`).
 
+## In-cover controls (Shibi, Oct 29 2026)
+
+| Control | In-cover behavior |
+|---|---|
+| Crouch | Contextual toggle while IN_COVER or PEEK_LEFT/RIGHT. Smoothly lowers the pose, capsule and Head hitbox; slides at the existing cover slide speed. Standing up is refused under an overhang. Leaving cover restores standing. |
+| Cover FIRE | The only way to fire in ANY cover state, including PEEK_LEFT/RIGHT. Tap buffers one round until the completed lean-out/rise pose; auto repeats while held. After release and any delayed semi/burst rounds, returns automatically over `aim_return_s` to the prior stance/position (a held peek remains a peek). Red/disabled farther than `cover_edge_quickdraw_m` from a usable HIGH-wall edge; green within that band. LOW cover (top below the muzzle line) is green everywhere: a crouched tap rises and fires even at mid-wall. A press starting red is consumed and stays ineffective even if held while sliding into green reach. Joined pieces have no usable internal edge. Colours and placement are placeholders in `data/ui.json`. |
+| Aim | Existing ADS tap toggle: first tap leans/rises out zoomed and stays; second returns. Aim with right-stick drag and/or gyro as the selected gyro mode allows. Aim alone never fires. At mid-wall of HIGH cover it only zooms; the pawn does not move. Hold-to-aim configuration still follows the hold. |
+| Right look drag | Past the existing tap slop, holds a lean-out at a usable high edge, or a rise anywhere along low cover; release returns unless Aim/FIRE/buffered or delayed rounds hold it. At mid-wall of HIGH cover it only turns the camera. Dragging while Aim-leaned does not end the lean or fire. |
+| Look tap/hold, Left Fire, `fire` action | No firing in cover, including all peeks and aimed-out poses. Use the contextual FIRE control. |
+
+Every shot ray is checked for the full weapon range against cover. Turning back into the wall blocks firing and spends no ammo, even when the pose gate is disabled. Gyro is unchanged: Always steers every pose; ADS (`scope_on`) steers only with the existing Aim zoom, not quick draw or unzoomed drag lean. The hold rule is shared: the pawn remains out while ANY of Aim, an active look drag, held cover FIRE, a buffered round or a locked weapon round still needs it. Geometry, blend/return times, edge band, crouch heights and button positions are marked placeholders (OQ-COVER).
+
 ## Left Fire button (G3e, off by default)
 
 PUBG Mobile offers a second Fire button on the left as an option; so do we, and it is off. Settings > "Left Fire button: Off/On" stores the profile key `left_fire_enabled` (`SaveService` keeps only a bool; default `touch_layout.left_fire.enabled_default`, false).
