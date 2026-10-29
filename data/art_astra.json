@@ -506,6 +506,12 @@
 			}
 		]
 	},
+	"death": {
+		"topple_degrees": 86,
+		"topple_s": 0.75,
+		"drop_m": -0.04,
+		"lifetime_s": 3.2
+	},
 	"performance": {
 		"draw_budget": 250,
 		"triangle_budget": 150000,

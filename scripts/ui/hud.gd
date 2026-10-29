@@ -18,6 +18,8 @@ var scores_label: Label
 var timer_label: Label
 var hill_label: Label
 var respawn_label: Label
+var own_death_label: Label
+var _own_death_cfg: Dictionary = {}
 ## Action feedback (data/ui.json "feedback"): reload bar, Full/Empty cue, swap toast, hit marker.
 var reload_box: VBoxContainer
 var reload_bar: ProgressBar
@@ -110,6 +112,18 @@ func _build_feedback() -> void:
 	banner_label.add_theme_color_override("font_outline_color", _color(_banner_cfg["outline_color"]))
 	resized.connect(_size_banner)
 	_size_banner()
+
+	_own_death_cfg = DataRegistry.new().load_file("res://data/ui.json")["own_death"]
+	own_death_label = _row_label(float(_own_death_cfg["anchor_y_frac"]), _color(_own_death_cfg["color"]))
+	own_death_label.text = String(_own_death_cfg["text"])
+	own_death_label.add_theme_color_override("font_outline_color", _color(_own_death_cfg["outline_color"]))
+	resized.connect(_size_own_death)
+	_size_own_death()
+
+
+func _size_own_death() -> void:
+	own_death_label.add_theme_font_size_override("font_size", int(float(_own_death_cfg["font_frac_of_height"]) * size.y))
+	own_death_label.add_theme_constant_override("outline_size", int(float(_own_death_cfg["outline_size_frac_of_height"]) * size.y))
 
 
 func _size_banner() -> void:
@@ -393,6 +407,7 @@ func refresh_pawn() -> void:
 		reload_bar.value = w.reload_fraction(pawn.get_clock())
 	var waiting := not pawn.is_alive()
 	respawn_label.visible = waiting
+	own_death_label.visible = waiting
 	crosshair.visible = bool(_ch["enabled"]) and not waiting  # no shot is possible while dead
 	if waiting and director != null and director.spawn_rules != null:
 		var left := director.spawn_rules.respawn_remaining(_pawn_player_id())

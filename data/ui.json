@@ -65,7 +65,7 @@
 	},
 	"kill_feed": {
 		"_placeholder": true,
-		"_todo": "OQ-FEEDBACK: local kills only; no global feed or own-death banner. English copy may become Latin. Red/gold family from DESIGN.md:31; all layout, colour, font and timing values are placeholders.",
+		"_todo": "OQ-FEEDBACK: local kills only; no global feed. Own death uses the separate own_death label (OQ-ART-ASTRA). English copy may become Latin. Red/gold family from DESIGN.md:31; all layout, colour, font and timing values are placeholders.",
 		"kill_text": "ELIMINATED",
 		"secured_text": "HILL SECURED",
 		"contested_text": "HILL CONTESTED",
@@ -74,6 +74,16 @@
 		"font_frac_of_height": 0.045,
 		"color": [1.0, 0.80, 0.30, 1.0],
 		"contested_color": [1.0, 0.35, 0.25, 1.0],
+		"outline_color": [0.16, 0.05, 0.03, 1.0],
+		"outline_size_frac_of_height": 0.004
+	},
+	"own_death": {
+		"_placeholder": true,
+		"_todo": "OQ-ART-ASTRA / OQ-FEEDBACK: separate own-death English copy, color, font and row position are presentation placeholders, not design values.",
+		"text": "YOU WERE HIT",
+		"anchor_y_frac": 0.41,
+		"font_frac_of_height": 0.045,
+		"color": [1.0, 0.35, 0.25, 1.0],
 		"outline_color": [0.16, 0.05, 0.03, 1.0],
 		"outline_size_frac_of_height": 0.004
 	},

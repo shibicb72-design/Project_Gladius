@@ -56,4 +56,12 @@ func test_whole_match_geometry_proxy_budget() -> void:
 	assert_true(counts.x <= int(cfg["draw_budget"]), "draw proxy within placeholder budget")
 	assert_true(counts.y <= int(cfg["triangle_budget"]), "triangles within placeholder budget")
 	print("ASTRA_PERF proxy, not measured: draw=", counts.x, " triangles=", counts.y)
+	# Conservative additional envelope: six live models/FX plus six simultaneously lingering corpses.
+	for pawn: Pawn in match_scene.director.all_players().values():
+		var corpse := (pawn.get_node("SoldierModel") as SoldierModel).make_corpse()
+		match_scene.add_child(corpse)
+		corpse.global_transform = pawn.global_transform
+	var with_corpses := _count(match_scene, splits)
+	assert_true(with_corpses.x <= int(cfg["draw_budget"]) and with_corpses.y <= int(cfg["triangle_budget"]), "lingering corpse envelope within budget")
+	print("ASTRA_PERF with six corpses, proxy, not measured: draw=", with_corpses.x, " triangles=", with_corpses.y)
 	match_scene.free()
