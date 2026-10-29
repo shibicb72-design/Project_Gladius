@@ -6,6 +6,7 @@ const _Theme := preload("res://scenes/ui/theme.tres")
 
 var director: MatchDirector
 var pawn: Pawn
+var fire_mode_button: FireModeButton
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
 
@@ -52,6 +53,12 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build()
+
+
+func _exit_tree() -> void:
+	# The sibling can still be awaiting its deferred insertion when a short-lived HUD is freed.
+	if is_instance_valid(fire_mode_button):
+		fire_mode_button.queue_free()
 
 
 func _build() -> void:
@@ -350,6 +357,16 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 	_build()
 	director = match_director
 	pawn = local_pawn
+	if fire_mode_button == null:
+		fire_mode_button = FireModeButton.new()
+		var touch := get_node_or_null("../TouchHud") as Control
+		fire_mode_button.bind(pawn, touch, get_node_or_null("../PauseMenu") as PauseMenu)
+		if touch != null:
+			touch.add_sibling.call_deferred(fire_mode_button)
+		else:
+			add_child(fire_mode_button)
+	else:
+		fire_mode_button.bind(pawn, get_node_or_null("../TouchHud") as Control, get_node_or_null("../PauseMenu") as PauseMenu)
 	pawn.reload_rejected.connect(_on_reload_rejected)
 	pawn.fire_empty.connect(_on_fire_empty)
 	pawn.weapon_switched.connect(_on_weapon_switched)

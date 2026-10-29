@@ -7,6 +7,8 @@ A placeholder is never a design value.
 
 Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
+- **OQ-FIRE-MODE (Path A2 ANIM FULL): Hastati semi / full-auto.** Shibi requested the toggle Oct 29 2026 4:32 AM. `data/fire_modes.json` opts only the local human's Pilum BR into semi/auto; `default: auto` is a placeholder. Decide the default and whether the old three-round burst remains a third mode. Interval in both modes is derived from shipped `data/stats.json`: `fire_interval_s / burst_count` = 0.5 / 3 s (360 rounds/min nominal); at most one shot per physics update, no catch-up. Semi taps inside cooldown latch one pending round until ready (reload clears it); decide whether to keep the latch. Look-zone tap-fire now produces one round per tap in either mode, rather than the prior three-round burst. Keyboard/gamepad binding needs the locked `data/input.json` and is deferred. The button is missing from the locked layout editor; its anchor/margins/48 dp target/font are placeholders in `data/ui.json`. Choice lasts one match, survives loadout replacement/respawn and slot changes, never saves or adds a net message. Bots/remote copies/other weapons retain their empty-mode legacy behavior. Remote replicas have no reload event, so the planned reload clip cannot play there without a later network change.
+
 ## Identity and packaging
 
 - **OQ-01: Final Android application id.** DECIDED (Shibi, 2026-10-22): `com.shibibabu.gladius` (export_presets.cfg `package/unique_name`). Superseded placeholder: `com.placeholder.gladius` (S1, export_presets.cfg `package/unique_name`).

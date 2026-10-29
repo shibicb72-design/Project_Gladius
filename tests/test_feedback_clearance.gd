@@ -63,6 +63,23 @@ func _check(sz: Vector2, mode: String) -> void:
 		assert_true(view.encloses(r), "%s inside viewport, got %s" % [tag, r])
 		for tname in touch_items:
 			assert_true(not r.intersects(touch_items[tname]), "%s %s overlaps %s %s" % [tag, r, tname, touch_items[tname]])
+	# Mode button is a new peer of TouchHud; reserve its entire input rect, including optional left Fire.
+	var mode_cfg: Dictionary = DataRegistry.new().load_file("res://data/ui.json")["fire_mode_button"]
+	var mode_rect := FireModeButton.touch_rect(mode_cfg, sz)
+	assert_true(view.encloses(mode_rect), "mode button inside viewport")
+	var reserved := touch_items.duplicate()
+	reserved["lock"] = touch.get_lock_button_rect()
+	reserved["lock_target"] = touch.get_lock_target_rect()
+	reserved["gear"] = PauseMenu.gear_touch_rect(DataRegistry.new().load_file("res://data/ui.json")["pause_gear"], sz)
+	for key in touch.get_button_actions():
+		reserved["action_" + key] = touch.get_element_rect(key)
+	for key in widgets:
+		reserved[key] = (widgets[key] as Control).get_global_rect()
+	for c: Control in [game.respawn_label, game.scores_label, game.timer_label, game.hill_label, game.shield_bar, game.health_bar, game.weapon_label, game.ammo_label]:
+		reserved[str(c)] = c.get_global_rect()
+	for key in reserved:
+		assert_true(not mode_rect.intersects(reserved[key]), "mode button %s clear of %s %s at %s/%s" % [mode_rect, key, reserved[key], sz, mode])
+	print("FIRE_MODE_BUTTON ", sz, " ", mode, " rect=", mode_rect)
 	game.free()
 	touch.free()
 
@@ -71,3 +88,12 @@ func test_feedback_widgets_clear_of_sticks_and_buttons() -> void:
 	for sz in SIZES:
 		for mode in MODES:
 			await _check(sz, mode)
+
+
+func test_fire_mode_clearance_with_left_fire() -> void:
+	var profile := AppFlow.profile
+	AppFlow.profile = {"left_fire_enabled": true}
+	for sz in SIZES:
+		for mode in MODES:
+			await _check(sz, mode)
+	AppFlow.profile = profile

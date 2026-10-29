@@ -165,6 +165,14 @@
 		"teeth": 8,
 		"color": [0.95, 0.85, 0.45, 0.9]
 	},
+	"fire_mode_button": {
+		"_placeholder": true,
+		"_todo": "OQ-FIRE-MODE: every layout/font value in this block is a placeholder, not a design value. Anchor and margin locate the square like pause_gear; target >= 48 dp.",
+		"anchor": [0.8, 0.04],
+		"margin_dp": [8.0, 20.0],
+		"touch_dp": 48.0,
+		"font_dp": 12.0
+	},
 	"pause_menu": {
 		"_placeholder": true,
 		"_todo": "OQ-PAUSE-MENU: layout of the in-match menu overlay. Sizes and tint are placeholders, not design values; every button is at least 48 dp.",

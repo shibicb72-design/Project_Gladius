@@ -6,6 +6,11 @@ var def: WeaponDef
 var ammo_in_mag: int = 0
 var reserve: int = 0
 var reloading: bool = false
+## Empty preserves legacy bursts. Only the local HUD opts its weapon into semi/auto.
+var fire_mode: String = ""
+var _trigger_was_held: bool = false
+var _semi_armed: bool = false
+var _last_mode_shot: float = -INF
 
 var _next_fire_time: float = 0.0
 var _burst_left: int = 0
@@ -23,6 +28,8 @@ func _init(weapon_def: WeaponDef = null) -> void:
 
 ## Advances the weapon to `now`; returns how many shots were fired since the last call.
 func update(now: float, trigger_held: bool) -> int:
+	var edge := trigger_held and not _trigger_was_held
+	_trigger_was_held = trigger_held
 	if def == null:
 		return 0
 	if reloading and now >= _reload_end:
@@ -31,6 +38,18 @@ func update(now: float, trigger_held: bool) -> int:
 		reserve -= take
 		reloading = false
 	if reloading:
+		return 0
+	if fire_mode == "semi" or fire_mode == "auto":
+		if fire_mode == "semi" and edge:
+			_semi_armed = true
+		var wants_round := _semi_armed if fire_mode == "semi" else trigger_held
+		var interval := def.fire_interval_s / maxi(def.burst_count, 1)
+		if wants_round and has_ammo() and now >= _next_fire_time and now - _last_mode_shot >= interval:
+			_semi_armed = false
+			_burst_left = 1
+			_last_mode_shot = now
+			_next_fire_time = now + interval
+			return _shoot()
 		return 0
 	var shots := 0
 	# Finish a running burst.
@@ -69,6 +88,7 @@ func start_reload(now: float) -> bool:
 	_reload_start = now
 	_reload_end = now + def.reload_s
 	_burst_left = 0
+	_semi_armed = false
 	return true
 
 

@@ -1,0 +1,6 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-FIRE-MODE",
+	"note": "Shibi 2026-10-29 4:32 AM: semi / full-auto toggle for the Hastati primary. The default mode and whether the 3-round burst stays as a third mode are NOT decided (OQ-FIRE-MODE). The rate is not stored here: interval = fire_interval_s / burst_count of the weapon's own data/stats.json entry.",
+	"weapons": {"pilum_br": {"modes": ["semi", "auto"], "default": "auto"}}
+}
