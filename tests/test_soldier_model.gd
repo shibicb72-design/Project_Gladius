@@ -45,7 +45,7 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 				assert_true(not (pawn.global_transform * head_bounds.grow(0.02)).intersects(bounds), "CPU shell clearance across clip samples")
 	await tree.process_frame  # leave the skeleton_updated emission before later freeing the pawn
 	model.transform = Transform3D.IDENTITY
-	var rifle := pawn.shot_fx.weapon_mesh.get_node("RifleModel") as MeshInstance3D
+	var rifle := model.hand_attachment.get_node("RifleModel") as MeshInstance3D
 	assert_true(rifle.mesh is ArrayMesh and rifle.mesh.get_surface_count() == 1, "merged rifle present")
 	assert_true(pawn.shot_fx.weapon_mesh.mesh is BoxMesh and pawn.shot_fx.weapon_mesh.visible, "legacy box contract kept; children visible")
 	assert_eq(pawn.shot_fx.weapon_mesh.layers, 0, "only legacy box draw suppressed")

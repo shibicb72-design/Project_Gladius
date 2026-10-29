@@ -16,6 +16,10 @@
 		"fire_chest_deg": -1.0, "fire_spine_deg": -0.6, "fire_arm_deg": -2.0,
 		"fade_in_s": 0.0, "fade_out_s": 0.0
 	},
+	"hands": {
+		"_placeholder": true, "_todo": "OQ-ANIM: analytic IK acceptance tolerance is a provisional test/art target, not a design value. Grip and muzzle positions derive from art_astra rifle parts.",
+		"ik_tolerance_m": 0.015
+	},
 	"bones": [
 		{"name":"Hips", "parent":"", "part":"pelvis", "pivot":"center"},
 		{"name":"Spine", "parent":"Hips", "part":"torso", "pivot":"center"},
