@@ -8,7 +8,7 @@ const _HudScene := preload("res://scenes/ui/touch_hud.tscn")
 const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
 const SIZES: Array[Vector2] = [Vector2(1512, 648), Vector2(2520, 1080), Vector2(1152, 959), Vector2(2176, 1812)]
 const MODES: Array[String] = ["virtual", "custom"]
-const ACTIONS: Array[String] = ["fire", "aim", "reload", "swap_weapon", "jump", "swap_shoulder"]
+const ACTIONS: Array[String] = ["aim", "reload", "swap_weapon", "jump", "swap_shoulder"]
 
 
 func _root() -> Window:

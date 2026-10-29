@@ -21,6 +21,8 @@ var _look_travel: float = 0.0
 var _look_down_s: float = 0.0
 var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
+var _look_hold_fire := false
+var _hud_fire_down := false
 var _shoulder_pulse_left_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> element key (an action, or LEFT_FIRE_KEY)
 var _buttons: Dictionary = {}  # action -> Control
@@ -114,8 +116,7 @@ func refresh_left_fire() -> void:
 		for idx in _button_touch.keys():
 			if _button_touch[idx] == LEFT_FIRE_KEY:
 				_button_touch.erase(idx)
-		if not _button_touch.values().has("fire"):
-			Input.action_release("fire")
+		_sync_fire_action()
 		var b: Button = _buttons[LEFT_FIRE_KEY]
 		_buttons.erase(LEFT_FIRE_KEY)
 		remove_child(b)
@@ -322,8 +323,10 @@ func _exit_tree() -> void:
 	for idx in _button_touch:
 		Input.action_release(_action_of(_button_touch[idx]))
 	_button_touch.clear()
-	if _fire_pulse_s > 0.0:
-		Input.action_release("fire")
+	_look_hold_fire = false
+	_fire_pulse_s = 0.0
+	_hud_fire_down = false
+	Input.action_release("fire")
 
 
 func should_show() -> bool:
@@ -398,10 +401,11 @@ func _process(delta: float) -> void:
 	_place_sprint_elements()
 	if _look_touch != -1:
 		_look_down_s += delta
+		if not _look_moved and _look_down_s > float(_layout["look_hold_fire"]["hold_min_s"]):
+			_look_hold_fire = true
 	if _fire_pulse_s > 0.0:
-		_fire_pulse_s -= delta
-		if _fire_pulse_s <= 0.0:
-			Input.action_release("fire")
+		_fire_pulse_s = maxf(0.0, _fire_pulse_s - delta)
+	_sync_fire_action()
 	if _shoulder_pulse_left_s > 0.0:
 		_shoulder_pulse_left_s = maxf(0.0, _shoulder_pulse_left_s - delta)
 		_apply_shoulder_pulse()
@@ -623,6 +627,8 @@ func set_suspended(on: bool) -> void:
 		Input.action_release(action)
 	Input.action_release("fire")
 	_fire_pulse_s = 0.0
+	_look_hold_fire = false
+	_hud_fire_down = false
 	_shoulder_pulse_left_s = 0.0
 	_apply_shoulder_pulse()
 	_lock_btn_touch = -1
@@ -654,7 +660,10 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		provider.toggle_sprint_lock()
 	elif action != "":
 		_button_touch[idx] = action  # the element key; _action_of(key) is the InputMap action it presses
-		Input.action_press(_action_of(action))
+		if _action_of(action) == "fire":
+			_sync_fire_action()
+		else:
+			Input.action_press(_action_of(action))
 		_style_button(_buttons[action], true)
 		if action == "swap_shoulder":
 			_shoulder_pulse_left_s = maxf(0.0, float(_layout["shoulder_pulse_release_s"]["value"]))
@@ -670,6 +679,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_look_origin = pos
 		_look_pos = pos
 		_look_down_s = 0.0
+		_look_hold_fire = false
 		_look_moved = false
 		_look_travel = 0.0
 		provider.clear_look()
@@ -709,7 +719,9 @@ func _on_up(idx: int) -> void:
 		var still_held := false  # G3e: both Fire buttons press "fire"; it stays down while either is held
 		for k in _button_touch.values():
 			still_held = still_held or _action_of(k) == _action_of(key)
-		if not still_held:
+		if _action_of(key) == "fire":
+			_sync_fire_action()
+		elif not still_held:
 			Input.action_release(_action_of(key))
 	elif idx == _move_touch:
 		# Released ON the lock target while pushed past the trigger: lock forward sprint. Anywhere else: stop.
@@ -720,12 +732,26 @@ func _on_up(idx: int) -> void:
 			provider.lock_sprint()
 		_update_sticks()
 	elif idx == _look_touch:
-		if not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
-			Input.action_press("fire")
+		if not _look_hold_fire and not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
 			_fire_pulse_s = float(_layout.get("fire_pulse_s", 0.08))
 		_look_touch = -1
+		_look_hold_fire = false
+		_sync_fire_action()
 		provider.clear_look()
 		_update_sticks()
+
+
+## The general fire action is the union of Left Fire, a latched look hold and a tap pulse.
+func _sync_fire_action() -> void:
+	var held := _look_hold_fire or _fire_pulse_s > 0.0
+	for key in _button_touch.values():
+		held = held or _action_of(key) == "fire"
+	if held and not suspended:
+		Input.action_press("fire")
+		_hud_fire_down = true
+	elif _hud_fire_down:
+		Input.action_release("fire")
+		_hud_fire_down = false
 
 
 func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:

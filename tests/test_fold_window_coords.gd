@@ -118,6 +118,12 @@ func _buttons(size: Vector2i) -> void:
 	var pawn: Pawn = ctx["pawn"]
 	var actions: Array = touch.get_button_actions()
 	assert_true(actions.size() > 0, "%s: HUD has action buttons" % ctx["tag"])
+	var look_point: Vector2 = touch.get_element_rect("look_stick").get_center()
+	var look_ammo := pawn.loadout.get_active().ammo_in_mag
+	_touch(2, look_point, true)
+	_touch(2, look_point, false)
+	await _frames(2)
+	assert_true(pawn.loadout.get_active().ammo_in_mag < look_ammo, "%s: window-coordinate look tap spent ammo" % ctx["tag"])
 	# Fire first: later buttons (swap, reload) change the weapon state its ammo check relies on.
 	if actions.has("fire"):
 		actions.erase("fire")

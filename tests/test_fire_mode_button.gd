@@ -78,13 +78,13 @@ func test_button_consumes_touch_before_hud_and_keeps_choice_on_respawn() -> void
 	# A user layout overlapping the mode button retains the action button's input.
 	var original: Dictionary = touch.slot_layout.duplicate(true)
 	var point := button.get_touch_rect().get_center()
-	touch.apply_slot_layout({"fire": {"pos": [point.x / touch.size.x, point.y / touch.size.y], "size_pct": 100.0, "alpha_pct": 100.0}})
+	touch.apply_slot_layout({"aim": {"pos": [point.x / touch.size.x, point.y / touch.size.y], "size_pct": 100.0, "alpha_pct": 100.0}})
 	var down := InputEventScreenTouch.new()
 	down.index = 8
 	down.position = point
 	down.pressed = true
 	tree.root.push_input(down, true)
-	assert_true(Input.is_action_pressed("fire"), "overlapping Fire still receives press")
+	assert_true(Input.is_action_pressed("aim"), "overlapping Aim still receives press")
 	assert_eq(weapon.fire_mode, "semi", "overlapping action does not toggle mode")
 	down.pressed = false
 	tree.root.push_input(down, true)

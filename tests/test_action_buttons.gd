@@ -83,10 +83,18 @@ func _teardown(ctx: Dictionary) -> void:
 
 
 func _press(ctx: Dictionary, action: String) -> void:
+	if action == "fire":
+		# F1: the main Fire button is gone; exercise the real look-tap release pulse.
+		var point: Vector2 = ctx["touch"].get_element_rect("look_stick").get_center()
+		_touch(BUTTON_TOUCH, point, true)
+		_touch(BUTTON_TOUCH, point, false)
+		return
 	_touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(action).get_center(), true)
 
 
 func _release(ctx: Dictionary, action: String) -> void:
+	if action == "fire":
+		return  # already released by the look tap in _press
 	_touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(action).get_center(), false)
 
 

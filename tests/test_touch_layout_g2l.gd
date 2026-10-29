@@ -49,7 +49,7 @@ func test_buttons_smaller_than_before_and_data_driven() -> void:
 	var frac: float = touch.cfg["touch_layout"]["button_size_frac_of_height"]
 	assert_true(frac < OLD_BUTTON_SIZE_FRAC, "button size frac %s < old %s" % [frac, OLD_BUTTON_SIZE_FRAC])
 	assert_true(touch.cfg["touch_layout"]["_placeholder"], "touch_layout is marked placeholder")
-	assert_eq(touch.get_button_actions().size(), 6, "six buttons (Path A phase 2 added Shoulder)")
+	assert_eq(touch.get_button_actions().size(), 5, "five buttons after F1 main Fire removal")
 	touch.free()
 
 

@@ -60,6 +60,12 @@ static func teardown(ctx: Dictionary) -> void:
 
 
 static func press(ctx: Dictionary, action: String, pressed: bool) -> void:
+	if action == "fire":
+		if pressed:
+			var point: Vector2 = ctx["touch"].get_element_rect("look_stick").get_center()
+			touch(BUTTON_TOUCH, point, true)
+			touch(BUTTON_TOUCH, point, false)
+		return
 	touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(action).get_center(), pressed)
 
 

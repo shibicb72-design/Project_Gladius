@@ -119,6 +119,7 @@
 		"move_zone": {"left": 0.0, "top": 0.0, "right": 0.5, "bottom": 1.0},
 		"look_zone": {"left": 0.5, "top": 0.0, "right": 1.0, "bottom": 1.0},
 		"tap_fire_max_s": 0.2,
+		"look_hold_fire": {"_placeholder": true, "hold_min_s": 0.2, "note": "OQ-FIRE-BUTTON: = tap_fire_max_s, so a still touch is either a tap or a hold"},
 		"fire_pulse_s": 0.08,
 		"_buttons_todo": "OQ-35, G2L: button size, min_dp, font and offsets are placeholders, not design values. offset = [dx, dy] of the button centre from the look stick rest centre, in button sizes (negative = west/north). Keys of buttons are InputMap actions.",
 		"_placeholder_buttons": true,
@@ -128,7 +129,6 @@
 		"buttons": {
 			"jump": {"label": "Jump", "offset": [-0.6, -2.4]},
 			"swap_weapon": {"label": "Swap", "offset": [-2.8, -1.25]},
-			"fire": {"label": "Fire", "offset": [-1.7, -0.1]},
 			"reload": {"label": "Reload", "offset": [-2.8, -0.1]},
 			"aim": {"label": "Aim", "offset": [-1.7, -1.25]},
 			"swap_shoulder": {"label": "Shoulder", "offset": [-0.6, -3.5]}
