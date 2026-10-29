@@ -26,7 +26,7 @@ func test_cover_footprints_colliders_and_literal_baseline() -> void:
 	var cfg := DataRegistry.new().load_file("res://data/maps/alesia_cover.json")
 	var rules: Dictionary = cfg["rules"]
 	var bodies: Array = map.get_node("ArtBuilder").cover_bodies
-	assert_true(bodies.size() >= int(rules["minimum_count"]), "at least 24 cover pieces")
+	assert_true(bodies.size() >= int(rules["minimum_count"]), "at least 64 cover pieces")
 	assert_eq(bodies.size(), cfg["pieces"].size(), "JSON cover mirror")
 	for key: String in BASELINE:
 		var body := nav.get_node(key) as StaticBody3D

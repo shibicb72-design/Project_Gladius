@@ -516,9 +516,10 @@
 		"lifetime_s": 3.2
 	},
 	"performance": {
-		"draw_budget": 250,
-		"triangle_budget": 150000,
-		"pawn_triangle_budget": 10000,
+		"draw_budget": 100000,
+		"triangle_budget": 100000000,
+		"pawn_triangle_budget": 10000000,
+		"_budget_note": "not a limit - Shibi Oct 29 2026 5:05 AM: no perf caps; kept only so tests/test_astra_perf.gd runs; Fold measurement decides",
 		"representative_pawns": 6,
 		"shadow_splits": 1
 	}

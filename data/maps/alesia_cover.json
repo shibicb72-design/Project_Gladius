@@ -1,13 +1,20 @@
 {
 	"version": 1,
 	"_placeholder": true,
-	"_todo": "OQ-ART-ASTRA: cover collision addition authorized for this pass; all placement, geometry and test limits are placeholders. Exact Astra layout is not recorded.",
+	"_todo": "OQ-ART-ASTRA; OQ-WORLD-DENSE; OQ-COVER: all new placements, geometry, cluster floors and minimum gaps are placeholders; no exact reference layout is recorded. A sandbag nest is three separate low pieces. No high wall joins end-to-end.",
 	"rules": {
 		"min_radius_m": 3,
 		"max_radius_m": 32,
 		"hill_radius_m": 8,
 		"hill_max_height_m": 1.3,
-		"minimum_count": 24
+		"minimum_count": 64,
+		"minimum_gap_m": 1.2,
+		"spawn_cluster_minimum": 2,
+		"spawn_cluster_near_m": 6,
+		"spawn_cluster_far_m": 14,
+		"quadrant_tall_minimum": 1,
+		"quadrant_low_minimum": 3,
+		"tall_height_m": 1.8
 	},
 	"types": {
 		"low_wall": {
@@ -16,7 +23,8 @@
 				2.4,
 				1.1,
 				0.8
-			]
+			],
+			"coverable": true
 		},
 		"crate": {
 			"kind": "crate",
@@ -24,7 +32,8 @@
 				1.3,
 				1.2,
 				1.3
-			]
+			],
+			"coverable": true
 		},
 		"sandbags": {
 			"kind": "sandbags",
@@ -32,7 +41,8 @@
 				2.4,
 				0.9,
 				1
-			]
+			],
+			"coverable": true
 		},
 		"barrier": {
 			"kind": "barrier",
@@ -40,7 +50,8 @@
 				2.2,
 				1.1,
 				1
-			]
+			],
+			"coverable": true
 		},
 		"pillar": {
 			"kind": "pillar",
@@ -48,7 +59,8 @@
 				1.1,
 				2.8,
 				1.1
-			]
+			],
+			"coverable": true
 		},
 		"arch": {
 			"kind": "arch",
@@ -56,7 +68,8 @@
 				2.5,
 				3,
 				1
-			]
+			],
+			"coverable": true
 		},
 		"rock": {
 			"kind": "rock",
@@ -64,7 +77,479 @@
 				2,
 				1.2,
 				1.6
-			]
+			],
+			"coverable": true
+		},
+		"tall_wall": {
+			"kind": "wall",
+			"palette": "inner_wall",
+			"size": [
+				3.2,
+				2.2,
+				0.9
+			],
+			"coverable": true
+		},
+		"sandbag_nest": {
+			"kind": "sandbags",
+			"size": [
+				2.4,
+				0.9,
+				1
+			],
+			"coverable": true
+		},
+		"sandbag_nest_side": {
+			"kind": "sandbags",
+			"size": [
+				1,
+				0.9,
+				2.4
+			],
+			"coverable": true
+		},
+		"crate_stack": {
+			"kind": "crate_stack",
+			"palette": "camp",
+			"size": [
+				1.6,
+				2,
+				1.6
+			],
+			"parts": [
+				{
+					"size": [
+						1.6,
+						1,
+						1.6
+					],
+					"at": [
+						0,
+						-0.5,
+						0
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						1.35,
+						1,
+						1.35
+					],
+					"at": [
+						0,
+						0.5,
+						0
+					],
+					"color": "stone"
+				},
+				{
+					"size": [
+						1.6,
+						0.12,
+						1.6
+					],
+					"at": [
+						0,
+						-0.94,
+						0
+					],
+					"color": "trim"
+				},
+				{
+					"size": [
+						1.6,
+						0.12,
+						1.6
+					],
+					"at": [
+						0,
+						-0.06,
+						0
+					],
+					"color": "trim"
+				},
+				{
+					"size": [
+						1.35,
+						0.12,
+						1.35
+					],
+					"at": [
+						0,
+						0.94,
+						0
+					],
+					"color": "trim"
+				}
+			],
+			"coverable": true
+		},
+		"barrier_line": {
+			"kind": "barrier",
+			"size": [
+				3.8,
+				1.1,
+				1
+			],
+			"coverable": true
+		},
+		"rubble_pile": {
+			"kind": "rubble",
+			"size": [
+				1.6,
+				0.95,
+				1.4
+			],
+			"coverable": true
+		},
+		"wreck_cart": {
+			"kind": "wreck_cart",
+			"palette": "camp",
+			"size": [
+				2.6,
+				1.2,
+				1.8
+			],
+			"parts": [
+				{
+					"size": [
+						2.3400000000000003,
+						0.6,
+						1.62
+					],
+					"at": [
+						0,
+						0,
+						0
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						1.3,
+						0.36,
+						1.35
+					],
+					"at": [
+						0.312,
+						0.42,
+						0
+					],
+					"color": "stone"
+				},
+				{
+					"size": [
+						0.5980000000000001,
+						0.144,
+						1.368
+					],
+					"at": [
+						0.7280000000000001,
+						0.36,
+						0
+					],
+					"color": "accent"
+				},
+				{
+					"size": [
+						2.21,
+						0.144,
+						1.8
+					],
+					"at": [
+						0,
+						-0.156,
+						0
+					],
+					"color": "trim"
+				},
+				{
+					"size": [
+						0.44200000000000006,
+						0.432,
+						0.28800000000000003
+					],
+					"at": [
+						-0.78,
+						-0.384,
+						-0.756
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.44200000000000006,
+						0.432,
+						0.28800000000000003
+					],
+					"at": [
+						0.78,
+						-0.384,
+						-0.756
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.44200000000000006,
+						0.432,
+						0.28800000000000003
+					],
+					"at": [
+						-0.78,
+						-0.384,
+						0.756
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.44200000000000006,
+						0.432,
+						0.28800000000000003
+					],
+					"at": [
+						0.78,
+						-0.384,
+						0.756
+					],
+					"color": "dark"
+				}
+			],
+			"coverable": true
+		},
+		"wreck_truck": {
+			"kind": "wreck_truck",
+			"palette": "camp",
+			"size": [
+				3.8,
+				2,
+				2
+			],
+			"parts": [
+				{
+					"size": [
+						3.42,
+						1,
+						1.8
+					],
+					"at": [
+						0,
+						0,
+						0
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						1.9,
+						0.6,
+						1.5
+					],
+					"at": [
+						0.45599999999999996,
+						0.7,
+						0
+					],
+					"color": "stone"
+				},
+				{
+					"size": [
+						0.874,
+						0.24,
+						1.52
+					],
+					"at": [
+						1.064,
+						0.6,
+						0
+					],
+					"color": "accent"
+				},
+				{
+					"size": [
+						3.23,
+						0.24,
+						2
+					],
+					"at": [
+						0,
+						-0.26,
+						0
+					],
+					"color": "trim"
+				},
+				{
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					],
+					"at": [
+						-1.14,
+						-0.64,
+						-0.84
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					],
+					"at": [
+						1.14,
+						-0.64,
+						-0.84
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					],
+					"at": [
+						-1.14,
+						-0.64,
+						0.84
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					],
+					"at": [
+						1.14,
+						-0.64,
+						0.84
+					],
+					"color": "dark"
+				}
+			],
+			"coverable": true
+		},
+		"wreck_apc": {
+			"kind": "wreck_apc",
+			"palette": "inner_wall",
+			"size": [
+				4.2,
+				1.8,
+				2.4
+			],
+			"parts": [
+				{
+					"size": [
+						3.7800000000000002,
+						0.9,
+						2.16
+					],
+					"at": [
+						0,
+						0,
+						0
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						2.1,
+						0.54,
+						1.7999999999999998
+					],
+					"at": [
+						0.504,
+						0.63,
+						0
+					],
+					"color": "stone"
+				},
+				{
+					"size": [
+						0.9660000000000001,
+						0.216,
+						1.8239999999999998
+					],
+					"at": [
+						1.1760000000000002,
+						0.54,
+						0
+					],
+					"color": "accent"
+				},
+				{
+					"size": [
+						3.57,
+						0.216,
+						2.4
+					],
+					"at": [
+						0,
+						-0.234,
+						0
+					],
+					"color": "trim"
+				},
+				{
+					"size": [
+						0.7140000000000001,
+						0.648,
+						0.384
+					],
+					"at": [
+						-1.26,
+						-0.5760000000000001,
+						-1.008
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.7140000000000001,
+						0.648,
+						0.384
+					],
+					"at": [
+						1.26,
+						-0.5760000000000001,
+						-1.008
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.7140000000000001,
+						0.648,
+						0.384
+					],
+					"at": [
+						-1.26,
+						-0.5760000000000001,
+						1.008
+					],
+					"color": "dark"
+				},
+				{
+					"size": [
+						0.7140000000000001,
+						0.648,
+						0.384
+					],
+					"at": [
+						1.26,
+						-0.5760000000000001,
+						1.008
+					],
+					"color": "dark"
+				}
+			],
+			"coverable": true
 		}
 	},
 	"pieces": [
@@ -282,6 +767,465 @@
 				19.4015,
 				0.6,
 				-8.0364
+			]
+		},
+		{
+			"id": "Dense_24",
+			"type": "wreck_cart",
+			"at": [
+				27,
+				0.6,
+				-2
+			]
+		},
+		{
+			"id": "Dense_25",
+			"type": "low_wall",
+			"at": [
+				30,
+				0.55,
+				2
+			]
+		},
+		{
+			"id": "Dense_26",
+			"type": "wreck_truck",
+			"at": [
+				12.5,
+				1,
+				23
+			]
+		},
+		{
+			"id": "Dense_27",
+			"type": "low_wall",
+			"at": [
+				16,
+				0.55,
+				26.5
+			]
+		},
+		{
+			"id": "Dense_28",
+			"type": "wreck_apc",
+			"at": [
+				-16.5,
+				0.9,
+				23
+			]
+		},
+		{
+			"id": "Dense_29",
+			"type": "low_wall",
+			"at": [
+				-12.5,
+				0.55,
+				27
+			]
+		},
+		{
+			"id": "Dense_30",
+			"type": "tall_wall",
+			"at": [
+				-30,
+				1.1,
+				-2
+			]
+		},
+		{
+			"id": "Dense_31",
+			"type": "low_wall",
+			"at": [
+				-27,
+				0.55,
+				2
+			]
+		},
+		{
+			"id": "Dense_32",
+			"type": "tall_wall",
+			"at": [
+				-18,
+				1.1,
+				-24.5
+			]
+		},
+		{
+			"id": "Dense_33",
+			"type": "low_wall",
+			"at": [
+				-12.5,
+				0.55,
+				-23
+			]
+		},
+		{
+			"id": "Dense_34",
+			"type": "tall_wall",
+			"at": [
+				10.5,
+				1.1,
+				-29
+			]
+		},
+		{
+			"id": "Dense_35",
+			"type": "low_wall",
+			"at": [
+				16.5,
+				0.55,
+				-23
+			]
+		},
+		{
+			"id": "Dense_36",
+			"type": "tall_wall",
+			"at": [
+				-17,
+				1.1,
+				-12
+			]
+		},
+		{
+			"id": "Dense_37",
+			"type": "crate_stack",
+			"at": [
+				-24,
+				1,
+				-10
+			]
+		},
+		{
+			"id": "Dense_38",
+			"type": "rubble_pile",
+			"at": [
+				-10,
+				0.475,
+				-10
+			]
+		},
+		{
+			"id": "Dense_39",
+			"type": "barrier_line",
+			"at": [
+				-10,
+				0.55,
+				-17
+			]
+		},
+		{
+			"id": "Dense_40",
+			"type": "low_wall",
+			"at": [
+				-15.5,
+				0.55,
+				-9.5
+			]
+		},
+		{
+			"id": "Dense_41",
+			"type": "sandbags",
+			"at": [
+				-24,
+				0.45,
+				-18
+			]
+		},
+		{
+			"id": "Dense_42",
+			"type": "rubble_pile",
+			"at": [
+				-18,
+				0.475,
+				-22
+			]
+		},
+		{
+			"id": "Dense_43",
+			"type": "barrier_line",
+			"at": [
+				-22,
+				0.55,
+				-20.5
+			]
+		},
+		{
+			"id": "Dense_44",
+			"type": "low_wall",
+			"at": [
+				-8.5,
+				0.55,
+				-23
+			]
+		},
+		{
+			"id": "Dense_45",
+			"type": "tall_wall",
+			"at": [
+				-17,
+				1.1,
+				12
+			]
+		},
+		{
+			"id": "Dense_46",
+			"type": "crate_stack",
+			"at": [
+				-24,
+				1,
+				10
+			]
+		},
+		{
+			"id": "Dense_47",
+			"type": "barrier_line",
+			"at": [
+				-10,
+				0.55,
+				10
+			]
+		},
+		{
+			"id": "Dense_48",
+			"type": "low_wall",
+			"at": [
+				-10,
+				0.55,
+				17
+			]
+		},
+		{
+			"id": "Dense_49",
+			"type": "sandbags",
+			"at": [
+				-15.5,
+				0.45,
+				9.5
+			]
+		},
+		{
+			"id": "Dense_50",
+			"type": "rubble_pile",
+			"at": [
+				-24,
+				0.475,
+				18
+			]
+		},
+		{
+			"id": "Dense_51",
+			"type": "barrier_line",
+			"at": [
+				-18,
+				0.55,
+				20
+			]
+		},
+		{
+			"id": "Dense_52",
+			"type": "low_wall",
+			"at": [
+				-22.5,
+				0.55,
+				21
+			]
+		},
+		{
+			"id": "Dense_53",
+			"type": "sandbags",
+			"at": [
+				-10,
+				0.45,
+				24
+			]
+		},
+		{
+			"id": "Dense_54",
+			"type": "tall_wall",
+			"at": [
+				17,
+				1.1,
+				-12
+			]
+		},
+		{
+			"id": "Dense_55",
+			"type": "crate_stack",
+			"at": [
+				24,
+				1,
+				-10
+			]
+		},
+		{
+			"id": "Dense_56",
+			"type": "low_wall",
+			"at": [
+				10,
+				0.55,
+				-10
+			]
+		},
+		{
+			"id": "Dense_57",
+			"type": "sandbags",
+			"at": [
+				11,
+				0.45,
+				-17
+			]
+		},
+		{
+			"id": "Dense_58",
+			"type": "rubble_pile",
+			"at": [
+				16.5,
+				0.475,
+				-9.5
+			]
+		},
+		{
+			"id": "Dense_59",
+			"type": "barrier_line",
+			"at": [
+				24,
+				0.55,
+				-18
+			]
+		},
+		{
+			"id": "Dense_60",
+			"type": "low_wall",
+			"at": [
+				18,
+				0.55,
+				-25
+			]
+		},
+		{
+			"id": "Dense_61",
+			"type": "sandbags",
+			"at": [
+				21.5,
+				0.45,
+				-22
+			]
+		},
+		{
+			"id": "Dense_62",
+			"type": "rubble_pile",
+			"at": [
+				10,
+				0.475,
+				-23
+			]
+		},
+		{
+			"id": "Dense_63",
+			"type": "tall_wall",
+			"at": [
+				17,
+				1.1,
+				12
+			]
+		},
+		{
+			"id": "Dense_64",
+			"type": "crate_stack",
+			"at": [
+				24,
+				1,
+				10
+			]
+		},
+		{
+			"id": "Dense_65",
+			"type": "sandbags",
+			"at": [
+				10,
+				0.45,
+				10
+			]
+		},
+		{
+			"id": "Dense_66",
+			"type": "rubble_pile",
+			"at": [
+				10,
+				0.475,
+				17
+			]
+		},
+		{
+			"id": "Dense_67",
+			"type": "barrier_line",
+			"at": [
+				15.5,
+				0.55,
+				9.5
+			]
+		},
+		{
+			"id": "Dense_68",
+			"type": "low_wall",
+			"at": [
+				24,
+				0.55,
+				18
+			]
+		},
+		{
+			"id": "Dense_69",
+			"type": "sandbags",
+			"at": [
+				18,
+				0.45,
+				24
+			]
+		},
+		{
+			"id": "Dense_70",
+			"type": "rubble_pile",
+			"at": [
+				21.5,
+				0.475,
+				22
+			]
+		},
+		{
+			"id": "Dense_71",
+			"type": "barrier_line",
+			"at": [
+				10,
+				0.55,
+				26
+			]
+		},
+		{
+			"id": "NestBack",
+			"type": "sandbag_nest",
+			"at": [
+				-25,
+				0.45,
+				-7.5
+			]
+		},
+		{
+			"id": "NestLeft",
+			"type": "sandbag_nest_side",
+			"at": [
+				-26.7,
+				0.45,
+				-5.8
+			]
+		},
+		{
+			"id": "NestRight",
+			"type": "sandbag_nest_side",
+			"at": [
+				-23.3,
+				0.45,
+				-5.8
 			]
 		}
 	],

@@ -143,6 +143,13 @@ static func build(kind: String, size: Vector3) -> ArrayMesh:
 	mesh.surface_set_material(0, material)
 	return mesh
 
+## World composites are one static mesh and one box collider per JSON piece.
+## The manifest stores every new dimension; the existing soldier merge stays unchanged.
+static func build_cover(definition: Dictionary) -> ArrayMesh:
+	if definition.has("parts"):
+		return merge(definition["parts"])
+	return build(definition["kind"], vec(definition["size"]))
+
 ## Soldier-only variant. Keep merge() below unchanged: map geometry has no bone streams.
 static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:
 	var st := SurfaceTool.new()

@@ -9,13 +9,16 @@ func _ready() -> void:
 	var meshes := {}
 	for type: String in cfg["types"]:
 		var definition: Dictionary = cfg["types"][type]
-		meshes[type] = LowpolyKit.build(definition["kind"], LowpolyKit.vec(definition["size"]))
+		meshes[type] = LowpolyKit.build_cover(definition)
 	for entry: Dictionary in cfg["pieces"]:
 		var definition: Dictionary = cfg["types"][entry["type"]]
 		var body := StaticBody3D.new()
 		body.name = entry["id"]
+		body.set_meta(&"cover_palette", definition.get("palette", "citadel"))
 		body.collision_layer = 1
 		body.collision_mask = 0
+		if bool(definition.get("coverable", false)):
+			body.add_to_group(&"cover_wall")
 		body.position = LowpolyKit.vec(entry["at"])
 		var mesh := MeshInstance3D.new()
 		mesh.name = "Mesh"
@@ -33,6 +36,7 @@ func _ready() -> void:
 	for body in nav.get_children():
 		if body in cover_bodies or body.name == &"Ground":
 			continue
+		body.add_to_group(&"cover_wall")
 		var mesh := body.get_node("Mesh") as MeshInstance3D
 		var size := (body.get_node("Shape").shape as BoxShape3D).size
 		var kind := "camp" if String(body.name).begins_with("CampBlock") else "wall"

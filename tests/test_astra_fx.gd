@@ -26,7 +26,8 @@ func test_star_flash_tracer_fade_and_bounded_cpu_impact_bursts() -> void:
 	for key in ["sparks", "dust"]:
 		var burst := fx.get_node(key.capitalize()) as CPUParticles3D
 		assert_true(burst != null and burst.one_shot, "CPU one-shot " + key)
-		assert_true(burst.amount > 0 and burst.amount <= 24 and burst.lifetime <= 0.5, "particle budget " + key)
+		# Shibi Oct 29 2026 5:05 AM: no perf caps; retain nonempty, finite-lived FX sanity.
+		assert_true(burst.amount > 0 and is_finite(burst.lifetime) and burst.lifetime > 0, "valid particles " + key)
 		assert_eq(burst.amount, int(cfg[key]["amount"]), "amount from data")
 		assert_true(burst.global_position.is_equal_approx(Vector3(0, 1, -10)), "impact endpoint " + key)
 	pawn.free()

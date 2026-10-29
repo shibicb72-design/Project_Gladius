@@ -39,6 +39,8 @@ func _ready() -> void:
 			materials[key] = material_for(key)
 		for body in get_node("Nav").get_children():
 			var key := "citadel"
+			if body.has_meta(&"cover_palette"):
+				key = String(body.get_meta(&"cover_palette"))
 			if body.name == &"Ground":
 				key = "ground"
 			elif body.name == &"InnerWall":
@@ -48,6 +50,10 @@ func _ready() -> void:
 			var mesh := body.get_node_or_null("Mesh") as MeshInstance3D
 			if mesh != null:
 				mesh.material_override = materials[key]
+				if body.has_meta(&"cover_palette"):
+					var cover_material := (materials[key] as StandardMaterial3D).duplicate() as StandardMaterial3D
+					cover_material.vertex_color_use_as_albedo = true
+					mesh.material_override = cover_material
 
 
 func _apply_environment(world: WorldEnvironment) -> void:
