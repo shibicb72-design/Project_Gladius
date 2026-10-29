@@ -1,4 +1,6 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/visual/greybox_art.gd" id="art"]
 
 [sub_resource type="BoxMesh" id="m_ground"]
 size = Vector3(160, 1, 160)
@@ -34,6 +36,7 @@ size = Vector3(6, 3, 6)
 geometry_parsed_geometry_type = 1
 
 [node name="AlesiaSection" type="Node3D"]
+script = ExtResource("art")
 
 [node name="Nav" type="NavigationRegion3D" parent="."]
 navigation_mesh = SubResource("navmesh")

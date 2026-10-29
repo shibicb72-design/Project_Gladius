@@ -156,6 +156,7 @@ func begin() -> bool:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
 	hud.bind(director, local_player)
+	if roster != null and roster.bridge != null: hud.bind_kill_bridge(roster.bridge)
 	HapticsEvents.bind_pawn(local_player)
 	var rig := _RigScene.instantiate()
 	rig.name = "CameraRig"

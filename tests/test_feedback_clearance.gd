@@ -34,15 +34,20 @@ func _check(sz: Vector2, mode: String) -> void:
 	game.show_cue("No reserve")
 	game.show_toast("Gladius Rifle")
 	game.show_hit_marker()
+	game.show_banner("HILL CONTESTED")
 	game.reload_box.visible = true
 	await tree.process_frame
 	await tree.process_frame
 	var widgets := {"reload_box": game.reload_box, "cue_label": game.cue_label, "toast_label": game.toast_label,
-			"hit_marker": game.hit_marker, "crosshair": game.crosshair}
+			"hit_marker": game.hit_marker, "crosshair": game.crosshair, "banner_label": game.banner_label}
 	var touch_items := {"move_stick": touch.get_move_visual_rect(), "look_stick": touch.look_stick.get_global_rect()}
 	for action in ACTIONS:
 		touch_items["button_" + action] = touch.get_button_rect(action)
 	var view := Rect2(Vector2.ZERO, sz)
+	game.respawn_label.text = "Respawn in 5"
+	for other: Control in [game.crosshair, game.hit_marker, game.respawn_label, game.toast_label, game.cue_label, game.reload_box]:
+		assert_true(not game.banner_label.get_global_rect().intersects(other.get_global_rect()),
+				"banner clear of %s at %s" % [other, sz])
 	for wname in widgets:
 		var c: Control = widgets[wname]
 		var r := c.get_global_rect()

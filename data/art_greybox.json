@@ -1,0 +1,34 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-ART-GREYBOX: all palette, lighting, material and readability values are presentation placeholders. DESIGN.md:8 anchors stone and dusk, not these values.",
+	"palette": {
+		"ground": [0.22, 0.235, 0.23, 1.0],
+		"citadel": [0.55, 0.53, 0.47, 1.0],
+		"inner_wall": [0.43, 0.46, 0.47, 1.0],
+		"camp": [0.46, 0.40, 0.31, 1.0],
+		"body": [0.68, 0.64, 0.53, 1.0]
+	},
+	"material": {"roughness": 0.95, "metallic": 0.0},
+	"environment": {
+		"sky_top": [0.10, 0.15, 0.22, 1.0],
+		"sky_horizon": [0.48, 0.43, 0.35, 1.0],
+		"ground_bottom": [0.12, 0.14, 0.16, 1.0],
+		"ground_horizon": [0.48, 0.43, 0.35, 1.0],
+		"sky_curve": 0.18,
+		"ground_curve": 0.12,
+		"ambient_color": [0.65, 0.72, 0.82, 1.0],
+		"ambient_energy": 0.65,
+		"tonemap_exposure": 1.0,
+		"sun_color": [1.0, 0.83, 0.63, 1.0],
+		"sun_energy": 0.85,
+		"sun_rotation_degrees": [-32.0, -38.0, 0.0]
+	},
+	"hill": {
+		"empty": [0.25, 0.80, 0.95, 0.12],
+		"contested": [1.0, 0.25, 0.12, 0.20],
+		"held": [1.0, 0.80, 0.20, 0.14],
+		"radial_segments": 48
+	},
+	"readability_proxy": {"minimum_albedo_contrast": 1.5}
+}
