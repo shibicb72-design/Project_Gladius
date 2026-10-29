@@ -8,6 +8,8 @@ var tracer: MeshInstance3D
 var flash: MeshInstance3D
 var weapon_mesh: MeshInstance3D
 var impact: MeshInstance3D
+var sparks: CPUParticles3D
+var dust: CPUParticles3D
 
 var _cfg: Dictionary = {}
 var _tracer_left_s: float = 0.0
@@ -25,7 +27,7 @@ func _ready() -> void:
 	_rng.randomize()
 	# Tracer, flash, impact live in world space (top_level); the weapon mesh follows the pawn.
 	tracer = _make_mesh(BoxMesh.new(), _color("tracer_color"))
-	flash = _make_mesh(SphereMesh.new(), _color("flash_color"))
+	flash = _make_mesh(_flash_mesh(), _color("flash_color"))
 	impact = _make_mesh(SphereMesh.new(), _color_or("impact_color", Color(1.0, 0.85, 0.4, 1.0)))
 	tracer.top_level = true
 	flash.top_level = true
@@ -35,14 +37,20 @@ func _ready() -> void:
 	var tmat := (tracer.mesh as BoxMesh).material as StandardMaterial3D
 	tmat.no_depth_test = bool(_cfg["tracer_draw_on_top"])
 	tmat.render_priority = int(_cfg["tracer_render_priority"])
-	(flash.mesh as SphereMesh).material.set("no_depth_test", bool(_cfg["tracer_draw_on_top"]))
+	tmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var fmat := flash.mesh.surface_get_material(0) as StandardMaterial3D
+	fmat.no_depth_test = bool(_cfg["tracer_draw_on_top"])
+	fmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fmat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	(impact.mesh as SphereMesh).material.set("no_depth_test", bool(_cfg["tracer_draw_on_top"]))
-	var s: float = _cfg["flash_size_m"]
-	(flash.mesh as SphereMesh).radius = s * 0.5
-	(flash.mesh as SphereMesh).height = s
 	var isz: float = float(_cfg.get("impact_size_m", 0.18))
 	(impact.mesh as SphereMesh).radius = isz * 0.5
 	(impact.mesh as SphereMesh).height = isz
+	(impact.mesh as SphereMesh).radial_segments = int(_cfg["impact_radial_segments"])
+	(impact.mesh as SphereMesh).rings = int(_cfg["impact_rings"])
+	sparks = _make_burst("sparks")
+	dust = _make_burst("dust")
 	tracer.visible = false
 	flash.visible = false
 	impact.visible = false
@@ -53,12 +61,66 @@ func _ready() -> void:
 	SoldierModel.add_rifle(weapon_mesh)
 
 
+func _flash_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var size := float(_cfg["flash_size_m"])
+	var narrow := size * float(_cfg["flash_arm_fraction"])
+	var planes := int(_cfg["flash_planes"])
+	for i in planes:
+		var angle := PI * i / planes
+		var axis := Vector3(cos(angle), 0, sin(angle))
+		var side := Vector3.UP
+		var points: Array[Vector3] = [axis * size * 0.5, side * narrow, -axis * size * 0.5, -side * narrow]
+		for index in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(Vector3.FORWARD.rotated(Vector3.UP, -angle))
+			st.add_vertex(points[index])
+	var mesh := st.commit()
+	return mesh
+
+func _make_burst(key: String) -> CPUParticles3D:
+	var cfg: Dictionary = _cfg[key]
+	var particles := CPUParticles3D.new()
+	particles.name = key.capitalize()
+	particles.emitting = false
+	particles.one_shot = true
+	particles.amount = int(cfg["amount"])
+	particles.lifetime = float(cfg["lifetime_s"])
+	particles.explosiveness = 1.0
+	particles.direction = Vector3.UP
+	particles.spread = float(cfg["spread_degrees"])
+	particles.gravity = LowpolyKit.vec(cfg["gravity_mps2"])
+	particles.initial_velocity_min = float(cfg["velocity_min_mps"])
+	particles.initial_velocity_max = float(cfg["velocity_max_mps"])
+	particles.local_coords = false
+	var mesh := BoxMesh.new()
+	mesh.size = LowpolyKit.vec(cfg["size_m"])
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_color = GreyboxArt.color_value(cfg["color"])
+	mesh.material = mat
+	particles.mesh = mesh
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color.WHITE)
+	gradient.set_color(1, Color(1, 1, 1, 0))
+	particles.color_ramp = gradient
+	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(particles)
+	particles.top_level = true
+	return particles
+
+
 func _make_mesh(mesh: Mesh, color: Color) -> MeshInstance3D:
 	var m := MeshInstance3D.new()
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mesh.material = mat
+	if mesh is PrimitiveMesh:
+		(mesh as PrimitiveMesh).material = mat
+	else:
+		(mesh as ArrayMesh).surface_set_material(0, mat)
 	m.mesh = mesh
 	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(m)
@@ -113,6 +175,7 @@ func show_shot(origin: Vector3, end: Vector3) -> void:
 	tracer.visible = length > 0.001
 	flash.visible = true
 	_tracer_left_s = _cfg["tracer_duration_s"]
+	((tracer.mesh as BoxMesh).material as StandardMaterial3D).albedo_color = _color("tracer_color")
 	_flash_left_s = _cfg["flash_duration_s"]
 	# Impact spark at the far point (Kenney impact spawn pattern; procedural mesh).
 	if length > 0.001 and impact != null:
@@ -120,6 +183,10 @@ func show_shot(origin: Vector3, end: Vector3) -> void:
 		impact.scale = Vector3.ONE * _rng.randf_range(0.7, 1.2)
 		impact.visible = true
 		_impact_left_s = float(_cfg.get("impact_duration_s", 0.12))
+		for burst in [sparks, dust]:
+			burst.global_position = end
+			burst.emitting = true
+			burst.restart()
 	# Viewmodel recoil kick (eases back in _physics_process).
 	if weapon_mesh != null and _cfg.has("viewmodel_recoil_m"):
 		var kick: Array = _cfg["viewmodel_recoil_m"]
@@ -147,6 +214,9 @@ func is_impact_visible() -> bool:
 func _physics_process(delta: float) -> void:
 	if _tracer_left_s > 0.0:
 		_tracer_left_s -= delta
+		var color := _color("tracer_color")
+		color.a *= clampf(_tracer_left_s / float(_cfg["tracer_duration_s"]), 0.0, 1.0)
+		((tracer.mesh as BoxMesh).material as StandardMaterial3D).albedo_color = color
 		if _tracer_left_s <= 0.0:
 			tracer.visible = false
 	if _flash_left_s > 0.0:

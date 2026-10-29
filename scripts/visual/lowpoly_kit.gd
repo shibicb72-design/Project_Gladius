@@ -57,6 +57,27 @@ static func _pillar(st: SurfaceTool, size: Vector3, at: Vector3, color: Color, s
 		_triangle(st, at - up * 0.5, p, q, color)
 		_triangle(st, at + up * 0.5, q + up, p + up, color)
 
+static func _rock(st: SurfaceTool, size: Vector3, color: Color, k: Dictionary) -> void:
+	var sides := int(k["rock_sides"])
+	var radii: Array = k["rock_radius_fractions"]
+	var heights: Array = k["rock_height_fractions"]
+	var twists: Array = k["rock_twist_degrees"]
+	var rings: Array = []
+	for level in radii.size():
+		var ring: Array[Vector3] = []
+		for i in sides:
+			var angle := TAU * i / sides + deg_to_rad(float(twists[level]))
+			ring.append(Vector3(cos(angle) * size.x * 0.5 * float(radii[level]), size.y * float(heights[level]), sin(angle) * size.z * 0.5 * float(radii[level])))
+		rings.append(ring)
+	for level in rings.size() - 1:
+		for i in sides:
+			var j := (i + 1) % sides
+			_quad(st, rings[level][i], rings[level + 1][i], rings[level + 1][j], rings[level][j], color)
+	for i in sides:
+		var j := (i + 1) % sides
+		_triangle(st, Vector3(0, -size.y * 0.5, 0), rings[0][i], rings[0][j], color)
+		_triangle(st, Vector3(0, size.y * 0.5, 0), rings[-1][j], rings[-1][i], color)
+
 static func build(kind: String, size: Vector3) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -70,7 +91,7 @@ static func build(kind: String, size: Vector3) -> ArrayMesh:
 		"pillar":
 			_pillar(st, size, Vector3.ZERO, stone, int(k["pillar_sides"]))
 		"rock", "rubble":
-			_pillar(st, size, Vector3.ZERO, dark, int(k["rock_sides"]))
+			_rock(st, size, dark, k)
 		"arch":
 			var leg: Vector3 = size * vec(k["arch_leg_fraction"])
 			for sign_x in [-1, 1]:

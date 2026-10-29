@@ -41,6 +41,9 @@
 		]
 	},
 	"kit": {
+		"rock_radius_fractions": [0.72, 1.0, 0.38],
+		"rock_height_fractions": [-0.5, -0.1, 0.5],
+		"rock_twist_degrees": [0, 7, 19],
 		"camp_grid": [2, 2, 2],
 		"camp_fill": 0.97,
 		"bevel_fraction": 0.12,

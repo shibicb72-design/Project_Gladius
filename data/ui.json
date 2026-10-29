@@ -20,7 +20,61 @@
 		"tracer_render_priority": 10,
 		"tracer_min_screen_px": 60.0,
 		"tracer_color": [1.0, 0.9, 0.4, 1.0],
-		"flash_size_m": 0.28,
+		"flash_size_m": 0.38,
+		"flash_planes": 3,
+		"flash_arm_fraction": 0.16,
+		"impact_radial_segments": 8,
+		"impact_rings": 4,
+		"sparks": {
+			"_placeholder": true,
+			"_todo": "OQ-ART-ASTRA: bounded CPU impact sparks; presentation trial.",
+			"amount": 12,
+			"lifetime_s": 0.28,
+			"spread_degrees": 75,
+			"gravity_mps2": [
+				0,
+				-4,
+				0
+			],
+			"velocity_min_mps": 0.6,
+			"velocity_max_mps": 2.8,
+			"size_m": [
+				0.025,
+				0.025,
+				0.09
+			],
+			"color": [
+				1,
+				0.7,
+				0.25,
+				1
+			]
+		},
+		"dust": {
+			"_placeholder": true,
+			"_todo": "OQ-ART-ASTRA: bounded CPU impact dust; presentation trial.",
+			"amount": 8,
+			"lifetime_s": 0.4,
+			"spread_degrees": 90,
+			"gravity_mps2": [
+				0,
+				0.5,
+				0
+			],
+			"velocity_min_mps": 0.15,
+			"velocity_max_mps": 0.8,
+			"size_m": [
+				0.09,
+				0.07,
+				0.09
+			],
+			"color": [
+				0.55,
+				0.5,
+				0.42,
+				0.6
+			]
+		},
 		"flash_duration_s": 0.06,
 		"flash_color": [1.0, 0.75, 0.3, 1.0],
 		"weapon_mesh_size_m": [0.08, 0.1, 0.5],
