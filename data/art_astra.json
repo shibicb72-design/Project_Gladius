@@ -97,6 +97,24 @@
 			1
 		]
 	},
+	"environment": {
+		"tonemap": "aces",
+		"fog_mode": "depth",
+		"fog_color": [
+			0.48,
+			0.46,
+			0.41,
+			1
+		],
+		"fog_density": 0.007,
+		"fog_sky_affect": 0.25,
+		"fog_depth_begin_m": 12,
+		"fog_depth_end_m": 90,
+		"fog_depth_curve": 1.2,
+		"shadow_mode": "orthogonal",
+		"shadow_max_distance_m": 48,
+		"light_angular_distance": 0
+	},
 	"performance": {
 		"draw_budget": 250,
 		"triangle_budget": 150000,

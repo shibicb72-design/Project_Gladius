@@ -5,12 +5,12 @@
 			"max_fps": 60,
 			"msaa_3d": 0,
 			"scale_3d": 1.0,
-			"art_shadows_enabled": false,
-			"art_fog_enabled": false,
+			"art_shadows_enabled": true,
+			"art_fog_enabled": true,
 			"art_glow_enabled": false
 		}
 	},
 	"_note": "TODO OQ-40: one preset and a 60 fps cap are placeholders, not design values. The 120 fps option is not exposed.",
 	"_placeholder": true,
-	"_todo": "OQ-40"
+	"_todo": "OQ-40; OQ-ART-ASTRA: hard sun shadows and depth fog trial on, glow off; art_astra.json contains placeholder proxy budgets and shadow settings."
 }

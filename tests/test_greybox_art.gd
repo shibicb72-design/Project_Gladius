@@ -25,10 +25,10 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 	assert_eq(world.environment.background_mode, Environment.BG_SKY, "procedural sky overrides magenta diagnostic")
 	assert_true(world.environment.sky.sky_material is ProceduralSkyMaterial, "no sky asset dependency")
 	assert_eq(world.environment.ambient_light_source, Environment.AMBIENT_SOURCE_COLOR, "explicit colour fill")
-	assert_true(not world.environment.glow_enabled and not world.environment.fog_enabled, "default cost toggles off")
+	assert_true(world.environment.glow_enabled == bool(GraphicsPresets.new().get_preset()["art_glow_enabled"]) and world.environment.fog_enabled == bool(GraphicsPresets.new().get_preset()["art_fog_enabled"]), "cost toggles follow preset")
 	assert_true(not world.environment.ssao_enabled and not world.environment.ssil_enabled and not world.environment.sdfgi_enabled
 			and not world.environment.ssr_enabled and not world.environment.volumetric_fog_enabled, "no advanced renderer dependency")
-	assert_true(not (match_scene.get_node("Light") as DirectionalLight3D).shadow_enabled, "default shadows off")
+	assert_eq((match_scene.get_node("Light") as DirectionalLight3D).shadow_enabled, bool(GraphicsPresets.new().get_preset()["art_shadows_enabled"]), "shadows follow preset")
 	match_scene.free()
 
 

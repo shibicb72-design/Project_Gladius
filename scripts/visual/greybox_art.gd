@@ -52,6 +52,7 @@ func _ready() -> void:
 
 func _apply_environment(world: WorldEnvironment) -> void:
 	var cfg: Dictionary = config()["environment"]
+	var astra: Dictionary = LowpolyKit.config()["environment"]
 	var preset := GraphicsPresets.new().get_preset()
 	var env := Environment.new()
 	var sky_material := ProceduralSkyMaterial.new()
@@ -68,10 +69,17 @@ func _apply_environment(world: WorldEnvironment) -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = color_value(cfg["ambient_color"])
 	env.ambient_light_energy = float(cfg["ambient_energy"])
-	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES if astra["tonemap"] == "aces" else Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = float(cfg["tonemap_exposure"])
 	env.glow_enabled = bool(preset["art_glow_enabled"])
 	env.fog_enabled = bool(preset["art_fog_enabled"])
+	env.fog_mode = Environment.FOG_MODE_DEPTH if astra["fog_mode"] == "depth" else Environment.FOG_MODE_EXPONENTIAL
+	env.fog_light_color = color_value(astra["fog_color"])
+	env.fog_density = float(astra["fog_density"])
+	env.fog_sky_affect = float(astra["fog_sky_affect"])
+	env.fog_depth_begin = float(astra["fog_depth_begin_m"])
+	env.fog_depth_end = float(astra["fog_depth_end_m"])
+	env.fog_depth_curve = float(astra["fog_depth_curve"])
 	world.environment = env
 	var sun := world.get_parent().get_node("Light") as DirectionalLight3D
 	sun.light_color = color_value(cfg["sun_color"])
@@ -79,3 +87,6 @@ func _apply_environment(world: WorldEnvironment) -> void:
 	var angles: Array = cfg["sun_rotation_degrees"]
 	sun.rotation_degrees = Vector3(angles[0], angles[1], angles[2])
 	sun.shadow_enabled = bool(preset["art_shadows_enabled"])
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if astra["shadow_mode"] == "orthogonal" else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = float(astra["shadow_max_distance_m"])
+	sun.light_angular_distance = float(astra["light_angular_distance"])
