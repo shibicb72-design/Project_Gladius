@@ -9,8 +9,8 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 	var model := pawn.get_node("SoldierModel") as SoldierModel
 	assert_true(model.get_parent() == pawn, "visual sibling of Body")
 	assert_true(model.get_meta("parts").size() >= 10, "humanoid part manifest")
-	assert_eq(model.get_child_count(), 1, "one merged static group")
-	var armor := model.get_child(0) as MeshInstance3D
+	assert_true(model.get_child(0) is Skeleton3D, "one rig group")
+	var armor := model.skeleton.get_node("Armor") as MeshInstance3D
 	assert_true(armor.mesh is ArrayMesh and armor.mesh.get_surface_count() == 1, "one vertex color surface")
 	var head := pawn.get_node("Head/HeadMesh") as MeshInstance3D
 	var body := pawn.get_node("Body") as MeshInstance3D

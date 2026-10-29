@@ -1,0 +1,31 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-ANIM: procedural rig hierarchy/pivots are derived from art_astra's rest parts; all new animation values are provisional presentation values, never approved design values.",
+	"bones": [
+		{"name":"Hips", "parent":"", "part":"pelvis", "pivot":"center"},
+		{"name":"Spine", "parent":"Hips", "part":"torso", "pivot":"center"},
+		{"name":"Chest", "parent":"Spine", "part":"torso", "pivot":"top"},
+		{"name":"Neck", "parent":"", "part":"neck", "pivot":"center"},
+		{"name":"Head", "parent":"Neck", "part":"visor", "pivot":"head_shell"},
+		{"name":"LeftUpperArm", "parent":"Chest", "part":"upper_arm_l", "pivot":"top"},
+		{"name":"LeftForeArm", "parent":"LeftUpperArm", "part":"lower_arm_l", "pivot":"top"},
+		{"name":"LeftHand", "parent":"LeftForeArm", "part":"glove_l", "pivot":"center"},
+		{"name":"RightUpperArm", "parent":"Chest", "part":"upper_arm_r", "pivot":"top"},
+		{"name":"RightForeArm", "parent":"RightUpperArm", "part":"lower_arm_r", "pivot":"top"},
+		{"name":"RightHand", "parent":"RightForeArm", "part":"glove_r", "pivot":"center"},
+		{"name":"LeftUpperLeg", "parent":"Hips", "part":"thigh_l", "pivot":"top"},
+		{"name":"LeftLowerLeg", "parent":"LeftUpperLeg", "part":"shin_l", "pivot":"top"},
+		{"name":"LeftFoot", "parent":"LeftLowerLeg", "part":"boot_l", "pivot":"center"},
+		{"name":"RightUpperLeg", "parent":"Hips", "part":"thigh_r", "pivot":"top"},
+		{"name":"RightLowerLeg", "parent":"RightUpperLeg", "part":"shin_r", "pivot":"top"},
+		{"name":"RightFoot", "parent":"RightLowerLeg", "part":"boot_r", "pivot":"center"}
+	],
+	"part_bones": {
+		"torso":"Spine", "vest":"Spine", "pelvis":"Hips", "backpack":"Spine",
+		"upper_arm_l":"LeftUpperArm", "lower_arm_l":"LeftForeArm", "glove_l":"LeftHand",
+		"upper_arm_r":"RightUpperArm", "lower_arm_r":"RightForeArm", "glove_r":"RightHand",
+		"thigh_l":"LeftUpperLeg", "shin_l":"LeftLowerLeg", "boot_l":"LeftFoot",
+		"thigh_r":"RightUpperLeg", "shin_r":"RightLowerLeg", "boot_r":"RightFoot",
+		"visor":"Head", "visor_accent":"Head", "vest_stripe":"Spine", "neck":"Neck"
+	}
+}

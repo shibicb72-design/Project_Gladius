@@ -143,6 +143,23 @@ static func build(kind: String, size: Vector3) -> ArrayMesh:
 	mesh.surface_set_material(0, material)
 	return mesh
 
+## Soldier-only variant. Keep merge() below unchanged: map geometry has no bone streams.
+static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in parts.size():
+		var part: Dictionary = parts[i]
+		st.set_bones(PackedInt32Array([bones[i], 0, 0, 0]))
+		st.set_weights(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
+		var color := GreyboxArt.color_value(config()["colors"][part["color"]])
+		_box(st, vec(part["size"]), vec(part["at"]), color, float(config()["kit"]["bevel_fraction"]))
+	var result := st.commit()
+	var material := StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.roughness = float(config()["kit"]["roughness"])
+	result.surface_set_material(0, material)
+	return result
+
 ## Merge static articulated-looking pieces into a single vertex-colour surface.
 static func merge(parts: Array) -> ArrayMesh:
 	var st := SurfaceTool.new()

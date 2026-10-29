@@ -3,6 +3,11 @@ extends Node3D
 ## One shared vertex-colour surface, no hitboxes. Only reads pawn velocity.
 static var _mesh: ArrayMesh
 static var _rifle: ArrayMesh
+static var _corpse_mesh: ArrayMesh
+var skeleton: Skeleton3D
+var armor: MeshInstance3D
+var local_part_bounds: Array[AABB] = []
+var part_bones := PackedInt32Array()
 var sway_enabled := true
 var _clock := 0.0
 var _pawn: CharacterBody3D
@@ -13,20 +18,31 @@ func _ready() -> void:
 	_cfg = LowpolyKit.config()["soldier"]
 	_pawn = get_parent() as CharacterBody3D
 	var parts: Array = _cfg["parts"]
-	if _mesh == null:
-		_mesh = LowpolyKit.merge(parts)
-	var mesh := MeshInstance3D.new()
-	mesh.name = "Armor"
-	mesh.mesh = _mesh
-	add_child(mesh)
+	skeleton = SoldierRig.build(parts, (_pawn.get_node("Head") as Node3D).position)
+	add_child(skeleton)
+	_mesh = SoldierRig.mesh
+	armor = MeshInstance3D.new()
+	armor.name = "Armor"
+	armor.mesh = _mesh
+	armor.skin = SoldierRig.skin
+	armor.skeleton = NodePath("..")
+	skeleton.add_child(armor)
+	local_part_bounds = SoldierRig.part_local_bounds(parts, skeleton)
+	var mapping: Dictionary = SoldierRig.config()["part_bones"]
 	var names: Array[String] = []
 	for part: Dictionary in parts:
 		names.append(part["name"])
+		part_bones.append(skeleton.find_bone(mapping[part["name"]]))
 		var size := LowpolyKit.vec(part["size"])
 		part_bounds.append(AABB(LowpolyKit.vec(part["at"]) - size * 0.5, size))
 	set_meta("parts", names)
 	if _pawn != null:
 		(_pawn.get_node("Body") as MeshInstance3D).visible = false
+
+## Fill a caller-owned array; no allocation in the animation path.
+func posed_bounds(out: Array[AABB]) -> void:
+	for i in local_part_bounds.size():
+		out[i] = skeleton.global_transform * skeleton.get_bone_global_pose(part_bones[i]) * local_part_bounds[i]
 
 static func add_rifle(parent: MeshInstance3D) -> MeshInstance3D:
 	if _rifle == null:
@@ -52,7 +68,10 @@ func make_corpse() -> Node3D:
 	corpse.name = "SoldierCorpse"
 	corpse.set_meta("corpse", true)
 	var mesh := MeshInstance3D.new()
-	mesh.mesh = _mesh
+	# F will replace this rest-mesh fallback with a frozen independent rig.
+	if _corpse_mesh == null:
+		_corpse_mesh = LowpolyKit.merge(_cfg["parts"])
+	mesh.mesh = _corpse_mesh
 	mesh.transform = transform
 	corpse.add_child(mesh)
 	# The locked yellow shell belongs to the pawn; reproduce it for a complete corpse silhouette.
