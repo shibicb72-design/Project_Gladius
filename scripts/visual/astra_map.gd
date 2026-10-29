@@ -60,3 +60,8 @@ func _ready() -> void:
 		mesh.rotation.y = deg_to_rad(float(entry["yaw"]))
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		decor.add_child(mesh)
+	# Attach below this builder: never add a sibling while the map root is in _ready.
+	var ambient := WorldAmbient.new()
+	ambient.name = "Ambient"
+	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
+	add_child(ambient)

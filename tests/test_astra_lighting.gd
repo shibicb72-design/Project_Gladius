@@ -24,12 +24,13 @@ func test_mobile_lighting_depth_fog_and_one_hard_sun() -> void:
 	assert_eq(env.tonemap_mode, Environment.TONE_MAPPER_ACES, "ACES placeholder")
 	assert_true(not env.ssao_enabled and not env.ssil_enabled and not env.ssr_enabled and not env.sdfgi_enabled and not env.volumetric_fog_enabled, "advanced effects disabled")
 	var lights := _shadow_lights(match_scene)
-	assert_eq(lights.size(), 1, "one shadow light")
-	if lights.size() == 1:
-		assert_true(lights[0] is DirectionalLight3D, "directional sun only")
-		var sun := lights[0] as DirectionalLight3D
-		assert_eq(sun.directional_shadow_mode, DirectionalLight3D.SHADOW_ORTHOGONAL, "single shadow split")
-		assert_true(sun.directional_shadow_max_distance <= 60 and sun.light_angular_distance == 0, "bounded hard shadows")
+	# Shibi Oct 29 2026 5:05 AM: no lighting perf caps. Always verify the actual sun.
+	var sun := match_scene.get_node("Light") as DirectionalLight3D
+	assert_true(sun != null and lights.has(sun), "scene sun casts shadows among all lights")
+	if sun != null:
+		assert_true(sun is DirectionalLight3D, "directional sun present")
+		assert_true(sun.directional_shadow_mode >= 0, "valid sun shadow mode")
+		assert_true(sun.directional_shadow_max_distance > 0 and sun.light_angular_distance >= 0, "positive shadow distance and valid angular distance")
 		assert_eq(sun.directional_shadow_max_distance, float(cfg["shadow_max_distance_m"]), "shadow distance from data")
 	assert_eq(ProjectSettings.get_setting("rendering/renderer/rendering_method"), "mobile", "Mobile stays")
 	match_scene.free()

@@ -1,0 +1,409 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-WORLD-DENSE: every count, size, placement, color, rate and amplitude is a provisional art trial, not a design value. No content/performance caps; Fold measurement decides.",
+	"cloth": {
+		"amplitude_m": 0.16,
+		"speed": 1.4,
+		"frequency": 3.2,
+		"color": [
+			0.42,
+			0.13,
+			0.09,
+			1
+		],
+		"roughness": 0.9,
+		"subdivisions": 12
+	},
+	"foliage": {
+		"count": 240,
+		"seed": 29,
+		"radius_min_m": 16,
+		"radius_max_m": 31,
+		"size": [
+			0.18,
+			0.55,
+			0.12
+		],
+		"amplitude_m": 0.12,
+		"speed": 1.1,
+		"frequency": 2.7,
+		"color": [
+			0.28,
+			0.33,
+			0.22,
+			1
+		],
+		"roughness": 0.95
+	},
+	"flags": {
+		"size": [
+			1.5,
+			1
+		],
+		"pole_size": [
+			0.09,
+			3,
+			0.09
+		],
+		"cloth_y_m": 2.2,
+		"positions": [
+			[
+				9,
+				0,
+				12
+			],
+			[
+				-9,
+				0,
+				12
+			],
+			[
+				9,
+				0,
+				-12
+			],
+			[
+				-9,
+				0,
+				-12
+			],
+			[
+				26,
+				0,
+				10
+			],
+			[
+				-26,
+				0,
+				-10
+			]
+		]
+	},
+	"tents": {
+		"size": [
+			3.2,
+			2.1,
+			2.8
+		],
+		"positions": [
+			[
+				24,
+				0,
+				5
+			],
+			[
+				-24,
+				0,
+				5
+			],
+			[
+				24,
+				0,
+				-5
+			],
+			[
+				-24,
+				0,
+				-16
+			]
+		]
+	},
+	"dust": {
+		"positions": [
+			[
+				12,
+				1.5,
+				12
+			],
+			[
+				-12,
+				1.5,
+				-12
+			],
+			[
+				24,
+				1.5,
+				12
+			],
+			[
+				-24,
+				1.5,
+				-12
+			]
+		],
+		"amount": 64,
+		"lifetime_s": 7,
+		"box_extents": [
+			5,
+			1.2,
+			5
+		],
+		"direction": [
+			1,
+			0.12,
+			0.2
+		],
+		"spread_deg": 20,
+		"velocity_min": 0.15,
+		"velocity_max": 0.4,
+		"gravity": [
+			0,
+			0,
+			0
+		],
+		"radius_m": 0.025,
+		"color": [
+			0.55,
+			0.49,
+			0.38,
+			0.3
+		],
+		"radial_segments": 8,
+		"rings": 4
+	},
+	"braziers": {
+		"positions": [
+			[
+				8,
+				0,
+				13
+			],
+			[
+				-8,
+				0,
+				13
+			],
+			[
+				8,
+				0,
+				-13
+			],
+			[
+				-8,
+				0,
+				-13
+			]
+		],
+		"stand_size": [
+			0.35,
+			1,
+			0.35
+		],
+		"bowl_size": [
+			0.7,
+			0.2,
+			0.7
+		],
+		"light_y_m": 1.3,
+		"range_m": 7,
+		"energy": 1.6,
+		"flicker_amplitude": 0.25,
+		"flicker_speed": 4.3,
+		"color": [
+			1,
+			0.42,
+			0.12,
+			1
+		],
+		"shadows": true,
+		"flicker_seed": 64
+	},
+	"beacons": {
+		"positions": [
+			[
+				23,
+				3,
+				0
+			]
+		],
+		"range_m": 28,
+		"angle_deg": 25,
+		"energy": 3,
+		"sweep_rad": 0.9,
+		"sweep_speed": 0.2,
+		"pitch_deg": -35,
+		"color": [
+			0.55,
+			0.73,
+			0.85,
+			1
+		],
+		"shadows": true
+	},
+	"props": [
+		{
+			"kind": "pillar",
+			"size": [
+				0.55,
+				0.9,
+				0.55
+			],
+			"at": [
+				25,
+				0.45,
+				12
+			]
+		},
+		{
+			"kind": "pillar",
+			"size": [
+				0.55,
+				0.9,
+				0.55
+			],
+			"at": [
+				25,
+				0.45,
+				13
+			]
+		},
+		{
+			"kind": "pillar",
+			"size": [
+				0.55,
+				0.9,
+				0.55
+			],
+			"at": [
+				-25,
+				0.45,
+				-9
+			]
+		},
+		{
+			"kind": "pillar",
+			"size": [
+				0.55,
+				0.9,
+				0.55
+			],
+			"at": [
+				-25,
+				0.45,
+				-10
+			]
+		},
+		{
+			"kind": "rubble",
+			"size": [
+				0.8,
+				0.4,
+				0.7
+			],
+			"at": [
+				13,
+				0.2,
+				11
+			]
+		},
+		{
+			"kind": "rubble",
+			"size": [
+				0.8,
+				0.4,
+				0.7
+			],
+			"at": [
+				-13,
+				0.2,
+				-11
+			]
+		},
+		{
+			"kind": "rubble",
+			"size": [
+				0.8,
+				0.4,
+				0.7
+			],
+			"at": [
+				22,
+				0.2,
+				18
+			]
+		},
+		{
+			"kind": "rubble",
+			"size": [
+				0.8,
+				0.4,
+				0.7
+			],
+			"at": [
+				-22,
+				0.2,
+				18
+			]
+		},
+		{
+			"kind": "box",
+			"size": [
+				1.8,
+				0.18,
+				0.15
+			],
+			"at": [
+				20,
+				0.09,
+				12
+			]
+		},
+		{
+			"kind": "box",
+			"size": [
+				1.8,
+				0.18,
+				0.15
+			],
+			"at": [
+				-20,
+				0.09,
+				-12
+			]
+		},
+		{
+			"kind": "pillar",
+			"size": [
+				0.07,
+				2,
+				0.07
+			],
+			"at": [
+				24,
+				1,
+				14
+			]
+		},
+		{
+			"kind": "pillar",
+			"size": [
+				0.07,
+				2,
+				0.07
+			],
+			"at": [
+				27,
+				1,
+				14
+			]
+		}
+	],
+	"cables": [
+		{
+			"from": [
+				24,
+				2,
+				14
+			],
+			"to": [
+				27,
+				2,
+				14
+			],
+			"thickness_m": 0.035,
+			"sag_m": 0.35,
+			"segments": 12
+		}
+	]
+}

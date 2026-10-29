@@ -7,7 +7,8 @@
 			"scale_3d": 1.0,
 			"art_shadows_enabled": true,
 			"art_fog_enabled": true,
-			"art_glow_enabled": false
+			"art_glow_enabled": false,
+			"art_ambient_enabled": true
 		}
 	},
 	"_note": "TODO OQ-40: one preset and a 60 fps cap are placeholders, not design values. The 120 fps option is not exposed.",
