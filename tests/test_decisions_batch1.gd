@@ -2,6 +2,7 @@ extends "res://tests/test_case.gd"
 ## Shibi's decisions of 2026-10-22 (OQ batch 1): package id, orientation, class toggle, loadouts, gyro.
 
 const _TMP := "user://test_profile_batch1.json"
+const _LookMath := preload("res://scripts/input/look_math.gd")
 
 
 func _remove_tmp() -> void:
@@ -89,7 +90,7 @@ func test_gyro_off_by_default_ignores_injected_reading() -> void:
 	assert_eq(router.update_frame().look, Vector2.ZERO, "router adds no gyro look while off")
 	# Sanity: the fake reading really would flow if the profile toggle were on.
 	g.configure({"gyro_mode": "on"})
-	assert_eq(g.get_look(), Vector2(0.25, 0.5), "fake reading flows when toggled on")
+	assert_eq(g.get_look(), Vector2(0.25, 0.5) / _LookMath.tick_hz(), "fake reading flows when toggled on (rad/s -> rad/tick)")
 	router.free()
 
 

@@ -4,7 +4,8 @@ extends "res://tests/test_case.gd"
 ## tests/test_pause_menu.gd:267-272 (conflict with "replaces the toggle"; those tests are unchanged).
 
 const _TMP := "user://test_profile_sens.json"
-const _GYRO_RAW := Vector2(0.25, 0.5)  # FakeGyroPlatform reading as GyroProvider turns it into look
+const _GYRO_RAW := Vector2(0.25, 0.5)  # FakeGyroPlatform rate as (yaw, pitch) in rad/s; the look is _gyro_look()
+const _LookMath := preload("res://scripts/input/look_math.gd")
 
 
 ## Test double: pretends the device has a gyro and reports a fixed rate.
@@ -16,6 +17,17 @@ class FakeGyroPlatform extends PlatformServices:
 		return Vector3(0.5, 0.25, 0.0)
 
 
+## Test double with a settable rate (rad/s), for the turn-rate cap.
+class RateGyroPlatform extends PlatformServices:
+	var rate := Vector3.ZERO
+
+	func has_gyro() -> bool:
+		return true
+
+	func get_gyro_rate() -> Vector3:
+		return rate
+
+
 func _remove_tmp() -> void:
 	if FileAccess.file_exists(_TMP):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(_TMP))
@@ -23,6 +35,12 @@ func _remove_tmp() -> void:
 
 func _cfg() -> Dictionary:
 	return DataRegistry.new().load_file("res://data/input.json")
+
+
+## The FakeGyroPlatform reading as GyroProvider turns it into look: radians per physics tick (sensitivity 1.0).
+## tick_hz() reads Engine.physics_ticks_per_second at run time, so this cannot be a const.
+func _gyro_look() -> Vector2:
+	return _GYRO_RAW / _LookMath.tick_hz()
 
 
 ## Router with a touch provider holding a fixed stick deflection; the base look is measured at 100%.
@@ -107,7 +125,7 @@ func test_every_gyro_row_is_applied() -> void:
 	for table in ["gyro", "ads_gyro"]:
 		var made := _gyro_router("always_on")
 		var r: InputRouter = made[0]
-		assert_eq(r.update_frame().look, _GYRO_RAW, "gyro base look")
+		assert_eq(r.update_frame().look, _gyro_look(), "gyro base look")
 		var i := 0
 		for state in _states():
 			var row: String = r.sens.row_for_state(state)
@@ -116,7 +134,7 @@ func test_every_gyro_row_is_applied() -> void:
 			r.set_ads(table == "ads_gyro")
 			r.set_aim_state(state)
 			var got: Vector2 = r.update_frame().look
-			assert_true(got.is_equal_approx(_GYRO_RAW * (50.0 + 30.0 * i) / 100.0), "%s row %s applied (got %s)" % [table, row, str(got)])
+			assert_true(got.is_equal_approx(_gyro_look() * (50.0 + 30.0 * i) / 100.0), "%s row %s applied (got %s)" % [table, row, str(got)])
 		r.free()
 
 
@@ -157,14 +175,32 @@ func test_gyro_mode_gating() -> void:
 func test_gyro_inversion() -> void:
 	var made := _gyro_router("always_on")
 	var r: InputRouter = made[0]
+	var look := _gyro_look()
 	r.sens.gyro_invert_x = true
-	assert_eq(r.update_frame().look, Vector2(-_GYRO_RAW.x, _GYRO_RAW.y), "invert X")
+	assert_eq(r.update_frame().look, Vector2(-look.x, look.y), "invert X")
 	r.sens.gyro_invert_x = false
 	r.sens.gyro_invert_y = true
-	assert_eq(r.update_frame().look, Vector2(_GYRO_RAW.x, -_GYRO_RAW.y), "invert Y")
+	assert_eq(r.update_frame().look, Vector2(look.x, -look.y), "invert Y")
 	r.sens.gyro_invert_x = true
-	assert_eq(r.update_frame().look, -_GYRO_RAW, "invert both")
+	assert_eq(r.update_frame().look, -look, "invert both")
 	r.free()
+
+
+## The gyro is a rate source like the stick: rad/s become radians per tick and obey look.max_turn_rate_deg_s
+## (mirrors test_touch_controls.gd test_gamepad_obeys_cap). The cap and rates are test fixtures, not data values.
+func test_gyro_look_obeys_cap() -> void:
+	assert_true(GyroProvider.new()._cfg.has("look"), "provider loads the look block from data/input.json")
+	var g := GyroProvider.new()
+	g.configure({"gyro_mode": "always_on"})
+	var fake := RateGyroPlatform.new()
+	fake.rate = Vector3(40.0, -40.0, 0.0)
+	g._platform = fake
+	g._cfg = {"look": {"max_turn_rate_deg_s": 90.0}}
+	var cap := deg_to_rad(90.0) / _LookMath.tick_hz()
+	var got := g.get_look()
+	assert_true(got.is_equal_approx(Vector2(-cap, cap)), "yaw -40 -> -cap, pitch +40 -> +cap (got %s, cap %s)" % [got, cap])
+	fake.rate = Vector3(0.5, 0.25, 0.0)
+	assert_eq(g.get_look(), Vector2(fake.rate.y, fake.rate.x) / _LookMath.tick_hz(), "sub-cap reading is rate / tick_hz")
 
 
 func test_gyro_max_400_clamps() -> void:
