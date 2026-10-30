@@ -325,6 +325,7 @@ func _apply_movement(delta: float) -> void:
 				velocity.z = cover_velocity.z
 	move_and_slide()
 	if cover != null and cover.state != CoverController.State.FREE:
+		cover.refresh_completed_pose(global_position)
 		cover.refresh_shot_clear(_cover_probe.shot_clear(self))
 
 
