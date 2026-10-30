@@ -35,6 +35,13 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float) -> Anima
 	move.add_blend_point(_node("strafe_r"), Vector2(1, 0), -1, &"strafe_r")
 	move.add_blend_point(_node("run_fwd"), Vector2(0, -sprint), -1, &"run_fwd")
 	graph.add_node(&"locomotion", move)
+	# Keep the public BlendSpace2D live at its original parameter path.
+	var lower := AnimationNodeTransition.new()
+	lower.input_count = 1
+	lower.set_input_name(0, "stand")
+	lower.xfade_time = float(SoldierRig.config()["layers"]["lower_xfade_s"])
+	graph.add_node(&"lower", lower)
+	graph.connect_node(&"lower", 0, &"locomotion")
 	var aim := AnimationNodeBlendSpace1D.new()
 	aim.add_blend_point(_node("aim_down"), -1.0, -1, &"aim_down")
 	aim.add_blend_point(_node("aim"), 0.0, -1, &"aim")
@@ -64,7 +71,7 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float) -> Anima
 	graph.add_node(&"upper", upper)
 	graph.add_node(&"fire", fire)
 	graph.add_node(&"reload", reload)
-	graph.connect_node(&"upper", 0, &"locomotion")
+	graph.connect_node(&"upper", 0, &"lower")
 	graph.connect_node(&"upper", 1, &"aim")
 	graph.connect_node(&"fire", 0, &"upper")
 	graph.connect_node(&"fire", 1, &"fire_clip")

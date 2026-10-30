@@ -34,6 +34,11 @@
 		"_placeholder": true, "_todo": "OQ-ANIM: analytic IK acceptance tolerance is a provisional test/art target, not a design value. Grip and muzzle positions derive from art_astra rifle parts.",
 		"ik_tolerance_m": 0.015, "stock_shoulder_tolerance_m": 0.12
 	},
+	"layers": {
+		"_placeholder": true,
+		"_todo": "OQ-LIBS-TREE: lower transition crossfade is a presentation placeholder, not a design value; only stand is available until extra source clips are acquired.",
+		"lower_xfade_s": 0.08
+	},
 	"retarget": {
 		"_placeholder": true,
 		"_todo": "OQ-LIBS-RIG: sample_hz is a presentation bake sampling placeholder, not a design value; no UAL archive acquired yet. Hips XZ is stripped; no motion_scale or importer position normalization.",
