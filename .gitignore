@@ -9,4 +9,8 @@ build/shots/
 !android/debug.keystore
 android/build/
 __pycache__/
+assets/import_local/mixamo/*
+!assets/import_local/mixamo/README.md
+assets/import_local/quaternius_ual_drop/*
+!assets/import_local/quaternius_ual_drop/README.md
 

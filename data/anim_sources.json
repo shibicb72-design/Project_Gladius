@@ -1,0 +1,168 @@
+{
+	"version": 1,
+	"_todo": "OQ-LIBS-SOURCES: no UAL archive acquired; no invented file or clip names. Explicit candidates follow actionforge, ual, mixamo_local, procedural order. Local lists stay empty in the committed table.",
+	"clips": {
+		"idle": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"walk_fwd": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"walk_back": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"strafe_l": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"strafe_r": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"run_fwd": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"aim_down": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"aim": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"aim_up": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"fire": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"reload": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_enter": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_enter_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_idle_l": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_idle_l_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_idle_r": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_idle_r_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"peek_left": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"peek_left_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"peek_right": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"peek_right_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_exit": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_exit_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_slide_l": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"cover_slide_r": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"cover_slide_l_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"cover_slide_r_crouch": {
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		}
+	}
+}
