@@ -104,9 +104,9 @@ func drag_to(point: Vector2, relative: Vector2) -> void:
 
 func tap(point: Vector2) -> void:
 	event_at(point, true)
-	await tree().process_frame
+	await frames(2)
 	event_at(point, false)
-	await tree().process_frame
+	await frames(2)
 
 func test_t_arrival_tick_first_shot_standing_and_crouched() -> void:
 	for stance in [false, true]:
@@ -314,4 +314,55 @@ func test_l_both_conflicts_resolve_fire_before_crouch() -> void:
 	crouch.refresh()
 	await check_layout(fire, fire_baseline, 32.0)
 	await check_layout(crouch, crouch_baseline, crouch_slot.distance_to(crouch_baseline.get_center()))
+	await cleanup()
+
+func test_s_new_sprint_gesture_exits_cover_and_release_locks() -> void:
+	for quick_draw in [false, true]:
+		await setup(SCREENS[0])
+		if quick_draw:
+			await tap(touch._buttons["aim"].get_global_rect().get_center())
+			await frames(20)
+			assert_true(pawn.cover.aimed_out, "active quick draw fixture")
+		var origin: Vector2 = touch.get_move_rest()
+		event_at(origin, true)
+		await frames(1)
+		var target: Vector2 = touch.get_lock_target_rect().get_center()
+		drag_to(target, target - origin)
+		await frames(2)
+		assert_true(pawn.cover.state == CoverController.State.EXITING or pawn.cover.state == CoverController.State.FREE, "Sprint press leaves cover within two ticks")
+		assert_true(touch.provider.lock_target_visible(), "transient lock target remains available")
+		event_at(target, false)
+		await frames(1)
+		assert_true(touch.provider.sprint_locked, "real release on target locks sprint")
+		await frames(maxi(0, ceili(float(pawn.cover.config["exit_s"]) * Engine.physics_ticks_per_second) - 1))
+		assert_eq(pawn.cover.state, CoverController.State.FREE, "existing exit completes while sprint held")
+		assert_true(pawn.sprint_factor > 1.0, "sprint speed factor ramps")
+		print("A2 S quick_draw=%s exit=FREE sprint_factor=%.5f locked=%s" % [quick_draw, pawn.sprint_factor, touch.provider.sprint_locked])
+		await cleanup()
+
+func test_s_lock_already_on_enters_and_stays_in_cover() -> void:
+	await setup(SCREENS[0], 0.25, false)
+	touch.provider.move_value = Vector2(0, -0.3)
+	await frames(1)
+	await tap(touch.lock_button.get_global_rect().get_center())
+	assert_true(touch.provider.sprint_locked, "real free Sprint lock button locks")
+	await frames(60)
+	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "existing forward lock snaps into cover")
+	await frames(60)
+	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "existing lock stays in cover sixty more ticks")
+	assert_true(touch.provider.sprint_locked, "cover entry preserves existing lock")
+	await cleanup()
+
+func test_h_aimed_semi_hold_records_shot_count() -> void:
+	await setup(SCREENS[0])
+	pawn.loadout.get_active().fire_mode = "semi"
+	await tap(touch._buttons["aim"].get_global_rect().get_center())
+	await frames(20)
+	assert_true(pawn.cover.aimed_out, "completed aimed-out pose before hold")
+	event_at(fire.label.get_global_rect().get_center(), true)
+	await frames(30)
+	event_at(fire.label.get_global_rect().get_center(), false)
+	await frames(2)
+	print("A2 H semi cover FIRE hold 30 frames shots=%d" % shots)
+	assert_true(shots >= 1, "real held FIRE emits a shot; repeat policy remains undecided")
 	await cleanup()

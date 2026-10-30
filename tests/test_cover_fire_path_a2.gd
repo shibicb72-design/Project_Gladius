@@ -378,8 +378,8 @@ func test_transient_sprint_target_cover_result_recorded_open() -> void:
 	event_at(target, false)
 	await frames(2)
 	assert_true(touch.provider.sprint_locked, "record current transient sprint behavior, not a new product decision")
-	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "transient lock does not leave cover")
-	print("A2 OPEN transient Sprint target CAN lock sprint in cover")
+	assert_true(pawn.cover.state == CoverController.State.EXITING or pawn.cover.state == CoverController.State.FREE, "transient Sprint press leaves cover")
+	print("A2 DECIDED transient Sprint press leaves cover and release locks sprint")
 	await cleanup()
 
 func test_vf_timing_live_window_tap_motion_bounds_and_probe_cost() -> void:

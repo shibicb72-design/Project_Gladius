@@ -216,6 +216,9 @@ func _update_crouch(delta: float, rising: bool) -> void:
 	crouch_amount = move_toward(crouch_amount, target, delta / float(config["crouch_blend_s"]))
 
 func _tick_draw(delta: float, position: Vector3, aiming: bool) -> bool:
+	# A new Sprint press must complete the existing exit even during quick draw.
+	if state == State.EXITING:
+		return false
 	var wants_out := aiming or _look_active or _quick_held or _buffered_round or _round_hold > 0.0 or bool(_facts.get("weapon_pending", false))
 	if not _draw_active and wants_out and can_quick_draw():
 		_draw_active = true
@@ -290,6 +293,10 @@ func _begin_exit() -> void:
 	state = State.EXITING
 	_phase = 0.0
 	_peek_complete = false
+	_draw_active = false
+	aimed_out = false
+	_quick_held = false
+	_buffered_round = false
 
 ## The owner still calls move_and_slide. No transform writes; every phase is speed bounded.
 func movement_velocity(position: Vector3, free_wish: Vector3, max_speed: float, delta: float) -> Vector3:

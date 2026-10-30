@@ -54,6 +54,7 @@ var sprint_factor: float = 1.0
 var cover: CoverController
 var _cover_probe := CoverProbe.new()
 var _cover_auto_disabled := false
+var _sprint_was_requested := false
 
 var _frame: InputFrame = InputFrame.new()
 var _aim: Dictionary = {}
@@ -298,6 +299,8 @@ func _update_sprint_factor(delta: float) -> void:
 
 
 func _apply_movement(delta: float) -> void:
+	var sprint_pressed := _frame.sprint and not _sprint_was_requested
+	_sprint_was_requested = _frame.sprint
 	# Full analog speed: the wish speed scales continuously with the stick length (no walk/run step).
 	# Sideways and backward are a ratio of forward speed (stats.json movement.strafe_back_ratio).
 	_update_sprint_factor(delta)
@@ -317,6 +320,8 @@ func _apply_movement(delta: float) -> void:
 			_cover_probe.reset()
 		else:
 			var probe := _cover_probe.sample(self, cover.config, cover.state != CoverController.State.FREE)
+			if sprint_pressed and (cover.state == CoverController.State.IN_COVER or cover.state == CoverController.State.PEEK_LEFT or cover.state == CoverController.State.PEEK_RIGHT):
+				cover._begin_exit()
 			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming)
 			_apply_cover_shapes()
 			if cover.state != CoverController.State.FREE:
