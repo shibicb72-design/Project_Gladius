@@ -62,6 +62,7 @@ func _slot_rects() -> Dictionary:
 		if key not in shared["hidden_slots"]:
 			occupied.append(touch_hud.get_element_rect(key))
 	var result: Dictionary = {}
+	var needs_move: Dictionary = {}
 	for key in ["cover_fire", "cover_crouch"]:
 		var center := _slot_center(key)
 		var local := center - origin
@@ -72,11 +73,70 @@ func _slot_rects() -> Dictionary:
 		var peer := _slot_center("cover_crouch" if key == "cover_fire" else "cover_fire")
 		var separation := (center - peer).abs()
 		side = minf(side, maxf(separation.x, separation.y) - gap)
-		# A saved layout can have no valid 48dp solution. Keep the floor; report the
-		# conflict to the existing layout workflow rather than silently moving slots.
+		needs_move[key] = side < float(touch_hud._layout["button_min_dp"]) * dp
 		side = maxf(side, float(touch_hud._layout["button_min_dp"]) * dp)
 		result[key] = Rect2(center - Vector2.ONE * side * 0.5, Vector2.ONE * side)
+	# Preserve every already-clear slot exactly. Resolve FIRE before Crouch.
+	# If both move, Crouch avoids FIRE's final rect; its obsolete slot must not
+	# exclude an otherwise nearer FIRE centre.
+	for key in ["cover_fire", "cover_crouch"]:
+		if not needs_move[key]:
+			continue
+		var obstacles: Array[Rect2] = occupied.duplicate()
+		if key == "cover_crouch" or not needs_move["cover_crouch"]:
+			obstacles.append(result["cover_crouch" if key == "cover_fire" else "cover_fire"])
+		var minimum := float(touch_hud._layout["button_min_dp"]) * dp
+		var centers := _nearest_free(_slot_center(key), view, origin, minimum, obstacles, gap)
+		if centers.is_empty():
+			continue # No free thumb-reachable spot: retain the existing floor.
+		var center := centers[0]
+		var side := maxf(minimum, _clear_side(center, view, origin, float(ui_cfg[key]["preferred_dp"]) * dp, obstacles, gap))
+		result[key] = Rect2(center - Vector2.ONE * side * 0.5, Vector2.ONE * side)
 	return result
+
+## Largest clear square at any centre (HUD canvas pixels).
+func _clear_side(center: Vector2, view: Vector2, origin: Vector2, preferred: float, occupied: Array[Rect2], gap: float) -> float:
+	var local := center - origin
+	var side := minf(preferred, 2.0 * minf(minf(local.x, view.x - local.x), minf(local.y, view.y - local.y)))
+	for obstacle in occupied:
+		var distance := (center - obstacle.get_center()).abs() - obstacle.size * 0.5
+		side = minf(side, 2.0 * (maxf(distance.x, distance.y) - gap))
+	return side
+
+## Inflate obstacles by the minimum square's half-side and clearance. The nearest
+## feasible point lies on a boundary or the slot's projection onto one. Enumerating
+## those x/y coordinates is exact for axis-aligned rectangles (no grid budget).
+## Ties use lower y, then lower x. An empty result keeps the legacy slot floor.
+func _nearest_free(slot: Vector2, view: Vector2, origin: Vector2, minimum: float, occupied: Array[Rect2], gap: float) -> Array[Vector2]:
+	var reach: Array = ui_cfg["cover_buttons"]["thumb_reach_min"]
+	var lower := origin + Vector2(maxf(view.x * float(reach[0]), minimum * 0.5), maxf(view.y * float(reach[1]), minimum * 0.5))
+	var upper := origin + view - Vector2.ONE * minimum * 0.5
+	if lower.x > upper.x or lower.y > upper.y:
+		return []
+	var projected := slot.clamp(lower, upper)
+	var xs: Array[float] = [lower.x, upper.x, projected.x]
+	var ys: Array[float] = [lower.y, upper.y, projected.y]
+	for obstacle in occupied:
+		var expanded := obstacle.grow(minimum * 0.5 + gap)
+		xs.append(clampf(expanded.position.x, lower.x, upper.x))
+		xs.append(clampf(expanded.end.x, lower.x, upper.x))
+		ys.append(clampf(expanded.position.y, lower.y, upper.y))
+		ys.append(clampf(expanded.end.y, lower.y, upper.y))
+	var best: Array[Vector2] = []
+	var best_distance := INF
+	for x in xs:
+		for y in ys:
+			var center := Vector2(x, y)
+			var distance := center.distance_squared_to(slot)
+			if distance > best_distance:
+				continue
+			# Small float-rounding slack only; no change to the configured clearance.
+			if _clear_side(center, view, origin, minimum, occupied, gap) < minimum - 0.0001:
+				continue
+			if best.is_empty() or distance < best_distance or (distance == best_distance and (y < best[0].y or (y == best[0].y and x < best[0].x))):
+				best = [center]
+				best_distance = distance
+	return best
 
 func _place() -> void:
 	if label == null:
