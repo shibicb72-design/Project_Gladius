@@ -6,6 +6,7 @@ func _files(path: String) -> Array[String]:
 	var directory := DirAccess.open(path)
 	if directory == null:
 		return result
+	directory.include_hidden = true
 	for name in directory.get_files():
 		if not name.begins_with("."):
 			result.append(path.path_join(name))
@@ -42,6 +43,9 @@ func test_every_third_party_file_is_catalogued_or_documented_dependency() -> voi
 	for entry: Dictionary in _entries():
 		listed.append(entry["path"])
 		for dependency in entry.get("dependencies", []):
+			assert_true(String(entry["path"]).get_extension().to_lower() in ["glb", "gltf", "fbx"], "dependency belongs to a catalogued model")
+			assert_true(dependency is String and String(dependency).get_extension().to_lower() in ["bin", "png", "jpg", "jpeg"], "only model buffers/textures may be dependencies")
+			assert_true(FileAccess.file_exists(dependency), "model dependency exists")
 			listed.append(dependency)
 	for path in _files("res://assets/third_party"):
 		var name := path.get_file().to_lower()

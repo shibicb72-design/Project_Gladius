@@ -55,8 +55,9 @@ static func basis_change(source: Skeleton3D, target: Skeleton3D, mapping: BoneMa
 	for rig in [source, target]:
 		var source_rig: bool = rig == source
 		var hip: int = rig.find_bone("Hips" if source_rig else _name("Hips", mapping))
-		var left: int = rig.find_bone("LeftFoot" if source_rig else _name("LeftFoot", mapping))
-		var right: int = rig.find_bone("RightFoot" if source_rig else _name("RightFoot", mapping))
+		var has_toes: bool = source_rig and rig.find_bone("LeftToes") >= 0 and rig.find_bone("RightToes") >= 0
+		var left: int = rig.find_bone("LeftToes" if has_toes else "LeftFoot" if source_rig else _name("LeftFoot", mapping))
+		var right: int = rig.find_bone("RightToes" if has_toes else "RightFoot" if source_rig else _name("RightFoot", mapping))
 		var left_thigh: int = rig.find_bone("LeftUpperLeg" if source_rig else _name("LeftUpperLeg", mapping))
 		var right_thigh: int = rig.find_bone("RightUpperLeg" if source_rig else _name("RightUpperLeg", mapping))
 		if mini(mini(hip, left), mini(right, mini(left_thigh, right_thigh))) < 0:

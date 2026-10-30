@@ -69,6 +69,23 @@ func test_target_bone_map_and_native_capability() -> void:
 	assert_eq(String(MAP.get_skeleton_bone_name(&"LeftLowerArm")), "LeftForeArm", "left forearm mapping")
 	assert_eq(String(MAP.get_skeleton_bone_name(&"RightLowerArm")), "RightForeArm", "right forearm mapping")
 	assert_eq(MAP.profile.find_bone(&"LeftForeArm"), -1, "source profile uses LowerArm")
+	# A connected source can have ankle pivots behind Hips while its toes point forward.
+	var source := _source(target)
+	for side in ["Left", "Right"]:
+		var foot := source.find_bone(side + "Foot")
+		var ankle := source.get_bone_global_rest(foot)
+		ankle.origin.z = -0.3
+		source.set_bone_rest(foot, source.get_bone_global_rest(source.get_bone_parent(foot)).affine_inverse() * ankle)
+		var toes := source.add_bone(side + "Toes")
+		source.set_bone_parent(toes, foot)
+		var desired := source.get_bone_global_rest(foot)
+		desired.origin.z = 0.3
+		source.set_bone_rest(toes, source.get_bone_global_rest(foot).affine_inverse() * desired)
+	var change := AnimRetarget.basis_change(source, target)
+	assert_true(change.get("valid", false), "toe-based source heading")
+	if change.get("valid", false):
+		assert_true(((change["rotation"] as Quaternion) * Vector3.BACK).distance_to(Vector3.FORWARD) < 0.0001, "source toes determine front")
+	source.free()
 	print("RETARGET native_modifier=", ClassDB.class_exists(&"RetargetModifier3D"), "; UAL map/import validation deferred: archive not acquired")
 	target.free()
 
