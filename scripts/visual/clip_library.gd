@@ -69,3 +69,29 @@ static func _report_once(message: String) -> void:
 	if not _reported.has(message):
 		_reported[message] = true
 		print("[clip_library] " + message)
+
+## Clone shared clips before slot-specific timing or additive conversion.
+static func fit(clip: Animation, duration: float, loop: Animation.LoopMode, additive: bool = false) -> Animation:
+	var result := clip.duplicate_deep() as Animation
+	var factor := duration / clip.length if clip.length > 0.0 else 1.0
+	for track in result.get_track_count():
+		var count := result.track_get_key_count(track)
+		if count == 0:
+			continue
+		if additive:
+			if result.track_get_type(track) == Animation.TYPE_ROTATION_3D:
+				var first: Quaternion = clip.rotation_track_interpolate(track, 0.0)
+				for key in count:
+					var value: Quaternion = result.track_get_key_value(track, key)
+					result.track_set_key_value(track, key, value * first.inverse())
+			elif result.track_get_type(track) == Animation.TYPE_POSITION_3D:
+				var first: Vector3 = clip.position_track_interpolate(track, 0.0)
+				for key in count:
+					var value: Vector3 = result.track_get_key_value(track, key)
+					result.track_set_key_value(track, key, value - first)
+		var keys := range(count - 1, -1, -1) if factor >= 1.0 else range(count)
+		for key in keys:
+			result.track_set_key_time(track, key, clip.track_get_key_time(track, key) * factor)
+	result.length = duration
+	result.loop_mode = loop
+	return result
