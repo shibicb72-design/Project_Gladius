@@ -2,7 +2,7 @@
 Rules: everything modular, data-driven, future-proof (additions must not mean rewrites). All numbers live in editable data files (res://data/*.json). Do NOT invent product decisions; where something is undecided, leave a clearly-marked TODO/placeholder.
 
 ## Platform/tech
-Godot 4.7.2, GDScript, Android (Vulkan Mobile renderer). Phones: S24 Ultra, S25 Ultra, Z Fold7 (wider FOV on inner screen). 60 fps target, optional 120 fps setting. Low-poly 3D third-person. Free CC0 art (Kenney, Quaternius, Mixamo). Networking: local hotspot multiplayer, host phone is authoritative (decides hits/payouts). Later: dedicated server on Alienware is authoritative online (same rules code). Progress stored on phone; later sync to Alienware keeping last good sync.
+Godot 4.7.2, GDScript, Android (Vulkan Mobile renderer). Phones: S24 Ultra, S25 Ultra, Z Fold7 (wider FOV on inner screen). 60 fps target, optional 120 fps setting. Low-poly 3D third-person. Free CC0 art (Kenney, Quaternius); Mixamo (Adobe terms, local builds only, never committed). Networking: local hotspot multiplayer, host phone is authoritative (decides hits/payouts). Later: dedicated server on Alienware is authoritative online (same rules code). Progress stored on phone; later sync to Alienware keeping last good sync.
 
 ## Setting
 Futuristic Roman Republic (Rome never fell), Halo 2/3 feel. Map: futuristic Alesia (hilltop citadel = hill, inner wall, legion camp ring, outer wall with sniper towers, energy lily traps, stakes, jump pads, man cannons, aqueduct high routes, arches/eagles/columns/marble). Dusk/night/storm variants.
