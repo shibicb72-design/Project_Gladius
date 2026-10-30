@@ -14,8 +14,8 @@ const _LookMath := preload("res://scripts/input/look_math.gd")
 
 ## The player's sensitivity tables (G2d); match_root replaces it with the profile's.
 var sens := SensitivitySettings.new()
-## Look state. aim_state is one of the data/input.json sensitivity_tables.states keys. Scopes do not exist yet
-## (OQ-ADS-ZOOM), so it stays "no_scope"; ads is true while the Aim button zoom is on (pawn aim_blend > 0).
+## Look state comes from the active weapon's optional scope field while aiming (default "no_scope").
+## aim_state is a data/input.json sensitivity_tables.states key; ads is true while pawn aim_blend > 0.
 var aim_state: String = "no_scope"
 var ads: bool = false
 ## Free Look row (tpp_character or fpp_character), "" while there is no free look in the game.

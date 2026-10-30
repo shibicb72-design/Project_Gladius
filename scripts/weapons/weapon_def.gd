@@ -6,6 +6,7 @@ var id: String = ""
 var display_name: String = ""
 var kind: String = "hitscan"
 var tier: String = "standard"
+var scope: String = "no_scope"
 var damage: float = 0.0
 var headshot_multiplier: float = 1.0
 var fire_interval_s: float = 0.5
@@ -33,6 +34,7 @@ static func from_dict(weapon_id: String, d: Dictionary) -> WeaponDef:
 	w.display_name = str(d.get("display_name", weapon_id))
 	w.kind = str(d.get("kind", "hitscan"))
 	w.tier = str(d.get("tier", "standard"))
+	w.scope = str(d.get("scope", "no_scope"))
 	w.damage = float(d.get("damage", 0))
 	w.headshot_multiplier = float(d.get("headshot_multiplier", 1.0))
 	w.fire_interval_s = float(d.get("fire_interval_s", 0.5))
