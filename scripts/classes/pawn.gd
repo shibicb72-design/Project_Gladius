@@ -88,6 +88,14 @@ func set_frame(frame: InputFrame) -> void:
 	_frame = frame
 
 
+## D1 (G1.5): press-time action from the input layer (InputRouter.action_triggered via MatchRoot).
+## One press is one toggle: the frame's crouch_just_pressed bit is transport only until D9/G3.2, so the
+## physics tick never toggles from it. Reads cover at call time (tests enable it after begin()).
+func handle_action_press(action: String) -> void:
+	if action == "crouch" and cover != null and is_alive():
+		cover.toggle_crouch()
+
+
 ## Pawn simulation clock (s); the time base of Weapon reload progress.
 func get_clock() -> float:
 	return _clock

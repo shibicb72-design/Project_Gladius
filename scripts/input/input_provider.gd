@@ -2,6 +2,15 @@ class_name InputProvider
 extends RefCounted
 ## Base class for swappable input sources. The router sums move/look and ORs buttons.
 
+## A one-shot action press (D1: cover Crouch). The router re-emits it at once and latches the edge into its
+## next frame, so a tap that starts and ends between two ticks is still seen exactly once.
+signal action_triggered(action: String)
+
+
+## Press entry point for controls that act at press time. The default does nothing; TouchProvider emits.
+func trigger_action(_action: String) -> void:
+	pass
+
 
 ## Movement contribution, each axis in -1..1.
 func get_move() -> Vector2:

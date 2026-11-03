@@ -229,6 +229,8 @@ func _input(event: InputEvent) -> void:
 			_crouch_index = event.index
 		else:
 			_crouch_mouse = true
-		pawn.cover.toggle_crouch()
+		# D1: through the input layer (provider -> router -> pawn -> cover). No TouchHud means no route.
+		if is_instance_valid(touch_hud) and touch_hud.provider != null:
+			touch_hud.provider.trigger_action("crouch")
 		queue_redraw()
 		get_viewport().set_input_as_handled()

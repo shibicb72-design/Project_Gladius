@@ -1,7 +1,10 @@
 class_name TouchProvider
 extends InputProvider
-## Values are pushed in by the touch HUD. Buttons reach the game via Input.action_press
-## (picked up by KeyboardMouseProvider), so only the sticks live here.
+## Values are pushed in by the touch HUD. Held buttons reach the game via Input.action_press
+## (picked up by KeyboardMouseProvider), so only the sticks live here. One-shot press controls (the in-cover
+## Crouch, D1) call trigger_action instead: the router acts on it at press time and latches the frame edge.
+## TODO(D2): keyboard/gamepad crouch must reach the same router action_triggered signal (one press, one toggle)
+## without also toggling from the polled crouch_just_pressed bit.
 ## Look is radians per physics tick (see look_math.gd), in "stick" or "drag" mode.
 
 const _LookMath := preload("res://scripts/input/look_math.gd")
@@ -95,6 +98,11 @@ func lock_sprint() -> void:
 func cancel_sprint_lock() -> void:
 	sprint_locked = false
 	detector.reset()
+
+
+## A touch control was pressed (e.g. "crouch"). Emitted synchronously so the press acts before the next tick.
+func trigger_action(action: String) -> void:
+	action_triggered.emit(action)
 
 
 ## Tap on the Sprint lock button: locks while moving forward, cancels while locked.

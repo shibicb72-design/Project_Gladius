@@ -49,6 +49,7 @@ var networked_match: bool = false
 func _ready() -> void:
 	router = InputRouter.new()
 	add_child(router)
+	router.action_triggered.connect(_on_action_triggered)
 	router.add_provider(KeyboardMouseProvider.new())
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
@@ -199,6 +200,14 @@ func _exit_tree() -> void:
 		roster.detach_bridge()
 	if menu_open and not networked_match and is_inside_tree():
 		get_tree().paused = false
+
+
+## D1: a one-shot action press from the input layer reaches the current local pawn at press time.
+## Reads local_player at call time, so begin/respawn/quit need no reconnect. The menu gate matches the zero frame.
+func _on_action_triggered(action: String) -> void:
+	if menu_open or local_player == null or not is_instance_valid(local_player):
+		return
+	local_player.handle_action_press(action)
 
 
 func _on_menu_opened() -> void:
