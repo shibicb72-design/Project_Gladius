@@ -54,6 +54,7 @@ var sprint_factor: float = 1.0
 var cover: CoverController
 var _cover_probe := CoverProbe.new()
 var _cover_auto_disabled := false
+var _sprint_was_requested := false
 
 var _frame: InputFrame = InputFrame.new()
 var _aim: Dictionary = {}
@@ -85,6 +86,14 @@ func setup(new_class_id: String, new_squad_id: int) -> void:
 
 func set_frame(frame: InputFrame) -> void:
 	_frame = frame
+
+
+## D1 (G1.5): press-time action from the input layer (InputRouter.action_triggered via MatchRoot).
+## One press is one toggle: the frame's crouch_just_pressed bit is transport only until D9/G3.2, so the
+## physics tick never toggles from it. Reads cover at call time (tests enable it after begin()).
+func handle_action_press(action: String) -> void:
+	if action == "crouch" and cover != null and is_alive():
+		cover.toggle_crouch()
 
 
 ## Pawn simulation clock (s); the time base of Weapon reload progress.
@@ -298,6 +307,8 @@ func _update_sprint_factor(delta: float) -> void:
 
 
 func _apply_movement(delta: float) -> void:
+	var sprint_pressed := _frame.sprint and not _sprint_was_requested
+	_sprint_was_requested = _frame.sprint
 	# Full analog speed: the wish speed scales continuously with the stick length (no walk/run step).
 	# Sideways and backward are a ratio of forward speed (stats.json movement.strafe_back_ratio).
 	_update_sprint_factor(delta)
@@ -317,6 +328,8 @@ func _apply_movement(delta: float) -> void:
 			_cover_probe.reset()
 		else:
 			var probe := _cover_probe.sample(self, cover.config, cover.state != CoverController.State.FREE)
+			if sprint_pressed and (cover.state == CoverController.State.IN_COVER or cover.state == CoverController.State.PEEK_LEFT or cover.state == CoverController.State.PEEK_RIGHT):
+				cover._begin_exit()
 			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming)
 			_apply_cover_shapes()
 			if cover.state != CoverController.State.FREE:
@@ -325,6 +338,7 @@ func _apply_movement(delta: float) -> void:
 				velocity.z = cover_velocity.z
 	move_and_slide()
 	if cover != null and cover.state != CoverController.State.FREE:
+		cover.refresh_completed_pose(global_position)
 		cover.refresh_shot_clear(_cover_probe.shot_clear(self))
 
 

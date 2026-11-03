@@ -8,18 +8,20 @@ static func _node(clip: String) -> AnimationNodeAnimation:
 	return node
 
 
-static func build(skeleton: Skeleton3D, sprint: float, reload_s: float) -> AnimationTree:
+static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources: Variant = null) -> AnimationTree:
 	var cfg: Dictionary = SoldierRig.config()["locomotion"]
+	var clips := ClipLibrary.new(sources)
 	var library := AnimationLibrary.new()
 	for clip in ["idle", "walk_fwd", "walk_back", "strafe_l", "strafe_r", "run_fwd"]:
-		library.add_animation(clip, _locomotion(clip, cfg))
+		library.add_animation(clip, clips.resolve(clip, _locomotion(clip, cfg), skeleton))
 	var upper_cfg: Dictionary = SoldierRig.config()["upper_body"]
 	for name in ["aim_down", "aim", "aim_up"]:
 		var pitch := -1.0 if name == "aim_down" else 1.0 if name == "aim_up" else 0.0
-		library.add_animation(name, aim_clip(skeleton, upper_cfg, pitch))
-	library.add_animation("fire", fire_clip(upper_cfg))
-	library.add_animation("reload", reload_clip(skeleton, reload_s, upper_cfg))
+		library.add_animation(name, resolve_slot(clips, name, aim_clip(skeleton, upper_cfg, pitch), skeleton))
+	library.add_animation("fire", resolve_slot(clips, "fire", fire_clip(upper_cfg), skeleton))
+	library.add_animation("reload", resolve_slot(clips, "reload", reload_clip(skeleton, reload_s, upper_cfg), skeleton))
 	var tree := AnimationTree.new()
+	tree.set_meta(&"clip_library", clips)
 	tree.name = "AnimationTree"
 	tree.root_node = NodePath("..")
 	tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
@@ -35,6 +37,13 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float) -> Anima
 	move.add_blend_point(_node("strafe_r"), Vector2(1, 0), -1, &"strafe_r")
 	move.add_blend_point(_node("run_fwd"), Vector2(0, -sprint), -1, &"run_fwd")
 	graph.add_node(&"locomotion", move)
+	# Keep the public BlendSpace2D live at its original parameter path.
+	var lower := AnimationNodeTransition.new()
+	lower.input_count = 1
+	lower.set_input_name(0, "stand")
+	lower.xfade_time = float(SoldierRig.config()["layers"]["lower_xfade_s"])
+	graph.add_node(&"lower", lower)
+	graph.connect_node(&"lower", 0, &"locomotion")
 	var aim := AnimationNodeBlendSpace1D.new()
 	aim.add_blend_point(_node("aim_down"), -1.0, -1, &"aim_down")
 	aim.add_blend_point(_node("aim"), 0.0, -1, &"aim")
@@ -64,7 +73,7 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float) -> Anima
 	graph.add_node(&"upper", upper)
 	graph.add_node(&"fire", fire)
 	graph.add_node(&"reload", reload)
-	graph.connect_node(&"upper", 0, &"locomotion")
+	graph.connect_node(&"upper", 0, &"lower")
 	graph.connect_node(&"upper", 1, &"aim")
 	graph.connect_node(&"fire", 0, &"upper")
 	graph.connect_node(&"fire", 1, &"fire_clip")
@@ -102,6 +111,13 @@ static func _locomotion(clip: String, cfg: Dictionary) -> Animation:
 					angle = 0.0
 				animation.rotation_track_insert_key(track, animation.length * sample / samples, Quaternion(axis, angle))
 	return animation
+
+
+static func resolve_slot(clips: ClipLibrary, name: String, procedural: Animation, skeleton: Skeleton3D) -> Animation:
+	var resolved := clips.resolve(name, procedural, skeleton)
+	if clips.source_for(name) == "procedural":
+		return procedural
+	return ClipLibrary.fit(resolved, procedural.length, procedural.loop_mode, name == "fire")
 
 
 static func _rotation_track(animation: Animation, bone: String, times: Array, values: Array[Quaternion]) -> void:

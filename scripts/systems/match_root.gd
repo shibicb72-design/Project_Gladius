@@ -49,6 +49,7 @@ var networked_match: bool = false
 func _ready() -> void:
 	router = InputRouter.new()
 	add_child(router)
+	router.action_triggered.connect(_on_action_triggered)
 	router.add_provider(KeyboardMouseProvider.new())
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
@@ -201,6 +202,14 @@ func _exit_tree() -> void:
 		get_tree().paused = false
 
 
+## D1: a one-shot action press from the input layer reaches the current local pawn at press time.
+## Reads local_player at call time, so begin/respawn/quit need no reconnect. The menu gate matches the zero frame.
+func _on_action_triggered(action: String) -> void:
+	if menu_open or local_player == null or not is_instance_valid(local_player):
+		return
+	local_player.handle_action_press(action)
+
+
 func _on_menu_opened() -> void:
 	menu_open = true
 	_touch_hud.set_suspended(true)
@@ -231,6 +240,9 @@ func _physics_process(delta: float) -> void:
 	if local_player == null or router == null:
 		return
 	router.set_ads(local_player.aim_blend > 0.0)  # picks the ADS sensitivity tables (G2d)
+	if router.ads:
+		var active_weapon := local_player.loadout.get_active()
+		router.set_aim_state(active_weapon.def.scope if active_weapon != null and active_weapon.def != null else "no_scope")
 	if not local_player.is_alive():
 		router.aim_toggle.clear_latch()  # OQ-AIM latch lifecycle (EL default): death drops the Aim tap-toggle latch
 	var frame := InputFrame.new()  # zero frame while the menu is open: no move, look, fire, jump or sprint

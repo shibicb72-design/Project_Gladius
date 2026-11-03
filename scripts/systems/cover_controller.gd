@@ -125,6 +125,11 @@ func round_fired() -> void:
 func refresh_shot_clear(clear: bool) -> void:
 	_facts["shot_clear"] = clear
 
+## Pawn refreshes arrival after move_and_slide, before the guarded weapon tick.
+## tick also calls this so pure controller callers retain the same pose contract.
+func refresh_completed_pose(position: Vector3) -> void:
+	aimed_out = _draw_active and not _draw_returning and aim_out_amount >= 1.0 and crouch_amount == 0.0 and position.distance_to(_draw_target) <= float(config["motion_epsilon_m"])
+
 func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary, aiming: bool = false) -> void:
 	_facts = probe.duplicate()
 	_round_hold = maxf(0.0, _round_hold - delta)
@@ -211,6 +216,9 @@ func _update_crouch(delta: float, rising: bool) -> void:
 	crouch_amount = move_toward(crouch_amount, target, delta / float(config["crouch_blend_s"]))
 
 func _tick_draw(delta: float, position: Vector3, aiming: bool) -> bool:
+	# A new Sprint press must complete the existing exit even during quick draw.
+	if state == State.EXITING:
+		return false
 	var wants_out := aiming or _look_active or _quick_held or _buffered_round or _round_hold > 0.0 or bool(_facts.get("weapon_pending", false))
 	if not _draw_active and wants_out and can_quick_draw():
 		_draw_active = true
@@ -239,7 +247,7 @@ func _tick_draw(delta: float, position: Vector3, aiming: bool) -> bool:
 	aim_out_amount = move_toward(aim_out_amount, 0.0 if _draw_returning else 1.0, delta / duration)
 	_update_crouch(delta, not _draw_returning)
 	target_position = _draw_anchor.lerp(_draw_target, aim_out_amount)
-	aimed_out = not _draw_returning and aim_out_amount >= 1.0 and crouch_amount == 0.0 and position.distance_to(_draw_target) <= float(config["motion_epsilon_m"])
+	refresh_completed_pose(position)
 	if _draw_returning and aim_out_amount <= 0.0 and position.distance_to(_draw_anchor) <= float(config["motion_epsilon_m"]):
 		_draw_active = false
 		_draw_returning = false
@@ -285,6 +293,10 @@ func _begin_exit() -> void:
 	state = State.EXITING
 	_phase = 0.0
 	_peek_complete = false
+	_draw_active = false
+	aimed_out = false
+	_quick_held = false
+	_buffered_round = false
 
 ## The owner still calls move_and_slide. No transform writes; every phase is speed bounded.
 func movement_velocity(position: Vector3, free_wish: Vector3, max_speed: float, delta: float) -> Vector3:

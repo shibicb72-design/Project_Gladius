@@ -83,7 +83,9 @@
       "damage": 90, "headshot_multiplier": 2.0, "fire_interval_s": 1.2,
       "burst_count": 1, "burst_interval_s": 0.05,
       "magazine": 5, "reserve_ammo": 25, "reload_s": 1.25,
-      "range_m": 200, "spread_deg": 0.1
+      "range_m": 200, "spread_deg": 0.1,
+      "scope": "8x",
+      "_scope_note": "8x approved by Shibi Oct 30 2026 6:18 PM ET (Sagittarii only for now, other classes later); the weapon itself is still a placeholder design, OQ-08/OQ-10; OQ-ADS-ZOOM"
     }
   }
 }

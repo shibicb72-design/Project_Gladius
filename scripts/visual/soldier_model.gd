@@ -200,7 +200,8 @@ func _on_reload_started() -> void:
 	reload_duration_s = weapon.def.reload_s
 	var library := animation_tree.get_animation_library(&"")
 	library.remove_animation(&"reload")
-	library.add_animation(&"reload", SoldierAnimation.reload_clip(skeleton, reload_duration_s, _upper_cfg))
+	var clips := animation_tree.get_meta(&"clip_library") as ClipLibrary
+	library.add_animation(&"reload", SoldierAnimation.resolve_slot(clips, "reload", SoldierAnimation.reload_clip(skeleton, reload_duration_s, _upper_cfg), skeleton))
 	animation_tree.set("parameters/reload/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
 

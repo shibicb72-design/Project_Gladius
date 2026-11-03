@@ -10,6 +10,7 @@ const ACTIONS := [
 	"move_left", "move_right", "move_forward", "move_back",
 	"look_left", "look_right", "look_up", "look_down",
 	"fire", "aim", "reload", "swap_weapon", "jump", "pause",
+	"crouch", "prone", "interact",
 ]
 
 

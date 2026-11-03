@@ -192,8 +192,13 @@ android/              debug.keystore (shared debug key only)
   "none on gyro" is a data lookup.
 
 ### 4.13 Input abstraction and providers
-- InputMap actions are the vocabulary: move, look, fire, aim, reload, swap_weapon, jump, pause; later
-  crouch, prone, melee, grenade, deployable, streak and command pages.
+- InputMap actions are the vocabulary: move, look, fire, aim, reload, swap_weapon, jump, pause, crouch
+  (D1: the in-cover Crouch control); prone and interact are reserved (action plus InputFrame bit, no
+  behaviour or bindings yet); later melee, grenade, deployable, streak and command pages.
+- One-shot presses (D1): a provider's `trigger_action(action)` emits `action_triggered`; the router
+  re-emits it at once and latches one pressed+just_pressed frame edge (even for a sub-tick tap).
+  MatchRoot forwards it to the local pawn (`handle_action_press`), which toggles cover crouch. The
+  frame bit is transport only until D9/G3.2, so the pawn never toggles from it.
 - `InputRouter` merges the active providers into one `InputFrame` per physics tick. Providers:
   `KeyboardMouseProvider`, `GamepadProvider`, `TouchProvider`, `GyroProvider`. Each is swappable and
   can be enabled or disabled from settings.
