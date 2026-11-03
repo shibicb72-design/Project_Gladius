@@ -199,6 +199,16 @@ android/              debug.keystore (shared debug key only)
   re-emits it at once and latches one pressed+just_pressed frame edge (even for a sub-tick tap).
   MatchRoot forwards it to the local pawn (`handle_action_press`), which toggles cover crouch. The
   frame bit is transport only until D9/G3.2, so the pawn never toggles from it.
+- Held press-time actions (D2): the in-cover FIRE control uses the action `cover_fire`, listed in
+  `InputRouter.NON_FRAME_ACTIONS` and not in `InputFrame.BUTTONS`/`LOCAL_BUTTONS` (no bit, no latch,
+  never sent). The provider's `trigger_action` / `release_action(action, cancel)` /
+  `set_action_look(action, active)` emit `action_triggered` / `action_released` / `action_look_changed`;
+  the router re-emits each at once, unfiltered, and MatchRoot forwards them to the local pawn
+  (`handle_action_press` / `handle_action_release` / `handle_action_look`), which calls
+  `cover.quick_draw(true)`, `cover.quick_draw(false, cancel)` and `cover.set_look_active(active)`. Only
+  the press is gated (menu in MatchRoot, death in Pawn, suspend in the UI); release and look go
+  through ungated so an interruption always lands. No file in scripts/ui calls a CoverController
+  mutator (tests/test_crouch_guard_d1.gd, no exceptions).
 - `InputRouter` merges the active providers into one `InputFrame` per physics tick. Providers:
   `KeyboardMouseProvider`, `GamepadProvider`, `TouchProvider`, `GyroProvider`. Each is swappable and
   can be enabled or disabled from settings.
