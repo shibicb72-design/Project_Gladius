@@ -3,6 +3,8 @@ extends InputProvider
 ## Values are pushed in by the touch HUD. Held buttons reach the game via Input.action_press
 ## (picked up by KeyboardMouseProvider), so only the sticks live here. One-shot press controls (the in-cover
 ## Crouch, D1) call trigger_action instead: the router acts on it at press time and latches the frame edge.
+## The held cover FIRE (D2) uses trigger_action / release_action / set_action_look on "cover_fire", which the
+## router re-emits without touching the frame.
 ## TODO(D2): keyboard/gamepad crouch must reach the same router action_triggered signal (one press, one toggle)
 ## without also toggling from the polled crouch_just_pressed bit.
 ## Look is radians per physics tick (see look_math.gd), in "stick" or "drag" mode.
@@ -103,6 +105,16 @@ func cancel_sprint_lock() -> void:
 ## A touch control was pressed (e.g. "crouch"). Emitted synchronously so the press acts before the next tick.
 func trigger_action(action: String) -> void:
 	action_triggered.emit(action)
+
+
+## A held touch control ended (D2: cover FIRE). Emitted synchronously, every call, with no held-state check.
+func release_action(action: String, cancel: bool = false) -> void:
+	action_released.emit(action, cancel)
+
+
+## The look state for a touch control (D2: cover FIRE). Emitted every call, changed or not.
+func set_action_look(action: String, active: bool) -> void:
+	action_look_changed.emit(action, active)
 
 
 ## Tap on the Sprint lock button: locks while moving forward, cancels while locked.

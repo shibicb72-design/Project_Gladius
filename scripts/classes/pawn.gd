@@ -94,6 +94,21 @@ func set_frame(frame: InputFrame) -> void:
 func handle_action_press(action: String) -> void:
 	if action == "crouch" and cover != null and is_alive():
 		cover.toggle_crouch()
+	elif action == "cover_fire" and cover != null and is_alive():
+		cover.quick_draw(true)
+
+
+## D2 (G1.7): end of the held cover FIRE press. No alive gate: the UI releases on death. cancel drops the
+## buffered round (hide, menu, suspend, death, exit). Stateless: sent even when no press was held.
+func handle_action_release(action: String, cancel: bool) -> void:
+	if action == "cover_fire" and cover != null:
+		cover.quick_draw(false, cancel)
+
+
+## D2 (G1.7): cover FIRE look-hold state, sent by the UI every refresh. No alive gate, so false always lands.
+func handle_action_look(action: String, active: bool) -> void:
+	if action == "cover_fire" and cover != null:
+		cover.set_look_active(active)
 
 
 ## Pawn simulation clock (s); the time base of Weapon reload progress.

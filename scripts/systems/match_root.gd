@@ -50,6 +50,8 @@ func _ready() -> void:
 	router = InputRouter.new()
 	add_child(router)
 	router.action_triggered.connect(_on_action_triggered)
+	router.action_released.connect(_on_action_released)
+	router.action_look_changed.connect(_on_action_look_changed)
 	router.add_provider(KeyboardMouseProvider.new())
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
@@ -208,6 +210,21 @@ func _on_action_triggered(action: String) -> void:
 	if menu_open or local_player == null or not is_instance_valid(local_player):
 		return
 	local_player.handle_action_press(action)
+
+
+## D2: the end of a held action (cover FIRE) reaches the current local pawn with no menu gate, because the UI
+## sends it exactly when the menu opens or the HUD hides. Pawn decides; null pawn is a no-op.
+func _on_action_released(action: String, cancel: bool) -> void:
+	if local_player == null or not is_instance_valid(local_player):
+		return
+	local_player.handle_action_release(action, cancel)
+
+
+## D2: per-refresh look state (cover FIRE look-hold), also ungated so false always lands.
+func _on_action_look_changed(action: String, active: bool) -> void:
+	if local_player == null or not is_instance_valid(local_player):
+		return
+	local_player.handle_action_look(action, active)
 
 
 func _on_menu_opened() -> void:
