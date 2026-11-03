@@ -2,7 +2,10 @@ class_name InputFrame
 extends RefCounted
 ## One tick of merged input. Plain data, serializable for networking.
 
-const BUTTONS: Array[String] = ["fire", "aim", "reload", "swap_weapon", "jump", "pause"]
+## Bit i of the held/just masks is BUTTONS[i]. Only append: old clients send masks that use bits 0-5.
+## D1 (G1.5): crouch, prone and interact are bits 6-8. The host ignores them until D9/G3.2; prone and
+## interact are reserved with no behaviour yet (D11/D16).
+const BUTTONS: Array[String] = ["fire", "aim", "reload", "swap_weapon", "jump", "pause", "crouch", "prone", "interact"]
 ## View-only buttons for this device (Path A phase 2: shoulder swap). The router fills them like BUTTONS, but
 ## to_array() leaves them out, so the frame a client sends to the host is unchanged.
 const LOCAL_BUTTONS: Array[String] = ["swap_shoulder"]
@@ -21,6 +24,12 @@ var reload_just_pressed: bool = false
 var swap_weapon_just_pressed: bool = false
 var jump_just_pressed: bool = false
 var pause_just_pressed: bool = false
+var crouch_pressed: bool = false
+var crouch_just_pressed: bool = false
+var prone_pressed: bool = false
+var prone_just_pressed: bool = false
+var interact_pressed: bool = false
+var interact_just_pressed: bool = false
 var swap_shoulder_pressed: bool = false
 var swap_shoulder_just_pressed: bool = false
 ## World point under the camera centre (right-shoulder camera, GBTN4); set by the match, not by a provider.
