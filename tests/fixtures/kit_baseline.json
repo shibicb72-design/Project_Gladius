@@ -1,0 +1,1088 @@
+{
+	"_note": "Frozen copy of part data, written by tools/kit_hash_record.gd. Not live art data: do not edit by hand.",
+	"canonical_hashes": {
+		"build/arch/2.0x1.0x1.0": "0a84d9625280f59de6ba0ac440d973c050be105b032e7d7dacc3c6b94a536f11",
+		"build/arch/3.0x2.5x0.6": "fa785e62460b3b9a4a1887c4624b10b0380d8f6e88a7da26a52b7544fc0cd158",
+		"build/barrier/2.0x1.0x1.0": "cf884f24c76fea6dfe4868aeda52ab944572614325e0047a1bb27def91f3064d",
+		"build/barrier/3.0x2.5x0.6": "4dcfc211bc2ec562667a021a5b8148b2a30e600a769823cd21e6c5ab634f2238",
+		"build/box/2.0x1.0x1.0": "be17fc5fe4bfe3d7aa2b7f0f4ff0fea46cdc8a0615a21560f5b951b98a60ba8c",
+		"build/box/3.0x2.5x0.6": "4bf9d78c0eb72b48ac49b556e2bd0135bdd9dd662e14939469a24caa423aca32",
+		"build/camp/2.0x1.0x1.0": "41982bbe84165aec19665dd240be8b532762691e2f24f0e36c8cd219d75deeac",
+		"build/camp/3.0x2.5x0.6": "11c7821391c85e895222a18769607df04b52548909038596ec57c0f3804fda93",
+		"build/crate/2.0x1.0x1.0": "4811a640af827a1491bb21769d618ca4b607806e81784032a8273e36df9150b4",
+		"build/crate/3.0x2.5x0.6": "a14a17011d5be52f7df028c31183608be1a613ac33bf562e11568e6c23974ff7",
+		"build/low_wall/2.0x1.0x1.0": "72456bd7680d366c8306aec34527eb125b0f2c209fbdb7ece1a123d7128008df",
+		"build/low_wall/3.0x2.5x0.6": "b5a6cc8647410c7970bcdfa34bb245fdd7230f802e37d0e6caae38fbab430335",
+		"build/pillar/2.0x1.0x1.0": "a0bb31a54ea8293f23453ae25db4cf5eec4971819caa19b363cb32b8d99ead0a",
+		"build/pillar/3.0x2.5x0.6": "db6b2b31ed5199e13f0b7ad83f276ebf0c34875c05f41b7489f85352e261089c",
+		"build/rock/2.0x1.0x1.0": "80f4cf8d68b51eaaf580719a6cbb4d57d71a9e01542cc77af958428fed297792",
+		"build/rock/3.0x2.5x0.6": "99eb054a97c934d275e9c1498660cf6021260a6c5538a4649f76434fbf5d56ce",
+		"build/rubble/2.0x1.0x1.0": "80f4cf8d68b51eaaf580719a6cbb4d57d71a9e01542cc77af958428fed297792",
+		"build/rubble/3.0x2.5x0.6": "99eb054a97c934d275e9c1498660cf6021260a6c5538a4649f76434fbf5d56ce",
+		"build/sandbags/2.0x1.0x1.0": "d1141b24474f7588f402b6d8e6a655d528af8dd0a756ff5e1058f1fb502e25fa",
+		"build/sandbags/3.0x2.5x0.6": "b939bf8f8c97b7da50c5786f59ec2a0a5fbb7dfeabf24720498ed7adc13deeb0",
+		"build/wall/2.0x1.0x1.0": "a1c3b2d4aa4d0cd0c0b819c8d5a57af9a375ef23640029d673cddaff6f133946",
+		"build/wall/3.0x2.5x0.6": "e1b9ae48b5244c3ebce0ca48c5dc658b07a6f3a48e4423e28d85eefccb0b9847",
+		"cover_types/arch": "5956a944b6b8e873778909db915fd30de06f22c8ba432fcc5486bd00a0292241",
+		"cover_types/barrier": "d29ff69d18a0989f85add4ea12bd89fab4b4c175a3766c16a29ff21f67687fa7",
+		"cover_types/barrier_line": "8c62e3608762c6a382e5becd2b90a8734a861653491911fbedbc08a6d97ba420",
+		"cover_types/crate": "9ad7c30fe16b814f740a461d8ef3f65221b4b6331a5e8cdf75b936d50cead615",
+		"cover_types/crate_stack": "c7102a54e9bb49b554491ab01ea8e5c66cc4145802dee777c3e5827f4430a4f9",
+		"cover_types/low_wall": "c34217410abf0f3013a6e2ed10585755fa4b19522a44bfd3b58ad80379b9a2c0",
+		"cover_types/pillar": "b3e985ca7f87a282a18ca4dcf45cb0212de6f4fabece2e11a09363ba58275c45",
+		"cover_types/rock": "aefd02d453d010f9b95677ed32b20e76f5d8bf27fa4f5bc208ad57f234d15fa4",
+		"cover_types/rubble_pile": "96b8768e5cde67bd915fbf153f37f01ff759080b7fc0e645d34333efa1c42fab",
+		"cover_types/sandbag_nest": "11405fc0b3da0c6d71a40fc08033008a55f04d89a1d975a06306eb46b2f8f881",
+		"cover_types/sandbag_nest_side": "0bf1b477e1b6e4abca1fefa23691f43acf1676d08c296556ece71d866268e10d",
+		"cover_types/sandbags": "11405fc0b3da0c6d71a40fc08033008a55f04d89a1d975a06306eb46b2f8f881",
+		"cover_types/tall_wall": "9bca505698586272c06ebc3f6d4783e8f42abd4c14a08f396fb82db026772ee3",
+		"cover_types/wreck_apc": "1d8bbeb4dd11fd99c2cb5f1495b88064256573882c812a930b8514bb42a84b57",
+		"cover_types/wreck_cart": "31ff369100bf21ae5eec4f295a9c59cdc8bb618c9d13e42335ab0312f29b736e",
+		"cover_types/wreck_truck": "c22b83f9540f1365b750be948731cc877250767103ba629cdc4334a40ea15db0",
+		"rifle_parts/*merged": "7f8e09e7db42c4183de5413500a24d3cfd10f974ce30edc78d7858afa0be0694",
+		"rifle_parts/barrel": "3f96e86b39e35bae493ad9fff5d72208141122e8aaaf3a70c0dd64a671f25e90",
+		"rifle_parts/grip": "4b6d7277eb0f7f1283c820565f8cb09bfd42c2ac56c08e089f352efa3e0b4ce3",
+		"rifle_parts/handguard": "a4c051e45d228b3785eb4c33c991ed97495366b9291cfcb882bb2a1bf4a1c3a2",
+		"rifle_parts/magazine": "b1e0b644baa5a5f3bf43d68c3a37c40f6bf84c4b4091d16e7488f6c4766e25ad",
+		"rifle_parts/receiver": "b21289d4b7312ab136d4a5e2e2b656f31586d8645d6307268f38709a75cdab54",
+		"rifle_parts/sight": "a2a7cee43c4ac9cf18ae62b5be8e0e445425297252a271c22735b42139e6a888",
+		"rifle_parts/stock": "62b1f74d7ed3884c4e198e998d7c565a32003dba5551036a9c3b4cef48fb5715",
+		"soldier_parts/*merged": "e1f238ded2eef70b315ab07275e88f5052021647ed8dfca125120ed7e665f6ae",
+		"soldier_parts/*skinned": "e1f238ded2eef70b315ab07275e88f5052021647ed8dfca125120ed7e665f6ae",
+		"soldier_parts/backpack": "f21efed9c3398ca2d7a74e256037a5d3443bdebff5cea28d962da7fe5fd7274f",
+		"soldier_parts/boot_l": "4fea9b2614d2016e4b2802a99d722a68cfa2cc1cd0a550b185d7c69e17c2ed8c",
+		"soldier_parts/boot_r": "671bf09b2803ec1d50605845c2040381338bf9fcbb6ac57b5732514d1ec953fd",
+		"soldier_parts/glove_l": "6d9c83788ab72d324f33ca38ec80ee8b0ec17141bf36a31f9d83cee6c5594e24",
+		"soldier_parts/glove_r": "520d5baf3f24be8f95ab730b47be5b8a8e9e891f20e42b84fe573438a1ca275d",
+		"soldier_parts/lower_arm_l": "3a5c17862aba43e8ca4be06e94f85a34ea6afb743b9592866e5df24689db9b08",
+		"soldier_parts/lower_arm_r": "8c8a81bad4593048803f8f8d0dae1bd20dba2dbff363698dac1984c159752e6d",
+		"soldier_parts/neck": "fd069d074aceedee70809bd38fe1743ba80d225769025a7f7257b8124a48f495",
+		"soldier_parts/pelvis": "b511e1f63e3155a098cd361d8a140439cf3ccd6bc95fafbd1ca69b1910042741",
+		"soldier_parts/shin_l": "5b81d9c4a12a426e18f75a12336ecc5fd20c2edb0153a713f6487a69de48d8ce",
+		"soldier_parts/shin_r": "59f561b004a55fbf87085e9a022fcb92bc6a4fb16a9f67891fcd02c49c1cb0a6",
+		"soldier_parts/thigh_l": "ed74f88fb30ae87b5bcd4fb90ac83f298dfa50e78f6cd85e79db3b3ee1850b7e",
+		"soldier_parts/thigh_r": "06a45c23b1ae7de5f3981c6cb6530c29a6bb458a0e70c4376cd97ae25fecfc44",
+		"soldier_parts/torso": "e403483ae2e972842cd0c7ee174183095e4adb5f6d1ab4286f2cb643e5b7b13a",
+		"soldier_parts/upper_arm_l": "c25d0e0462d53316faba5f24321d029ff918d3660de887a71aba3d6bb288737b",
+		"soldier_parts/upper_arm_r": "1331848b9867e464cffa8199d491fbfac17f77dba972f0911b16c4a77c336cf1",
+		"soldier_parts/vest": "df327b85c0fcc034f92e22d6812b8e46b44fc12c651e1acd64bb00d8b0a65235",
+		"soldier_parts/vest_stripe": "4cef126efbbab7fe180d868031a2c64f54bd9ffdfc1633ab027dbf370919c40e",
+		"soldier_parts/visor": "5a4c2cd00b434eebcd508ab7bb80979d9a06e9163f4571f8d2089622de009f44",
+		"soldier_parts/visor_accent": "4c421cedcc11e4e47371fdfc6acfd9f64926e670e1163c4e47f7046e97ec7daa"
+	},
+	"cover_types": {
+		"arch": {
+			"coverable": true,
+			"kind": "arch",
+			"size": [
+				2.5,
+				3.0,
+				1.0
+			]
+		},
+		"barrier": {
+			"coverable": true,
+			"kind": "barrier",
+			"size": [
+				2.2,
+				1.1,
+				1.0
+			]
+		},
+		"barrier_line": {
+			"coverable": true,
+			"kind": "barrier",
+			"size": [
+				3.8,
+				1.1,
+				1.0
+			]
+		},
+		"crate": {
+			"coverable": true,
+			"kind": "crate",
+			"size": [
+				1.3,
+				1.2,
+				1.3
+			]
+		},
+		"crate_stack": {
+			"coverable": true,
+			"kind": "crate_stack",
+			"palette": "camp",
+			"parts": [
+				{
+					"at": [
+						0.0,
+						-0.5,
+						0.0
+					],
+					"color": "dark",
+					"size": [
+						1.6,
+						1.0,
+						1.6
+					]
+				},
+				{
+					"at": [
+						0.0,
+						0.5,
+						0.0
+					],
+					"color": "stone",
+					"size": [
+						1.35,
+						1.0,
+						1.35
+					]
+				},
+				{
+					"at": [
+						0.0,
+						-0.94,
+						0.0
+					],
+					"color": "trim",
+					"size": [
+						1.6,
+						0.12,
+						1.6
+					]
+				},
+				{
+					"at": [
+						0.0,
+						-0.06,
+						0.0
+					],
+					"color": "trim",
+					"size": [
+						1.6,
+						0.12,
+						1.6
+					]
+				},
+				{
+					"at": [
+						0.0,
+						0.94,
+						0.0
+					],
+					"color": "trim",
+					"size": [
+						1.35,
+						0.12,
+						1.35
+					]
+				}
+			],
+			"size": [
+				1.6,
+				2.0,
+				1.6
+			]
+		},
+		"low_wall": {
+			"coverable": true,
+			"kind": "low_wall",
+			"size": [
+				2.4,
+				1.1,
+				0.8
+			]
+		},
+		"pillar": {
+			"coverable": true,
+			"kind": "pillar",
+			"size": [
+				1.1,
+				2.8,
+				1.1
+			]
+		},
+		"rock": {
+			"coverable": true,
+			"kind": "rock",
+			"size": [
+				2.0,
+				1.2,
+				1.6
+			]
+		},
+		"rubble_pile": {
+			"coverable": true,
+			"kind": "rubble",
+			"size": [
+				1.6,
+				0.95,
+				1.4
+			]
+		},
+		"sandbag_nest": {
+			"coverable": true,
+			"kind": "sandbags",
+			"size": [
+				2.4,
+				0.9,
+				1.0
+			]
+		},
+		"sandbag_nest_side": {
+			"coverable": true,
+			"kind": "sandbags",
+			"size": [
+				1.0,
+				0.9,
+				2.4
+			]
+		},
+		"sandbags": {
+			"coverable": true,
+			"kind": "sandbags",
+			"size": [
+				2.4,
+				0.9,
+				1.0
+			]
+		},
+		"tall_wall": {
+			"coverable": true,
+			"kind": "wall",
+			"palette": "inner_wall",
+			"size": [
+				3.2,
+				2.2,
+				0.9
+			]
+		},
+		"wreck_apc": {
+			"coverable": true,
+			"kind": "wreck_apc",
+			"palette": "inner_wall",
+			"parts": [
+				{
+					"at": [
+						0.0,
+						0.0,
+						0.0
+					],
+					"color": "dark",
+					"size": [
+						3.78,
+						0.9,
+						2.16
+					]
+				},
+				{
+					"at": [
+						0.504,
+						0.63,
+						0.0
+					],
+					"color": "stone",
+					"size": [
+						2.1,
+						0.54,
+						1.8
+					]
+				},
+				{
+					"at": [
+						1.176,
+						0.54,
+						0.0
+					],
+					"color": "accent",
+					"size": [
+						0.966,
+						0.216,
+						1.824
+					]
+				},
+				{
+					"at": [
+						0.0,
+						-0.234,
+						0.0
+					],
+					"color": "trim",
+					"size": [
+						3.57,
+						0.216,
+						2.4
+					]
+				},
+				{
+					"at": [
+						-1.26,
+						-0.576,
+						-1.008
+					],
+					"color": "dark",
+					"size": [
+						0.714,
+						0.648,
+						0.384
+					]
+				},
+				{
+					"at": [
+						1.26,
+						-0.576,
+						-1.008
+					],
+					"color": "dark",
+					"size": [
+						0.714,
+						0.648,
+						0.384
+					]
+				},
+				{
+					"at": [
+						-1.26,
+						-0.576,
+						1.008
+					],
+					"color": "dark",
+					"size": [
+						0.714,
+						0.648,
+						0.384
+					]
+				},
+				{
+					"at": [
+						1.26,
+						-0.576,
+						1.008
+					],
+					"color": "dark",
+					"size": [
+						0.714,
+						0.648,
+						0.384
+					]
+				}
+			],
+			"size": [
+				4.2,
+				1.8,
+				2.4
+			]
+		},
+		"wreck_cart": {
+			"coverable": true,
+			"kind": "wreck_cart",
+			"palette": "camp",
+			"parts": [
+				{
+					"at": [
+						0.0,
+						0.0,
+						0.0
+					],
+					"color": "dark",
+					"size": [
+						2.34,
+						0.6,
+						1.62
+					]
+				},
+				{
+					"at": [
+						0.312,
+						0.42,
+						0.0
+					],
+					"color": "stone",
+					"size": [
+						1.3,
+						0.36,
+						1.35
+					]
+				},
+				{
+					"at": [
+						0.728,
+						0.36,
+						0.0
+					],
+					"color": "accent",
+					"size": [
+						0.598,
+						0.144,
+						1.368
+					]
+				},
+				{
+					"at": [
+						0.0,
+						-0.156,
+						0.0
+					],
+					"color": "trim",
+					"size": [
+						2.21,
+						0.144,
+						1.8
+					]
+				},
+				{
+					"at": [
+						-0.78,
+						-0.384,
+						-0.756
+					],
+					"color": "dark",
+					"size": [
+						0.442,
+						0.432,
+						0.288
+					]
+				},
+				{
+					"at": [
+						0.78,
+						-0.384,
+						-0.756
+					],
+					"color": "dark",
+					"size": [
+						0.442,
+						0.432,
+						0.288
+					]
+				},
+				{
+					"at": [
+						-0.78,
+						-0.384,
+						0.756
+					],
+					"color": "dark",
+					"size": [
+						0.442,
+						0.432,
+						0.288
+					]
+				},
+				{
+					"at": [
+						0.78,
+						-0.384,
+						0.756
+					],
+					"color": "dark",
+					"size": [
+						0.442,
+						0.432,
+						0.288
+					]
+				}
+			],
+			"size": [
+				2.6,
+				1.2,
+				1.8
+			]
+		},
+		"wreck_truck": {
+			"coverable": true,
+			"kind": "wreck_truck",
+			"palette": "camp",
+			"parts": [
+				{
+					"at": [
+						0.0,
+						0.0,
+						0.0
+					],
+					"color": "dark",
+					"size": [
+						3.42,
+						1.0,
+						1.8
+					]
+				},
+				{
+					"at": [
+						0.456,
+						0.7,
+						0.0
+					],
+					"color": "stone",
+					"size": [
+						1.9,
+						0.6,
+						1.5
+					]
+				},
+				{
+					"at": [
+						1.064,
+						0.6,
+						0.0
+					],
+					"color": "accent",
+					"size": [
+						0.874,
+						0.24,
+						1.52
+					]
+				},
+				{
+					"at": [
+						0.0,
+						-0.26,
+						0.0
+					],
+					"color": "trim",
+					"size": [
+						3.23,
+						0.24,
+						2.0
+					]
+				},
+				{
+					"at": [
+						-1.14,
+						-0.64,
+						-0.84
+					],
+					"color": "dark",
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					]
+				},
+				{
+					"at": [
+						1.14,
+						-0.64,
+						-0.84
+					],
+					"color": "dark",
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					]
+				},
+				{
+					"at": [
+						-1.14,
+						-0.64,
+						0.84
+					],
+					"color": "dark",
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					]
+				},
+				{
+					"at": [
+						1.14,
+						-0.64,
+						0.84
+					],
+					"color": "dark",
+					"size": [
+						0.646,
+						0.72,
+						0.32
+					]
+				}
+			],
+			"size": [
+				3.8,
+				2.0,
+				2.0
+			]
+		}
+	},
+	"hashes": {
+		"build/arch/2.0x1.0x1.0": "94338a89b227f46943a318ed688c67085999f11cdd5564de5755ffe089ea7cbf",
+		"build/arch/3.0x2.5x0.6": "40a8b3264608b5d0f24233a0ae1650e35a434c5e2d46f0083e70fb8a4d93d3b9",
+		"build/barrier/2.0x1.0x1.0": "898f94aa376f8d5a9e46d7bec5dacd64e2b29c77dbce781e3edf347c9c0b8bdb",
+		"build/barrier/3.0x2.5x0.6": "f448aa606188cd41857791e9bbd3062f8a8abbe1881aa75df2000e982d6c30ec",
+		"build/box/2.0x1.0x1.0": "8452ceb84f0a2e782fc20064b3ab38d097b34a7340604234b5a24710d1fb95d2",
+		"build/box/3.0x2.5x0.6": "4930bed853e0c9c73b259d0bc398b72bf159eb4c8adfc598135613e1934fc566",
+		"build/camp/2.0x1.0x1.0": "1e8b6010abfeb60ff4b218917ccb97d5b57f49778a3f94bc5f4e4e23ed0ac171",
+		"build/camp/3.0x2.5x0.6": "37f3291d1e3ca34b719cc08367e9418b1bce8d6bc9b15fa682ab27bf43c3be67",
+		"build/crate/2.0x1.0x1.0": "e1fed86dd38335c5a4756fc8b85621f15949559d86a888227862b71257c75d42",
+		"build/crate/3.0x2.5x0.6": "0c78ff37ac798b2ba2abd1c146fcc5db1d3f4cd16601ea644ae3f29b190e1562",
+		"build/low_wall/2.0x1.0x1.0": "c893f381589bf86deab9f531f3146ece9d7d1560dccbcc29aa2546aa9c15565e",
+		"build/low_wall/3.0x2.5x0.6": "3aaaf8d31ceea2bd8bdda5628fd97c8abb3d02511e555a110d01f682657e145c",
+		"build/pillar/2.0x1.0x1.0": "76e551a72431b407b438449b00d7f5058bb6296b0b07d4e4d7c99cfdd56450a6",
+		"build/pillar/3.0x2.5x0.6": "f03691c7a9ad245fb9bae3af6c660867a3c6da862ebb2a8c80ec4c9842499da8",
+		"build/rock/2.0x1.0x1.0": "c0545e5901d25766569bb920a5d60b99d1e2fc09e9fbd7f73dd5a7568045c451",
+		"build/rock/3.0x2.5x0.6": "2fdb54c3bcaaa34f7f2346e96f67fad134802034aee788f8e091a246fd8c7e7b",
+		"build/rubble/2.0x1.0x1.0": "c0545e5901d25766569bb920a5d60b99d1e2fc09e9fbd7f73dd5a7568045c451",
+		"build/rubble/3.0x2.5x0.6": "2fdb54c3bcaaa34f7f2346e96f67fad134802034aee788f8e091a246fd8c7e7b",
+		"build/sandbags/2.0x1.0x1.0": "97560f54a2e4059f850c347f47ae46bb8c986f0977c2e229ae2eb33f41d424a8",
+		"build/sandbags/3.0x2.5x0.6": "6d7d13d3b0f7dea0d23e11d0c6bb9d09ad42b9e9e246637161e991e2ec008f10",
+		"build/wall/2.0x1.0x1.0": "c006429df3e1cc367f64f27112654f6babc73da46f54d001e5470d98aa5bf090",
+		"build/wall/3.0x2.5x0.6": "7b8301058570b859e3513e3dec0fc5000a446567e0909ab238f73cbe6864f5e7",
+		"cover_types/arch": "4dc070d1037b6912904cec6620a0518f33e41c7a29ec0569f562a81b7335a89e",
+		"cover_types/barrier": "9d5a98d5546d6feb47881d6630facace56970d3d426df9b8fd9939a45abd6274",
+		"cover_types/barrier_line": "5cf721e7618c6593dcf7a6672e24d9d9bb6239d4ed15e1554833e448ffe98451",
+		"cover_types/crate": "f4102af8a6a7371325ed3cd543c9664526f8f886b826592d9dbe78ba12857653",
+		"cover_types/crate_stack": "a12719f7de5b4ac12dcb5f6d903595098cd7b691ecdd5becd5fb929dedd0a015",
+		"cover_types/low_wall": "7ed12373a4587f5406c365928242914535328599857a1077373cd334aff6091a",
+		"cover_types/pillar": "0d474865ff3daa30db8c22dd9cd32d15712af63f2c8a2f72688222d2e473b9e5",
+		"cover_types/rock": "894ae6271d0f98071dc17fe3b58cde5ec6107d3ff9d04efe6dc6905d4748ce4f",
+		"cover_types/rubble_pile": "80cae88dba763440964dca616f62d6b4da8d9d2439c4402a76c529d09eb8f1aa",
+		"cover_types/sandbag_nest": "14ad2c557635e07fc24efa27692e6c1554e341a28c806d0c8c8a5ead9446cad0",
+		"cover_types/sandbag_nest_side": "108c051826c70fbae847de201b5be48c9b51cbc7e290b2e64d2d615a5f090108",
+		"cover_types/sandbags": "14ad2c557635e07fc24efa27692e6c1554e341a28c806d0c8c8a5ead9446cad0",
+		"cover_types/tall_wall": "12c25e9a6cc618dc80f458abe8ce0787e063445956d655103c71fcc182fd47b4",
+		"cover_types/wreck_apc": "814a48c1d278596751b40aecd524177e0d012960dbd99595813d6359fa80e724",
+		"cover_types/wreck_cart": "d19381897772139164b7409febc2117f265561e527bfa95d486ef4d510207397",
+		"cover_types/wreck_truck": "0493b759534d2a0bff5149cd8bd9b8066b5f639997d53d82bc0fd67425a0b2af",
+		"rifle_parts/*merged": "4e01b8df9ec9a3e28f7005360818c445e77a4d5fffd4d1ff528e8e17a3e47540",
+		"rifle_parts/barrel": "2e075b4fad86c4147fbfbe263cd6baf7ea94259d5d32dd2e45e2d9efdeefb183",
+		"rifle_parts/grip": "9f210f6b5cb09d808a82004710e9b07c0950644d86c82ac33f531a6b1f1f265f",
+		"rifle_parts/handguard": "3841e37c96a42c5fba6675398ed2214ea699dc47ddabd3e4bad7cb6687d3709e",
+		"rifle_parts/magazine": "c57bf8f46ca51b8ec4ca5f1a4eb39d77069b55396e00e9a4ba78b2718908a2d3",
+		"rifle_parts/receiver": "701c11d9234223f0501f51481402e97b1d3be12b34919ee19c2030e241584f48",
+		"rifle_parts/sight": "91f859cfc5ac11a738fa3ae944d18b0aa52467f4c5a4f9d530b9c897c7ac077a",
+		"rifle_parts/stock": "571cf2f57a522dddf57c7e41d357829a3106ecda4c147e4fa7d8cbb3a3b81c3e",
+		"soldier_parts/*merged": "1c99822ad38ba7fa0cf6c553577ecbf6bfaebfb8f6a42ff2c48788ec769acb5f",
+		"soldier_parts/*skinned": "7790e0019df11e2e0616354e514971c36c24172d7ccd26c17d684267185ddb43",
+		"soldier_parts/backpack": "1532a47ec79a49c5aff88c3ec65e03df2f23d5090b35445edb2400f9b4bc5aa8",
+		"soldier_parts/boot_l": "25e57c6afd90c162c8f51025a179c3fc847ea8f9f8eee6a3370ef20eacabdc43",
+		"soldier_parts/boot_r": "9998f8f156d473ffac1128a7d998ab40a16584f5764efb6747c0aea577a57352",
+		"soldier_parts/glove_l": "1d31a4ab1035fdf438a2144dcf18dd3eb1b31cb7010f8b8a6f1a73d366012bee",
+		"soldier_parts/glove_r": "6bf0cd5c9d730f1ee1c596ed935965f3eb780727b658063bb6f2cf0daa2ac134",
+		"soldier_parts/lower_arm_l": "c6b613f1d4398dcba268e5531337fba4d7bb4acdb72cbfcec32b5e01e7e91299",
+		"soldier_parts/lower_arm_r": "523808efefc77d2770735d891ef9f0e794761ee168baf9fd096e5b73aeed6d92",
+		"soldier_parts/neck": "85b47ed764855fc0fe2b77ec24027da9fb0022d5bd4c9bb13319d746d5f5c72d",
+		"soldier_parts/pelvis": "2f0cc831dd8c871c19109ea4767d7afba89b6f6cb41c65c042134e16c442abe3",
+		"soldier_parts/shin_l": "edb50457cc46647a53064c3c49d1d398d99e108945a4d47ce487cf999d3980e7",
+		"soldier_parts/shin_r": "5ce273043dc9521f1d8e1abcb5b11e743671932835b8608bc429af41fb11cfe5",
+		"soldier_parts/thigh_l": "f6785dc7c2f0cdb7977bc52eee255b707a3fd51b5b632e6ced006064811f784d",
+		"soldier_parts/thigh_r": "36697eb12cf574d4a503c9ec6ce0ef131e9a00cfbd29760e7fd5cd725778c92d",
+		"soldier_parts/torso": "e6eda2f4b030b608d027df7ba4f1e679cf177997e1ee3d4a22437919717ec5d5",
+		"soldier_parts/upper_arm_l": "d57b58ddb97a05f513853c3bea40f36f2b3cf0dad1de1516eafc7a15ef7326fb",
+		"soldier_parts/upper_arm_r": "0f943ad7fa0c18cc1df3a022b938f61f3e62c2daeff8d8fca7ced32254d41917",
+		"soldier_parts/vest": "bbe5e48cfc3f7de520a18a227717930e05eea73b4416d6670f7f110e8b67e86d",
+		"soldier_parts/vest_stripe": "5aa74c626dd57e01ac5960022c1e31e21657e91162bd8fef89c9d231086c6344",
+		"soldier_parts/visor": "01d6b66d1272ec157bcf461d6f4c552feecd25c6fa9aae1ce8ad751b09e21c20",
+		"soldier_parts/visor_accent": "e32327eacea847157d698312b8a1e4ef1eb421a6e0e3aa9bf40a7c99c8234aa4"
+	},
+	"kinds": [
+		"pillar",
+		"rock",
+		"rubble",
+		"arch",
+		"sandbags",
+		"wall",
+		"low_wall",
+		"barrier",
+		"crate",
+		"camp",
+		"box"
+	],
+	"probe_sizes": [
+		[
+			2.0,
+			1.0,
+			1.0
+		],
+		[
+			3.0,
+			2.5,
+			0.6
+		]
+	],
+	"rifle_parts": [
+		{
+			"at": [
+				0.0,
+				0.0,
+				0.005
+			],
+			"color": "dark",
+			"name": "receiver",
+			"size": [
+				0.09,
+				0.11,
+				0.22
+			]
+		},
+		{
+			"at": [
+				0.0,
+				0.015,
+				-0.185
+			],
+			"color": "dark",
+			"name": "barrel",
+			"size": [
+				0.045,
+				0.045,
+				0.13
+			]
+		},
+		{
+			"at": [
+				0.0,
+				0.0,
+				-0.105
+			],
+			"color": "armor",
+			"name": "handguard",
+			"size": [
+				0.075,
+				0.07,
+				0.12
+			]
+		},
+		{
+			"at": [
+				0.0,
+				-0.015,
+				0.18
+			],
+			"color": "armor",
+			"name": "stock",
+			"size": [
+				0.085,
+				0.09,
+				0.13
+			]
+		},
+		{
+			"at": [
+				0.0,
+				-0.115,
+				0.015
+			],
+			"color": "dark",
+			"name": "magazine",
+			"size": [
+				0.055,
+				0.15,
+				0.07
+			]
+		},
+		{
+			"at": [
+				0.0,
+				-0.09,
+				0.1
+			],
+			"color": "dark",
+			"name": "grip",
+			"size": [
+				0.05,
+				0.1,
+				0.06
+			]
+		},
+		{
+			"at": [
+				0.0,
+				0.077,
+				0.015
+			],
+			"color": "accent",
+			"name": "sight",
+			"size": [
+				0.045,
+				0.045,
+				0.07
+			]
+		}
+	],
+	"skin_bone_count": 17.0,
+	"soldier_parts": [
+		{
+			"at": [
+				0.0,
+				1.23,
+				0.0
+			],
+			"color": "cloth",
+			"name": "torso",
+			"size": [
+				0.52,
+				0.43,
+				0.3
+			]
+		},
+		{
+			"at": [
+				0.0,
+				1.23,
+				-0.19
+			],
+			"color": "armor",
+			"name": "vest",
+			"size": [
+				0.56,
+				0.35,
+				0.12
+			]
+		},
+		{
+			"at": [
+				0.0,
+				0.91,
+				0.0
+			],
+			"color": "dark",
+			"name": "pelvis",
+			"size": [
+				0.43,
+				0.22,
+				0.3
+			]
+		},
+		{
+			"at": [
+				0.0,
+				1.22,
+				0.23
+			],
+			"color": "dark",
+			"name": "backpack",
+			"size": [
+				0.38,
+				0.39,
+				0.19
+			]
+		},
+		{
+			"at": [
+				-0.37,
+				1.27,
+				0.0
+			],
+			"color": "armor",
+			"name": "upper_arm_l",
+			"size": [
+				0.19,
+				0.3,
+				0.23
+			]
+		},
+		{
+			"at": [
+				-0.39,
+				1.0,
+				-0.04
+			],
+			"color": "cloth",
+			"name": "lower_arm_l",
+			"size": [
+				0.16,
+				0.28,
+				0.21
+			]
+		},
+		{
+			"at": [
+				-0.39,
+				0.81,
+				-0.06
+			],
+			"color": "dark",
+			"name": "glove_l",
+			"size": [
+				0.18,
+				0.14,
+				0.22
+			]
+		},
+		{
+			"at": [
+				-0.135,
+				0.65,
+				0.0
+			],
+			"color": "cloth",
+			"name": "thigh_l",
+			"size": [
+				0.2,
+				0.32,
+				0.24
+			]
+		},
+		{
+			"at": [
+				-0.135,
+				0.33,
+				-0.01
+			],
+			"color": "armor",
+			"name": "shin_l",
+			"size": [
+				0.19,
+				0.29,
+				0.23
+			]
+		},
+		{
+			"at": [
+				-0.135,
+				0.09,
+				-0.06
+			],
+			"color": "dark",
+			"name": "boot_l",
+			"size": [
+				0.23,
+				0.16,
+				0.34
+			]
+		},
+		{
+			"at": [
+				0.37,
+				1.27,
+				0.0
+			],
+			"color": "armor",
+			"name": "upper_arm_r",
+			"size": [
+				0.19,
+				0.3,
+				0.23
+			]
+		},
+		{
+			"at": [
+				0.39,
+				1.0,
+				-0.04
+			],
+			"color": "cloth",
+			"name": "lower_arm_r",
+			"size": [
+				0.16,
+				0.28,
+				0.21
+			]
+		},
+		{
+			"at": [
+				0.39,
+				0.81,
+				-0.06
+			],
+			"color": "dark",
+			"name": "glove_r",
+			"size": [
+				0.18,
+				0.14,
+				0.22
+			]
+		},
+		{
+			"at": [
+				0.135,
+				0.65,
+				0.0
+			],
+			"color": "cloth",
+			"name": "thigh_r",
+			"size": [
+				0.2,
+				0.32,
+				0.24
+			]
+		},
+		{
+			"at": [
+				0.135,
+				0.33,
+				-0.01
+			],
+			"color": "armor",
+			"name": "shin_r",
+			"size": [
+				0.19,
+				0.29,
+				0.23
+			]
+		},
+		{
+			"at": [
+				0.135,
+				0.09,
+				-0.06
+			],
+			"color": "dark",
+			"name": "boot_r",
+			"size": [
+				0.23,
+				0.16,
+				0.34
+			]
+		},
+		{
+			"at": [
+				0.0,
+				1.75,
+				-0.265
+			],
+			"color": "dark",
+			"name": "visor",
+			"size": [
+				0.3,
+				0.075,
+				0.035
+			]
+		},
+		{
+			"at": [
+				0.0,
+				1.75,
+				-0.286
+			],
+			"color": "accent",
+			"name": "visor_accent",
+			"size": [
+				0.25,
+				0.025,
+				0.038
+			]
+		},
+		{
+			"at": [
+				0.0,
+				1.32,
+				-0.26
+			],
+			"color": "accent",
+			"name": "vest_stripe",
+			"size": [
+				0.35,
+				0.035,
+				0.025
+			]
+		},
+		{
+			"at": [
+				0.0,
+				1.4525,
+				0.0
+			],
+			"color": "cloth",
+			"name": "neck",
+			"size": [
+				0.18,
+				0.045,
+				0.18
+			]
+		}
+	],
+	"source_commit": "d74333e"
+}
