@@ -98,7 +98,20 @@
 			1,
 			0.1,
 			1
-		]
+		],
+		"shapes": {
+			"_placeholder": true,
+			"_todo": "OQ-3D-KIT: default ratios, arc and segment counts of the kit shapes a part picks with its \"shape\" key (taper, wedge, plate, lathe) are presentation trials, not approved values.",
+			"taper_top": [0.7, 0.7],
+			"taper_bevel": 0.12,
+			"wedge_ridge": 0.0,
+			"plate_arc_deg": 120,
+			"plate_segments": 4,
+			"plate_thickness": 0.2,
+			"lathe_segments": 8,
+			"lathe_sweep_deg": 360,
+			"lathe_profile": [[0, 0], [1, 0], [1, 1], [0, 1]]
+		}
 	},
 	"environment": {
 		"tonemap": "aces",

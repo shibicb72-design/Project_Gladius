@@ -218,3 +218,4 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 <!-- Block added by the Fable 3D build session (C0-C3, Nov 9 2026). Append new 3D entries inside this block. -->
 - **OQ-3D-CAPTURE (C0): framing of the 3D proof shots.** `data/capture_shots.json` holds the capture tool's stage candidates, camera distances, heights and fields of view for `tools/touch_capture.gd --scene-shot=...`. Tool framing only: nothing ships to players and no gameplay reads it. Placeholders; change them freely when a shot needs a different angle.
+- **OQ-3D-KIT (C1): kit shape defaults.** `data/art_astra.json` `kit.shapes` holds the default ratios, arc and segment counts of the shapes a part can pick with its `shape` key (`taper`, `wedge`, `plate`, `lathe`); a part with no `shape` key is still the chamfered box. Presentation trials, not approved values. Segment counts trade roundness for triangles; the Fold measurement decides.

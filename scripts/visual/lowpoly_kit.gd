@@ -150,6 +150,15 @@ static func build_cover(definition: Dictionary) -> ArrayMesh:
 		return merge(definition["parts"])
 	return build(definition["kind"], vec(definition["size"]))
 
+## One data part into the surface. No "shape" key (or "box") is the chamfered box, exactly as before C1;
+## "taper", "wedge", "plate" and "lathe" come from LowpolyShapes (C1).
+static func _part(st: SurfaceTool, part: Dictionary) -> void:
+	var color := GreyboxArt.color_value(config()["colors"][part["color"]])
+	if LowpolyShapes.is_custom(part):
+		LowpolyShapes.add(st, part, color, config()["kit"]["shapes"])
+	else:
+		_box(st, vec(part["size"]), vec(part["at"]), color, float(config()["kit"]["bevel_fraction"]))
+
 ## Soldier-only variant. Keep merge() below unchanged: map geometry has no bone streams.
 static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:
 	var st := SurfaceTool.new()
@@ -158,8 +167,7 @@ static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:
 		var part: Dictionary = parts[i]
 		st.set_bones(PackedInt32Array([bones[i], 0, 0, 0]))
 		st.set_weights(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
-		var color := GreyboxArt.color_value(config()["colors"][part["color"]])
-		_box(st, vec(part["size"]), vec(part["at"]), color, float(config()["kit"]["bevel_fraction"]))
+		_part(st, part)
 	var result := st.commit()
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
@@ -172,8 +180,7 @@ static func merge(parts: Array) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for part: Dictionary in parts:
-		var color := GreyboxArt.color_value(config()["colors"][part["color"]])
-		_box(st, vec(part["size"]), vec(part["at"]), color, float(config()["kit"]["bevel_fraction"]))
+		_part(st, part)
 	var mesh := st.commit()
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
