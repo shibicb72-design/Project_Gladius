@@ -7,6 +7,20 @@ A placeholder is never a design value.
 
 Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
+## Battle royale (DESIGN.md update, Nov 9 2026; milestone M1)
+
+- **OQ-BR-ZONE: zone phases.** Number of phases, wait and shrink times, radius per phase, damage per second per phase, and whether zone damage skips shields. Placeholders in `data/br.json` until measured M1 matches give a basis.
+- **OQ-BR-LOOT: loot table.** Which items exist on the ground (weapons, ammo, armor tiers, anything else), spawn density and rarity weights. Placeholders in `data/loot.json`.
+- **OQ-BR-ARMOR: armor tiers.** Tier count and what each tier does (extra shield, damage reduction, durability). Placeholders.
+- **OQ-BR-DOWNED: downed and revive.** Bleed-out time, revive time, downed move speed, whether downed players can be finished, and what happens when the whole squad is downed. Placeholders.
+- **OQ-BR-START: starting kit.** What a player lands with (nothing, melee only, or a sidearm). Placeholder.
+- **OQ-BR-DROP: drop from the sky.** Carrier path, jump window, fall and glide speeds, and whether squads drop together. Placeholders.
+- **OQ-BR-LENGTH: match length.** Target duration; decided after measuring M1 matches (Shibi, Nov 9 2026).
+- **OQ-BR-TEMP-MAP: M1 temporary map size.** The real 1 km Alesia map is M2. The M1 test map size is a placeholder.
+- **OQ-BR-JOIN: join in progress.** Does not fit a no-respawn match; keep, replace or cut.
+- **OQ-BR-EXTRAS: power weapons, scorestreaks, deployables and grenade counts in battle royale.** Loot, drops or cut. Not built until decided.
+- **OQ-BR-PAYOUT: placement payouts.** Denarii for placement and kills in battle royale.
+
 - **OQ-ANIM (Path A2 ANIM FULL): procedural soldier animation.** No third-party animation assets are available for this dig. A replaceable code-built Skeleton3D with rigid per-part weights shares one mesh and Skin across pawns. Rest pivots derive from `data/art_astra.json` parts; hierarchy/mapping live in `data/anim.json` and remain placeholders. Neck/Head use an independent fixed chain under the locked yellow shell so upper-body motion cannot drag the visor into the headshot shell. All new pose sizes, angles, clip timing, smoothing and IK tolerance must be marked placeholders in that file. On-device visual approval remains open; headless checks prove geometry/math, not Fold appearance.
 
 - **OQ-FIRE-MODE (Path A2 ANIM FULL): Hastati semi / full-auto.** Shibi requested the toggle Oct 29 2026 4:32 AM. `data/fire_modes.json` opts only the local human's Pilum BR into semi/auto; `default: auto` is a placeholder. Decide the default and whether the old three-round burst remains a third mode. Interval in both modes is derived from shipped `data/stats.json`: `fire_interval_s / burst_count` = 0.5 / 3 s (360 rounds/min nominal); at most one shot per physics update, no catch-up. Semi taps inside cooldown latch one pending round until ready (reload clears it); decide whether to keep the latch. Look-zone tap-fire now produces one round per tap in either mode, rather than the prior three-round burst. Keyboard/gamepad binding needs the locked `data/input.json` and is deferred. The button is missing from the locked layout editor; its anchor/margins/48 dp target/font are placeholders in `data/ui.json`. Choice lasts one match, survives loadout replacement/respawn and slot changes, never saves or adds a net message. Bots/remote copies/other weapons retain their empty-mode legacy behavior. Remote replicas have no reload event, so the planned reload clip cannot play there without a later network change.
