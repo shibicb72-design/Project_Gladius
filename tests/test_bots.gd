@@ -69,16 +69,25 @@ func test_bot_moves_toward_zone() -> void:
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = true
+	m.seed_override = 4242
 	var tree: SceneTree = Engine.get_main_loop()
 	tree.root.add_child(m)
 	await tree.physics_frame
 	m.director.load_config()
+	# Small zone at the map centre with no damage: the target is fixed and its hold radius (bot_brain.gd:110)
+	# is tiny, so a bot away from the centre always walks (a random wide target could start it inside).
+	m.director.mode_cfg["zone"] = {"start_center": [0, 0], "start_radius_m": 3.0, "damage_skips_shield": false,
+			"phases": [{"wait_s": 1000.0, "shrink_s": 10.0, "radius_m": 1.0, "damage_per_s": 0.0}]}
 	assert_true(m.begin(), "begin succeeds")
 	assert_eq(m.bots.size(), 17, "17 bots fill the 18-player match")
 	await tree.physics_frame
-	var bot: Pawn = m.bots[m.bots.size() - 1]  # away from the player
 	var center: Vector3 = m.director.zone_target_center()
+	var bot: Pawn = m.bots[0]
+	for b in m.bots:  # the bot farthest from the zone target
+		if b.global_position.distance_to(center) > bot.global_position.distance_to(center):
+			bot = b
 	var start := bot.global_position.distance_to(center)
+	assert_true(start > 5.0, "the chosen bot starts away from the zone target: %s" % start)
 	for i in 180:
 		await tree.physics_frame
 	var after := bot.global_position.distance_to(center)

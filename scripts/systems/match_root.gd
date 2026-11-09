@@ -203,6 +203,11 @@ func _exit_tree() -> void:
 func _on_action_triggered(action: String) -> void:
 	if menu_open or local_player == null or not is_instance_valid(local_player):
 		return
+	if action == "interact":
+		# S1b: Interact = revive while a DOWNED squad mate is in range (S4 adds pickups). The director owns the pairs.
+		if director.authoritative:
+			director.begin_revive(local_player.player_id)
+		return
 	local_player.handle_action_press(action)
 
 
@@ -210,6 +215,9 @@ func _on_action_triggered(action: String) -> void:
 ## sends it exactly when the menu opens or the HUD hides. Pawn decides; null pawn is a no-op.
 func _on_action_released(action: String, cancel: bool) -> void:
 	if local_player == null or not is_instance_valid(local_player):
+		return
+	if action == "interact":
+		director.end_revive(local_player.player_id)
 		return
 	local_player.handle_action_release(action, cancel)
 

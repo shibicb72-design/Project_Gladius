@@ -10,7 +10,7 @@ signal action_look_changed(action: String, active: bool)
 
 ## Press-time actions that never enter the InputFrame (no bit, no latch, never sent): press, release and look
 ## state are re-emitted as they arrive, unfiltered. Not in InputFrame.BUTTONS / LOCAL_BUTTONS.
-const NON_FRAME_ACTIONS: Array[String] = ["cover_fire"]
+const NON_FRAME_ACTIONS: Array[String] = ["cover_fire", "interact"]
 
 var providers: Array[InputProvider] = []
 var _frame: InputFrame = InputFrame.new()

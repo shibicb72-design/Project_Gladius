@@ -34,8 +34,18 @@ const MELEE_REQUIRED_KEYS: Array[String] = ["melee_back_angle_deg", "melee_front
 var player_id: int = -1
 ## Life state, set only from BrRules events by MatchDirector.
 enum Life { ALIVE, DOWNED, DEAD }
-var life: Life = Life.ALIVE
-## A hit took health to zero (attacker_id -1 if unknown); MatchDirector reports it to BrRules.
+var life: Life = Life.ALIVE:
+	set(value):
+		life = value
+		if bridge != null:
+			bridge.downed = value == Life.DOWNED
+		if value == Life.DOWNED and cover != null:
+			_leave_cover()
+## Move speed while DOWNED, percent of the normal speed (br.json downed.downed_move_speed_pct, set by
+## MatchDirector.start).
+var downed_move_speed_pct: float = 100.0
+## A hit took health to zero, or landed on a DOWNED pawn (attacker_id -1 if unknown); MatchDirector
+## reports it to BrRules, which decides downed, dead or finished.
 signal health_zeroed(attacker_id: int)
 
 var registry: DataRegistry = DataRegistry.new()
@@ -139,12 +149,16 @@ func set_squad(new_squad_id: int) -> void:
 		bridge.squad_id = new_squad_id
 
 
+func _leave_cover() -> void:
+	cover.reset()
+	_apply_cover_shapes()
+	_cover_probe.reset()
+
+
 ## Enables or disables the pawn (dead pawns are hidden and not hittable).
 func set_active(active: bool) -> void:
 	if not active and cover != null:
-		cover.reset()
-		_apply_cover_shapes()
-		_cover_probe.reset()
+		_leave_cover()
 	visible = active
 	collision_layer = 2 if active else 0
 	var head := get_node_or_null("Head")
@@ -180,7 +194,9 @@ func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int, 
 
 ## The one place zero health is reported (item: BrRules decides downed, dead or finished).
 func _notify_damage(result: DamageRules.HitResult, attacker_id: int = -1) -> DamageRules.HitResult:
-	if result.damage_dealt > 0.0:
+	if result.hit_downed:
+		health_zeroed.emit(attacker_id)  # a hit on a DOWNED pawn deals no damage; the rules finish it
+	elif result.damage_dealt > 0.0:
 		damaged.emit(result)
 		if bridge.state.is_dead():
 			health_zeroed.emit(attacker_id)
@@ -323,7 +339,7 @@ func _apply_look() -> void:
 
 ## ADS on (InputFrame.aim_pressed): zooms the camera FOV and tightens spread; ADS off eases back.
 func _apply_aim(delta: float) -> void:
-	aiming = _frame.aim_pressed
+	aiming = _frame.aim_pressed and is_alive()  # DOWNED / 0 health: no aim
 	var zoom_s: float = _aim["aim_zoom_s"]
 	var target := 1.0 if aiming else 0.0
 	aim_blend = target if zoom_s <= 0.0 else move_toward(aim_blend, target, delta / zoom_s)
@@ -341,7 +357,7 @@ func get_max_move_speed() -> float:
 ## The sprint request comes from InputFrame.sprint (threshold / lock live in the input layer).
 func _update_sprint_factor(delta: float) -> void:
 	var mult: float = _movement["sprint_speed_multiplier"]["value"]
-	var target := mult if _frame.sprint and _frame.move.y < 0.0 else 1.0
+	var target := mult if _frame.sprint and _frame.move.y < 0.0 and is_alive() else 1.0
 	var ramp_s: float = _movement["sprint_ramp_s"]["value"]
 	sprint_factor = target if ramp_s <= 0.0 else move_toward(sprint_factor, target, (mult - 1.0) / ramp_s * delta)
 
@@ -354,11 +370,11 @@ func _apply_movement(delta: float) -> void:
 	_update_sprint_factor(delta)
 	var ratio: float = _movement["strafe_back_ratio"]["value"]
 	var local := Vector3(_frame.move.x * ratio, 0.0, _frame.move.y * (ratio if _frame.move.y > 0.0 else 1.0))
-	var wish := global_transform.basis * local * get_move_speed() * sprint_factor
+	var wish := global_transform.basis * local * get_move_speed() * sprint_factor * _life_speed_mult()
 	velocity.x = _ramp_axis(velocity.x, wish.x, delta)
 	velocity.z = _ramp_axis(velocity.z, wish.z, delta)
 	if is_on_floor():
-		if _frame.jump_just_pressed and bool(_movement.get("jump_enabled", false)):
+		if _frame.jump_just_pressed and is_alive() and bool(_movement.get("jump_enabled", false)):
 			velocity.y = float(_movement.get("jump_velocity", 0.0))
 	else:
 		velocity.y -= float(_movement.get("gravity", 20.0)) * delta
@@ -392,7 +408,16 @@ func _ramp_axis(cur: float, target: float, delta: float) -> float:
 	return move_toward(cur, target, float(_movement["base_speed_mps"]) / ramp_s * delta)
 
 
+## 1 when ALIVE, downed_move_speed_pct when DOWNED, 0 at 0 health before the rules decide (or DEAD).
+func _life_speed_mult() -> float:
+	if is_alive():
+		return 1.0
+	return downed_move_speed_pct / 100.0 if is_downed() else 0.0
+
+
 func _apply_weapon() -> void:
+	if not is_alive():
+		return  # DOWNED / 0 health: no fire, reload or swap
 	if _frame.swap_weapon_just_pressed and loadout.swap():
 		weapon_switched.emit(loadout.active)
 	var w := loadout.get_active()

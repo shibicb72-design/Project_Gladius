@@ -81,6 +81,7 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1) -> bool:
 		return false
 	rules.set_seed(seed_value)
 	rules.set_team_mode(team_mode())
+	var downed_pct := float(_downed_cfg().get("downed_move_speed_pct", 100.0))
 	var ids: Array = _players.keys()
 	ids.sort()
 	for id in ids:
@@ -88,6 +89,7 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1) -> bool:
 		if not rules.register_player(id, pawn.squad_id):
 			return false
 		pawn.set_squad(rules.squad_of(id))  # solo: every player is its own squad (friendly fire, bot targets)
+		pawn.downed_move_speed_pct = downed_pct
 	_slot_in_squad.clear()
 	var members: Dictionary = {}  # squad id -> count so far
 	for id in ids:
@@ -130,19 +132,80 @@ func squads_alive() -> int:
 	return seen.size()
 
 
+## Ground-plane position, the same Vector2(x, z) the rules get in facts["positions"].
+static func _flat(p: Pawn) -> Vector2:
+	return Vector2(p.global_position.x, p.global_position.z)
+
+
+func _downed_cfg() -> Dictionary:
+	return mode_cfg.get("downed", {})
+
+
+## The DOWNED squad mate `player_id` could revive now: nearest within br.json downed.revive_range_m while
+## `player_id` is ALIVE; -1 if none. The touch HUD shows Interact ("Revive") only when this is >= 0.
+func revive_target_for(player_id: int) -> int:
+	var me: Pawn = _players.get(player_id)
+	if not running or me == null or not me.is_alive():
+		return -1
+	var range_m := float(_downed_cfg().get("revive_range_m", 0.0))
+	var best := -1
+	var best_d := INF
+	var ids: Array = _players.keys()
+	ids.sort()
+	for id in ids:
+		var other: Pawn = _players[id]
+		if id == player_id or not other.is_downed() or other.squad_id != me.squad_id:
+			continue
+		var d := _flat(me).distance_to(_flat(other))
+		if d <= range_m and d < best_d:
+			best = id
+			best_d = d
+	return best
+
+
+## Interact pressed: starts holding a revive on the current revive target. False if there is none.
+func begin_revive(player_id: int) -> bool:
+	var target := revive_target_for(player_id)
+	if target < 0:
+		return false
+	_reviving[player_id] = target
+	return true
+
+
+## Interact released (or the HUD hid / the menu opened): the revive pair ends. Safe when none is held.
+func end_revive(player_id: int) -> void:
+	_reviving.erase(player_id)
+
+
+func is_reviving(player_id: int) -> bool:
+	return _reviving.has(player_id)
+
+
+## Drops pairs whose reviver is no longer ALIVE, whose target is no longer DOWNED, or that left range.
+func _prune_revives() -> void:
+	for r in _reviving.keys():
+		var me: Pawn = _players.get(r)
+		var target: Pawn = _players.get(_reviving[r])
+		if me == null or target == null or not me.is_alive() or not target.is_downed() \
+				or _flat(me).distance_to(_flat(target)) > float(_downed_cfg().get("revive_range_m", 0.0)):
+			_reviving.erase(r)
+
+
 func _physics_process(delta: float) -> void:
 	if not running or not authoritative:
 		return
+	_prune_revives()
 	var positions: Dictionary = {}
 	for id in _players:
 		var pawn: Pawn = _players[id]
 		pawn.bridge.spawn_protected = false  # field kept for the network path; no protection in battle royale
 		if pawn.life != Pawn.Life.DEAD:
-			positions[id] = Vector2(pawn.global_position.x, pawn.global_position.z)
+			positions[id] = _flat(pawn)
 	tick_count += 1
 	var facts := {"positions": positions, "reviving": _reviving.duplicate()}
 	for ev in rules.tick(delta, facts):
 		_handle_event(ev)
+	_prune_revives()  # a revived or dead target ends its pair
 
 
 func _handle_event(ev: Dictionary) -> void:

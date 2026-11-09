@@ -9,6 +9,7 @@ var pawn: Pawn
 var fire_mode_button: FireModeButton
 var cover_crouch_button: CoverCrouchButton
 var cover_fire_button: CoverFireButton
+var interact_button: InteractButton
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
 
@@ -65,6 +66,8 @@ func _exit_tree() -> void:
 		cover_crouch_button.queue_free()
 	if is_instance_valid(cover_fire_button):
 		cover_fire_button.queue_free()
+	if is_instance_valid(interact_button):
+		interact_button.queue_free()
 
 
 func _build() -> void:
@@ -386,6 +389,16 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 	else:
 		cover_crouch_button.bind(pawn, get_node_or_null("../TouchHud") as Control, get_node_or_null("../PauseMenu") as PauseMenu)
 		cover_fire_button.bind(pawn, get_node_or_null("../TouchHud") as Control, get_node_or_null("../PauseMenu") as PauseMenu)
+	var touch_for_interact := get_node_or_null("../TouchHud") as Control
+	if interact_button == null:
+		interact_button = InteractButton.new()
+		interact_button.bind(pawn, director, touch_for_interact, get_node_or_null("../PauseMenu") as PauseMenu)
+		if touch_for_interact != null:
+			touch_for_interact.add_sibling.call_deferred(interact_button)
+		else:
+			add_child(interact_button)
+	else:
+		interact_button.bind(pawn, director, touch_for_interact, get_node_or_null("../PauseMenu") as PauseMenu)
 	pawn.reload_rejected.connect(_on_reload_rejected)
 	pawn.fire_empty.connect(_on_fire_empty)
 	pawn.weapon_switched.connect(_on_weapon_switched)
@@ -422,7 +435,7 @@ func refresh_pawn() -> void:
 		reload_bar.value = w.reload_fraction(pawn.get_clock())
 	var waiting := not pawn.is_alive()
 	respawn_label.visible = false  # no respawn in battle royale (item 6 removes the label)
-	own_death_label.visible = waiting
+	own_death_label.visible = waiting and not pawn.is_downed()  # DOWNED is not dead (item 6 adds its own label)
 	crosshair.visible = bool(_ch["enabled"]) and not waiting  # no shot is possible while dead
 	hill_label.text = ""  # hill indicator removed (item 6 deletes the label)
 

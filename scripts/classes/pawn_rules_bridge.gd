@@ -5,6 +5,9 @@ extends RefCounted
 var state: HealthState
 var squad_id: int = 0
 var spawn_protected: bool = false
+## Battle royale DOWNED: the 0-health state still accepts enemy hits (BrRules finishes the pawn) and the
+## shield does not regenerate. Set only through Pawn.life.
+var downed: bool = false
 var combat_cfg: Dictionary = {}
 
 
@@ -19,13 +22,13 @@ func _init(class_def: ClassDef = null, squad: int = 0, cfg: Dictionary = {}) -> 
 
 func take_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) -> DamageRules.HitResult:
 	return DamageRules.apply_hit(state, weapon_def, is_headshot, attacker_squad, squad_id,
-			spawn_protected, combat_cfg)
+			spawn_protected, combat_cfg, downed)
 
 
 func take_melee(attacker_squad: int, from_behind: bool, attacker_breaks_full_shield: bool,
 		melee_cfg: Dictionary) -> DamageRules.HitResult:
 	return DamageRules.apply_melee(state, attacker_squad, squad_id, spawn_protected, from_behind,
-			attacker_breaks_full_shield, melee_cfg, combat_cfg)
+			attacker_breaks_full_shield, melee_cfg, combat_cfg, downed)
 
 
 ## Direct (zone) damage: no attacker, so no friendly-fire or protection checks. Lowers shield then health,
@@ -43,4 +46,6 @@ func take_direct_damage(amount: float, skips_shield: bool) -> void:
 
 
 func tick(delta: float) -> void:
+	if downed:
+		return  # no shield regen while DOWNED
 	DamageRules.tick_regen(state, delta, combat_cfg)

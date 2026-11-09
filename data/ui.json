@@ -199,6 +199,17 @@
 		"ring_color": [1.0, 1.0, 1.0, 0.9],
 		"reserved_top_row": {"anchors": [[0.4, 0.04], [0.6, 0.04]], "margin_dp": [8.0, 20.0], "touch_dp": 48.0}
 	},
+	"interact_button": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-DOWNED: Interact (Revive) button placement, size, label and alpha are placeholders, not design values. Anchor = the touch HUD's data look-stick rest centre (input.json touch_layout.look_stick_rest); offset and size are in default touch button sides (touch_layout.button_size_frac_of_height, floor button_min_dp), the units the other touch buttons use. Lower right, between Reload and the look stick, below Aim.",
+		"anchor": "look_stick_rest",
+		"offset_buttons": [-1.65, 0.0],
+		"size_buttons": 1.0,
+		"font_dp": 12.0,
+		"label": "Revive",
+		"fill_alpha": 0.55,
+		"pressed_fill_alpha": 0.85
+	},
 	"pause_menu": {
 		"_placeholder": true,
 		"_todo": "OQ-PAUSE-MENU: layout of the in-match menu overlay. Sizes and tint are placeholders, not design values; every button is at least 48 dp.",
