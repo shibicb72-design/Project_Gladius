@@ -47,7 +47,7 @@ func _ensure_seeded() -> void:
 	if _seeded:
 		return
 	_seeded = true
-	_rng.seed = hash([director.match_seed if director != null else 0, pawn.player_id])
+	_rng.seed = hash([director.match_seed if director != null else 0, pawn.player_id, "brain"])  # own stream, apart from the pawn's spread
 	var a := _rng.randf() * TAU
 	_spot_dir = Vector2(cos(a), sin(a)) * sqrt(_rng.randf())
 
@@ -142,11 +142,15 @@ func _manage_weapon(frame: InputFrame, delta: float) -> void:
 			return
 		if w.ammo_in_mag + w.reserve == 0 and _swap_cooldown <= 0.0:
 			frame.swap_weapon_just_pressed = true
-			_swap_cooldown = float(cfg.get("swap_cooldown_s", 0.5))
+			_swap_cooldown = _swap_cooldown_s()
 		return
 	if (w == null or w.def.is_melee()) and gun_with_ammo and _swap_cooldown <= 0.0:
 		frame.swap_weapon_just_pressed = true
-		_swap_cooldown = float(cfg.get("swap_cooldown_s", 0.5))
+		_swap_cooldown = _swap_cooldown_s()
+
+
+func _swap_cooldown_s() -> float:
+	return float(cfg.get("swap_cooldown_s", 0.5))
 
 
 func _eye_height() -> float:

@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
 ## On-demand simulation (not in the regular suite): full 18-player matches with the drop, ground loot and a
-## faster zone; the local human idles. Prints how players were eliminated (cause, weapon, range), shots and
+## faster zone; the local human idles. Prints how players were eliminated (cause, the killer's weapon in hand and range at the moment of elimination, not of the shot), shots and
 ## hits, loot taken, bot goal time shares and the result. The solo match runs twice with the same seed to
 ## check that the sim repeats (G0).
 ## Run: godot --headless --path . --script res://tests/run_tests.gd -- --dir=res://tests/sim
@@ -35,7 +35,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 		var v: Pawn = m.director.player(id)
 		if k != null and v != null:
 			var w := k.loadout.get_active() if k.loadout != null else null
-			kills.append("%s@%dm" % [w.def.id if w != null else "none", int(k.global_position.distance_to(v.global_position))]))
+			kills.append("held:%s@%dm" % [w.def.id if w != null else "none", int(k.global_position.distance_to(v.global_position))]))
 	var results: Array = []
 	m.director.match_over.connect(func(r: Dictionary) -> void: results.append(r))
 	assert_true(m.begin(), "begin %s" % mode)
