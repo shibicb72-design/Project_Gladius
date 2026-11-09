@@ -77,9 +77,9 @@ func _check_pairwise(sz: Vector2) -> void:
 	_root().add_child(game)
 	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	game.size = sz
-	game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-	game.timer_label.text = "10:00"
-	game.hill_label.text = "Hill: contested"
+	game.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	game.zone_label.text = "10:00"
+	game.downed_label.text = "DOWNED 0:24"
 	game.weapon_label.text = "Gladius Rifle"
 	game.ammo_label.text = "120 / 360"
 	var pm: PauseMenu = _PauseScene.instantiate()

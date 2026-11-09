@@ -287,17 +287,17 @@ func _check_hud_clear(sz: Vector2, layout: String) -> void:
 	_root().add_child(game)
 	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	game.size = sz
-	game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-	game.timer_label.text = "10:00"
-	game.hill_label.text = "Hill: contested"
+	game.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	game.zone_label.text = "10:00"
+	game.downed_label.text = "DOWNED 0:24"
 	game.weapon_label.text = "Gladius Rifle"
 	game.ammo_label.text = "120 / 360"
 	await tree.process_frame
 	await tree.process_frame
 	var hud_items := {
 		"shield_bar": game.shield_bar, "health_bar": game.health_bar, "weapon_label": game.weapon_label,
-		"ammo_label": game.ammo_label, "scores_label": game.scores_label, "timer_label": game.timer_label,
-		"hill_label": game.hill_label}
+		"ammo_label": game.ammo_label, "alive_label": game.alive_label, "zone_label": game.zone_label,
+		"downed_label": game.downed_label}
 	var move_rect: Rect2 = touch.get_move_visual_rect()
 	var look_rect: Rect2 = touch.look_stick.get_global_rect()
 	var touch_items := {"move_stick": move_rect, "look_stick": look_rect}

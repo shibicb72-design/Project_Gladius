@@ -48,8 +48,8 @@ func test_cover_footprints_colliders_and_literal_baseline() -> void:
 		min_r = minf(min_r, near)
 		max_r = maxf(max_r, far)
 		assert_true(near >= float(rules["min_radius_m"]) and far <= float(rules["max_radius_m"]), "entire footprint in band")
-		if near < float(rules["hill_radius_m"]):
-			assert_true(body.position.y + size.y * 0.5 <= float(rules["hill_max_height_m"]), "hill cover low")
+		if near < float(rules["center_low_cover_radius_m"]):
+			assert_true(body.position.y + size.y * 0.5 <= float(rules["center_max_height_m"]), "center cover low")
 		var bounds := AABB(body.position - size * 0.5, size)
 		for key: String in BASELINE:
 			if key == "Ground":
@@ -98,7 +98,7 @@ func test_spawn_lanes_and_baked_paths() -> void:
 		var path := NavigationServer3D.map_get_path(nav.get_navigation_map(), spot.global_position, Vector3.ZERO, true)
 		assert_true(not path.is_empty(), id + " nonempty baked path")
 		var distance := INF if path.is_empty() else path[path.size() - 1].distance_to(Vector3.ZERO)
-		assert_true(distance <= 8.0, id + " path reaches hill")
+		assert_true(distance <= 8.0, id + " path reaches the center")
 		paths[id] = distance
 	print("ASTRA_LANES ", results, " NAV_DISTANCE ", paths)
 	pawn.free()

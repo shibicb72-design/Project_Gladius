@@ -18,9 +18,9 @@ var shield_bar: ProgressBar
 var health_bar: ProgressBar
 var ammo_label: Label
 var weapon_label: Label
-var scores_label: Label
-var timer_label: Label
-var hill_label: Label
+var alive_label: Label
+var zone_label: Label
+var downed_label: Label
 var respawn_label: Label
 var own_death_label: Label
 var _own_death_cfg: Dictionary = {}
@@ -43,7 +43,6 @@ var _marker_left_s: float = 0.0
 var _banner_cfg: Dictionary = {}
 var _banner_left_s: float = 0.0
 var _banner_is_kill: bool = false
-var _last_hill_text: String = ""
 var _kill_bridge: NetMatchBridge
 var _watched_pawns: Dictionary = {}
 var _attack_open: bool = false
@@ -71,16 +70,16 @@ func _exit_tree() -> void:
 
 
 func _build() -> void:
-	if scores_label != null:
+	if alive_label != null:
 		return
 	var top := HBoxContainer.new()
 	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(top)
-	scores_label = _label(top, "")
-	scores_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	timer_label = _label(top, "")
-	hill_label = _label(top, "")
+	alive_label = _label(top, "")
+	alive_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	zone_label = _label(top, "")
+	downed_label = _label(top, "")
 
 	stats = VBoxContainer.new()
 	stats.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -418,7 +417,8 @@ func _process(delta: float) -> void:
 		refresh_pawn()
 
 
-## Updates the per-pawn widgets: bars, weapon, ammo, hill indicator and respawn countdown.
+## Updates the per-pawn widgets: bars, weapon, ammo, players alive, zone timer and the DOWNED countdown.
+## The texts are placeholder wording; S6 does the look.
 func refresh_pawn() -> void:
 	if pawn == null or pawn.bridge == null:
 		return
@@ -437,7 +437,39 @@ func refresh_pawn() -> void:
 	respawn_label.visible = false  # no respawn in battle royale (item 6 removes the label)
 	own_death_label.visible = waiting and not pawn.is_downed()  # DOWNED is not dead (item 6 adds its own label)
 	crosshair.visible = bool(_ch["enabled"]) and not waiting  # no shot is possible while dead
-	hill_label.text = ""  # hill indicator removed (item 6 deletes the label)
+	_refresh_match_texts()
+
+
+func _refresh_match_texts() -> void:
+	if director == null or director.rules == null:
+		alive_label.text = ""
+		zone_label.text = ""
+		downed_label.text = ""
+		return
+	var alive := "Alive %s" % HudNumbers.number(director.players_alive(), roman_numerals)
+	if director.team_mode() == "squads":
+		alive += "   Squads %s" % HudNumbers.number(director.squads_alive(), roman_numerals)
+	alive_label.text = alive
+	zone_label.text = zone_text(director.rules.zone_state(), director.rules.zone_seconds_left())
+	var id := _pawn_player_id()
+	downed_label.text = ("DOWNED %s" % _clock(director.rules.bleed_seconds_left(id))) if pawn.is_downed() else ""
+
+
+## Placeholder wording (S6 restyles it).
+static func zone_text(state: String, seconds_left: float) -> String:
+	match state:
+		"waiting":
+			return "Zone closes in %s" % _clock(seconds_left)
+		"shrinking":
+			return "Zone closing %s" % _clock(seconds_left)
+		"final":
+			return "Final zone"
+	return ""
+
+
+static func _clock(seconds: float) -> String:
+	var s := int(ceil(maxf(seconds, 0.0)))
+	return "%d:%02d" % [s / 60, s % 60]
 
 
 func _pawn_player_id() -> int:

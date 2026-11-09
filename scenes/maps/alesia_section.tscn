@@ -123,8 +123,6 @@ mesh = SubResource("m_camp")
 [node name="Shape" type="CollisionShape3D" parent="Nav/CampBlockC"]
 shape = SubResource("s_camp")
 
-[node name="HillCenter" type="Marker3D" parent="."]
-
 [node name="ArtBuilder" type="Node3D" parent="."]
 script = ExtResource("astra")
 

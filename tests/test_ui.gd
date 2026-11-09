@@ -92,16 +92,28 @@ func test_menus_instantiate() -> void:
 	menu.free()
 	var end: EndScreen = load("res://scenes/ui/end_screen.tscn").instantiate()
 	root.add_child(end)
-	end.show_result({"winner": 1, "draw": false, "scores": {0: 3, 1: 10}})
-	assert_eq(end.title_label.text, "Squad 2 wins", "winner text")
-	assert_eq(end.scores_label.text, "Squad 1: 3\nSquad 2: 10", "end screen scores in digits")
-	end.show_result({"winner": 0, "draw": false, "scores": {0: 0, 1: 0}})
-	assert_eq(end.scores_label.text, "Squad 1: 0\nSquad 2: 0", "end screen zero is 0")
+	var won := {"winner": 4, "draw": false, "placements": {4: 1, 7: 2, 9: 3}, "kills": {4: 3, 7: 0},
+			"local_player_id": 4, "local_squad_id": 4, "squad_count": 3}
+	end.show_result(won)
+	assert_eq(end.title_label.text, "Victory", "local squad won")
+	assert_eq(end.scores_label.text, "Kills 3", "local kills in digits")
+	var lost := won.duplicate(true)
+	lost["local_player_id"] = 7
+	lost["local_squad_id"] = 7
+	end.show_result(lost)
+	assert_eq(end.title_label.text, "Placed 2 of 3", "placement of the local squad")
+	assert_eq(end.scores_label.text, "Kills 0", "zero kills is 0")
 	end.roman_numerals = true
-	end.show_result({"winner": 1, "draw": false, "scores": {0: 3, 1: 10}})
-	assert_eq(end.title_label.text, "Squad II wins", "winner text in Roman when enabled")
-	end.show_result({"winner": null, "draw": true, "scores": {0: 5, 1: 5}})
+	end.show_result(lost)
+	assert_eq(end.title_label.text, "Placed II of III", "placement in Roman when enabled")
+	end.show_result({"winner": 1, "draw": false, "placements": {1: 1, 2: 2}})
+	assert_eq(end.title_label.text, "Squad II wins", "no local player: winner squad (digits off: Roman)")
+	end.show_result({"winner": -1, "draw": true, "placements": {4: 2, 7: 2}, "local_player_id": 4,
+			"local_squad_id": 4, "squad_count": 2})
 	assert_eq(end.title_label.text, "Draw", "draw text")
+	assert_eq(GameHud.zone_text("waiting", 61.2), "Zone closes in 1:02", "zone wait text rounds up")
+	assert_eq(GameHud.zone_text("shrinking", 9.0), "Zone closing 0:09", "zone shrink text")
+	assert_eq(GameHud.zone_text("final", 0.0), "Final zone", "final zone text")
 	end.free()
 	AppFlow.lobby = null
 

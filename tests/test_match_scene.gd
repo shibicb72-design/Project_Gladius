@@ -37,9 +37,8 @@ func test_map_json_matches_scene_markers() -> void:
 			assert_true(markers[id].position.distance_to(Vector3(p[0], p[1], p[2])) < 0.05, "position of " + id)
 	for id in markers:
 		assert_true(spawns.has(id), "json entry for " + id)
-	assert_true(scene.get_node_or_null("HillCenter") != null, "hill center marker")
 	assert_true(scene.get_node_or_null("Nav") is NavigationRegion3D, "navigation region")
-	assert_true("koth" in def["modes"], "koth mode listed")
+	assert_true("br" in def["modes"], "battle royale mode listed")
 	scene.free()
 
 

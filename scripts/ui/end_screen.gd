@@ -1,6 +1,6 @@
 class_name EndScreen
 extends Control
-## Winner/draw and per-squad scores, then back to the main menu.
+## Victory / Draw / "Placed N of M" and the local player's kills, then back to the main menu.
 
 const _Theme := preload("res://scenes/ui/theme.tres")
 
@@ -33,24 +33,32 @@ func _ready() -> void:
 	show_result(result if not result.is_empty() else AppFlow.last_result)
 
 
+## Battle royale result (BrRules.result() plus MatchRoot's local_player_id / local_squad_id / squad_count).
+## Wording is placeholder text (S6 restyles it).
 func show_result(r: Dictionary) -> void:
 	result = r
 	if title_label == null:
 		return
+	title_label.text = title_text(r)
+	var me := int(r.get("local_player_id", -1))
+	var kills: Dictionary = r.get("kills", {})
+	scores_label.text = "Kills %s" % HudNumbers.number(int(kills.get(me, 0)), roman_numerals) if me >= 0 else ""
+
+
+func title_text(r: Dictionary) -> String:
+	var mine := int(r.get("local_squad_id", -1))
+	var placements: Dictionary = r.get("placements", {})
 	if bool(r.get("draw", false)):
-		title_label.text = "Draw"
-	elif r.get("winner") == null:
-		title_label.text = "Match over"
-	else:
-		title_label.text = "%s wins" % HudNumbers.squad_name(int(r["winner"]), roman_numerals)
-	var scores: Dictionary = r.get("scores", {})
-	var keys := scores.keys()
-	keys.sort()
-	var lines: Array[String] = []
-	for squad in keys:
-		lines.append("%s: %s" % [HudNumbers.squad_name(int(squad), roman_numerals),
-				HudNumbers.number(int(scores[squad]), roman_numerals)])
-	scores_label.text = "\n".join(lines)
+		return "Draw"
+	if mine >= 0 and r.get("winner") != null and int(r["winner"]) == mine:
+		return "Victory"
+	if mine >= 0 and placements.has(mine):
+		var total := int(r.get("squad_count", placements.size()))
+		return "Placed %s of %s" % [HudNumbers.number(int(placements[mine]), roman_numerals),
+				HudNumbers.number(total, roman_numerals)]
+	if r.get("winner") == null or int(r["winner"]) < 0:
+		return "Match over"
+	return "%s wins" % HudNumbers.squad_name(int(r["winner"]), roman_numerals)
 
 
 func _on_menu() -> void:

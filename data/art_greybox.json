@@ -24,11 +24,5 @@
 		"sun_energy": 0.85,
 		"sun_rotation_degrees": [-32.0, -38.0, 0.0]
 	},
-	"hill": {
-		"empty": [0.25, 0.80, 0.95, 0.12],
-		"contested": [1.0, 0.25, 0.12, 0.20],
-		"held": [1.0, 0.80, 0.20, 0.14],
-		"radial_segments": 48
-	},
 	"readability_proxy": {"minimum_albedo_contrast": 1.5}
 }

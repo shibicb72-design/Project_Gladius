@@ -259,6 +259,13 @@ func squad_of(id: int) -> int:
 	return int(_players[id]["squad"]) if _players.has(id) else -1
 
 
+## Seconds until a DOWNED player bleeds out; 0 for any other state or an unknown id. Read-only (HUD).
+func bleed_seconds_left(id: int) -> float:
+	if not _players.has(id) or int(_players[id]["state"]) != State.DOWNED:
+		return 0.0
+	return maxf(float(_players[id]["bleed"]), 0.0)
+
+
 # ---- zone read API ----
 func phase_count() -> int:
 	return _circles.size()

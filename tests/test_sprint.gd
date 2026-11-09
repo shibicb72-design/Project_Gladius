@@ -452,17 +452,17 @@ func _check_lock_layout(sz: Vector2) -> void:
 	_tree().root.add_child(game)
 	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	game.size = sz
-	game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-	game.timer_label.text = "10:00"
-	game.hill_label.text = "Hill: contested"
+	game.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	game.zone_label.text = "10:00"
+	game.downed_label.text = "DOWNED 0:24"
 	game.weapon_label.text = "Gladius Rifle"
 	game.ammo_label.text = "120 / 360"
 	await _tree().process_frame
 	await _tree().process_frame
 	var hud_items := {
 		"shield_bar": game.shield_bar, "health_bar": game.health_bar, "weapon_label": game.weapon_label,
-		"ammo_label": game.ammo_label, "scores_label": game.scores_label, "timer_label": game.timer_label,
-		"hill_label": game.hill_label}
+		"ammo_label": game.ammo_label, "alive_label": game.alive_label, "zone_label": game.zone_label,
+		"downed_label": game.downed_label}
 	var others := {"move_stick": touch.move_stick.get_global_rect(), "look_stick": touch.look_stick.get_global_rect()}
 	for action in touch.get_button_actions():
 		others["button_" + action] = touch.get_button_rect(action)

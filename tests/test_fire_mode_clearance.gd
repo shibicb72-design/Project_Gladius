@@ -22,13 +22,13 @@ func test_mode_button_clearance_at_device_density() -> void:
 				tree.root.add_child(game)
 				game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 				game.size = sz
-				game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-				game.timer_label.text = "10:00"
-				game.hill_label.text = "Hill: contested"
+				game.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+				game.zone_label.text = "10:00"
+				game.downed_label.text = "DOWNED 0:24"
 				game.respawn_label.text = "Respawn in 5"
 				game.show_cue("No reserve")
 				game.show_toast("Gladius Rifle")
-				game.show_banner("HILL CONTESTED")
+				game.show_banner("ZONE CLOSING")
 				game.show_hit_marker()
 				game.respawn_label.show()
 				game.own_death_label.show()
@@ -42,7 +42,7 @@ func test_mode_button_clearance_at_device_density() -> void:
 						"lock": touch.get_lock_button_rect(), "target": touch.get_lock_target_rect(), "gear": PauseMenu.gear_touch_rect(ui["pause_gear"], sz)}
 				for key in touch.get_button_actions():
 					reserved[key] = touch.get_element_rect(key)
-				for widget: Control in [game.scores_label, game.timer_label, game.hill_label, game.crosshair, game.hit_marker,
+				for widget: Control in [game.alive_label, game.zone_label, game.downed_label, game.crosshair, game.hit_marker,
 						game.banner_label, game.own_death_label, game.respawn_label, game.reload_box, game.cue_label, game.toast_label,
 						game.shield_bar, game.health_bar, game.weapon_label, game.ammo_label]:
 					reserved[str(widget)] = widget.get_global_rect()

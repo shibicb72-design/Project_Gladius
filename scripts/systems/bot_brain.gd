@@ -102,7 +102,7 @@ func _find_target() -> Pawn:
 	return players.get(target_id) if target_id >= 0 else null
 
 
-## World-space direction to walk, or ZERO when holding the hill.
+## World-space direction to walk toward the zone target, or ZERO when close enough.
 func _move_direction() -> Vector3:
 	var goal := director.zone_target_center()
 	var to_goal := goal - pawn.global_position

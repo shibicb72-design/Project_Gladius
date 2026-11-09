@@ -2,12 +2,7 @@
 	"id": "alesia_section",
 	"name": "Alesia (section)",
 	"scene": "res://scenes/maps/alesia_section.tscn",
-	"modes": ["koth"],
-	"hill": {
-		"center": [0.0, 0.0, 0.0],
-		"radius_m": 8.0,
-		"height_m": 3.0
-	},
+	"modes": ["br"],
 	"spawns": {
 		"spot_0": [40.0, 0.1, 0.0],
 		"spot_1": [20.0, 0.1, 34.64],

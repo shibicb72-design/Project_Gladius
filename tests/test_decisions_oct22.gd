@@ -155,7 +155,7 @@ func test_headshot_multiplier_applies_equally_to_shield_and_health() -> void:
 	assert_true(a.headshot_multiplier != b.headshot_multiplier, "weapons carry their own multiplier")
 
 
-# ---- OQ-20/21/22: independent squads, contested hill, draw -----------------------------------
+# ---- OQ-20/21/22: independent squads, contest rule, draw -----------------------------------
 
 # (King of the Hill tests removed: OQ-20/21/22 are superseded by the battle royale design, Nov 9 2026.)
 

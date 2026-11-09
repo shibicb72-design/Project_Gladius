@@ -1,5 +1,5 @@
 extends "res://tests/test_case.gd"
-## Walls, pawns, hitscan rays, the head Area3D and the hill Area3D must behave the same on Jolt (G1).
+## Walls, pawns, hitscan rays, and the head Area3D must behave the same on Jolt (G1).
 
 const _Range := preload("res://scenes/test/weapon_range.tscn")
 
@@ -76,7 +76,7 @@ func test_hitscan_body_head_miss_and_world() -> void:
 	scene.queue_free()
 
 
-func test_head_and_hill_area_layers() -> void:
+func test_head_area_layers() -> void:
 	# Jolt reports Area3D/SoftBody3D overlaps (breaking-changes.md:27); there is no SoftBody3D, and these
 	# areas only ever look at layer 2 (pawn bodies) or nothing.
 	var scene := _world()

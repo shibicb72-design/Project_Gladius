@@ -420,6 +420,17 @@ func test_bleed_out() -> void:
 	assert_eq(_of(ev, "dead")[0]["killer_id"], 3, "downer credited for bleed out")
 
 
+func test_bleed_seconds_left() -> void:
+	var b := _started()
+	assert_true(absf(b.bleed_seconds_left(1)) < 1e-4, "0 while ALIVE")
+	b.report_zero_health(1, 3, "hit")
+	b.tick(4.0, _facts(b))
+	assert_true(absf(b.bleed_seconds_left(1) - 6.0) < 1e-4, "10 s bleed minus 4 s")
+	assert_true(absf(b.bleed_seconds_left(999)) < 1e-4, "unknown id gives 0")
+	b.tick(6.0, _facts(b))
+	assert_true(absf(b.bleed_seconds_left(1)) < 1e-4, "0 once DEAD")
+
+
 func test_bleed_pause_while_reviving() -> void:
 	for pause in [true, false]:
 		var b := _started({"revive_s": 100, "bleed_pauses_while_reviving": pause})
@@ -663,7 +674,8 @@ func test_mode_registry_loads_br_data() -> void:
 	assert_eq(br.cfg["rules"], "br", "entry key kept")
 	assert_eq(br.phase_count(), (data["zone"]["phases"] as Array).size(), "phases")
 	assert_true(not (modes["br"] as Dictionary).has("zone"), "registry cache not mutated")
-	assert_true(ModeRegistryS.create("koth", modes) == null, "koth is cut: no rules")
+	assert_true(ModeRegistryS.create("no_such_mode", modes) == null, "unknown mode: no rules")
+	assert_eq(modes.keys(), ["br"], "battle royale is the only mode")
 
 
 func test_mode_registry_bad_data_returns_null() -> void:

@@ -319,9 +319,9 @@ func _layout_shot() -> void:
 	await _frames(5)
 	var hud: GameHud = m.hud
 	hud.set_process(false)  # GameHud._process rewrites these labels every frame; stop it so the longest-text sample sticks
-	hud.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-	hud.timer_label.text = "10:00"
-	hud.hill_label.text = "Hill: contested"
+	hud.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	hud.zone_label.text = "10:00"
+	hud.downed_label.text = "DOWNED 0:24"
 	hud.weapon_label.text = "Gladius Rifle"
 	hud.ammo_label.text = "120 / 360"
 	m.get_node("Hud/TouchHud").relayout()

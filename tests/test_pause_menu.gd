@@ -443,9 +443,9 @@ func _check_gear_clear(sz: Vector2) -> void:
 	_root().add_child(game)
 	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	game.size = sz
-	game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-	game.timer_label.text = "10:00"
-	game.hill_label.text = "Hill: contested"
+	game.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	game.zone_label.text = "10:00"
+	game.downed_label.text = "DOWNED 0:24"
 	game.weapon_label.text = "Gladius Rifle"
 	game.ammo_label.text = "120 / 360"
 	var pm: PauseMenu = _PauseScene.instantiate()
@@ -457,8 +457,8 @@ func _check_gear_clear(sz: Vector2) -> void:
 	var items := {
 		"shield_bar": game.shield_bar.get_global_rect(), "health_bar": game.health_bar.get_global_rect(),
 		"weapon_label": game.weapon_label.get_global_rect(), "ammo_label": game.ammo_label.get_global_rect(),
-		"scores_label": game.scores_label.get_global_rect(), "timer_label": game.timer_label.get_global_rect(),
-		"hill_label": game.hill_label.get_global_rect(), "move_stick": touch.move_stick.get_global_rect(),
+		"alive_label": game.alive_label.get_global_rect(), "zone_label": game.zone_label.get_global_rect(),
+		"downed_label": game.downed_label.get_global_rect(), "move_stick": touch.move_stick.get_global_rect(),
 		"look_stick": touch.look_stick.get_global_rect(), "lock_button": touch.get_lock_button_rect()}
 	for action in touch.get_button_actions():
 		items["button_" + action] = touch.get_button_rect(action)
