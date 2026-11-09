@@ -1,5 +1,6 @@
 extends "res://tests/test_case.gd"
 const Perf := preload("res://tests/test_astra_perf.gd")
+const Checks := preload("res://tests/soldier_checks.gd")
 
 func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
@@ -14,7 +15,8 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 	assert_true(armor.mesh is ArrayMesh and armor.mesh.get_surface_count() == 1, "one vertex color surface")
 	var head := pawn.get_node("Head/HeadMesh") as MeshInstance3D
 	var body := pawn.get_node("Body") as MeshInstance3D
-	assert_true(head.visible and head.mesh is SphereMesh, "visible locked helmet shell")
+	# D1 (Shibi, Nov 9 2026): the yellow sphere is a debug overlay now; the helmet in the armor mesh replaces it.
+	assert_true(head.mesh is SphereMesh and head.visible == bool(LowpolyKit.config()["soldier"]["debug_head_sphere"]["visible"]) and not head.visible, "yellow sphere kept as a debug overlay, off by default")
 	assert_true(is_equal_approx((head.mesh as SphereMesh).radius, 0.22), "head radius")
 	assert_eq((pawn.get_node("Head") as Node3D).position, Vector3(0, 1.75, 0), "head transform")
 	assert_eq((head.material_override as StandardMaterial3D).albedo_color, Color(1, 0.9, 0.2, 1), "yellow exact")
@@ -25,9 +27,12 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 	capsule.height = 1.6
 	assert_eq(body.mesh.get_aabb(), capsule.get_aabb(), "literal capsule baseline")
 	assert_eq(body.transform, Transform3D(Basis.IDENTITY, Vector3(0, 0.8, 0)), "body transform locked")
-	var head_bounds: AABB = (pawn.get_node("Head") as Node3D).transform * head.get_aabb()
-	for bounds in model.part_bounds:
-		assert_true(not head_bounds.grow(0.02).intersects(bounds), "part clear of yellow shell and margin")
+	# Was "every part clear of the yellow shell". Now: body parts keep clear of the head hitbox, helmet parts wrap it.
+	var head_bounds := Checks.head_box(pawn)
+	var clearance := Checks.body_clearance()
+	for i in model.part_bounds.size():
+		if not Checks.is_helmet(model, i):
+			assert_true(not head_bounds.grow(clearance).intersects(model.part_bounds[i]), "body part clear of the head hitbox and margin: " + String(model.get_meta("parts")[i]))
 	model.animation_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	model.set_process(false)
 	var posed: Array[AABB] = []
@@ -41,8 +46,15 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 			model.animation_tree.advance(float(SoldierRig.config()["locomotion"]["walk_s"]) / int(SoldierRig.config()["locomotion"]["samples"]))
 			await tree.process_frame
 			await tree.process_frame  # callback caches bounds only after a skeleton update; unchanged idle needs none
-			for bounds in posed:
-				assert_true(not (pawn.global_transform * head_bounds.grow(0.02)).intersects(bounds), "CPU shell clearance across clip samples")
+			var helmet := AABB()
+			var helmet_parts := 0
+			for i in posed.size():
+				if Checks.is_helmet(model, i):
+					helmet = posed[i] if helmet_parts == 0 else helmet.merge(posed[i])
+					helmet_parts += 1
+				else:
+					assert_true(not (pawn.global_transform * head_bounds.grow(clearance)).intersects(posed[i]), "CPU head hitbox clearance across clip samples: " + String(model.get_meta("parts")[i]))
+			assert_true(helmet_parts > 0 and helmet.grow(0.00001).encloses(pawn.global_transform * head_bounds), "the helmet still contains the head hitbox in every clip sample")
 	await tree.process_frame  # leave the skeleton_updated emission before later freeing the pawn
 	model.transform = Transform3D.IDENTITY
 	var rifle := model.hand_attachment.get_node("RifleModel") as MeshInstance3D
@@ -51,7 +63,7 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 	assert_eq(pawn.shot_fx.weapon_mesh.layers, 0, "only legacy box draw suppressed")
 	var bounds := rifle.mesh.get_aabb()
 	assert_true(absf(bounds.position.z + (pawn.shot_fx.weapon_mesh.mesh as BoxMesh).size.z * 0.5) < 0.0001, "barrel ends at unchanged muzzle tip")
-	var tris := Perf.triangles(armor.mesh) + Perf.triangles(head.mesh) + Perf.triangles(rifle.mesh)
+	var tris := Perf.triangles(armor.mesh) + Perf.triangles(rifle.mesh) + (Perf.triangles(head.mesh) if head.visible else 0)  # only what is drawn
 	assert_true(tris > 0 and tris <= int(LowpolyKit.config()["performance"]["pawn_triangle_budget"]), "pawn model triangle budget")
 	print("ASTRA_PAWN model triangles=", tris, " parts=", model.get_meta("parts").size())
 	pawn.velocity = Vector3(2, 0, 3)

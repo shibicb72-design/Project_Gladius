@@ -4,7 +4,7 @@ extends RefCounted
 ## Framing numbers: data/capture_shots.json (placeholders, OQ-3D-CAPTURE). Presentation only: nothing here feeds
 ## back into the match. World colliders pick a stage with a clear lane, so cover never hides the subject.
 
-const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "map_overview", "loot_lineup", "wall_closeup"]
+const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup"]
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -35,6 +35,7 @@ func run(tool: Node, which: String) -> bool:
 	_match.auto_start = false
 	_match.bake_navmesh = false
 	_match.fill_bots = false
+	_match.seed_override = int(_cfg["match_seed"])  # same zone circles in every run, so shots compare
 	host.add_child(_match)
 	await _tool._frames(2)
 	if not _match.begin():
@@ -55,7 +56,9 @@ func run(tool: Node, which: String) -> bool:
 			"soldier_turntable":
 				await _soldier_turntable()
 			"soldier_50m":
-				await _soldier_50m()
+				await _soldier_50m(false)
+			"soldier_50m_zoom":
+				await _soldier_50m(true)
 			"map_overview":
 				await _map_overview()
 			"loot_lineup":
@@ -168,16 +171,18 @@ func _soldier_turntable() -> void:
 	await _finish("soldier_turntable", str(c["labels"]))
 
 
-## One soldier per squad at range, with the field of view the game camera uses at this aspect.
-func _soldier_50m() -> void:
+## One soldier per squad at range, with the field of view the game camera uses at this aspect. The zoom
+## variant is the same scene through a narrow lens: a magnifier for the reviewer, not a player's view.
+func _soldier_50m(zoom: bool) -> void:
 	var c: Dictionary = _cfg["soldier_50m"]
 	var count := int(c["count"])
 	for i in count:
 		_pawn(_stage + _right() * float(c["spacing_m"]) * (i - (count - 1) * 0.5), _lane, 0.0, i)
-	var fov := CameraRig.fov_for_aspect(DataRegistry.new().get_camera_cfg(), _aspect())
+	var fov := float(c["zoom_fov_deg"]) if zoom else CameraRig.fov_for_aspect(DataRegistry.new().get_camera_cfg(), _aspect())
 	_aim(_stage + _lane * float(c["distance_m"]) + Vector3.UP * float(c["eye_height_m"]),
 			_stage + Vector3.UP * float(c["look_height_m"]), fov)
-	await _finish("soldier_50m", "%d soldiers (squads 0-%d) at %.0f m, game FOV %.0f" % [count, count - 1, float(c["distance_m"]), fov])
+	await _finish("soldier_50m_zoom" if zoom else "soldier_50m", "%d soldiers (squads 0-%d) at %.0f m, %s FOV %.0f" % [
+			count, count - 1, float(c["distance_m"]), "magnifier" if zoom else "game", fov])
 
 
 func _map_overview() -> void:

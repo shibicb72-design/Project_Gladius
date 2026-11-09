@@ -49,7 +49,7 @@
 		{"name":"Spine", "parent":"Hips", "part":"torso", "pivot":"center"},
 		{"name":"Chest", "parent":"Spine", "part":"torso", "pivot":"top"},
 		{"name":"Neck", "parent":"", "part":"neck", "pivot":"center"},
-		{"name":"Head", "parent":"Neck", "part":"visor", "pivot":"head_shell"},
+		{"name":"Head", "parent":"Neck", "part":"helmet_bowl", "pivot":"head_shell"},
 		{"name":"LeftUpperArm", "parent":"Chest", "part":"upper_arm_l", "pivot":"top"},
 		{"name":"LeftForeArm", "parent":"LeftUpperArm", "part":"lower_arm_l", "pivot":"top"},
 		{"name":"LeftHand", "parent":"LeftForeArm", "part":"glove_l", "pivot":"center"},
@@ -69,6 +69,17 @@
 		"upper_arm_r":"RightUpperArm", "lower_arm_r":"RightForeArm", "glove_r":"RightHand",
 		"thigh_l":"LeftUpperLeg", "shin_l":"LeftLowerLeg", "boot_l":"LeftFoot",
 		"thigh_r":"RightUpperLeg", "shin_r":"RightLowerLeg", "boot_r":"RightFoot",
-		"visor":"Head", "visor_accent":"Head", "vest_stripe":"Spine", "neck":"Neck"
+		"visor":"Head", "visor_accent":"Head", "vest_stripe":"Spine", "neck":"Neck",
+		"_legionary_note": "C2: the Astra legionary's plates. Helmet parts ride the Head bone; cuirass top, gorget, back unit, cape and pauldrons ride the Chest so they stay off the head hitbox when the arms move. The vest, backpack and visor rows above serve soldier.parts_far.",
+		"helmet_bowl":"Head", "helmet_brow":"Head", "helmet_visor":"Head", "helmet_eye":"Head",
+		"helmet_cheek_l":"Head", "helmet_cheek_r":"Head", "helmet_neck":"Head", "helmet_crest":"Head",
+		"cuirass_upper":"Chest", "cuirass_mid":"Spine", "cuirass_low":"Spine", "chest_plate":"Chest",
+		"gorget":"Chest", "back_unit":"Chest", "back_core":"Chest", "cape":"Chest",
+		"pauldron_l":"Chest", "pauldron_r":"Chest", "pauldron_rim_l":"Chest", "pauldron_rim_r":"Chest",
+		"rerebrace_l":"LeftUpperArm", "rerebrace_r":"RightUpperArm", "vambrace_l":"LeftForeArm", "vambrace_r":"RightForeArm",
+		"belt":"Hips", "belt_buckle":"Hips", "strip_1":"Hips", "strip_2":"Hips", "strip_3":"Hips", "strip_4":"Hips",
+		"tasset_l":"Hips", "tasset_r":"Hips",
+		"cuisse_l":"LeftUpperLeg", "cuisse_r":"RightUpperLeg", "knee_l":"LeftLowerLeg", "knee_r":"RightLowerLeg",
+		"greave_l":"LeftLowerLeg", "greave_r":"RightLowerLeg"
 	}
 }

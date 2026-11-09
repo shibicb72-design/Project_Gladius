@@ -174,6 +174,7 @@ static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:
 	var result := st.commit()
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
+	material.vertex_color_is_srgb = true  # soldier colours are written as sRGB (art_astra.json colors note)
 	material.roughness = float(config()["kit"]["roughness"])
 	result.surface_set_material(0, material)
 	return result

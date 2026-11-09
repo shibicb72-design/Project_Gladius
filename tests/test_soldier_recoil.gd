@@ -1,4 +1,5 @@
 extends "res://tests/test_case.gd"
+const Checks := preload("res://tests/soldier_checks.gd")
 
 func test_visual_shot_kicks_own_bot_replica_and_ignores_melee() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
@@ -37,8 +38,9 @@ func test_visual_shot_kicks_own_bot_replica_and_ignores_melee() -> void:
 			await tree.process_frame
 			await tree.process_frame
 			maximum = maxf(maximum, model.hand_error_m)
-			var shell := (pawn.get_node("Head") as Node3D).global_transform * (pawn.get_node("Head/HeadMesh") as MeshInstance3D).get_aabb().grow(0.02)
-			assert_true(not shell.intersects(model.rifle.global_transform * model.rifle.get_aabb()), "kicked rifle clear of shell")
+			# Was the yellow shell plus 0.02 (D1): now the helmet's envelope, the head hitbox plus the helmet margin.
+			var shell := (pawn.get_node("Head") as Node3D).global_transform * Checks.head_box_local(pawn).grow(Checks.helmet_margin())
+			assert_true(not shell.intersects(model.rifle.global_transform * model.rifle.get_aabb()), "kicked rifle clear of the helmet")
 		assert_true(model.rifle.transform.is_equal_approx(model._rifle_rest), "rifle recovers to rest")
 		assert_true(maximum <= float(SoldierRig.config()["hands"]["ik_tolerance_m"]), "IK follows recoil, max=" + str(maximum))
 		print("RIG_RECOIL role=", "replica" if pawn == replica else "own" if pawn == match_scene.local_player else "bot", " max_hand_error_m=", maximum)

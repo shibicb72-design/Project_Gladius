@@ -1,4 +1,5 @@
 extends "res://tests/test_case.gd"
+const Checks := preload("res://tests/soldier_checks.gd")
 
 func test_aim_fire_reload_and_cancel_use_the_animation_tree() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
@@ -42,6 +43,8 @@ func test_aim_fire_reload_and_cancel_use_the_animation_tree() -> void:
 	pawn.free()
 
 
+## Was "bounds clear the fixed yellow shell" (D1, Shibi, Nov 9 2026: the sphere is a debug overlay). Same intent
+## on the head hitbox: no arm, torso or leg part enters it in any aim, fire or reload sample. Helmet parts wrap it.
 func test_cpu_upper_body_bounds_clear_fixed_shell_across_clips() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
@@ -55,7 +58,7 @@ func test_cpu_upper_body_bounds_clear_fixed_shell_across_clips() -> void:
 	bounds.resize(model.part_bounds.size())
 	model.posed_bounds(bounds)
 	model.skeleton.skeleton_updated.connect(model.posed_bounds.bind(bounds))
-	var shell := (pawn.get_node("Head") as Node3D).global_transform * (pawn.get_node("Head/HeadMesh") as MeshInstance3D).get_aabb().grow(0.02)
+	var shell := (pawn.get_node("Head") as Node3D).global_transform * Checks.head_box_local(pawn).grow(Checks.body_clearance())
 	for pitch in [-1.0, 0.0, 1.0]:
 		animation.set("parameters/aim/blend_position", pitch)
 		for action in ["aim", "fire", "reload"]:
@@ -68,7 +71,7 @@ func test_cpu_upper_body_bounds_clear_fixed_shell_across_clips() -> void:
 				await tree.process_frame
 				await tree.process_frame
 				for i in bounds.size():
-					if shell.intersects(bounds[i]):
+					if not Checks.is_helmet(model, i) and shell.intersects(bounds[i]):
 						assert_true(false, "CPU %s %s pitch=%s sample=%s box=%s shell=%s" % [action, model.get_meta("parts")[i], pitch, sample, bounds[i], shell])
 						pawn.free()
 						return

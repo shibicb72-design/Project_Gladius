@@ -55,11 +55,12 @@ func _ready() -> void:
 	for part: Dictionary in parts:
 		names.append(part["name"])
 		part_bones.append(skeleton.find_bone(mapping[part["name"]]))
-		var size := LowpolyKit.vec(part["size"])
-		part_bounds.append(AABB(LowpolyKit.vec(part["at"]) - size * 0.5, size))
+	part_bounds.assign(SoldierRig.rest_bounds(parts))
 	set_meta("parts", names)
 	if _pawn != null:
 		(_pawn.get_node("Body") as MeshInstance3D).visible = false
+		# D1: the helmet replaces the yellow head sphere, which stays as a debug overlay behind a data flag.
+		(_pawn.get_node("Head/HeadMesh") as MeshInstance3D).visible = bool(_cfg["debug_head_sphere"]["visible"])
 	_animation_cfg = SoldierRig.config()["locomotion"]
 	var registry := DataRegistry.new()
 	var movement := registry.get_movement_cfg()

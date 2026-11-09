@@ -33,17 +33,19 @@ static func build(model: SoldierModel) -> Node3D:
 	armor.skin = model.armor.skin
 	armor.skeleton = NodePath("..")
 	skeleton.add_child(armor)
-	var head_attachment := BoneAttachment3D.new()
-	head_attachment.name = "HeadAttachment"
-	head_attachment.bone_name = &"Head"
-	skeleton.add_child(head_attachment)
+	# D1: the helmet is part of the armor mesh. The yellow head sphere is copied only while the debug flag shows it.
 	var source_shell := source_head.get_node("HeadMesh") as MeshInstance3D
-	var shell := MeshInstance3D.new()
-	shell.name = "Shell"
-	shell.mesh = source_shell.mesh
-	shell.material_override = source_shell.material_override
-	shell.transform = source_shell.transform
-	head_attachment.add_child(shell)
+	if source_shell.visible:
+		var head_attachment := BoneAttachment3D.new()
+		head_attachment.name = "HeadAttachment"
+		head_attachment.bone_name = &"Head"
+		skeleton.add_child(head_attachment)
+		var shell := MeshInstance3D.new()
+		shell.name = "Shell"
+		shell.mesh = source_shell.mesh
+		shell.material_override = source_shell.material_override
+		shell.transform = source_shell.transform
+		head_attachment.add_child(shell)
 	var hand := BoneAttachment3D.new()
 	hand.name = "RightHandAttachment"
 	hand.bone_name = &"RightHand"

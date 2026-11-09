@@ -49,6 +49,9 @@ func test_pawn_materials_head_lock_and_albedo_readability_proxy() -> void:
 	var head := pawn.get_node("Head/HeadMesh") as MeshInstance3D
 	assert_true(body.mesh is CapsuleMesh and head.mesh is SphereMesh, "placeholder silhouettes retained")
 	assert_true(body.material_override != null and head.material_override != null, "material overrides retained")
+	# D1 (Shibi, Nov 9 2026): the yellow sphere is a debug overlay, hidden by default. It keeps the exact
+	# colour the Fold detector looks for, for the builds that turn it on.
+	assert_true(not head.visible, "yellow head sphere hidden by default")
 	var head_mat := head.material_override as StandardMaterial3D
 	assert_eq(head_mat.albedo_color, Color(1, 0.9, 0.2, 1), "Fold yellow gate exact")
 	assert_eq(head_mat.shading_mode, BaseMaterial3D.SHADING_MODE_UNSHADED, "head stays unshaded")
@@ -56,7 +59,12 @@ func test_pawn_materials_head_lock_and_albedo_readability_proxy() -> void:
 	var ground := GreyboxArt.color_value(cfg["palette"]["ground"])
 	var ratios := {}
 	ratios["body_ground"] = _contrast((body.material_override as StandardMaterial3D).albedo_color, ground)
-	ratios["head_ground"] = _contrast(head_mat.albedo_color, ground)
+	# Was "head_ground" with the yellow sphere: the head a player now sees is the helmet's plate colour.
+	var shell_color := ""
+	for part: Dictionary in LowpolyKit.config()["soldier"]["parts"]:
+		if part["name"] == LowpolyKit.config()["soldier"]["helmet"]["shell_part"]:
+			shell_color = part["color"]
+	ratios["helmet_ground"] = _contrast(GreyboxArt.color_value(LowpolyKit.config()["colors"][shell_color]), ground)
 	for key in ["citadel", "inner_wall", "camp"]:
 		ratios[key + "_ground"] = _contrast(GreyboxArt.color_value(cfg["palette"][key]), ground)
 	for key in ratios:

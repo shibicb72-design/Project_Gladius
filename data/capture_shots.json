@@ -11,6 +11,7 @@
 	"ground_ray_bottom_m": -5,
 	"ground_min_normal_y": 0.8,
 	"settle_frames": 30,
+	"match_seed": 20261109,
 	"soldier_turntable": {
 		"yaws_deg": [0, 90, 180],
 		"labels": "front / side / back",
@@ -26,7 +27,8 @@
 		"count": 6,
 		"spacing_m": 1.6,
 		"eye_height_m": 1.6,
-		"look_height_m": 1.0
+		"look_height_m": 1.0,
+		"zoom_fov_deg": 8
 	},
 	"map_overview": {
 		"camera_at": [0, 150, 120],
@@ -35,7 +37,7 @@
 	},
 	"loot_lineup": {
 		"spacing_m": 1.3,
-		"frame_margin_m": 0.9,
+		"frame_margin_m": 1.8,
 		"frame_height_m": 3.2,
 		"camera_height_m": 1.5,
 		"look_height_m": 0.8,
