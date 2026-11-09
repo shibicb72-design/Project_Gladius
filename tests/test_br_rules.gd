@@ -102,6 +102,67 @@ func test_problems_block_everything() -> void:
 	assert_true(not b.is_over(), "not over")
 
 
+func _joined(c: Dictionary) -> String:
+	return "\n".join(BrS.validate_config(c))
+
+
+func test_empty_sub_objects_name_every_missing_key() -> void:
+	var expected := {
+		"zone": ["start_center", "start_radius_m", "damage_skips_shield", "phases"],
+		"downed": ["bleed_out_s", "revive_s", "revive_range_m", "downed_move_speed_pct", "revive_health_pct",
+				"can_be_finished", "zone_finishes_downed", "squad_wipe_kills_downed", "kill_credit_to_downer",
+				"bleed_pauses_while_reviving", "bleed_restarts_on_new_down"],
+		"end": ["tie_result"],
+		"teams": ["mode", "squad_size_max"]}
+	for sub in expected:
+		var c := _cfg()
+		c[sub] = {}
+		var text := _joined(c)
+		for k in expected[sub]:
+			assert_true(text.contains(k), "empty %s names %s" % [sub, k])
+		assert_true(not text.contains("%s: missing or not an object" % sub), "empty %s counts as an object" % sub)
+		var b: BrRules = BrS.new()
+		b.setup(c)
+		assert_true(not b.config_problems().is_empty(), "problems stored for empty %s" % sub)
+		assert_true(not b.register_player(1, 1), "register refused for empty %s" % sub)
+		assert_eq(b.tick(5.0, {}).size(), 0, "tick inert for empty %s" % sub)
+		# a missing sub-object adds the "missing or not an object" problem on top of the key problems
+		c = _cfg()
+		c.erase(sub)
+		text = _joined(c)
+		assert_true(text.contains("%s: missing or not an object" % sub), "missing %s reported" % sub)
+		for k in expected[sub]:
+			assert_true(text.contains(k), "missing %s names %s" % [sub, k])
+
+
+func test_default_seed_validation() -> void:
+	for ok in [7, 7.0, 3.0, 0, -5, -5.0]:
+		var c := _cfg()
+		c["default_seed"] = ok
+		assert_eq(BrS.validate_config(c), [] as Array[String], "seed ok: %s" % str(ok))
+	for bad in [1.5, "7", true, null]:
+		var c := _cfg()
+		c["default_seed"] = bad
+		assert_true(_joined(c).contains("default_seed"), "seed rejected: %s" % str(bad))
+	var m := _cfg()
+	m.erase("default_seed")
+	assert_true(_joined(m).contains("default_seed"), "missing default_seed")
+	var b: BrRules = BrS.new()
+	b.setup(m)
+	assert_true(not b.config_problems().is_empty(), "setup keeps problems when seed missing")
+
+
+func test_squad_size_max_validation() -> void:
+	for ok in [1, 3.0, 4]:
+		var c := _cfg()
+		c["teams"]["squad_size_max"] = ok
+		assert_eq(BrS.validate_config(c), [] as Array[String], "squad max ok: %s" % str(ok))
+	for bad in [0, 1.5, "3", true, -2]:
+		var c := _cfg()
+		c["teams"]["squad_size_max"] = bad
+		assert_true(_joined(c).contains("squad_size_max"), "squad max rejected: %s" % str(bad))
+
+
 # ---- b: players, teams, start ----
 func test_registration_and_start() -> void:
 	var b := _mk([[1, 10]])

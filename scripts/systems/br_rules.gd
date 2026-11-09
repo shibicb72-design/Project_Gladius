@@ -89,6 +89,16 @@ static func _need_num(d: Dictionary, key: String, where: String, out: Array[Stri
 		out.append("%s.%s: out of range" % [where, key])
 
 
+## JSON numbers arrive as floats, so a float equal to its int() counts as an integer. Bools and strings do not.
+static func _need_int(d: Dictionary, key: String, where: String, out: Array[String], min_v: float = -INF) -> void:
+	if not d.has(key) or not _is_num(d[key]):
+		out.append("%s.%s: missing or not a number" % [where, key])
+	elif float(d[key]) != float(int(d[key])):
+		out.append("%s.%s: must be a whole number" % [where, key])
+	elif float(d[key]) < min_v:
+		out.append("%s.%s: out of range" % [where, key])
+
+
 static func _need_bool(d: Dictionary, key: String, where: String, out: Array[String]) -> void:
 	if not d.has(key) or typeof(d[key]) != TYPE_BOOL:
 		out.append("%s.%s: missing or not a bool" % [where, key])
@@ -97,8 +107,9 @@ static func _need_bool(d: Dictionary, key: String, where: String, out: Array[Str
 ## Returns a list of problems (empty when the config is usable). Keys starting with "_" are ignored.
 static func validate_config(c: Dictionary) -> Array[String]:
 	var out: Array[String] = []
+	_need_int(c, "default_seed", "config", out)
 	var zone := _need_dict(c, "zone", out)
-	if not zone.is_empty():
+	if true:  # always run the key checks, also for {} or a missing object, so every missing key is named
 		var sc: Variant = zone.get("start_center")
 		if typeof(sc) != TYPE_ARRAY or (sc as Array).size() != 2 or not _is_num(sc[0]) or not _is_num(sc[1]):
 			out.append("zone.start_center: must be exactly 2 numbers")
@@ -124,7 +135,7 @@ static func validate_config(c: Dictionary) -> Array[String]:
 						out.append("%s.radius_m: must be smaller than the previous radius" % w)
 					prev = float(p["radius_m"])
 	var d := _need_dict(c, "downed", out)
-	if not d.is_empty():
+	if true:
 		for k in ["bleed_out_s", "revive_s", "revive_range_m"]:
 			_need_num(d, k, "downed", out, 0.0)
 		for k in ["downed_move_speed_pct", "revive_health_pct"]:
@@ -133,14 +144,14 @@ static func validate_config(c: Dictionary) -> Array[String]:
 				"bleed_pauses_while_reviving", "bleed_restarts_on_new_down"]:
 			_need_bool(d, k, "downed", out)
 	var e := _need_dict(c, "end", out)
-	if not e.is_empty() and e.get("tie_result") != "draw":
+	if e.get("tie_result") != "draw":
 		out.append("end.tie_result: only \"draw\" is implemented")
 	var t := _need_dict(c, "teams", out)
-	if not t.is_empty():
+	if true:
 		var m: Variant = t.get("mode")
 		if typeof(m) != TYPE_DICTIONARY or not ["solo", "squads"].has(m.get("value")):
 			out.append("teams.mode.value: must be \"solo\" or \"squads\"")
-		_need_num(t, "squad_size_max", "teams", out, 1.0)
+		_need_int(t, "squad_size_max", "teams", out, 1.0)
 	return out
 
 
@@ -185,7 +196,7 @@ func setup(p_cfg: Dictionary) -> void:
 	var teams: Dictionary = p_cfg["teams"]
 	_team_mode = str(teams["mode"]["value"])
 	_squad_max = int(teams["squad_size_max"])
-	_default_seed = int(p_cfg.get("default_seed", 0))
+	_default_seed = int(p_cfg["default_seed"])
 	_center = _start_center
 	_radius = _start_radius
 	_zleft = float(_phases[0]["wait"])
