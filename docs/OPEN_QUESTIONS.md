@@ -10,6 +10,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 ## Battle royale (DESIGN.md update, Nov 9 2026; milestone M1)
 
 - **OQ-BR-ZONE: zone phases.** Number of phases, wait and shrink times, radius per phase, damage per second per phase, and whether zone damage skips shields. Placeholders in `data/br.json` until measured M1 matches give a basis.
+  Placeholder now (M1 review fix): start radius 75 m (inside the 160 m M1 map); phases wait/shrink/end radius/dps: 60/30/50/1, 45/30/30/2, 30/20/15/4, 20/15/8/8, 15/30/0/15 (the last circle closes to nothing so every match ends).
   Placeholder now (S1a): start circle center (0, 0) radius 120 m; damage_skips_shield false; 4 phases (wait_s / shrink_s / radius_m / damage_per_s): 60/30/80/1, 45/30/50/2, 30/20/25/4, 20/15/8/8. Next circle centers are drawn from a seeded RNG (default_seed 20261109, a technical value).
 - **OQ-BR-LOOT: loot table.** Which items exist on the ground (weapons, ammo, armor tiers, anything else), spawn density and rarity weights. Placeholders in `data/loot.json`.
   Placeholder now (S4): 70 seeded items on walkable ground within 72 m of the center (weights: Pilum BR 3, Sagittarii rifle 2, ammo 4 (30 rounds), armor I 3, II 2, III 1); pickup range 2 m with the Interact button (revive wins when both apply); two gun slots plus the blade; a new gun fills an empty gun slot, else replaces the gun in hand, which drops with its ammo; eliminated players drop their guns; bots pick up what they stand on. Real matches use it; tests opt in (MatchRoot.ground_loot).
@@ -23,7 +24,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-BR-START: starting kit.** What a player lands with (nothing, melee only, or a sidearm). Placeholder.
   Placeholder now (S4): the Gladius Lux blade only (data/loot.json start_kit).
 - **OQ-BR-DROP: drop from the sky.** Carrier path, jump window, fall and glide speeds, and whether squads drop together. Placeholders.
-  Placeholder now (S3): br.json drop: carrier on a seeded straight line through the zone start center, altitude 120 m, path 200 m, 20 s; humans drop with Jump, bot squads drop together at a seeded moment between 15% and 85% of the path, everyone left drops at the end; glide 8 m/s, fall capped at 15 m/s; no weapons while aboard or falling; landing on roofs and wall tops is allowed. Real matches use it; tests opt in (MatchRoot.drop_from_sky).
+  Placeholder now (S3): br.json drop: carrier on a seeded straight line through the zone start center, altitude 120 m, path 130 m (kept on the 160 m M1 map; drop.map_half_m 78 clamps fall points, and a pawn below the map is put back on its edge), 20 s; humans drop with Jump, bot squads drop together at a seeded moment between 15% and 85% of the path, everyone left drops at the end; glide 8 m/s, fall capped at 15 m/s; no weapons while aboard or falling; landing on roofs and wall tops is allowed. Real matches use it; tests opt in (MatchRoot.drop_from_sky).
 - **OQ-BR-LENGTH: match length.** Target duration; decided after measuring M1 matches (Shibi, Nov 9 2026).
 - **OQ-BR-TEMP-MAP: M1 temporary map size.** The real 1 km Alesia map is M2. The M1 test map size is a placeholder.
   Placeholder now (S1a): the zone start circle (radius 120 m around (0, 0)) in `data/br.json` stands in for the temporary map size.

@@ -392,7 +392,7 @@ func _on_host_lost() -> void:
 ## Started from the menu flow: show the end screen after a short pause. Standalone runs stay put.
 func _on_match_over(result: Dictionary) -> void:
 	result = result.duplicate(true)
-	var me := roster.local_player_id if roster != null else -1
+	var me := _local_id()
 	result["local_player_id"] = me
 	result["local_squad_id"] = director.rules.squad_of(me) if director.rules != null and me >= 0 else -1
 	result["squad_count"] = (result.get("placements", {}) as Dictionary).size()

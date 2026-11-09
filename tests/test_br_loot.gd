@@ -170,3 +170,20 @@ func test_eliminated_player_drops_guns_and_bots_pick_up() -> void:
 	await frames(2)
 	assert_eq(other.armor_tier, 1, "a bot standing on armor picks it up")
 	await cleanup()
+
+
+func test_a_bot_with_two_guns_does_not_swap_guns() -> void:
+	await setup_loot_match()
+	var bot: Pawn = m.bots[0]
+	bot.get_node("Brain").set_physics_process(false)
+	clear_near(bot.global_position)
+	bot.take_item({"item_id": "pilum_br"}, m.loot.def("pilum_br"))
+	bot.take_item({"item_id": "sagittarii_rifle"}, m.loot.def("sagittarii_rifle"))
+	var held := [bot.loadout.slots[0], bot.loadout.slots[2]]
+	assert_true(not bot.wants_item(m.loot.def("pilum_br")), "a bot with two guns does not want a third")
+	m.loot.drop({"item_id": "pilum_br"}, bot.global_position)
+	var n := m.loot.items.size()
+	await frames(5)
+	assert_eq([bot.loadout.slots[0], bot.loadout.slots[2]], held, "the same two gun objects (no swap, no reset)")
+	assert_eq(m.loot.items.size(), n, "the gun stays on the ground")
+	await cleanup()

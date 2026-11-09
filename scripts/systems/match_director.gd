@@ -124,19 +124,22 @@ func _pickup_range() -> float:
 
 
 ## The loot item `player_id` could pick up now (nearest in range that it can use); -1 if none.
-func pickup_target_for(player_id: int) -> int:
+func pickup_target_for(player_id: int, bot_rules: bool = false) -> int:
 	var pawn: Pawn = _players.get(player_id)
 	if loot == null or not running or pawn == null:
 		return -1
 	var id := loot.nearest(pawn.global_position, _pickup_range())
-	if id < 0 or not pawn.can_take(loot.def(str(loot.items[id]["item_id"]))):
+	if id < 0:
+		return -1
+	var item_def := loot.def(str(loot.items[id]["item_id"]))
+	if not (pawn.wants_item(item_def) if bot_rules else pawn.can_take(item_def)):
 		return -1
 	return id
 
 
 ## Picks up the current pickup target; a replaced gun goes on the ground. False if nothing to take.
-func try_pickup(player_id: int) -> bool:
-	var id := pickup_target_for(player_id)
+func try_pickup(player_id: int, bot_rules: bool = false) -> bool:
+	var id := pickup_target_for(player_id, bot_rules)
 	if id < 0:
 		return false
 	var pawn: Pawn = _players[player_id]
@@ -152,8 +155,8 @@ func _bot_pickups() -> void:
 		return
 	for id in _players:
 		var pawn: Pawn = _players[id]
-		if pawn.has_node("Brain") and pawn.is_alive():
-			try_pickup(id)
+		if pawn.has_node("Brain") and pawn.is_alive() and not pawn.is_dropping():
+			try_pickup(id, true)
 
 
 ## ---- Drop from the sky (br.json "drop", placeholders, OQ-BR-DROP) ----
@@ -176,13 +179,9 @@ func _begin_drop(seed_value: int, ids: Array) -> void:
 	var cfg := _drop_cfg()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value + 7919  # separate stream from the zone's
-	var c: Array = mode_cfg.get("zone", {}).get("start_center", [0, 0])
-	var center := Vector3(float(c[0]), float(cfg.get("altitude_m", 120.0)), float(c[1]))
-	var angle := rng.randf() * TAU
-	var half := float(cfg.get("path_length_m", 200.0)) * 0.5
-	var dir := Vector3(cos(angle), 0.0, sin(angle))
-	carrier_from = center - dir * half
-	carrier_to = center + dir * half
+	var path := carrier_path(mode_cfg, rng)
+	carrier_from = path[0]
+	carrier_to = path[1]
 	_carrier_s = maxf(float(cfg.get("carrier_s", 20.0)), 0.1)
 	carrier_t = 0.0
 	var window: Array = cfg.get("bot_jump_window", [0.15, 0.85])
@@ -196,6 +195,34 @@ func _begin_drop(seed_value: int, ids: Array) -> void:
 		pawn.board_carrier()
 	drop_active = true
 	_place_aboard()
+
+
+## [from, to] of the carrier line: through the zone start center at drop.altitude_m, seeded direction,
+## drop.path_length_m long. One rng draw (the direction).
+static func carrier_path(cfg: Dictionary, rng: RandomNumberGenerator) -> Array[Vector3]:
+	var drop: Dictionary = cfg.get("drop", {})
+	var c: Array = cfg.get("zone", {}).get("start_center", [0, 0])
+	var center := Vector3(float(c[0]), float(drop.get("altitude_m", 120.0)), float(c[1]))
+	var angle := rng.randf() * TAU
+	var half := float(drop.get("path_length_m", 200.0)) * 0.5
+	var dir := Vector3(cos(angle), 0.0, sin(angle))
+	return [center - dir * half, center + dir * half]
+
+
+## Keeps x/z inside the playable square (br.json drop.map_half_m, placeholder; the M1 map is 160 m).
+func _clamp_to_map(p: Vector3) -> Vector3:
+	var half := float(_drop_cfg().get("map_half_m", 78.0))
+	return Vector3(clampf(p.x, -half, half), p.y, clampf(p.z, -half, half))
+
+
+## Safety net: a pawn that ends up below the map (fell past an edge) is put back on the map edge.
+func _catch_fallen() -> void:
+	for id in _players:
+		var pawn: Pawn = _players[id]
+		if pawn.life != Pawn.Life.DEAD and pawn.global_position.y < -5.0:
+			var p := _clamp_to_map(pawn.global_position)
+			pawn.global_position = Vector3(p.x * 0.97, 3.0, p.z * 0.97)
+			pawn.velocity = Vector3.ZERO
 
 
 func carrier_position() -> Vector3:
@@ -226,7 +253,7 @@ func _tick_drop(delta: float) -> void:
 		if go:
 			# Squad mates and neighbours leave side by side, not inside each other.
 			var side := Vector3(-(carrier_to - carrier_from).z, 0.0, (carrier_to - carrier_from).x).normalized()
-			pawn.start_fall(carrier_position() + side * float(_slot_in_squad.get(id, 0)) * 2.0)
+			pawn.start_fall(_clamp_to_map(carrier_position() + side * float(_slot_in_squad.get(id, 0)) * 2.0))
 		else:
 			still_aboard = true
 	if not still_aboard:
@@ -270,7 +297,7 @@ func _downed_cfg() -> Dictionary:
 ## `player_id` is ALIVE; -1 if none. The touch HUD shows Interact ("Revive") only when this is >= 0.
 func revive_target_for(player_id: int) -> int:
 	var me: Pawn = _players.get(player_id)
-	if not running or me == null or not me.is_alive():
+	if not running or me == null or not me.is_alive() or me.is_dropping():
 		return -1
 	var range_m := float(_downed_cfg().get("revive_range_m", 0.0))
 	var best := -1
@@ -322,6 +349,7 @@ func _physics_process(delta: float) -> void:
 	_prune_revives()
 	if drop_active:
 		_tick_drop(delta)
+	_catch_fallen()
 	_bot_pickups()
 	var positions: Dictionary = {}
 	for id in _players:

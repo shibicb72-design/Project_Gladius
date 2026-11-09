@@ -97,15 +97,13 @@ func test_zone_wall_follows_the_zone() -> void:
 	var m := await _new_match(_zone(60.0, 0.0))
 	assert_true(m.begin(), "begin")
 	assert_true(m.zone_wall != null and m.zone_wall.visible, "zone wall built")
-	var wall_mesh := m.zone_wall.wall.mesh as CylinderMesh
-	assert_true(absf(wall_mesh.top_radius - 60.0) < 1e-3, "wall at the start radius")
+	assert_true(absf(ZoneWall.drawn_radius(m.zone_wall.wall) - 60.0) < 1e-3, "wall at the start radius")
 	await (Engine.get_main_loop() as SceneTree).physics_frame
-	var ring_mesh := m.zone_wall.target_ring.mesh as CylinderMesh
-	assert_true(absf(ring_mesh.top_radius - m.director.rules.zone_target_radius()) < 1e-3, "ring at the target circle")
+	assert_true(absf(ZoneWall.drawn_radius(m.zone_wall.target_ring) - m.director.rules.zone_target_radius()) < 1e-3, "ring at the target circle")
 	m.director.rules.tick(4.0, {"positions": {}, "reviving": {}})  # 2 s wait + half of the 4 s shrink
 	m.zone_wall.refresh()
-	assert_true(absf(wall_mesh.top_radius - m.director.rules.zone_radius()) < 1e-3, "wall follows the shrinking circle")
-	assert_true(wall_mesh.top_radius < 60.0, "and it is smaller")
+	assert_true(absf(ZoneWall.drawn_radius(m.zone_wall.wall) - m.director.rules.zone_radius()) < 1e-3, "wall follows the shrinking circle")
+	assert_true(ZoneWall.drawn_radius(m.zone_wall.wall) < 60.0, "and it is smaller")
 	m.queue_free()
 
 

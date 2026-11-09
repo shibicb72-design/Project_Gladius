@@ -4,14 +4,14 @@
 		"_placeholder": true,
 		"_todo": "OQ-BR-ZONE OQ-BR-TEMP-MAP",
 		"start_center": [0, 0],
-		"start_radius_m": 120,
+		"start_radius_m": 75,
 		"damage_skips_shield": false,
 		"phases": [
-			{"wait_s": 60, "shrink_s": 30, "radius_m": 80, "damage_per_s": 1},
-			{"wait_s": 45, "shrink_s": 30, "radius_m": 50, "damage_per_s": 2},
-			{"wait_s": 30, "shrink_s": 20, "radius_m": 25, "damage_per_s": 4},
+			{"wait_s": 60, "shrink_s": 30, "radius_m": 50, "damage_per_s": 1},
+			{"wait_s": 45, "shrink_s": 30, "radius_m": 30, "damage_per_s": 2},
+			{"wait_s": 30, "shrink_s": 20, "radius_m": 15, "damage_per_s": 4},
 			{"wait_s": 20, "shrink_s": 15, "radius_m": 8, "damage_per_s": 8},
-			{"wait_s": 15, "shrink_s": 30, "radius_m": 0.5, "damage_per_s": 15}
+			{"wait_s": 15, "shrink_s": 30, "radius_m": 0.0, "damage_per_s": 15}
 		]
 	},
 	"downed": {
@@ -45,7 +45,8 @@
 		"_todo": "OQ-BR-DROP",
 		"enabled": true,
 		"altitude_m": 120.0,
-		"path_length_m": 200.0,
+		"path_length_m": 130.0,
+		"map_half_m": 78.0,
 		"carrier_s": 20.0,
 		"bot_jump_window": [0.15, 0.85],
 		"glide_speed_mps": 8.0,

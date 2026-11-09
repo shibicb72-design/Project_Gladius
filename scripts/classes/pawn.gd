@@ -419,6 +419,21 @@ func can_take(item_def: Dictionary) -> bool:
 	return false
 
 
+## Stricter than can_take, for bots (humans choose by tapping): a gun only into a free gun slot, ammo only
+## when the guns hold less than two magazines in reserve, armor only of a higher tier. Stops bots swapping
+## the same two guns back and forth.
+func wants_item(item_def: Dictionary) -> bool:
+	if not can_take(item_def):
+		return false
+	match str(item_def.get("kind", "")):
+		"weapon":
+			return loadout.slots[0] == null or loadout.slots[2] == null
+		"ammo":
+			var s := _ranged_slot()
+			return s >= 0 and loadout.slots[s].reserve < loadout.slots[s].def.magazine * 2
+	return true
+
+
 ## Applies a loot item (call can_take first). Returns the gun it replaced as a loot item to drop, or {}.
 func take_item(item: Dictionary, item_def: Dictionary) -> Dictionary:
 	var dropped := {}

@@ -110,3 +110,37 @@ func test_no_drop_without_opt_in() -> void:
 	assert_true(not m.director.drop_active, "tests that do not opt in start on the ground")
 	assert_eq(m.local_player.drop_state, Pawn.Drop.NONE, "local player on the ground")
 	m.queue_free()
+
+
+func test_real_drop_and_zone_numbers_stay_on_the_map() -> void:
+	# The real br.json numbers (no test overrides): every carrier line and every zone circle lies on the
+	# M1 map (data drop.map_half_m), for 200 seeds.
+	var reg := DataRegistry.new()
+	var cfg := ModeRegistry.merged_config(MatchDirector.MODE_ID, reg.load_file("res://data/modes.json"))
+	var half := float(cfg["drop"]["map_half_m"])
+	for s in 200:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = s
+		for p in MatchDirector.carrier_path(cfg, rng):
+			assert_true(absf(p.x) <= half and absf(p.z) <= half, "seed %d: carrier point %s on the map" % [s, p])
+		var rules := ModeRegistry.create(MatchDirector.MODE_ID, {MatchDirector.MODE_ID: cfg}) as BrRules
+		rules.set_seed(s)
+		for i in rules.phase_count():
+			var c: Dictionary = rules.phase_circle(i)
+			var center: Vector2 = c["center"]
+			assert_true(center.length() + float(c["radius"]) <= half * 1.42, "seed %d: circle %d on the map" % [s, i])
+			assert_true(absf(center.x) <= half and absf(center.y) <= half, "seed %d: circle %d center on the ground" % [s, i])
+
+
+func test_a_pawn_below_the_map_is_caught() -> void:
+	var m := await _drop_match()
+	m.drop_from_sky = false
+	assert_true(m.begin(), "begin")
+	var bot: Pawn = m.bots[0]
+	bot.get_node("Brain").set_physics_process(false)
+	bot.global_position = Vector3(500.0, -20.0, -500.0)
+	await _frames(2)
+	var half := float(m.director.mode_cfg["drop"]["map_half_m"])
+	assert_true(bot.global_position.y > -5.0, "lifted back up")
+	assert_true(absf(bot.global_position.x) <= half and absf(bot.global_position.z) <= half, "back on the map")
+	m.queue_free()

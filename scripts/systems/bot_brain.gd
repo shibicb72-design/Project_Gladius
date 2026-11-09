@@ -55,7 +55,17 @@ func _physics_process(delta: float) -> void:
 
 func build_frame(delta: float) -> InputFrame:
 	var frame := InputFrame.new()
-	if pawn == null or not pawn.is_alive() or not pawn.is_inside_tree() or pawn.is_dropping():
+	if pawn == null or not pawn.is_alive() or not pawn.is_inside_tree():
+		return frame
+	if pawn.drop_state == Pawn.Drop.FALLING:
+		# Steer the glide toward this bot's own spot inside the next circle.
+		var to := _zone_spot() - pawn.global_position
+		to.y = 0.0
+		if to.length() > 1.0:
+			var local := pawn.global_transform.basis.inverse() * to.normalized()
+			frame.move = Vector2(local.x, local.z).limit_length(1.0)
+		return frame
+	if pawn.is_dropping():
 		return frame
 	var turn: float = float(cfg.get("turn_rate_rad_s", 6.0)) * delta
 	var enemy := _find_target()
@@ -255,7 +265,7 @@ func _loot_goal(guns_only: bool = false) -> Vector3:
 	for id in loot.items:
 		var entry: Dictionary = loot.items[id]
 		var item_def := loot.def(str(entry["item_id"]))
-		if not pawn.can_take(item_def) or (guns_only and str(item_def.get("kind", "")) != "weapon"):
+		if not pawn.wants_item(item_def) or (guns_only and str(item_def.get("kind", "")) != "weapon"):
 			continue
 		var pos: Vector3 = entry["pos"]
 		var d := Vector2(pos.x - pawn.global_position.x, pos.z - pawn.global_position.z).length()

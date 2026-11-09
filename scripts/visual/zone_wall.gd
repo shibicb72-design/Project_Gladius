@@ -62,7 +62,15 @@ func refresh() -> void:
 	_place(target_ring, _ring_mesh, rules.zone_target_center(), rules.zone_target_radius(), _ring_mesh.height)
 
 
+## The meshes keep radius 1; the node scales, so no mesh is rebuilt per frame on the phone.
 static func _place(mi: MeshInstance3D, mesh: CylinderMesh, center: Vector2, radius: float, height: float) -> void:
-	mesh.top_radius = maxf(radius, 0.01)
-	mesh.bottom_radius = maxf(radius, 0.01)
+	mesh.top_radius = 1.0
+	mesh.bottom_radius = 1.0
+	var r := maxf(radius, 0.01)
+	mi.scale = Vector3(r, 1.0, r)
 	mi.position = Vector3(center.x, height * 0.5, center.y)
+
+
+## Current radius drawn by a ring (its x scale).
+static func drawn_radius(mi: MeshInstance3D) -> float:
+	return mi.scale.x
