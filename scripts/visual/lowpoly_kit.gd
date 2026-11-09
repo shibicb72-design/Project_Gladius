@@ -9,9 +9,12 @@ static func config() -> Dictionary:
 static func vec(a: Array) -> Vector3:
 	return Vector3(a[0], a[1], a[2])
 
+## Callers pass corners so that (b - a) x (c - a) points out of the solid. Godot's front face is clockwise,
+## which is the opposite order, so the corners are written a, c, b (finding F1: written a, b, c every kit mesh
+## was culled on its outside and showed the inside of its far faces).
 static func _triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, color: Color) -> void:
 	var normal := (b - a).cross(c - a).normalized()
-	for v in [a, b, c]:
+	for v in [a, c, b]:
 		st.set_normal(normal)
 		st.set_color(color)
 		st.add_vertex(v)
