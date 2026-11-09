@@ -1,0 +1,55 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-3D-CAPTURE: framing of the desktop capture tool's 3D shots (tools/touch_capture.gd --scene-shot): stage candidates, camera distances, heights, fields of view. Tool framing only; no gameplay or shipped-look effect.",
+	"stage_candidates_xz": [[-40, 0], [40, 0], [-20, 34.64], [20, -34.64], [20, 34.64], [-20, -34.64], [0, 55], [0, -55], [55, 0], [-55, 0]],
+	"lane_step_deg": 15,
+	"lane_clear_heights_m": [0.4, 1.0, 1.7],
+	"lane_max_ground_step_m": 0.5,
+	"ground_max_y_m": 1.5,
+	"ground_ray_top_m": 60,
+	"ground_ray_bottom_m": -5,
+	"ground_min_normal_y": 0.8,
+	"settle_frames": 30,
+	"soldier_turntable": {
+		"yaws_deg": [0, 90, 180],
+		"labels": "front / side / back",
+		"spacing_m": 1.5,
+		"frame_margin_m": 0.9,
+		"frame_height_m": 2.5,
+		"camera_height_m": 1.1,
+		"look_height_m": 1.0,
+		"fov_deg": 30
+	},
+	"soldier_50m": {
+		"distance_m": 50,
+		"count": 6,
+		"spacing_m": 1.6,
+		"eye_height_m": 1.6,
+		"look_height_m": 1.0
+	},
+	"map_overview": {
+		"camera_at": [0, 150, 120],
+		"look_at": [0, 0, 0],
+		"fov_deg": 50
+	},
+	"loot_lineup": {
+		"spacing_m": 1.3,
+		"frame_margin_m": 0.9,
+		"frame_height_m": 3.2,
+		"camera_height_m": 1.5,
+		"look_height_m": 0.8,
+		"fov_deg": 45
+	},
+	"wall_closeup": {
+		"bearing_start_deg": 15,
+		"bearing_step_deg": 30,
+		"camera_from_wall_m": 7.0,
+		"camera_side_m": 2.5,
+		"camera_height_m": 1.6,
+		"look_height_m": 2.5,
+		"pawn_from_wall_m": 1.5,
+		"clear_half_width_m": 8.0,
+		"fov_deg": 75
+	}
+}
