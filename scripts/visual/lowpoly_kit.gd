@@ -172,11 +172,9 @@ static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:
 		st.set_weights(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
 		_part(st, part)
 	var result := st.commit()
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	material.vertex_color_is_srgb = true  # soldier colours are written as sRGB (art_astra.json colors note)
-	material.roughness = float(config()["kit"]["roughness"])
-	result.surface_set_material(0, material)
+	# C3: one material resource for every soldier mesh. It reads the vertex colours as sRGB (art_astra.json
+	# colors note) and paints the squad fields with a per-instance colour (SoldierSquadColour).
+	result.surface_set_material(0, SoldierSquadColour.material())
 	return result
 
 ## Merge static articulated-looking pieces into a single vertex-colour surface.

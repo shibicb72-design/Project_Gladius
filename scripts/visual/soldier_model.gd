@@ -32,6 +32,7 @@ var _clock := 0.0
 var _pawn: CharacterBody3D
 var _cfg: Dictionary
 var part_bounds: Array[AABB] = []
+var shown_squad := 0  # the squad id whose colour the armor shows (C3)
 
 func _ready() -> void:
 	_cfg = LowpolyKit.config()["soldier"]
@@ -76,9 +77,15 @@ func _ready() -> void:
 	_recoil_pitch = deg_to_rad(float(SoldierRig.config()["recoil"]["rifle_pitch_deg"]))
 	_recoil_power = float(SoldierRig.config()["recoil"]["recover_power"])
 	var pawn := _pawn as Pawn
+	_show_squad()
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.weapon_switched.connect(_on_weapon_switched)
 	pawn.visibility_changed.connect(_on_visibility_changed)
+
+func _show_squad() -> void:
+	shown_squad = (_pawn as Pawn).squad_id
+	SoldierSquadColour.apply(armor, shown_squad)
+
 
 ## Fill a caller-owned array; no allocation in the animation path.
 func posed_bounds(out: Array[AABB]) -> void:
@@ -151,7 +158,12 @@ func mount_rifle(mesh: MeshInstance3D) -> void:
 	left_ik.set_pole_node(0, left_ik.get_path_to(pole))
 
 func _process(delta: float) -> void:
-	if _pawn == null or not is_visible_in_tree():
+	if _pawn == null:
+		return
+	# D2: squad ids change without a signal (MatchDirector.start), so the model polls its own pawn.
+	if (_pawn as Pawn).squad_id != shown_squad:
+		_show_squad()
+	if not is_visible_in_tree():
 		return
 	_clock += delta
 	_update_recoil(delta)

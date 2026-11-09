@@ -47,7 +47,8 @@
 		"bronze": [0.76, 0.56, 0.24, 1],
 		"leather": [0.36, 0.22, 0.13, 1],
 		"visor": [0.04, 0.05, 0.07, 1],
-		"squad": [0.66, 0.1, 0.09, 1]
+		"_squad_note": "C3: alpha 0 marks a squad colour field. On the soldier the shared shader paints those faces with the instance's squad colour (soldier.squad_colour); the rgb here is what a material without that shader shows.",
+		"squad": [0.66, 0.1, 0.09, 0]
 	},
 	"kit": {
 		"rock_radius_fractions": [0.72, 1.0, 0.38],
@@ -157,6 +158,16 @@
 			"body_clearance_m": 0.02,
 			"shell_part": "helmet_bowl",
 			"crest_parts": ["helmet_crest"]
+		},
+		"squad_colour": {
+			"_placeholder": true,
+			"_todo": "OQ-3D-SQUAD-COLOUR (D2, Shibi Nov 9 2026: a colour per squad): the 18 colours, their order and the no-squad colour are trial values written as sRGB. Squad id k shows palette[k mod 18]; in solo every player is their own squad, so 18 players use all 18. Not checked for colour-blind readability or against the final map palette.",
+			"no_squad": [0.5, 0.5, 0.5, 1],
+			"palette": [
+				[0.66, 0.1, 0.09, 1], [0.13, 0.27, 0.68, 1], [0.85, 0.65, 0.13, 1], [0.16, 0.5, 0.22, 1], [0.45, 0.18, 0.6, 1], [0.88, 0.42, 0.1, 1],
+				[0.1, 0.52, 0.52, 1], [0.9, 0.9, 0.86, 1], [0.1, 0.1, 0.12, 1], [0.85, 0.35, 0.55, 1], [0.35, 0.62, 0.88, 1], [0.58, 0.75, 0.18, 1],
+				[0.42, 0.26, 0.13, 1], [0.4, 0.07, 0.16, 1], [0.08, 0.13, 0.35, 1], [0.42, 0.42, 0.14, 1], [0.66, 0.56, 0.85, 1], [0.25, 0.8, 0.7, 1]
+			]
 		},
 		"_parts_note": "OQ-ART-ASTRA: the Astra legionary (C2), my own design, every number a presentation trial. Parts named by a bone in data/anim.json (torso, pelvis, neck, the arm, leg, glove and boot pieces, helmet_bowl) set the rig pivots with their \"at\" and their height: change their width, depth, shape or colour freely, not those two. Left is -x, front is -z. The undersuit pieces are 8-sided lathes, corners on the same axes as the 8-sided plates around them and thinner, so no undersuit corner cuts through a plate (the black shards of the first try). The rerebrace sits over the elbow joint, so it is a back-half guard: a bent forearm moves forward, away from it.",
 		"parts": [

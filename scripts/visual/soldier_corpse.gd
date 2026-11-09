@@ -32,6 +32,7 @@ static func build(model: SoldierModel) -> Node3D:
 	armor.mesh = model.armor.mesh
 	armor.skin = model.armor.skin
 	armor.skeleton = NodePath("..")
+	SoldierSquadColour.copy(model.armor, armor)  # the corpse keeps its squad colour (C3)
 	skeleton.add_child(armor)
 	# D1: the helmet is part of the armor mesh. The yellow head sphere is copied only while the debug flag shows it.
 	var source_shell := source_head.get_node("HeadMesh") as MeshInstance3D
