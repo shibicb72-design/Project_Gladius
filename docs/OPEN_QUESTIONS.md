@@ -16,6 +16,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-BR-DOWNED: downed and revive.** Bleed-out time, revive time, downed move speed, whether downed players can be finished, and what happens when the whole squad is downed. Placeholders.
   Placeholder now (S1a): bleed_out_s 30, revive_s 5, revive_range_m 2.5, downed_move_speed_pct 30 (not used by BrRules yet), revive_health_pct 30, can_be_finished true, zone_finishes_downed true, squad_wipe_kills_downed true, kill_credit_to_downer true, bleed_pauses_while_reviving true, bleed_restarts_on_new_down true.
   Rules BrRules applies on top: the kill goes to the downer when the victim was downed by a hit and kill_credit_to_downer is true (for finished, bled_out, zone and squad_wipe deaths; if the downer is invalid, e.g. same squad, there is no kill); with several revivers on one target only the lowest reviver id counts.
+  With kill_credit_to_downer false, only a valid finishing hitter gets a kill (finished deaths); bled_out, zone and squad_wipe deaths give no kill (tested in S1a-fix).
 - **OQ-BR-START: starting kit.** What a player lands with (nothing, melee only, or a sidearm). Placeholder.
 - **OQ-BR-DROP: drop from the sky.** Carrier path, jump window, fall and glide speeds, and whether squads drop together. Placeholders.
 - **OQ-BR-LENGTH: match length.** Target duration; decided after measuring M1 matches (Shibi, Nov 9 2026).

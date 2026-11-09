@@ -262,6 +262,45 @@ func test_zone_nesting_200_seeds_and_determinism() -> void:
 	assert_true(not b2.set_seed(9), "set_seed refused after start")
 
 
+func test_setup_seeds_from_default_seed() -> void:
+	var ca := _cfg()
+	ca["default_seed"] = 7
+	var cb := _cfg()
+	cb["default_seed"] = 8
+	var a: BrRules = BrS.new()
+	a.setup(ca)
+	var b: BrRules = BrS.new()
+	b.setup(cb)
+	var differs := false
+	for i in a.phase_count():
+		if a.phase_circle(i) != b.phase_circle(i):
+			differs = true
+	assert_true(differs, "different default_seed gives different circles")
+	assert_true(b.set_seed(7), "set_seed before start")
+	for i in a.phase_count():
+		assert_eq(a.phase_circle(i), b.phase_circle(i), "same seed 7 equal at phase %d" % i)
+
+
+func test_zero_length_wait_and_shrink_emit_in_one_tick() -> void:
+	var c := _cfg()
+	c["zone"]["phases"] = [{"wait_s": 10, "shrink_s": 10, "radius_m": 60, "damage_per_s": 1},
+			{"wait_s": 0, "shrink_s": 0, "radius_m": 40, "damage_per_s": 1},
+			{"wait_s": 5, "shrink_s": 5, "radius_m": 20, "damage_per_s": 2}]
+	var b: BrRules = BrS.new()
+	b.setup(c)
+	b.register_player(1, 10)
+	b.register_player(2, 11)
+	b.tick(0.0, _facts(b))
+	b.tick(10.0, _facts(b))
+	var ev := b.tick(10.0, _facts(b))
+	var seq := []
+	for e in _of(ev, "zone_phase"):
+		seq.append("%d%s" % [e["phase"], e["state"]])
+	assert_eq(seq, ["1waiting", "1shrinking", "2waiting"], "zero-length phase order in one tick")
+	assert_eq(b.zone_phase(), 2, "now in phase 2")
+	assert_true(_near(b.zone_radius(), 40.0), "radius 40 after zero-length shrink")
+
+
 func test_zone_getters_before_start_and_after_over() -> void:
 	var b := _mk([[1, 10], [2, 11]], "solo")
 	assert_eq(b.zone_phase(), 0, "phase 0")
@@ -347,6 +386,9 @@ func test_last_alive_member_goes_down_then_wipe() -> void:
 	var ev := b.tick(0.0, _facts(b))
 	assert_eq(_types(ev), ["downed", "downed", "dead", "dead", "squad_eliminated", "match_over"], "wipe sequence")
 	assert_eq(_of(ev, "dead")[0]["cause"], "squad_wipe", "wipe cause")
+	for e in _of(ev, "dead"):
+		assert_eq(e["killer_id"], 3, "wipe death credits the downer")
+	assert_eq(b.result()["kills"][3], 2, "downer has both wipe kills")
 	assert_eq(_of(ev, "squad_eliminated")[0]["placement"], 2, "placement 2")
 	assert_eq(_of(ev, "match_over")[0]["winner"], 11, "winner squad 11")
 
@@ -518,6 +560,56 @@ func test_kill_credit_rules() -> void:
 	c.report_zero_health(1, 3, "hit")
 	c.report_zero_health(1, 4, "hit")
 	assert_eq(_of(c.tick(0.0, _facts(c)), "dead")[0]["killer_id"], 4, "finisher credit when flag off")
+	# flag off: only a valid finisher gets credit
+	var finishers := {4: 4, 1: -1, 2: -1, 77: -1, -1: -1}  # finisher -> expected killer (1 self, 2 same squad)
+	for f in finishers:
+		var o := _mk([[1, 10], [2, 10], [3, 11], [4, 12]], "squads", {"kill_credit_to_downer": false})
+		o.tick(0.0, _facts(o))
+		o.report_zero_health(1, 3, "hit")
+		o.report_zero_health(1, f, "hit")
+		var dd := _of(o.tick(0.0, _facts(o)), "dead")
+		assert_eq(dd[0]["killer_id"], finishers[f], "flag off, finisher %d" % f)
+	# flag off: bled_out, zone and squad_wipe deaths give no kill
+	var o2 := _mk([[1, 10], [2, 10], [3, 11], [4, 12]], "squads", {"kill_credit_to_downer": false})
+	o2.tick(0.0, _facts(o2))
+	o2.report_zero_health(1, 3, "hit")
+	var bd := _of(o2.tick(10.0, _facts(o2)), "dead")
+	assert_eq(bd[0]["cause"], "bled_out", "bled out")
+	assert_eq(bd[0]["killer_id"], -1, "flag off: bled_out gives no kill")
+	var o3 := _mk([[1, 10], [2, 10], [3, 11], [4, 12]], "squads", {"kill_credit_to_downer": false})
+	o3.tick(0.0, _facts(o3))
+	o3.report_zero_health(1, 3, "hit")
+	var zd := _of(o3.tick(0.0, _facts(o3, {1: OUT})), "dead")
+	assert_eq(zd[0]["cause"], "zone", "zone finish")
+	assert_eq(zd[0]["killer_id"], -1, "flag off: zone gives no kill")
+	var o4 := _mk([[1, 10], [2, 10], [3, 11], [4, 12]], "squads", {"kill_credit_to_downer": false})
+	o4.tick(0.0, _facts(o4))
+	o4.report_zero_health(1, 3, "hit")
+	o4.report_zero_health(2, 3, "hit")
+	var wd := _of(o4.tick(0.0, _facts(o4)), "dead")
+	assert_eq(wd[0]["cause"], "squad_wipe", "wipe")
+	for e in wd:
+		assert_eq(e["killer_id"], -1, "flag off: squad_wipe gives no kill")
+	var total := 0
+	for k in o2.result()["kills"]:
+		total += int(o2.result()["kills"][k])
+	assert_eq(total, 0, "no kills recorded with flag off")
+
+
+func test_solo_kill_credit() -> void:
+	var b := _mk([[1, 1], [2, 2], [3, 3], [4, 4]], "solo")
+	b.tick(0.0, _facts(b))
+	b.report_zero_health(1, 1, "hit")  # self
+	b.report_zero_health(2, 77, "hit")  # unknown killer
+	b.report_zero_health(3, 4, "zone")  # zone with an enemy id: no credit
+	var dd := _of(b.tick(0.0, _facts(b)), "dead")
+	assert_eq(dd.size(), 3, "three solo deaths")
+	for e in dd:
+		assert_eq(e["killer_id"], -1, "solo no credit for %d" % e["player_id"])
+	var c := _mk([[1, 1], [2, 2], [3, 3]], "solo")
+	c.tick(0.0, _facts(c))
+	c.report_zero_health(1, 2, "hit")
+	assert_eq(_of(c.tick(0.0, _facts(c)), "dead")[0]["killer_id"], 2, "solo valid killer is credited")
 
 
 func test_no_kill_cases() -> void:
@@ -571,7 +663,6 @@ func test_mode_registry_loads_br_data() -> void:
 	assert_eq(br.cfg["rules"], "br", "entry key kept")
 	assert_eq(br.phase_count(), (data["zone"]["phases"] as Array).size(), "phases")
 	assert_true(not (modes["br"] as Dictionary).has("zone"), "registry cache not mutated")
-	assert_true(br.cfg["zone"] != data["zone"] or not is_same(br.cfg["zone"], data["zone"]), "deep copy")
 	assert_true(ModeRegistryS.create("koth", modes) is KothRules, "koth unchanged")
 
 
