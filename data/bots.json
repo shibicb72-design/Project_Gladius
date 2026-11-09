@@ -31,7 +31,8 @@
     "finish_downed": true,
     "stuck_window_s": 2.0,
     "stuck_min_move_m": 0.6,
-    "unstick_s": 1.0
+    "unstick_s": 1.0,
+    "ammo_low_magazines": 2.0
   },
   "commands": {"_todo": "OQ-33: no squad commands in milestone 1; bots follow the battle royale brain (S5).", "enabled": []}
 }

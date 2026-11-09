@@ -128,7 +128,7 @@ func test_real_drop_and_zone_numbers_stay_on_the_map() -> void:
 		for i in rules.phase_count():
 			var c: Dictionary = rules.phase_circle(i)
 			var center: Vector2 = c["center"]
-			assert_true(center.length() + float(c["radius"]) <= half * 1.42, "seed %d: circle %d on the map" % [s, i])
+			assert_true(center.length() + float(c["radius"]) <= half + 1e-3, "seed %d: circle %d on the map" % [s, i])
 			assert_true(absf(center.x) <= half and absf(center.y) <= half, "seed %d: circle %d center on the ground" % [s, i])
 
 

@@ -128,13 +128,23 @@ func pickup_target_for(player_id: int, bot_rules: bool = false) -> int:
 	var pawn: Pawn = _players.get(player_id)
 	if loot == null or not running or pawn == null:
 		return -1
-	var id := loot.nearest(pawn.global_position, _pickup_range())
-	if id < 0:
-		return -1
-	var item_def := loot.def(str(loot.items[id]["item_id"]))
-	if not (pawn.wants_item(item_def) if bot_rules else pawn.can_take(item_def)):
-		return -1
-	return id
+	var low := bot_ammo_low_magazines()
+	# Nearest item in range that this pawn can use (bots: that it wants), so an unwanted item lying on
+	# top of a wanted one never blocks it.
+	var usable := func(item_id: String) -> bool:
+		var d := loot.def(item_id)
+		return pawn.wants_item(d, low) if bot_rules else pawn.can_take(d)
+	return loot.nearest(pawn.global_position, _pickup_range(), usable)
+
+
+var _bot_ammo_low := -1.0
+
+
+## data/bots.json brain.ammo_low_magazines (placeholder, OQ-31): bots take ammo below this many magazines.
+func bot_ammo_low_magazines() -> float:
+	if _bot_ammo_low < 0.0:
+		_bot_ammo_low = float(DataRegistry.new().load_file("res://data/bots.json").get("brain", {}).get("ammo_low_magazines", 2.0))
+	return _bot_ammo_low
 
 
 ## Picks up the current pickup target; a replaced gun goes on the ground. False if nothing to take.

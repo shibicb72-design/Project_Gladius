@@ -99,12 +99,15 @@ func display_name(id: int) -> String:
 
 
 ## Nearest item within range_m of `pos` on the ground plane (and within 2 m height); -1 if none.
-func nearest(pos: Vector3, range_m: float) -> int:
+## `accept` (item_id -> bool), when valid, skips items it rejects.
+func nearest(pos: Vector3, range_m: float, accept: Callable = Callable()) -> int:
 	var best := -1
 	var best_d := INF
 	for id in items:
 		var p: Vector3 = items[id]["pos"]
 		if absf(p.y - pos.y) > 2.0:
+			continue
+		if accept.is_valid() and not bool(accept.call(str(items[id]["item_id"]))):
 			continue
 		var d := Vector2(p.x - pos.x, p.z - pos.z).length()
 		if d <= range_m and d < best_d:

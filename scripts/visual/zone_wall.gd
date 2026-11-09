@@ -25,6 +25,8 @@ func bind(new_director: MatchDirector, cfg: Dictionary) -> void:
 
 func _ring(mesh: CylinderMesh, height: float, color: Color) -> MeshInstance3D:
 	mesh.height = height
+	mesh.top_radius = 1.0  # set once; _place scales the node
+	mesh.bottom_radius = 1.0
 	mesh.cap_top = false
 	mesh.cap_bottom = false
 	mesh.radial_segments = 64
@@ -64,8 +66,6 @@ func refresh() -> void:
 
 ## The meshes keep radius 1; the node scales, so no mesh is rebuilt per frame on the phone.
 static func _place(mi: MeshInstance3D, mesh: CylinderMesh, center: Vector2, radius: float, height: float) -> void:
-	mesh.top_radius = 1.0
-	mesh.bottom_radius = 1.0
 	var r := maxf(radius, 0.01)
 	mi.scale = Vector3(r, 1.0, r)
 	mi.position = Vector3(center.x, height * 0.5, center.y)
