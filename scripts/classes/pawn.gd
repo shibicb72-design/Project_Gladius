@@ -381,6 +381,106 @@ func is_dropping() -> bool:
 	return drop_state != Drop.NONE
 
 
+## ---- Battle royale inventory (S4; data/loot.json, placeholders OQ-BR-LOOT / OQ-BR-ARMOR / OQ-BR-START) ----
+## Two gun slots (primary, sidearm) plus the blade in secondary. Armor raises the shield cap by its
+## shield_bonus_pct of the class shield; a higher tier replaces a lower one.
+var armor_tier: int = 0
+var _base_max_shield: float = -1.0
+
+
+func apply_start_kit(kit: Dictionary) -> void:
+	loadout = Loadout.new()
+	for i in Loadout.SLOT_NAMES.size():
+		var wid := str(kit.get(Loadout.SLOT_NAMES[i], ""))
+		var wd := registry.get_weapon_def(wid) if wid != "" else null
+		if wd != null:
+			loadout.slots[i] = Weapon.new(wd)
+	loadout.active = 0
+	for i in loadout.slots.size():
+		if loadout.slots[i] != null:
+			loadout.active = i
+			break
+	armor_tier = 0
+	_base_max_shield = bridge.state.max_shield
+	weapon_switched.emit(loadout.active)
+
+
+## Whether this pawn can use the loot `item_def` now; refused items stay on the ground.
+func can_take(item_def: Dictionary) -> bool:
+	if not is_alive() or is_dropping():
+		return false
+	match str(item_def.get("kind", "")):
+		"weapon":
+			return registry.get_weapon_def(str(item_def.get("weapon", ""))) != null
+		"ammo":
+			return _ranged_slot() >= 0
+		"armor":
+			return int(item_def.get("tier", 0)) > armor_tier
+	return false
+
+
+## Applies a loot item (call can_take first). Returns the gun it replaced as a loot item to drop, or {}.
+func take_item(item: Dictionary, item_def: Dictionary) -> Dictionary:
+	var dropped := {}
+	match str(item_def.get("kind", "")):
+		"weapon":
+			var w := Weapon.new(registry.get_weapon_def(str(item_def["weapon"])))
+			if item.has("ammo_in_mag"):
+				w.ammo_in_mag = int(item["ammo_in_mag"])
+				w.reserve = int(item["reserve"])
+			var slot := 0
+			if loadout.slots[0] == null:
+				slot = 0
+			elif loadout.slots[2] == null:
+				slot = 2
+			elif loadout.active == 2:
+				slot = 2
+			if loadout.slots[slot] != null:
+				dropped = _weapon_item(loadout.slots[slot])
+			loadout.slots[slot] = w
+			loadout.active = slot
+			weapon_switched.emit(slot)
+		"ammo":
+			var s := _ranged_slot()
+			if s >= 0:
+				loadout.slots[s].reserve += int(item_def.get("rounds", 0))
+		"armor":
+			var st := bridge.state
+			if _base_max_shield < 0.0:
+				_base_max_shield = st.max_shield
+			armor_tier = int(item_def.get("tier", 0))
+			var new_max := _base_max_shield * (1.0 + float(item_def.get("shield_bonus_pct", 0.0)) / 100.0)
+			st.shield = clampf(st.shield + (new_max - st.max_shield), 0.0, new_max)
+			st.max_shield = new_max
+	return dropped
+
+
+## Active gun slot, else the first gun slot; -1 without a gun.
+func _ranged_slot() -> int:
+	var w := loadout.get_active()
+	if w != null and not w.def.is_melee():
+		return loadout.active
+	for i in loadout.slots.size():
+		if loadout.slots[i] != null and not loadout.slots[i].def.is_melee():
+			return i
+	return -1
+
+
+static func _weapon_item(w: Weapon) -> Dictionary:
+	return {"item_id": w.def.id, "ammo_in_mag": w.ammo_in_mag, "reserve": w.reserve}
+
+
+## Guns this pawn carries, as loot items (dropped on elimination). Clears them from the loadout.
+func surrender_guns() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in loadout.slots.size():
+		var w := loadout.slots[i]
+		if w != null and not w.def.is_melee():
+			out.append(_weapon_item(w))
+			loadout.slots[i] = null
+	return out
+
+
 func _apply_fall(delta: float) -> void:
 	var local := Vector3(_frame.move.x, 0.0, _frame.move.y)
 	var wish := global_transform.basis * local * drop_glide_mps

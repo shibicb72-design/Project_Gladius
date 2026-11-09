@@ -104,10 +104,56 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1, use_drop: bool = false
 		_place(id, squad_ids, spots)
 	if use_drop:
 		_begin_drop(seed_value, ids)
+	if loot != null:
+		var kit: Dictionary = loot.cfg.get("start_kit", {})
+		for id in ids:
+			(_players[id] as Pawn).apply_start_kit(kit)
 	running = true
 	zone_changed.emit()
 	alive_changed.emit(players_alive(), squads_alive())
 	return true
+
+
+## ---- Ground loot (S4; LootField + data/loot.json). Set by MatchRoot before start(); null = no loot,
+## and pawns keep their class loadouts (tests that do not opt in). ----
+var loot: LootField
+
+
+func _pickup_range() -> float:
+	return float(loot.cfg.get("pickup_range_m", 2.0)) if loot != null else 0.0
+
+
+## The loot item `player_id` could pick up now (nearest in range that it can use); -1 if none.
+func pickup_target_for(player_id: int) -> int:
+	var pawn: Pawn = _players.get(player_id)
+	if loot == null or not running or pawn == null:
+		return -1
+	var id := loot.nearest(pawn.global_position, _pickup_range())
+	if id < 0 or not pawn.can_take(loot.def(str(loot.items[id]["item_id"]))):
+		return -1
+	return id
+
+
+## Picks up the current pickup target; a replaced gun goes on the ground. False if nothing to take.
+func try_pickup(player_id: int) -> bool:
+	var id := pickup_target_for(player_id)
+	if id < 0:
+		return false
+	var pawn: Pawn = _players[player_id]
+	var item := loot.take(id)
+	var dropped := pawn.take_item(item, loot.def(str(item["item_id"])))
+	if not dropped.is_empty():
+		loot.drop(dropped, pawn.global_position)
+	return true
+
+
+func _bot_pickups() -> void:
+	if loot == null:
+		return
+	for id in _players:
+		var pawn: Pawn = _players[id]
+		if pawn.has_node("Brain") and pawn.is_alive():
+			try_pickup(id)
 
 
 ## ---- Drop from the sky (br.json "drop", placeholders, OQ-BR-DROP) ----
@@ -276,6 +322,7 @@ func _physics_process(delta: float) -> void:
 	_prune_revives()
 	if drop_active:
 		_tick_drop(delta)
+	_bot_pickups()
 	var positions: Dictionary = {}
 	for id in _players:
 		var pawn: Pawn = _players[id]
@@ -318,6 +365,9 @@ func _handle_event(ev: Dictionary) -> void:
 			var pawn: Pawn = _players.get(int(ev["player_id"]))
 			if pawn != null:
 				pawn.life = Pawn.Life.DEAD
+				if loot != null:
+					for gun in pawn.surrender_guns():
+						loot.drop(gun, pawn.global_position)
 				pawn.set_active(false)
 			player_eliminated.emit(int(ev["player_id"]), int(ev["killer_id"]), str(ev["cause"]))
 			alive_changed.emit(players_alive(), squads_alive())

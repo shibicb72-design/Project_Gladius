@@ -431,7 +431,7 @@ func refresh_pawn() -> void:
 	health_bar.value = st.health
 	var w: Weapon = pawn.loadout.get_active() if pawn.loadout != null else null
 	if w != null:
-		weapon_label.text = w.def.display_name
+		weapon_label.text = w.def.display_name + (("   Armor %s" % HudNumbers.number(pawn.armor_tier, roman_numerals)) if pawn.armor_tier > 0 else "")
 		ammo_label.text = "-" if w.def.is_melee() else "%d / %d" % [w.ammo_in_mag, w.reserve]
 		reload_box.visible = w.reloading
 		reload_bar.value = w.reload_fraction(pawn.get_clock())

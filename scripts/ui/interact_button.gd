@@ -64,7 +64,21 @@ func _available() -> bool:
 		return false
 	if touch_hud.suspended or not touch_hud.is_visible_in_tree():
 		return false
-	return director.authoritative and director.revive_target_for(pawn.player_id) >= 0
+	if not director.authoritative:
+		return false
+	return director.revive_target_for(pawn.player_id) >= 0 or director.pickup_target_for(pawn.player_id) >= 0
+
+
+## "Revive" (cfg label) when a DOWNED squad mate is in range, else "Pick up <item>". Placeholder text (S6).
+func _label_text() -> String:
+	if not is_instance_valid(director) or not is_instance_valid(pawn):
+		return str(cfg["label"])
+	if director.revive_target_for(pawn.player_id) >= 0:
+		return str(cfg["label"])
+	var item := director.pickup_target_for(pawn.player_id)
+	if item >= 0 and director.loot != null:
+		return "Pick up\n%s" % director.loot.display_name(item)
+	return str(cfg["label"])
 
 
 func _input_provider() -> InputProvider:
@@ -76,6 +90,8 @@ func _input_provider() -> InputProvider:
 func refresh() -> void:
 	var was_visible := visible
 	visible = _available()
+	if visible and label != null:
+		label.text = _label_text()
 	if not visible and (was_visible or _is_pressed()):
 		_release(true)
 	_place()

@@ -39,6 +39,10 @@ var spectator: SpectatorCamera
 ## Open the match with the drop from the sky (br.json drop.enabled must also be true). Set for real
 ## matches (auto_start); tests that do not opt in start on the ground at the spawn spots.
 var drop_from_sky: bool = false
+## Ground loot and the battle royale starting kit (S4). Set for real matches; tests opt in, otherwise
+## pawns keep their class loadouts.
+var ground_loot: bool = false
+var loot: LootField
 
 @onready var director: MatchDirector = $Director
 @onready var hud: GameHud = $Hud/GameHud
@@ -79,6 +83,7 @@ func _ready() -> void:
 	pause_menu.quit_confirmed.connect(quit_to_menu)
 	if auto_start:
 		drop_from_sky = true  # real matches (menu / lobby) open with the carrier; tests opt in
+		ground_loot = true
 		var started: bool = begin()
 		if not started:
 			push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
@@ -179,6 +184,12 @@ func begin() -> bool:
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
+	if ground_loot:
+		loot = LootField.new()
+		loot.name = "Loot"
+		loot.setup(DataRegistry.new().load_file("res://data/loot.json"), seed_value)
+		add_child(loot)
+		director.loot = loot
 	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))
 	var started := director.start(xforms, seed_value, use_drop)
 	if started:
@@ -250,9 +261,9 @@ func _on_action_triggered(action: String) -> void:
 	if menu_open or local_player == null or not is_instance_valid(local_player):
 		return
 	if action == "interact":
-		# S1b: Interact = revive while a DOWNED squad mate is in range (S4 adds pickups). The director owns the pairs.
-		if director.authoritative:
-			director.begin_revive(local_player.player_id)
+		# Interact: revive a DOWNED squad mate in range first, else pick up the nearest usable loot item.
+		if director.authoritative and not director.begin_revive(local_player.player_id):
+			director.try_pickup(local_player.player_id)
 		return
 	local_player.handle_action_press(action)
 

@@ -1,0 +1,23 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-BR-LOOT OQ-BR-ARMOR OQ-BR-START: every number, the item list, the starting kit and the armor effect are placeholders, not design values.",
+	"count": 70,
+	"area_half_m": 72.0,
+	"max_ground_y_m": 1.5,
+	"pickup_range_m": 2.0,
+	"start_kit": {"primary": "", "secondary": "gladius_lux", "sidearm": ""},
+	"items": {
+		"pilum_br": {"kind": "weapon", "weapon": "pilum_br", "weight": 3, "display": "Pilum BR"},
+		"sagittarii_rifle": {"kind": "weapon", "weapon": "sagittarii_rifle", "weight": 2, "display": "Sagittarii rifle"},
+		"ammo": {"kind": "ammo", "rounds": 30, "weight": 4, "display": "Ammo"},
+		"armor_1": {"kind": "armor", "tier": 1, "shield_bonus_pct": 20, "weight": 3, "display": "Armor I"},
+		"armor_2": {"kind": "armor", "tier": 2, "shield_bonus_pct": 40, "weight": 2, "display": "Armor II"},
+		"armor_3": {"kind": "armor", "tier": 3, "shield_bonus_pct": 60, "weight": 1, "display": "Armor III"}
+	},
+	"colors": {
+		"weapon": [0.95, 0.75, 0.25, 1.0],
+		"ammo": [0.6, 0.6, 0.6, 1.0],
+		"armor": [0.3, 0.55, 1.0, 1.0]
+	}
+}
