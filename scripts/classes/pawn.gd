@@ -47,6 +47,15 @@ var downed_move_speed_pct: float = 100.0
 ## A hit took health to zero, or landed on a DOWNED pawn (attacker_id -1 if unknown); MatchDirector
 ## reports it to BrRules, which decides downed, dead or finished.
 signal health_zeroed(attacker_id: int)
+## Drop from the sky (battle royale start). NONE: normal play. ABOARD: riding the carrier, placed by
+## MatchDirector; only look applies and Jump asks to drop. FALLING: gliding down, steered by the move
+## stick, no weapons; NONE again on touching the ground. Numbers: br.json "drop" (placeholders, OQ-BR-DROP).
+enum Drop { NONE, ABOARD, FALLING }
+var drop_state: Drop = Drop.NONE
+var drop_glide_mps: float = 8.0
+var drop_max_fall_mps: float = 15.0
+var _drop_requested: bool = false
+signal landed
 
 var registry: DataRegistry = DataRegistry.new()
 var bridge: PawnRulesBridge
@@ -321,11 +330,68 @@ func _physics_process(delta: float) -> void:
 	bridge.tick(delta)
 	if net_mode == NetMode.HOST_REMOTE:
 		return
+	if drop_state == Drop.ABOARD:
+		_apply_look()
+		_drop_requested = _drop_requested or _frame.jump_just_pressed
+		return
 	_ensure_cover()
 	_apply_look()
 	_apply_aim(delta)
+	if drop_state == Drop.FALLING:
+		_apply_fall(delta)
+		return
 	_apply_movement(delta)
 	_apply_weapon()
+
+
+## Boards the carrier: hidden, no collision, placed by MatchDirector until it starts the fall.
+func board_carrier() -> void:
+	drop_state = Drop.ABOARD
+	_drop_requested = false
+	visible = false
+	collision_layer = 0
+	_set_head_layer(false)
+	velocity = Vector3.ZERO
+
+
+func _set_head_layer(on: bool) -> void:
+	var head := get_node_or_null("Head")
+	if head != null:
+		head.collision_layer = 4 if on else 0
+
+
+## True once since boarding when this pawn's own input pressed Jump (a human asking to drop).
+func take_drop_request() -> bool:
+	var r := _drop_requested
+	_drop_requested = false
+	return r
+
+
+## Leaves the carrier at `from` and glides down.
+func start_fall(from: Vector3) -> void:
+	drop_state = Drop.FALLING
+	global_position = from
+	velocity = Vector3.ZERO
+	visible = true
+	collision_layer = 2 if life != Life.DEAD else 0
+	_set_head_layer(life != Life.DEAD)
+
+
+func is_dropping() -> bool:
+	return drop_state != Drop.NONE
+
+
+func _apply_fall(delta: float) -> void:
+	var local := Vector3(_frame.move.x, 0.0, _frame.move.y)
+	var wish := global_transform.basis * local * drop_glide_mps
+	velocity.x = wish.x
+	velocity.z = wish.z
+	velocity.y = maxf(velocity.y - float(_movement.get("gravity", 20.0)) * delta, -drop_max_fall_mps)
+	move_and_slide()
+	if is_on_floor():
+		drop_state = Drop.NONE
+		velocity = Vector3.ZERO
+		landed.emit()
 
 
 func _apply_look() -> void:

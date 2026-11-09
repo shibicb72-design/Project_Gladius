@@ -4,6 +4,9 @@ extends RefCounted
 
 var squad_count: int = 2
 var squad_size: int = 3
+## Battle royale team mode chosen by the host: "solo" or "squads" (sets squad_count / squad_size).
+var team_mode: String = "solo"
+const TEAM_MODES: Array[String] = ["solo", "squads"]
 ## Human cap (match.json max_humans); 0 = squad_count * squad_size.
 var max_humans: int = 0
 var default_class: String = "hastati"
@@ -25,6 +28,18 @@ func setup(squads: int, size: int, rotation: Array = [], human_default_class: St
 	default_class = human_default_class
 	if not rotation.is_empty():
 		class_rotation = rotation.duplicate()
+
+
+## Host only, before the match: switches solo/squads with its layout (MatchDirector.team_layout). Refused
+## for an unknown mode, after start, or when the humans would not fit.
+func set_team_mode(mode: String, squads: int, size: int) -> bool:
+	if started or mode not in TEAM_MODES or squads < 1 or size < 1 or humans.size() > squads * size:
+		return false
+	team_mode = mode
+	squad_count = squads
+	squad_size = size
+	bot_classes.clear()  # slot indices change with the layout
+	return true
 
 
 func add_human(peer_id: int, player_name: String) -> bool:
@@ -96,7 +111,7 @@ func start() -> bool:
 
 
 func to_dict() -> Dictionary:
-	return {"squad_count": squad_count, "squad_size": squad_size, "default_class": default_class,
+	return {"squad_count": squad_count, "squad_size": squad_size, "team_mode": team_mode, "default_class": default_class,
 			"class_rotation": class_rotation.duplicate(), "started": started,
 			"humans": humans.duplicate(true), "slots": slots.duplicate(true),
 			"bot_classes": bot_classes.duplicate()}
@@ -106,6 +121,8 @@ static func from_dict(d: Dictionary) -> LobbyState:
 	var l := LobbyState.new()
 	l.squad_count = int(d.get("squad_count", 2))
 	l.squad_size = int(d.get("squad_size", 3))
+	var mode := str(d.get("team_mode", "solo"))
+	l.team_mode = mode if mode in TEAM_MODES else "solo"
 	l.default_class = str(d.get("default_class", "hastati"))
 	l.class_rotation = Array(d.get("class_rotation", [])).duplicate()
 	l.started = bool(d.get("started", false))

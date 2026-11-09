@@ -23,6 +23,8 @@ var zone_label: Label
 var downed_label: Label
 var respawn_label: Label
 var own_death_label: Label
+## Set by MatchRoot while the eliminated local player spectates ("Spectating Squad III"; placeholder text).
+var spectate_text: String = ""
 var _own_death_cfg: Dictionary = {}
 ## Action feedback (data/ui.json "feedback"): reload bar, Full/Empty cue, swap toast, hit marker.
 var reload_box: VBoxContainer
@@ -452,7 +454,14 @@ func _refresh_match_texts() -> void:
 	alive_label.text = alive
 	zone_label.text = zone_text(director.rules.zone_state(), director.rules.zone_seconds_left())
 	var id := _pawn_player_id()
-	downed_label.text = ("DOWNED %s" % _clock(director.rules.bleed_seconds_left(id))) if pawn.is_downed() else ""
+	if pawn.drop_state == Pawn.Drop.ABOARD:
+		downed_label.text = "Jump to drop"
+	elif pawn.is_downed():
+		downed_label.text = "DOWNED %s" % _clock(director.rules.bleed_seconds_left(id))
+	elif pawn.life == Pawn.Life.DEAD:
+		downed_label.text = spectate_text
+	else:
+		downed_label.text = ""
 
 
 ## Placeholder wording (S6 restyles it).

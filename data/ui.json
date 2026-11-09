@@ -228,5 +228,19 @@
 		"_placeholder": true,
 		"_todo": "OQ-35: gameplay HUD stat block (bars, weapon, ammo) top-left corner as [x frac of width, y frac of height]; kept clear of the touch sticks and buttons. Not a design value.",
 		"stat_block_pos": [0.01, 0.08]
+	},
+	"zone_wall": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-ZONE: zone wall look (height, colours) is a placeholder; S6 restyles it.",
+		"wall_height_m": 40.0,
+		"wall_color": [0.35, 0.6, 1.0, 0.25],
+		"target_height_m": 0.6,
+		"target_color": [1.0, 1.0, 1.0, 0.45]
+	},
+	"spectate": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-SPECTATE: follow-camera offset after elimination is a placeholder.",
+		"offset_m": [0.6, 2.0, 4.0],
+		"look_height_m": 1.4
 	}
 }

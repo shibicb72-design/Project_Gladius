@@ -38,5 +38,16 @@
 		"squad_size_max": 3
 	},
 	"default_seed": 20261109,
-	"_default_seed_note": "technical value, not a product placeholder"
+	"_default_seed_note": "technical value, not a product placeholder",
+	"drop": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-DROP",
+		"enabled": true,
+		"altitude_m": 120.0,
+		"path_length_m": 200.0,
+		"carrier_s": 20.0,
+		"bot_jump_window": [0.15, 0.85],
+		"glide_speed_mps": 8.0,
+		"max_fall_mps": 15.0
+	}
 }

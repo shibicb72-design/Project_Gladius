@@ -20,12 +20,14 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
   Placeholder now (S1b): the touch Interact ("Revive") button sits lower right next to the look stick (data/ui.json interact_button, all placeholders); keyboard/gamepad bindings wait for data/input.json. The kill banner shows only for a credited kill, not for a down; whether downs get their own banner is undecided. Interim bots ignore DOWNED enemies (S5 decides finishing behaviour).
 - **OQ-BR-START: starting kit.** What a player lands with (nothing, melee only, or a sidearm). Placeholder.
 - **OQ-BR-DROP: drop from the sky.** Carrier path, jump window, fall and glide speeds, and whether squads drop together. Placeholders.
+  Placeholder now (S3): br.json drop: carrier on a seeded straight line through the zone start center, altitude 120 m, path 200 m, 20 s; humans drop with Jump, bot squads drop together at a seeded moment between 15% and 85% of the path, everyone left drops at the end; glide 8 m/s, fall capped at 15 m/s; no weapons while aboard or falling; landing on roofs and wall tops is allowed. Real matches use it; tests opt in (MatchRoot.drop_from_sky).
 - **OQ-BR-LENGTH: match length.** Target duration; decided after measuring M1 matches (Shibi, Nov 9 2026).
 - **OQ-BR-TEMP-MAP: M1 temporary map size.** The real 1 km Alesia map is M2. The M1 test map size is a placeholder.
   Placeholder now (S1a): the zone start circle (radius 120 m around (0, 0)) in `data/br.json` stands in for the temporary map size.
 - **OQ-BR-JOIN: join in progress.** Does not fit a no-respawn match; keep, replace or cut.
 - **OQ-BR-EXTRAS: power weapons, scorestreaks, deployables and grenade counts in battle royale.** Loot, drops or cut. Not built until decided.
 - **OQ-BR-PAYOUT: placement payouts.** Denarii for placement and kills in battle royale.
+- **OQ-BR-SPECTATE: spectating after elimination.** Who the camera follows (now: a living squad mate, then the killer, then the lowest-id player still in), switching targets by hand, and the camera offset. Placeholder now (S2): automatic follow, offset in data/ui.json spectate.
 - **OQ-BR-TEAMS: default team mode.** Solo or squads when no choice was made in the menu (the menu choice comes in M1 step S2).
   Placeholder now: `data/br.json` teams.mode.value = "solo" (squad_size_max 3 is the DESIGN.md value).
 - **OQ-BR-TIE: last squads eliminated in the same tick.** Draw with shared placement, or another rule.

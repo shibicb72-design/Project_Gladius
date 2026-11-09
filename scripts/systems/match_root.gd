@@ -33,6 +33,12 @@ var _gyro: GyroProvider
 var _client_bridge: NetMatchBridge
 var _input_accum_s: float = 0.0
 var _spawn_synced: bool = false
+## Battle royale presentation: zone wall (built at start) and the follow camera after elimination.
+var zone_wall: ZoneWall
+var spectator: SpectatorCamera
+## Open the match with the drop from the sky (br.json drop.enabled must also be true). Set for real
+## matches (auto_start); tests that do not opt in start on the ground at the spawn spots.
+var drop_from_sky: bool = false
 
 @onready var director: MatchDirector = $Director
 @onready var hud: GameHud = $Hud/GameHud
@@ -72,6 +78,7 @@ func _ready() -> void:
 	pause_menu.closed.connect(_on_menu_closed)
 	pause_menu.quit_confirmed.connect(quit_to_menu)
 	if auto_start:
+		drop_from_sky = true  # real matches (menu / lobby) open with the carrier; tests opt in
 		var started: bool = begin()
 		if not started:
 			push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
@@ -124,6 +131,10 @@ func begin() -> bool:
 	networked_match = networked
 	director.authoritative = not networked or session.is_host
 	if lobby != null:
+		# The host's Solo / Squads choice (lobby) overrides br.json's default before squads are assigned.
+		var teams: Dictionary = director.mode_cfg.get("teams", {})
+		teams["mode"] = {"value": lobby.team_mode}
+		director.mode_cfg["teams"] = teams
 		var slots := lobby.assign()
 		roster = MatchRoster.new()
 		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, networked)
@@ -168,7 +179,42 @@ func begin() -> bool:
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
-	return director.start(xforms, seed_value)
+	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))
+	var started := director.start(xforms, seed_value, use_drop)
+	if started:
+		director.player_eliminated.connect(_on_player_eliminated)
+		zone_wall = ZoneWall.new()
+		zone_wall.name = "ZoneWall"
+		zone_wall.bind(director, DataRegistry.new().load_file(UI_PATH).get("zone_wall", {}))
+		add_child(zone_wall)
+	return started
+
+
+func _local_id() -> int:
+	return roster.local_player_id if roster != null else 0
+
+
+## Elimination of the local player, or of the pawn being spectated: (re)pick who the camera follows.
+func _on_player_eliminated(player_id: int, killer_id: int, _cause: String) -> void:
+	var watching := spectator != null and spectator.target == director.player(player_id)
+	if player_id != _local_id() and not watching:
+		return
+	if director.rules == null:
+		return
+	var tid := SpectatorCamera.pick_target(_local_id(), killer_id, director.all_players().keys(),
+			func(i: int) -> int: return director.rules.squad_of(i),
+			func(i: int) -> bool:
+				var p := director.player(i)
+				return p != null and p.life != Pawn.Life.DEAD)
+	if tid < 0:
+		return
+	if spectator == null:
+		spectator = SpectatorCamera.new()
+		spectator.name = "SpectatorCamera"
+		spectator.configure(DataRegistry.new().load_file(UI_PATH).get("spectate", {}))
+		add_child(spectator)
+	spectator.follow(director.player(tid))
+	hud.spectate_text = "Spectating %s" % HudNumbers.squad_name(director.rules.squad_of(tid), hud.roman_numerals)
 
 
 ## Class for the offline / no-lobby player: data/match.json default_class, else the profile's

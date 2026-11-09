@@ -43,6 +43,15 @@ func host_open(squads: int, squad_size: int, host_name: String, rotation: Array 
 	state_changed.emit()
 
 
+## Host only: solo / squads with its layout; broadcasts. Clients never call this.
+func host_set_team_mode(mode: String, squads: int, size: int) -> bool:
+	if not is_host() or not state.set_team_mode(mode, squads, size):
+		return false
+	state_changed.emit()
+	_broadcast()
+	return true
+
+
 ## Sets this peer's own name and class. The host applies it directly, a client asks the host.
 func submit_local(player_name: String, class_id: String) -> void:
 	if is_host():

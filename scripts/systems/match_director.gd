@@ -72,7 +72,7 @@ func add_player(player_id: int, pawn: Pawn) -> void:
 
 ## Builds BrRules from mode_cfg as it is now, registers every pawn and places the squads.
 ## Returns false if the rules config is unusable or there are no spawn spots.
-func start(spawn_xforms: Dictionary, seed_value: int = 1) -> bool:
+func start(spawn_xforms: Dictionary, seed_value: int = 1, use_drop: bool = false) -> bool:
 	_spawn_xforms = spawn_xforms
 	if spawn_xforms.is_empty():
 		return false
@@ -102,10 +102,89 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1) -> bool:
 	spots.sort()
 	for id in ids:
 		_place(id, squad_ids, spots)
+	if use_drop:
+		_begin_drop(seed_value, ids)
 	running = true
 	zone_changed.emit()
 	alive_changed.emit(players_alive(), squads_alive())
 	return true
+
+
+## ---- Drop from the sky (br.json "drop", placeholders, OQ-BR-DROP) ----
+## The carrier flies a seeded straight line through the zone start center at altitude_m for carrier_s.
+## Every pawn rides it (Pawn.board_carrier). Humans drop with Jump; bots drop at a seeded moment inside
+## bot_jump_window (squad mates together); anyone still aboard at the end of the path drops then.
+var drop_active: bool = false
+var carrier_from := Vector3.ZERO
+var carrier_to := Vector3.ZERO
+var carrier_t: float = 0.0
+var _carrier_s: float = 20.0
+var _bot_jump_t: Dictionary = {}  # squad id -> path fraction
+
+
+func _drop_cfg() -> Dictionary:
+	return mode_cfg.get("drop", {})
+
+
+func _begin_drop(seed_value: int, ids: Array) -> void:
+	var cfg := _drop_cfg()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value + 7919  # separate stream from the zone's
+	var c: Array = mode_cfg.get("zone", {}).get("start_center", [0, 0])
+	var center := Vector3(float(c[0]), float(cfg.get("altitude_m", 120.0)), float(c[1]))
+	var angle := rng.randf() * TAU
+	var half := float(cfg.get("path_length_m", 200.0)) * 0.5
+	var dir := Vector3(cos(angle), 0.0, sin(angle))
+	carrier_from = center - dir * half
+	carrier_to = center + dir * half
+	_carrier_s = maxf(float(cfg.get("carrier_s", 20.0)), 0.1)
+	carrier_t = 0.0
+	var window: Array = cfg.get("bot_jump_window", [0.15, 0.85])
+	_bot_jump_t.clear()
+	for id in ids:
+		var pawn: Pawn = _players[id]
+		if not _bot_jump_t.has(pawn.squad_id):
+			_bot_jump_t[pawn.squad_id] = rng.randf_range(float(window[0]), float(window[1]))
+		pawn.drop_glide_mps = float(cfg.get("glide_speed_mps", 8.0))
+		pawn.drop_max_fall_mps = float(cfg.get("max_fall_mps", 15.0))
+		pawn.board_carrier()
+	drop_active = true
+	_place_aboard()
+
+
+func carrier_position() -> Vector3:
+	return carrier_from.lerp(carrier_to, clampf(carrier_t, 0.0, 1.0))
+
+
+func _place_aboard() -> void:
+	var pos := carrier_position()
+	for id in _players:
+		var pawn: Pawn = _players[id]
+		if pawn.drop_state == Pawn.Drop.ABOARD:
+			pawn.global_position = pos
+
+
+func _tick_drop(delta: float) -> void:
+	carrier_t += delta / _carrier_s
+	_place_aboard()
+	var still_aboard := false
+	var ids: Array = _players.keys()
+	ids.sort()
+	for id in ids:
+		var pawn: Pawn = _players[id]
+		if pawn.drop_state != Pawn.Drop.ABOARD:
+			continue
+		var is_bot := pawn.has_node("Brain")
+		var go := carrier_t >= 1.0 or pawn.take_drop_request() \
+				or (is_bot and carrier_t >= float(_bot_jump_t.get(pawn.squad_id, 0.5)))
+		if go:
+			# Squad mates and neighbours leave side by side, not inside each other.
+			var side := Vector3(-(carrier_to - carrier_from).z, 0.0, (carrier_to - carrier_from).x).normalized()
+			pawn.start_fall(carrier_position() + side * float(_slot_in_squad.get(id, 0)) * 2.0)
+		else:
+			still_aboard = true
+	if not still_aboard:
+		drop_active = false
 
 
 func all_players() -> Dictionary:
@@ -195,11 +274,14 @@ func _physics_process(delta: float) -> void:
 	if not running or not authoritative:
 		return
 	_prune_revives()
+	if drop_active:
+		_tick_drop(delta)
 	var positions: Dictionary = {}
 	for id in _players:
 		var pawn: Pawn = _players[id]
 		pawn.bridge.spawn_protected = false  # field kept for the network path; no protection in battle royale
-		if pawn.life != Pawn.Life.DEAD:
+		# Pawns still aboard the carrier are left out: BrRules treats them as inside the zone.
+		if pawn.life != Pawn.Life.DEAD and pawn.drop_state != Pawn.Drop.ABOARD:
 			positions[id] = _flat(pawn)
 	tick_count += 1
 	var facts := {"positions": positions, "reviving": _reviving.duplicate()}
