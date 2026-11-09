@@ -156,6 +156,15 @@ android/              debug.keystore (shared debug key only)
   of KotH plus a hill-position provider, not a new mode.
 - Add a mode variant: data entry with existing `rules`. Add a new mode: one rules script + registry
   line + optional objective scene (eagle, oddball).
+- `br` (battle royale rules core, S1a): `scripts/systems/br_rules.gd` (`BrRules`, pure RefCounted) with its numbers in
+  `data/br.json` (all placeholders, see OPEN_QUESTIONS OQ-BR-*). A `modes.json` entry may carry a `data` path;
+  `ModeRegistry.create` loads it through `DataRegistry` (null if the file is missing or not an object) and passes `setup`
+  a deep copy of the entry with the file's top-level keys merged in (the file wins; the registry cache is never mutated).
+  `tick(delta, facts)` takes `facts.positions {player_id: Vector2(x, z)}` and `facts.reviving {reviver_id: target_id}` and
+  returns events (`zone_phase`, `zone_damage`, `downed`, `revive_progress`, `revived`, `bled_out`, `dead`,
+  `squad_eliminated`, `match_over`); the event list, their keys and their order within a tick are documented at the top of
+  `br_rules.gd`. Health comes in through `report_zero_health(player_id, killer_id, cause)`. Not yet wired into the match
+  (step S1b).
 
 ### 4.10 Match flow
 - `MatchDirector` (Node, authority only) owns the active GameModeRules, SpawnRules, StreakRules and

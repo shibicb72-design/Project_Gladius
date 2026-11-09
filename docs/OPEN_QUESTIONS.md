@@ -10,17 +10,24 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 ## Battle royale (DESIGN.md update, Nov 9 2026; milestone M1)
 
 - **OQ-BR-ZONE: zone phases.** Number of phases, wait and shrink times, radius per phase, damage per second per phase, and whether zone damage skips shields. Placeholders in `data/br.json` until measured M1 matches give a basis.
+  Placeholder now (S1a): start circle center (0, 0) radius 120 m; damage_skips_shield false; 4 phases (wait_s / shrink_s / radius_m / damage_per_s): 60/30/80/1, 45/30/50/2, 30/20/25/4, 20/15/8/8. Next circle centers are drawn from a seeded RNG (default_seed 20261109, a technical value).
 - **OQ-BR-LOOT: loot table.** Which items exist on the ground (weapons, ammo, armor tiers, anything else), spawn density and rarity weights. Placeholders in `data/loot.json`.
 - **OQ-BR-ARMOR: armor tiers.** Tier count and what each tier does (extra shield, damage reduction, durability). Placeholders.
 - **OQ-BR-DOWNED: downed and revive.** Bleed-out time, revive time, downed move speed, whether downed players can be finished, and what happens when the whole squad is downed. Placeholders.
+  Placeholder now (S1a): bleed_out_s 30, revive_s 5, revive_range_m 2.5, downed_move_speed_pct 30 (not used by BrRules yet), revive_health_pct 30, can_be_finished true, zone_finishes_downed true, squad_wipe_kills_downed true, kill_credit_to_downer true, bleed_pauses_while_reviving true, bleed_restarts_on_new_down true.
+  Rules BrRules applies on top: the kill goes to the downer when the victim was downed by a hit and kill_credit_to_downer is true (for finished, bled_out, zone and squad_wipe deaths; if the downer is invalid, e.g. same squad, there is no kill); with several revivers on one target only the lowest reviver id counts.
 - **OQ-BR-START: starting kit.** What a player lands with (nothing, melee only, or a sidearm). Placeholder.
 - **OQ-BR-DROP: drop from the sky.** Carrier path, jump window, fall and glide speeds, and whether squads drop together. Placeholders.
 - **OQ-BR-LENGTH: match length.** Target duration; decided after measuring M1 matches (Shibi, Nov 9 2026).
 - **OQ-BR-TEMP-MAP: M1 temporary map size.** The real 1 km Alesia map is M2. The M1 test map size is a placeholder.
+  Placeholder now (S1a): the zone start circle (radius 120 m around (0, 0)) in `data/br.json` stands in for the temporary map size.
 - **OQ-BR-JOIN: join in progress.** Does not fit a no-respawn match; keep, replace or cut.
 - **OQ-BR-EXTRAS: power weapons, scorestreaks, deployables and grenade counts in battle royale.** Loot, drops or cut. Not built until decided.
 - **OQ-BR-PAYOUT: placement payouts.** Denarii for placement and kills in battle royale.
 - **OQ-BR-TEAMS: default team mode.** Solo or squads when no choice was made in the menu (the menu choice comes in M1 step S2).
+  Placeholder now: `data/br.json` teams.mode.value = "solo" (squad_size_max 3 is the DESIGN.md value).
+- **OQ-BR-TIE: last squads eliminated in the same tick.** Draw with shared placement, or another rule.
+  Placeholder now: `end.tie_result` = "draw" (winner -1, draw true, the last squads share the placement; the only value implemented).
 
 - **OQ-ANIM (Path A2 ANIM FULL): procedural soldier animation.** No third-party animation assets are available for this dig. A replaceable code-built Skeleton3D with rigid per-part weights shares one mesh and Skin across pawns. Rest pivots derive from `data/art_astra.json` parts; hierarchy/mapping live in `data/anim.json` and remain placeholders. Neck/Head use an independent fixed chain under the locked yellow shell so upper-body motion cannot drag the visor into the headshot shell. All new pose sizes, angles, clip timing, smoothing and IK tolerance must be marked placeholders in that file. On-device visual approval remains open; headless checks prove geometry/math, not Fold appearance.
 

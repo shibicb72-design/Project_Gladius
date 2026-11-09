@@ -1,0 +1,42 @@
+{
+	"version": 1,
+	"zone": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-ZONE OQ-BR-TEMP-MAP",
+		"start_center": [0, 0],
+		"start_radius_m": 120,
+		"damage_skips_shield": false,
+		"phases": [
+			{"wait_s": 60, "shrink_s": 30, "radius_m": 80, "damage_per_s": 1},
+			{"wait_s": 45, "shrink_s": 30, "radius_m": 50, "damage_per_s": 2},
+			{"wait_s": 30, "shrink_s": 20, "radius_m": 25, "damage_per_s": 4},
+			{"wait_s": 20, "shrink_s": 15, "radius_m": 8, "damage_per_s": 8}
+		]
+	},
+	"downed": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-DOWNED",
+		"bleed_out_s": 30,
+		"revive_s": 5,
+		"revive_range_m": 2.5,
+		"downed_move_speed_pct": 30,
+		"revive_health_pct": 30,
+		"can_be_finished": true,
+		"zone_finishes_downed": true,
+		"squad_wipe_kills_downed": true,
+		"kill_credit_to_downer": true,
+		"bleed_pauses_while_reviving": true,
+		"bleed_restarts_on_new_down": true
+	},
+	"end": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-TIE",
+		"tie_result": "draw"
+	},
+	"teams": {
+		"mode": {"value": "solo", "_placeholder": true, "_todo": "OQ-BR-TEAMS"},
+		"squad_size_max": 3
+	},
+	"default_seed": 20261109,
+	"_default_seed_note": "technical value, not a product placeholder"
+}
