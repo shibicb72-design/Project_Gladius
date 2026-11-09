@@ -21,7 +21,17 @@
     "eye_height_m": 1.3,
     "target_height_m": 1.0,
     "path_desired_distance_m": 1.0,
-    "target_desired_distance_m": 1.0
+    "target_desired_distance_m": 1.0,
+    "_br_todo": "M1 S5 battle royale goals; every value below is a placeholder (OQ-31, OQ-BR-DOWNED for finishing).",
+    "loot_seek_range_m": 45.0,
+    "revive_seek_range_m": 18.0,
+    "zone_margin_s": 25.0,
+    "zone_spot_fraction": 0.6,
+    "melee_chase_m": 14.0,
+    "finish_downed": true,
+    "stuck_window_s": 2.0,
+    "stuck_min_move_m": 0.6,
+    "unstick_s": 1.0
   },
-  "commands": {"_todo": "OQ-33: no squad commands in milestone 1; interim bots walk toward the zone (S5 replaces the brain).", "enabled": []}
+  "commands": {"_todo": "OQ-33: no squad commands in milestone 1; bots follow the battle royale brain (S5).", "enabled": []}
 }

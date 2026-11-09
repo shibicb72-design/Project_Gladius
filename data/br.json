@@ -10,7 +10,8 @@
 			{"wait_s": 60, "shrink_s": 30, "radius_m": 80, "damage_per_s": 1},
 			{"wait_s": 45, "shrink_s": 30, "radius_m": 50, "damage_per_s": 2},
 			{"wait_s": 30, "shrink_s": 20, "radius_m": 25, "damage_per_s": 4},
-			{"wait_s": 20, "shrink_s": 15, "radius_m": 8, "damage_per_s": 8}
+			{"wait_s": 20, "shrink_s": 15, "radius_m": 8, "damage_per_s": 8},
+			{"wait_s": 15, "shrink_s": 30, "radius_m": 0.5, "damage_per_s": 15}
 		]
 	},
 	"downed": {
