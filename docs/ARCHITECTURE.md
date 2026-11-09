@@ -198,7 +198,7 @@ android/              debug.keystore (shared debug key only)
 - One-shot presses (D1): a provider's `trigger_action(action)` emits `action_triggered`; the router
   re-emits it at once and latches one pressed+just_pressed frame edge (even for a sub-tick tap).
   MatchRoot forwards it to the local pawn (`handle_action_press`), which toggles cover crouch. The
-  frame bit is transport only until D9/G3.2, so the pawn never toggles from it.
+  frame bit is transport only until the host-side cover slice, so the pawn never toggles from it.
 - Held press-time actions (D2): the in-cover FIRE control uses the action `cover_fire`, listed in
   `InputRouter.NON_FRAME_ACTIONS` and not in `InputFrame.BUTTONS`/`LOCAL_BUTTONS` (no bit, no latch,
   never sent). The provider's `trigger_action` / `release_action(action, cancel)` /

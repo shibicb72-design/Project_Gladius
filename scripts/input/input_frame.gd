@@ -3,7 +3,7 @@ extends RefCounted
 ## One tick of merged input. Plain data, serializable for networking.
 
 ## Bit i of the held/just masks is BUTTONS[i]. Only append: old clients send masks that use bits 0-5.
-## D1 (G1.5): crouch, prone and interact are bits 6-8. The host ignores them until D9/G3.2; prone and
+## D1: crouch, prone and interact are bits 6-8. The host ignores them until the host-side cover slice; prone and
 ## interact are reserved with no behaviour yet (D11/D16).
 const BUTTONS: Array[String] = ["fire", "aim", "reload", "swap_weapon", "jump", "pause", "crouch", "prone", "interact"]
 ## View-only buttons for this device (Path A phase 2: shoulder swap). The router fills them like BUTTONS, but

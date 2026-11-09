@@ -1,5 +1,5 @@
 extends "res://tests/test_case.gd"
-## D2 (spec G1.7 part 1): cover FIRE reaches the cover only through the input layer
+## D2 part 1: cover FIRE reaches the cover only through the input layer
 ## (TouchProvider -> InputRouter -> MatchRoot -> Pawn -> CoverController). Real match, live pawn physics,
 ## real window-pixel taps pushed through the viewport. The router's re-emitted signals are recorded in `routed`.
 var match_scene: MatchRoot

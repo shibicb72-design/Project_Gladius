@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
-## D1 (spec G1.5) source guards. T7: scripts/ui may only READ a CoverController. T8: the host ignores the
-## crouch/prone/interact frame bits until D9/G3.2 (cover stays owner-only, OQ-COVER).
+## D1 source guards. T7: scripts/ui may only READ a CoverController. T8: the host ignores the
+## crouch/prone/interact frame bits until the host-side cover slice (cover stays owner-only, OQ-COVER).
 
 const UI_DIR := "res://scripts/ui"
 const NET_DIR := "res://scripts/net"
@@ -195,5 +195,5 @@ func test_t8_net_scripts_never_read_the_new_bits() -> void:
 			continue
 		scanned += 1
 		var hit := re.search(strip_comments(FileAccess.get_file_as_string(NET_DIR + "/" + file)))
-		assert_true(hit == null, "%s reads %s (host must ignore it until D9/G3.2)" % [file, hit.get_string() if hit != null else ""])
+		assert_true(hit == null, "%s reads %s (host must ignore it until the host-side cover slice)" % [file, hit.get_string() if hit != null else ""])
 	assert_true(scanned > 0, "net scripts scanned")
