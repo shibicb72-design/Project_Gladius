@@ -30,6 +30,13 @@ const MELEE_REQUIRED_KEYS: Array[String] = ["melee_back_angle_deg", "melee_front
 
 @export var class_id: String = "hastati"
 @export var squad_id: int = 0
+## Set by MatchDirector.add_player; -1 until registered.
+var player_id: int = -1
+## Life state, set only from BrRules events by MatchDirector.
+enum Life { ALIVE, DOWNED, DEAD }
+var life: Life = Life.ALIVE
+## A hit took health to zero (attacker_id -1 if unknown); MatchDirector reports it to BrRules.
+signal health_zeroed(attacker_id: int)
 
 var registry: DataRegistry = DataRegistry.new()
 var bridge: PawnRulesBridge
@@ -116,8 +123,20 @@ func get_clock() -> float:
 	return _clock
 
 
+## ALIVE, or at 0 health between a hit and the next BrRules tick, counts as not alive (cannot fire or move).
 func is_alive() -> bool:
-	return bridge != null and not bridge.state.is_dead()
+	return life == Life.ALIVE and bridge != null and not bridge.state.is_dead()
+
+
+func is_downed() -> bool:
+	return life == Life.DOWNED
+
+
+## Squad id changes go through here so pawn and rules bridge never disagree.
+func set_squad(new_squad_id: int) -> void:
+	squad_id = new_squad_id
+	if bridge != null:
+		bridge.squad_id = new_squad_id
 
 
 ## Enables or disables the pawn (dead pawns are hidden and not hittable).
@@ -141,6 +160,7 @@ func respawn_at(xform: Transform3D) -> void:
 		_apply_cover_shapes()
 		_cover_probe.reset()
 	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
+	life = Life.ALIVE
 	loadout = Loadout.from_class(class_id, registry)
 	global_transform = xform
 	velocity = Vector3.ZERO
@@ -154,13 +174,16 @@ func get_move_speed() -> float:
 	return float(_movement.get("base_speed_mps", 5.0)) * pct / 100.0
 
 
-func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) -> DamageRules.HitResult:
-	return _notify_damage(bridge.take_hit(weapon_def, is_headshot, attacker_squad))
+func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int, attacker_id: int = -1) -> DamageRules.HitResult:
+	return _notify_damage(bridge.take_hit(weapon_def, is_headshot, attacker_squad), attacker_id)
 
 
-func _notify_damage(result: DamageRules.HitResult) -> DamageRules.HitResult:
+## The one place zero health is reported (item: BrRules decides downed, dead or finished).
+func _notify_damage(result: DamageRules.HitResult, attacker_id: int = -1) -> DamageRules.HitResult:
 	if result.damage_dealt > 0.0:
 		damaged.emit(result)
+		if bridge.state.is_dead():
+			health_zeroed.emit(attacker_id)
 	return result
 
 
@@ -168,7 +191,9 @@ func _notify_damage(result: DamageRules.HitResult) -> DamageRules.HitResult:
 ## stats.json "melee". Called by the hit authority instead of receive_hit for melee weapons.
 ## A missing melee key is a data error: the first one missing (in MELEE_REQUIRED_KEYS order) is
 ## reported, and the hit is invalid (no damage, blocked_reason "invalid_melee_cfg"); there are no defaults.
-func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
+func receive_melee(attacker: Pawn, attacker_id: int = -1) -> DamageRules.HitResult:
+	if attacker_id < 0:
+		attacker_id = attacker.player_id
 	var cfg: Dictionary = melee_cfg_override if not melee_cfg_override.is_empty() else registry.get_melee_cfg()
 	for key in MELEE_REQUIRED_KEYS:
 		if not cfg.has(key):
@@ -176,7 +201,7 @@ func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
 	var behind := Melee.is_from_behind(global_position, -global_transform.basis.z, attacker.global_position,
 			float(cfg["melee_back_angle_deg"]))
 	var breaks: bool = attacker.class_id in cfg["front_breaks_full_shield_classes"]
-	return _notify_damage(bridge.take_melee(attacker.squad_id, behind, breaks, cfg))
+	return _notify_damage(bridge.take_melee(attacker.squad_id, behind, breaks, cfg), attacker_id)
 
 
 func _invalid_melee(key: String) -> DamageRules.HitResult:
@@ -270,7 +295,7 @@ func _local_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_he
 	if weapon_def.is_melee() and attacker is Pawn and target.has_method("receive_melee"):
 		target.receive_melee(attacker)
 	elif target.has_method("receive_hit"):
-		target.receive_hit(weapon_def, is_headshot, attacker.squad_id)
+		target.receive_hit(weapon_def, is_headshot, attacker.squad_id, attacker.player_id if attacker is Pawn else -1)
 
 
 func _physics_process(delta: float) -> void:

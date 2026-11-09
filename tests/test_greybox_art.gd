@@ -65,48 +65,6 @@ func test_pawn_materials_head_lock_and_albedo_readability_proxy() -> void:
 	pawn.free()
 
 
-func test_hill_visual_tracks_dimensions_and_real_occupancy() -> void:
-	var zone := HillZone.new()
-	_tree().root.add_child(zone)
-	var base := Vector3(0, 50, 0)
-	zone.configure(base, 4.0, 3.0)
-	var mesh := zone.visual.mesh as CylinderMesh
-	assert_eq(mesh.top_radius, 4.0, "visual radius")
-	assert_eq(mesh.bottom_radius, 4.0, "visual bottom radius")
-	assert_eq(mesh.height, 3.0, "visual height")
-	assert_eq(zone.position, base + Vector3(0, 1.5, 0), "base centre contract")
-	assert_eq(zone.collision_layer, 0, "visual adds no collision layer")
-	assert_eq(zone.collision_mask, 2, "occupancy mask unchanged")
-	assert_eq(zone.visual.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "no shadow")
-	var pawns: Array[Pawn] = []
-	for squad in 2:
-		var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
-		pawn.squad_id = squad
-		_tree().root.add_child(pawn)
-		pawn.set_physics_process(false)
-		pawn.position = base + Vector3(squad * 10, 0, 0)
-		pawns.append(pawn)
-	await _settle()
-	assert_eq(zone.occupancy(), {0: 1}, "one squad held")
-	assert_eq(zone._visual_state, "held", "held colour")
-	pawns[1].position = base + Vector3(1, 0, 0)
-	await _settle()
-	assert_eq(zone.occupancy(), {0: 1, 1: 1}, "two squads contested")
-	assert_eq(zone._visual_state, "contested", "contested colour")
-	assert_eq((zone.visual.material_override as StandardMaterial3D).albedo_color,
-			GreyboxArt.color_value(GreyboxArt.config()["hill"]["contested"]), "colour from data")
-	for pawn in pawns:
-		pawn.bridge.state.health = 0.0
-		pawn.bridge.state.shield = 0.0
-	await _settle()
-	assert_true(zone.occupancy().is_empty(), "dead pawns excluded")
-	assert_eq(zone._visual_state, "empty", "empty colour")
-	zone.configure(base, 6.0, 2.0)
-	assert_eq(mesh.top_radius, 6.0, "reconfigure radius")
-	assert_eq(mesh.height, 2.0, "reconfigure height")
-	for pawn in pawns:
-		pawn.free()
-	zone.free()
 
 
 func _settle() -> void:

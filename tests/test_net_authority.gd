@@ -129,41 +129,38 @@ func test_remote_fire_ends_spawn_protection_only_when_accepted() -> void:
 	var rig := _host_rig()
 	var bridge: NetMatchBridge = rig["bridge"]
 	var pawn: Pawn = rig["pawn"]
-	var rules = bridge.director.spawn_rules
-	rules.spawn_now(PID)
-	assert_true(rules.is_protected(PID), "protected after spawn")
+	# Spawn protection is gone in battle royale (spawn_protected stays false); empty vs accepted shots only.
 	var w := pawn.loadout.get_active()
 	w.ammo_in_mag = 0
 	assert_eq(_fire(bridge, pawn)["reason"], "empty", "empty shot rejected")
-	assert_true(rules.is_protected(PID), "rejected shot keeps protection")
+	assert_true(not pawn.bridge.spawn_protected, "never protected")
 	w.ammo_in_mag = 2
 	assert_true(_fire(bridge, pawn)["ok"], "shot with ammo accepted")
-	assert_true(not rules.is_protected(PID), "accepted shot ends protection")
 	rig["root"].queue_free()
 
 
 func test_squad_count_single_source() -> void:
 	var reg := DataRegistry.new()
-	var squads := int(reg.load_file("res://data/match.json").get("squads", 0))
-	assert_true(squads > 0, "match.json squads set")
-	assert_true(not reg.load_file("res://data/match.json").has("offline_squads"), "offline_squads removed")
-	assert_true(not reg.load_file("res://data/bots.json")["match_fill"].has("squads"), "bots.json has no squads")
+	# Battle royale (DESIGN.md, Nov 9 2026) supersedes OQ-30: squad layout comes from br.json teams.
+	var match_cfg := reg.load_file("res://data/match.json")
+	assert_true(not match_cfg.has("squads"), "match.json has no squads key")
+	var br := ModeRegistry.merged_config("br", reg.load_file("res://data/modes.json"))
+	var layout := MatchDirector.team_layout(br, match_cfg)
 	var seen := {}
-	for e in BotSpawner.plan_fill({}, reg.load_file("res://data/bots.json"), squads):
+	for e in BotSpawner.plan_fill({}, reg.load_file("res://data/bots.json"), int(layout["squad_count"]), int(layout["squad_size"])):
 		seen[e["squad"]] = true
-	assert_eq(seen.size(), squads, "bot fill covers exactly match.json squads")
+	assert_eq(seen.size(), int(layout["squad_count"]), "bot fill covers every squad of the layout")
 	var src := FileAccess.get_file_as_string("res://scripts/ui/lobby.gd")
-	assert_true(src.contains('cfg.get("squads"'), "lobby reads match.json squads")
+	assert_true(src.contains("MatchDirector.team_layout"), "lobby derives squads from the team mode")
 	assert_eq(DataRegistry.validate_squads(reg.load_file("res://data/match.json"),
 			reg.load_file(DataRegistry.MAP_PATH)).size(), 0, "shipped data is consistent")
 
 
-func test_validate_rejects_more_squads_than_spawns() -> void:
+func test_validate_player_caps_and_spawns() -> void:
 	var map_def := {"spawns": {"a": [0, 0, 0], "b": [1, 0, 0]}}
-	var ok := DataRegistry.validate_squads({"squads": 2, "squad_size": 3, "max_players": 18}, map_def)
-	assert_eq(ok.size(), 0, "2 squads on 2 spots is fine")
-	var few := DataRegistry.validate_squads({"squads": 3, "squad_size": 3, "max_players": 18}, map_def)
-	assert_true(few.size() > 0, "more squads than spawn spots reported")
-	var many := DataRegistry.validate_squads({"squads": 7, "squad_size": 3, "max_players": 18},
-			{"spawns": {"a": 0, "b": 0, "c": 0, "d": 0, "e": 0, "f": 0, "g": 0}})
-	assert_true(many.size() > 0, "squads * squad_size above max_players reported")
+	var ok := DataRegistry.validate_squads({"max_players": 18, "min_humans": 1, "max_humans": 8}, map_def)
+	assert_eq(ok.size(), 0, "valid caps; fewer spots than squads is fine (shared spots)")
+	var bad := DataRegistry.validate_squads({"max_players": 18, "min_humans": 1, "max_humans": 20}, map_def)
+	assert_true(bad.size() > 0, "max_humans above max_players reported")
+	var none := DataRegistry.validate_squads({"max_players": 18, "min_humans": 1, "max_humans": 8}, {"spawns": {}})
+	assert_true(none.size() > 0, "map without spawn spots reported")

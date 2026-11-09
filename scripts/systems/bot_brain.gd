@@ -1,14 +1,13 @@
 class_name BotBrain
 extends Node
 ## Child of a bot Pawn. Builds an InputFrame each physics tick from perception; never reads
-## player input. Moves to the hill via NavigationAgent3D and shoots the nearest visible enemy.
+## player input. Interim brain (S5 replaces it): moves toward the director's zone target via
+## NavigationAgent3D and shoots the nearest visible enemy. A DOWNED bot does nothing.
 
 var pawn: Pawn
 var director: MatchDirector
 var profile: Dictionary = {}
 var cfg: Dictionary = {}
-var hill_center: Vector3 = Vector3.ZERO
-var hill_radius: float = 8.0
 var target_id: int = -1
 
 var _agent: NavigationAgent3D
@@ -18,14 +17,11 @@ var _error: Vector2 = Vector2.ZERO
 var _error_age_s: float = 0.0
 
 
-func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary,
-		center: Vector3, radius: float) -> void:
+func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
 	pawn = new_pawn
 	director = new_director
 	profile = new_profile
 	cfg = new_cfg
-	hill_center = center
-	hill_radius = radius
 	_rng.randomize()
 
 
@@ -108,14 +104,15 @@ func _find_target() -> Pawn:
 
 ## World-space direction to walk, or ZERO when holding the hill.
 func _move_direction() -> Vector3:
-	var to_hill := hill_center - pawn.global_position
-	to_hill.y = 0.0
-	if to_hill.length() <= hill_radius * float(cfg.get("hill_hold_fraction", 0.5)):
+	var goal := director.zone_target_center()
+	var to_goal := goal - pawn.global_position
+	to_goal.y = 0.0
+	if to_goal.length() <= director.zone_target_radius() * float(cfg.get("zone_hold_fraction", 0.5)):
 		return Vector3.ZERO
-	_agent.target_position = hill_center
+	_agent.target_position = goal
 	var next := _agent.get_next_path_position()
 	var dir := next - pawn.global_position
 	dir.y = 0.0
 	if dir.length() < 0.1:
-		dir = to_hill  # no navmesh path yet: head straight for the hill
+		dir = to_goal  # no navmesh path yet: head straight for the zone
 	return dir.normalized()

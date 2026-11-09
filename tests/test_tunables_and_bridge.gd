@@ -44,14 +44,13 @@ func test_bridge_snapshot_applies_replica() -> void:
 	await tree.physics_frame
 
 
-func test_match_director_start_fails_with_more_squads_than_spots() -> void:
+func test_match_director_start_fails_without_spawn_spots() -> void:
 	var tree := _tree()
 	var d := MatchDirector.new()
 	tree.root.add_child(d)
 	d.load_config()
-	var spots := {"only": Transform3D.IDENTITY}
-	var ok := d.start([0, 1, 2], spots, null)
-	assert_eq(ok, false, "start returns false with 3 squads on 1 spot")
+	var ok := d.start({})
+	assert_eq(ok, false, "start returns false with no spawn spots")
 	assert_eq(d.running, false, "match not running after failed start")
 	d.queue_free()
 	await tree.physics_frame

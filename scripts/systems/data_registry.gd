@@ -125,15 +125,17 @@ static func validate_melee(melee: Dictionary) -> PackedStringArray:
 	return problems
 
 
-## Checks the single squad count (match.json "squads") against player cap and map spawn spots.
+## Checks the player caps in match.json and that the map has a spawn spot. Battle royale needs no
+## one-spot-per-squad rule: squads share spots round-robin until the drop (S3).
 static func validate_squads(match_cfg: Dictionary, map_def: Dictionary) -> PackedStringArray:
 	var problems := PackedStringArray()
-	var squads := int(match_cfg.get("squads", 0))
-	var size := int(match_cfg.get("squad_size", 0))
-	if squads <= 0 or size <= 0:
-		problems.append("match.json squads and squad_size must be positive")
-	if squads * size > int(match_cfg.get("max_players", 0)):
-		problems.append("match.json squads * squad_size exceeds max_players")
-	if map_def.get("spawns", {}).size() < squads:
-		problems.append("map has fewer spawn spots than match.json squads")
+	var max_players := int(match_cfg.get("max_players", 0))
+	var max_humans := int(match_cfg.get("max_humans", 0))
+	var min_humans := int(match_cfg.get("min_humans", 0))
+	if max_players <= 0:
+		problems.append("match.json max_players must be positive")
+	if min_humans < 1 or min_humans > max_humans or max_humans > max_players:
+		problems.append("match.json needs 1 <= min_humans <= max_humans <= max_players")
+	if map_def.get("spawns", {}).is_empty():
+		problems.append("map has no spawn spots")
 	return problems

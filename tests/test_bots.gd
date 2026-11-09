@@ -9,18 +9,19 @@ func _cfg() -> Dictionary:
 
 
 func test_fill_counts_from_data() -> void:
-	var plan := BotSpawner.plan_fill({0: 1}, _cfg(), 2)
-	assert_eq(plan.size(), 5, "1 human -> 5 bots for 2x3")
-	var per_squad := {0: 0, 1: 0}
+	var plan := BotSpawner.plan_fill({0: 1}, _cfg(), 6, 3)
+	assert_eq(plan.size(), 17, "squads mode: 1 human -> 17 bots for 6x3")
+	var per_squad := {}
 	for e in plan:
-		per_squad[e["squad"]] += 1
+		per_squad[e["squad"]] = int(per_squad.get(e["squad"], 0)) + 1
 	assert_eq(per_squad[0], 2, "squad 0 bots")
 	assert_eq(per_squad[1], 3, "squad 1 bots")
-	assert_eq(BotSpawner.plan_fill({0: 3, 1: 3}, _cfg(), 2).size(), 0, "full squads need no bots")
+	assert_eq(BotSpawner.plan_fill({0: 1}, _cfg(), 18, 1).size(), 17, "solo: 1 human -> 17 bots for 18x1")
+	assert_eq(BotSpawner.plan_fill({0: 3, 1: 3}, _cfg(), 2, 3).size(), 0, "full squads need no bots")
 
 
 func test_bots_alternate_classes() -> void:
-	var plan := BotSpawner.plan_fill({0: 1}, _cfg(), 2)
+	var plan := BotSpawner.plan_fill({0: 1}, _cfg(), 6, 3)
 	var rotation: Array = _cfg()["class_rotation"]
 	for i in plan.size():
 		assert_eq(plan[i]["class_id"], rotation[i % rotation.size()], "class of bot %d" % i)
@@ -64,7 +65,7 @@ func test_bot_profile_fields_present() -> void:
 	assert_eq(BotCommands.enabled_from(_cfg()).size(), 0, "no commands in milestone 1")
 
 
-func test_bot_moves_toward_hill() -> void:
+func test_bot_moves_toward_zone() -> void:
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = true
@@ -72,15 +73,14 @@ func test_bot_moves_toward_hill() -> void:
 	tree.root.add_child(m)
 	await tree.physics_frame
 	m.director.load_config()
-	m.director.match_cfg["spawn_protection_s"] = 60.0
 	assert_true(m.begin(), "begin succeeds")
-	assert_eq(m.bots.size(), 5, "five bots spawned")
+	assert_eq(m.bots.size(), 17, "17 bots fill the 18-player match")
 	await tree.physics_frame
-	var bot: Pawn = m.bots[m.bots.size() - 1]  # squad 1, away from the player
-	var center: Vector3 = m.zone.global_position
+	var bot: Pawn = m.bots[m.bots.size() - 1]  # away from the player
+	var center: Vector3 = m.director.zone_target_center()
 	var start := bot.global_position.distance_to(center)
 	for i in 180:
 		await tree.physics_frame
 	var after := bot.global_position.distance_to(center)
-	assert_true(after < start - 1.0, "bot closed on hill: %s -> %s" % [start, after])
+	assert_true(after < start - 1.0, "bot closed on zone:%s -> %s" % [start, after])
 	m.queue_free()

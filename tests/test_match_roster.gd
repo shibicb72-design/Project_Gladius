@@ -6,7 +6,8 @@ const _MatchScene := preload("res://scenes/match/match.tscn")
 func _lobby() -> LobbyState:
 	var cfg := DataRegistry.new().load_file("res://data/match.json")
 	var l := LobbyState.new()
-	l.setup(int(cfg.get("squads", 2)), int(cfg.get("squad_size", 3)))
+	l.max_humans = int(cfg["max_humans"])
+	l.setup(int(cfg["max_players"]), 1)  # solo: 18 squads of 1 (BrRules default team mode)
 	l.add_human(11, "A")
 	l.add_human(12, "B")
 	l.add_human(13, "C")
@@ -47,7 +48,7 @@ func test_match_root_spawns_one_pawn_per_lobby_human() -> void:
 			assert_eq(pawn.squad_id, int(s["squad_id"]), "squad of player %d" % int(s["player_id"]))
 			assert_eq(pawn.class_id, str(s["class_id"]), "class of player %d" % int(s["player_id"]))
 			assert_eq(pawn.get_node_or_null("Brain") != null, bool(s["is_bot"]), "brain only on bots")
-	assert_eq(m.bots.size(), 3, "three bots fill squad 1")
+	assert_eq(m.bots.size(), 15, "15 bots fill the 18-player roster")
 	assert_eq(m.local_player, m.director.player(0), "offline: first human is the local pawn")
 	assert_true(m.local_player.get_node_or_null("CameraRig") != null, "local pawn has the camera rig")
 	assert_true(m.director.player(1).get_node_or_null("CameraRig") == null, "remote human has no camera rig")
@@ -77,15 +78,14 @@ func test_match_root_same_seed_same_squad_spots() -> void:
 
 func test_client_director_is_passive() -> void:
 	var m := await _new_match(false)
-	m.director.mode_cfg["score_to_win"] = 1
 	assert_true(m.begin(), "begin succeeds")
 	m.director.authoritative = false
 	var seen: Array = []
 	m.director.match_over.connect(func(r): seen.append(r))
 	await _frames(2)
-	m.local_player.global_position = Vector3(0.0, 0.1, 0.0)
-	await _frames(130)
-	assert_eq(float(m.director.rules.scores[0]), 0.0, "passive director does not score")
+	var ticks: int = m.director.tick_count
+	await _frames(30)
+	assert_eq(m.director.tick_count, ticks, "passive director runs no rules")
 	assert_eq(seen.size(), 0, "passive director emits no match_over")
 	m.director.apply_remote_match_over({"winner": 0})
 	assert_eq(seen.size(), 1, "host's match over is replayed")
@@ -105,8 +105,6 @@ func test_bridge_handlers_ignore_missing_director() -> void:
 	b.snapshot(1, [])
 	b.apply_replica(0)
 	b.unregister_peer(2)
-	b.ev_respawn(0)
-	b.ev_score({0: 1})
 	await tree.physics_frame
 	assert_true(b.director == null, "still no director, no error")
 	b.queue_free()

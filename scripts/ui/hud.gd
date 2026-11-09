@@ -393,9 +393,6 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 	pawn.fired.connect(_begin_local_attack)
 	pawn.melee_landed.connect(_on_melee_landed)
 	_watch_pawns()
-	director.score_changed.connect(_on_score_changed)
-	director.time_changed.connect(_on_time_changed)
-	director.player_respawned.connect(_on_player_respawned)
 	refresh_pawn()
 
 
@@ -406,24 +403,6 @@ func _process(delta: float) -> void:
 		_end_local_attack()
 	if pawn != null:
 		refresh_pawn()
-
-
-func _on_score_changed(scores: Dictionary) -> void:
-	var parts: Array[String] = []
-	var keys := scores.keys()
-	keys.sort()
-	for squad in keys:
-		parts.append("%s: %s" % [_squad_name(int(squad)), HudNumbers.number(int(scores[squad]), roman_numerals)])
-	scores_label.text = "   ".join(parts)
-
-
-func _on_time_changed(remaining_s: float) -> void:
-	var t := int(ceil(remaining_s))
-	timer_label.text = "%d:%02d" % [t / 60, t % 60]
-
-
-func _on_player_respawned(_player_id: int) -> void:
-	refresh_pawn()
 
 
 ## Updates the per-pawn widgets: bars, weapon, ammo, hill indicator and respawn countdown.
@@ -442,20 +421,10 @@ func refresh_pawn() -> void:
 		reload_box.visible = w.reloading
 		reload_bar.value = w.reload_fraction(pawn.get_clock())
 	var waiting := not pawn.is_alive()
-	respawn_label.visible = waiting
+	respawn_label.visible = false  # no respawn in battle royale (item 6 removes the label)
 	own_death_label.visible = waiting
 	crosshair.visible = bool(_ch["enabled"]) and not waiting  # no shot is possible while dead
-	if waiting and director != null and director.spawn_rules != null:
-		var left := director.spawn_rules.respawn_remaining(_pawn_player_id())
-		respawn_label.text = "Respawn in %d" % int(ceil(left))
-	var hill_text := _hill_text()
-	if hill_text != _last_hill_text:
-		if hill_text == "Hill: yours":
-			show_banner(String(_banner_cfg["secured_text"]))
-		elif hill_text == "Hill: contested":
-			show_banner(String(_banner_cfg["contested_text"]), false, true)
-		_last_hill_text = hill_text
-	hill_label.text = hill_text
+	hill_label.text = ""  # hill indicator removed (item 6 deletes the label)
 
 
 func _pawn_player_id() -> int:
@@ -465,17 +434,6 @@ func _pawn_player_id() -> int:
 		if director.all_players()[id] == pawn:
 			return int(id)
 	return -1
-
-
-func _hill_text() -> String:
-	if director == null or director.hill_zone == null or pawn == null:
-		return ""
-	var occ := director.hill_zone.occupancy()
-	if occ.is_empty():
-		return "Hill: empty"
-	if occ.size() > 1:
-		return "Hill: contested"
-	return "Hill: yours" if occ.has(pawn.squad_id) else "Hill: enemy"
 
 
 func _squad_name(squad: int) -> String:

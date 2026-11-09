@@ -28,5 +28,19 @@ func take_melee(attacker_squad: int, from_behind: bool, attacker_breaks_full_shi
 			attacker_breaks_full_shield, melee_cfg, combat_cfg)
 
 
+## Direct (zone) damage: no attacker, so no friendly-fire or protection checks. Lowers shield then health,
+## or health only when skips_shield. The caller reports zero health to the rules.
+func take_direct_damage(amount: float, skips_shield: bool) -> void:
+	if amount <= 0.0 or state.is_dead():
+		return
+	var left := amount
+	if not skips_shield:
+		var absorbed := minf(state.shield, left)
+		state.shield -= absorbed
+		left -= absorbed
+	state.health = maxf(state.health - left, 0.0)
+	state.time_since_damage = 0.0
+
+
 func tick(delta: float) -> void:
 	DamageRules.tick_regen(state, delta, combat_cfg)

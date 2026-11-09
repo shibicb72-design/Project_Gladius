@@ -7,7 +7,7 @@
     "centurion": {"_placeholder": true, "accuracy": 0.7,  "reaction_time_s": 0.4,  "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.6, "grenade_freq": 0.0},
     "legatus":   {"_placeholder": true, "accuracy": 0.9,  "reaction_time_s": 0.25, "damage_mult": 1.0, "health_mult": 1.0, "aim_smartness": 0.8, "grenade_freq": 0.0}
   },
-  "match_fill": {"_note": "DECIDED (Shibi, 2026-10-22, OQ-30/31): fill to 2 squads of 3 at Tiro. Number of squads comes from match.json squads.", "squad_size": 3, "profile": "tiro"},
+  "match_fill": {"_note": "Bots fill to match.json max_players (18). Squad size comes from br.json teams (solo 1, squads squad_size_max). The bot profile is a placeholder (OQ-31).", "profile": "tiro"},
   "class_rotation": ["hastati", "sagittarii"],
   "brain": {
     "_placeholder": true,
@@ -17,11 +17,11 @@
     "sight_range_m": 60.0,
     "fire_cone_deg": 6.0,
     "aim_error_refresh_s": 0.5,
-    "hill_hold_fraction": 0.5,
+    "zone_hold_fraction": 0.5,
     "eye_height_m": 1.3,
     "target_height_m": 1.0,
     "path_desired_distance_m": 1.0,
     "target_desired_distance_m": 1.0
   },
-  "commands": {"_todo": "OQ-33: no squad commands in milestone 1; bots always play the hill.", "enabled": []}
+  "commands": {"_todo": "OQ-33: no squad commands in milestone 1; interim bots walk toward the zone (S5 replaces the brain).", "enabled": []}
 }

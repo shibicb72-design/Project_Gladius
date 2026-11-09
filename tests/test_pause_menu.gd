@@ -192,10 +192,10 @@ func test_offline_pauses_tree_and_freezes_pawn() -> void:
 	assert_eq(m.pause_menu.process_mode, Node.PROCESS_MODE_ALWAYS, "menu keeps processing")
 	assert_eq(m.pause_menu.settings.process_mode, Node.PROCESS_MODE_ALWAYS, "settings panel keeps processing")
 	var before := m.local_player.global_position
-	var elapsed: float = m.director.rules.elapsed_s
+	var elapsed: int = m.director.tick_count
 	await _frames(30)
 	assert_eq(m.local_player.global_position, before, "pawn position unchanged over 30 physics frames")
-	assert_eq(m.director.rules.elapsed_s, elapsed, "match clock stopped")
+	assert_eq(m.director.tick_count, elapsed, "match clock stopped")
 	await _click_button(m.pause_menu.resume_button)
 	assert_true(not _tree().paused, "unpaused after Resume")
 	await _finish(ctx)
@@ -224,12 +224,12 @@ func test_online_overlay_keeps_sim_running_with_zero_input() -> void:
 	await _frames(10)
 	var settled := m.local_player.global_position
 	var ammo := weapon.ammo_in_mag
-	var elapsed: float = m.director.rules.elapsed_s
+	var elapsed: int = m.director.tick_count
 	await _frames(30)
 	var drift := (m.local_player.global_position - settled) * Vector3(1, 0, 1)
 	assert_true(drift.length() < 0.001, "open: no motion, drift %s" % drift.length())
 	assert_eq(weapon.ammo_in_mag, ammo, "open: ammo unchanged")
-	assert_true(m.director.rules.elapsed_s > elapsed, "sim tick still advances online")
+	assert_true(m.director.tick_count > elapsed, "sim tick still advances online")
 	Input.action_release("move_forward")
 	Input.action_release("fire")
 	m.pause_menu.close()

@@ -19,7 +19,6 @@ var map: Node3D
 var router: InputRouter
 var local_player: Pawn
 var bots: Array[Pawn] = []
-var zone: HillZone
 var roster: MatchRoster
 ## Tests running two peers in one process inject these instead of the AppFlow globals.
 var session_override: NetSession
@@ -103,22 +102,19 @@ func begin() -> bool:
 	if bake_navmesh and nav != null:
 		nav.bake_navigation_mesh(false)
 
-	var hill: Dictionary = map_def.get("hill", {})
-	var center := _vec(hill.get("center", [0, 0, 0]))
-	zone = HillZone.new()
-	add_child(zone)
-	zone.configure(center, float(hill.get("radius_m", 8.0)), float(hill.get("height_m", 3.0)))
-
+	# Spawns face the zone start center (br.json zone.start_center, x/z).
+	var zc: Array = director.mode_cfg.get("zone", {}).get("start_center", [0, 0])
+	var center := Vector3(float(zc[0]), 0.0, float(zc[1]))
 	var xforms: Dictionary = {}
 	var spawns: Dictionary = map_def.get("spawns", {})
 	for spot_id in spawns:
 		var pos := _vec(spawns[spot_id])
-		var to_hill := center - pos
-		to_hill.y = 0.0
-		xforms[spot_id] = Transform3D(Basis.looking_at(to_hill.normalized()), pos)
+		var to_center := center - pos
+		to_center.y = 0.0
+		if to_center.length() < 0.01:
+			to_center = Vector3.FORWARD
+		xforms[spot_id] = Transform3D(Basis.looking_at(to_center.normalized()), pos)
 
-	var radius := float(hill.get("radius_m", 8.0))
-	var squads: Array = range(int(director.match_cfg.get("squads", 2)))
 	var session := session_override
 	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
 		session = AppFlow.session
@@ -129,10 +125,8 @@ func begin() -> bool:
 	director.authoritative = not networked or session.is_host
 	if lobby != null:
 		var slots := lobby.assign()
-		squads = range(lobby.squad_count)
 		roster = MatchRoster.new()
-		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, center, radius,
-				networked)
+		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, networked)
 		local_player = roster.local_pawn
 		bots = roster.bots
 		if networked:
@@ -154,7 +148,7 @@ func begin() -> bool:
 		add_child(local_player)
 		director.add_player(0, local_player)
 		if fill_bots:
-			bots = BotSpawner.spawn_bots(self, director, {0: 1}, squads.size(), center, radius)
+			bots = BotSpawner.spawn_bots(self, director, {0: 1})
 	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
@@ -174,7 +168,7 @@ func begin() -> bool:
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
-	return director.start(squads, xforms, zone, seed_value)
+	return director.start(xforms, seed_value)
 
 
 ## Class for the offline / no-lobby player: data/match.json default_class, else the profile's
@@ -289,7 +283,6 @@ func _wire_client(bridge: NetMatchBridge) -> void:
 		local_player.reload_started.connect(bridge.send_reload)
 		local_player.weapon_switched.connect(bridge.send_weapon_slot)
 	bridge.snapshot_received.connect(_on_snapshot)
-	bridge.respawn_event.connect(_on_local_respawn_event)
 
 
 ## Host: reports every bot pawn's shot to the clients, the same way as the host player's own.
@@ -314,11 +307,6 @@ func _on_snapshot() -> void:
 		_client_bridge.snap_local_to_replica(id)
 	_client_bridge.apply_replica(id)
 	_client_bridge.apply_local_vitals(id)
-
-
-func _on_local_respawn_event(player_id: int) -> void:
-	if player_id == roster.local_player_id:
-		_client_bridge.snap_local_to_replica(player_id)
 
 
 static func _vec(a: Array) -> Vector3:

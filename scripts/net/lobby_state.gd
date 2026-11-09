@@ -4,6 +4,8 @@ extends RefCounted
 
 var squad_count: int = 2
 var squad_size: int = 3
+## Human cap (match.json max_humans); 0 = squad_count * squad_size.
+var max_humans: int = 0
 var default_class: String = "hastati"
 var class_rotation: Array = ["hastati", "sagittarii"]
 var started: bool = false
@@ -26,7 +28,8 @@ func setup(squads: int, size: int, rotation: Array = [], human_default_class: St
 
 
 func add_human(peer_id: int, player_name: String) -> bool:
-	if started or find_human(peer_id) >= 0 or humans.size() >= squad_count * squad_size:
+	var cap := max_humans if max_humans > 0 else squad_count * squad_size
+	if started or find_human(peer_id) >= 0 or humans.size() >= mini(cap, squad_count * squad_size):
 		return false
 	humans.append({"peer_id": peer_id, "name": player_name, "class_id": default_class})
 	return true

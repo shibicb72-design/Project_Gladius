@@ -41,7 +41,7 @@ func test_death_adds_one_visible_corpse_and_respawn_adds_none() -> void:
 		assert_eq(_corpses(match_parent).size(), 0, "no lingering corpse")
 	match_parent.free()
 
-func test_own_death_label_tracks_respawn_without_kill_banner() -> void:
+func test_own_death_label_without_kill_banner() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var holder := Node3D.new()
 	tree.root.add_child(holder)
@@ -57,12 +57,12 @@ func test_own_death_label_tracks_respawn_without_kill_banner() -> void:
 	pawn.bridge.state.shield = 0
 	pawn.set_active(false)
 	hud.refresh_pawn()
-	assert_true(hud.own_death_label.visible and hud.respawn_label.visible, "dead labels shown together")
+	assert_true(hud.own_death_label.visible and not hud.respawn_label.visible, "death label shown, no respawn label")
 	assert_eq(hud.own_death_label.text, "YOU WERE HIT", "placeholder copy from data")
 	assert_true(not hud.banner_label.visible, "kill/objective banner remains separate")
 	pawn.respawn_at(Transform3D.IDENTITY)
 	pawn.set_physics_process(false)
 	hud.refresh_pawn()
-	assert_true(not hud.own_death_label.visible and not hud.respawn_label.visible, "respawn hides both")
+	assert_true(not hud.own_death_label.visible and not hud.respawn_label.visible, "revived/alive hides both")
 	hud.free()
 	holder.free()

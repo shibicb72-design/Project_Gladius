@@ -663,7 +663,7 @@ func test_mode_registry_loads_br_data() -> void:
 	assert_eq(br.cfg["rules"], "br", "entry key kept")
 	assert_eq(br.phase_count(), (data["zone"]["phases"] as Array).size(), "phases")
 	assert_true(not (modes["br"] as Dictionary).has("zone"), "registry cache not mutated")
-	assert_true(ModeRegistryS.create("koth", modes) is KothRules, "koth unchanged")
+	assert_true(ModeRegistryS.create("koth", modes) == null, "koth is cut: no rules")
 
 
 func test_mode_registry_bad_data_returns_null() -> void:

@@ -46,7 +46,7 @@ func test_whole_match_geometry_proxy_budget() -> void:
 	match_scene.director.load_config()
 	assert_true(match_scene.begin(), "representative match starts")
 	var cfg: Dictionary = LowpolyKit.config()["performance"]
-	assert_eq(match_scene.director.all_players().size(), int(cfg["representative_pawns"]), "six representative pawns")
+	assert_eq(match_scene.director.all_players().size(), int(match_scene.director.match_cfg["max_players"]), "a full 18-player battle royale lobby")
 	var splits := int(cfg["shadow_splits"]) if (match_scene.get_node("Light") as DirectionalLight3D).shadow_enabled else 0
 	for pawn: Pawn in match_scene.director.all_players().values():
 		pawn.set_physics_process(false)

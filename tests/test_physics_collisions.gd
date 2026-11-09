@@ -83,27 +83,4 @@ func test_head_and_hill_area_layers() -> void:
 	var head := scene.get_node("Player/Head") as Area3D
 	assert_eq(head.collision_layer, 4, "head area is on layer 4")
 	assert_eq(head.collision_mask, 0, "head area detects nothing")
-	var hill := HillZone.new()
-	assert_eq(hill.collision_layer, 0, "hill is on no layer")
-	assert_eq(hill.collision_mask, 2, "hill detects pawn bodies only")
-	hill.free()
-	scene.queue_free()
-
-
-func test_hill_detects_pawns() -> void:
-	var scene := _world()
-	var hill := HillZone.new()
-	scene.add_child(hill)
-	hill.configure(Vector3(0.0, 0.0, -10.0), 3.0, 2.0)
-	await _ticks(5)
-	var dummy: Pawn = scene.get_node("Dummy")
-	var occ := hill.occupancy()
-	assert_eq(occ, {1: 1}, "only the dummy (squad 1) stands on the hill")
-	dummy.set_active(false)
-	await _ticks(5)
-	assert_eq(hill.occupancy(), {}, "an inactive pawn leaves the hill")
-	dummy.set_active(true)
-	dummy.global_position = Vector3(30.0, 0.0, -10.0)
-	await _ticks(5)
-	assert_eq(hill.occupancy(), {}, "a pawn outside the hill is not counted")
 	scene.queue_free()

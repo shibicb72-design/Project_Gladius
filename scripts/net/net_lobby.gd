@@ -35,9 +35,10 @@ func is_host() -> bool:
 
 
 ## Host only: sets up the lobby and adds the host's own entry.
-func host_open(squads: int, squad_size: int, host_name: String, rotation: Array = []) -> void:
+func host_open(squads: int, squad_size: int, host_name: String, rotation: Array = [], max_humans: int = 0) -> void:
 	state = LobbyState.new()
 	state.setup(squads, squad_size, rotation)
+	state.max_humans = max_humans
 	state.add_human(local_id(), _clean_name(host_name))
 	state_changed.emit()
 

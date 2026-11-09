@@ -157,50 +157,7 @@ func test_headshot_multiplier_applies_equally_to_shield_and_health() -> void:
 
 # ---- OQ-20/21/22: independent squads, contested hill, draw -----------------------------------
 
-func _koth(squads: int) -> KothRules:
-	var k := KothRules.new()
-	k.setup(DataRegistry.new().load_file(MODES_PATH)["koth"])
-	k.register_squads(range(squads))
-	return k
-
-
-func test_six_squads_score_independently() -> void:
-	var k := _koth(6)
-	for s in 6:
-		k.tick(float(s + 1), {s: 3})
-	for s in 6:
-		assert_eq(k.scores[s], s + 1, "squad %d scored only its own time" % s)
-	assert_eq(k.scores.size(), 6, "six squads")
-
-
-func test_contested_zone_nobody_scores_even_with_three_squads() -> void:
-	var k := _koth(6)
-	k.tick(10.0, {0: 1, 2: 2, 5: 1})
-	for s in 6:
-		assert_eq(k.scores[s], 0, "squad %d scored nothing while contested" % s)
-	k.tick(4.0, {2: 1, 5: 0})
-	assert_eq(k.scores[2], 4, "scores again once only one squad is inside")
-
-
-func test_tie_at_top_is_a_draw_with_six_squads() -> void:
-	var k := _koth(6)
-	k.tick(30.0, {1: 1})
-	k.tick(30.0, {4: 1})
-	k.tick(10.0, {3: 1})
-	k.tick(600.0, {})
-	assert_true(k.is_over(), "timer ended")
-	var res := k.result()
-	assert_true(res["draw"], "tie at the top is a draw")
-	assert_eq(res["winner"], -1, "no winner")
-
-
-func test_clear_leader_wins_on_timer() -> void:
-	var k := _koth(6)
-	k.tick(31.0, {1: 1})
-	k.tick(30.0, {4: 1})
-	k.tick(600.0, {})
-	assert_true(not k.result()["draw"], "no draw")
-	assert_eq(k.result()["winner"], 1, "highest score wins")
+# (King of the Hill tests removed: OQ-20/21/22 are superseded by the battle royale design, Nov 9 2026.)
 
 
 # ---- OQ-38: plain digits, Roman code kept behind a data switch --------------------------------
@@ -215,17 +172,7 @@ func test_roman_numerals_off_in_data_and_hud_uses_digits() -> void:
 	assert_eq(RomanNumerals.to_roman(0), RomanNumerals.ZERO_TEXT, "RomanNumerals kept")
 	var hud := GameHud.new()
 	assert_true(not hud.roman_numerals, "HUD follows the data setting")
-	var director := MatchDirector.new()
-	var pawn := Pawn.new()
-	pawn.setup("hastati", 0)
-	hud.bind(director, pawn)
-	director.score_changed.emit({0: 0, 1: 0, 2: 7})
-	assert_eq(hud.scores_label.text, "Squad 1: 0   Squad 2: 0   Squad 3: 7", "score 0 renders as 0")
-	for ch in ["I", "V", "X", "N"]:
-		assert_true(not hud.scores_label.text.replace("Squad", "").contains(ch), "no Roman letter " + ch)
 	hud.free()
-	pawn.free()
-	director.free()
 
 
 # ---- OQ-41 / OQ-27: manual IP, host IPs, host drop ---------------------------------------------
