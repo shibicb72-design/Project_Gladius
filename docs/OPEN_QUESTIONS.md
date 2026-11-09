@@ -20,6 +20,7 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 - **OQ-BR-JOIN: join in progress.** Does not fit a no-respawn match; keep, replace or cut.
 - **OQ-BR-EXTRAS: power weapons, scorestreaks, deployables and grenade counts in battle royale.** Loot, drops or cut. Not built until decided.
 - **OQ-BR-PAYOUT: placement payouts.** Denarii for placement and kills in battle royale.
+- **OQ-BR-TEAMS: default team mode.** Solo or squads when no choice was made in the menu (the menu choice comes in M1 step S2).
 
 - **OQ-ANIM (Path A2 ANIM FULL): procedural soldier animation.** No third-party animation assets are available for this dig. A replaceable code-built Skeleton3D with rigid per-part weights shares one mesh and Skin across pawns. Rest pivots derive from `data/art_astra.json` parts; hierarchy/mapping live in `data/anim.json` and remain placeholders. Neck/Head use an independent fixed chain under the locked yellow shell so upper-body motion cannot drag the visor into the headshot shell. All new pose sizes, angles, clip timing, smoothing and IK tolerance must be marked placeholders in that file. On-device visual approval remains open; headless checks prove geometry/math, not Fold appearance.
 
