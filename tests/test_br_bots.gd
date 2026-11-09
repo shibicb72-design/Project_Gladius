@@ -121,3 +121,28 @@ func test_blade_only_bot_charges_a_close_enemy() -> void:
 	var d := Vector2(bot.global_position.x - enemy.global_position.x, bot.global_position.z - enemy.global_position.z).length()
 	assert_true(d < 7.0, "closed the distance (%.1f m)" % d)
 	m.queue_free()
+
+
+func test_bot_reloads_an_empty_gun_and_swaps_off_the_blade() -> void:
+	await start(calm_zone())
+	var bot: Pawn = m.bots[0]
+	isolate(bot)
+	bot.take_item({"item_id": "pilum_br"}, m.loot.def("pilum_br"))
+	var gun := bot.loadout.slots[0]
+	gun.ammo_in_mag = 0
+	gun.reserve = 30
+	await frames(3)
+	assert_true(gun.reloading or gun.ammo_in_mag > 0, "an empty gun with reserve gets reloaded")
+	var n := 0
+	while gun.ammo_in_mag == 0 and n < 300:
+		await frames(1)
+		n += 1
+	assert_true(gun.ammo_in_mag > 0, "and the magazine refills")
+	bot.loadout.active = 1  # the blade
+	await frames(40)
+	assert_eq(bot.loadout.active, 0, "a bot holding the blade swaps to its loaded gun")
+	gun.ammo_in_mag = 0
+	gun.reserve = 0
+	await frames(40)
+	assert_true(bot.loadout.get_active().def.is_melee(), "a gun with no ammo at all is put away for the blade")
+	m.queue_free()

@@ -16,6 +16,9 @@ func _on_visibility_changed() -> void:
 	_was_visible = now
 	if not dying or not _pawn.is_inside_tree():
 		return
+	# Boarding the battle royale carrier hides the pawn too; that is not a death.
+	if _pawn.drop_state == Pawn.Drop.ABOARD:
+		return
 	var model := _pawn.get_node("SoldierModel") as SoldierModel
 	var corpse := model.make_corpse()
 	_pawn.get_parent().add_child(corpse)

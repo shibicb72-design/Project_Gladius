@@ -30,6 +30,8 @@ var _stuck_from := Vector3.ZERO
 var _stuck_t: float = 0.0
 var _unstick_left: float = 0.0
 var _unstick_side: float = 1.0
+var _seeded: bool = false
+var _swap_cooldown: float = 0.0
 
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
@@ -37,7 +39,15 @@ func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary,
 	director = new_director
 	profile = new_profile
 	cfg = new_cfg
-	_rng.randomize()
+
+
+## Seeds this bot from the match seed and its player id (G0: the same match seed replays the same bots).
+## Called lazily on the first frame, once MatchDirector.start has set match_seed and player_id.
+func _ensure_seeded() -> void:
+	if _seeded:
+		return
+	_seeded = true
+	_rng.seed = hash([director.match_seed if director != null else 0, pawn.player_id])
 	var a := _rng.randf() * TAU
 	_spot_dir = Vector2(cos(a), sin(a)) * sqrt(_rng.randf())
 
@@ -57,6 +67,7 @@ func build_frame(delta: float) -> InputFrame:
 	var frame := InputFrame.new()
 	if pawn == null or not pawn.is_alive() or not pawn.is_inside_tree():
 		return frame
+	_ensure_seeded()
 	if pawn.drop_state == Pawn.Drop.FALLING:
 		# Steer the glide toward this bot's own spot inside the next circle.
 		var to := _zone_spot() - pawn.global_position
@@ -85,6 +96,7 @@ func build_frame(delta: float) -> InputFrame:
 		_error_age_s = 0.0
 		_error = Vector2.ZERO
 
+	_manage_weapon(frame, delta)
 	var move_dir := _move_direction(enemy, melee_only, delta)
 	if _unstick_left > 0.0:
 		_unstick_left -= delta
@@ -108,6 +120,33 @@ func build_frame(delta: float) -> InputFrame:
 			frame.fire_pressed = aimed and in_reach
 			frame.fire_just_pressed = frame.fire_pressed
 	return frame
+
+
+## G1: reload an empty gun that has reserve; swap away from a gun with no ammo at all, and from the blade
+## to a gun that has ammo. swap_cooldown_s (bots.json brain, placeholder) stops swap thrashing.
+func _manage_weapon(frame: InputFrame, delta: float) -> void:
+	_swap_cooldown = maxf(_swap_cooldown - delta, 0.0)
+	var lo := pawn.loadout
+	if lo == null:
+		return
+	var w := lo.get_active()
+	var gun_with_ammo := false
+	for s in lo.slots:
+		if s != null and not s.def.is_melee() and s.ammo_in_mag + s.reserve > 0:
+			gun_with_ammo = true
+	if w != null and not w.def.is_melee():
+		if w.ammo_in_mag == 0 and w.reserve > 0:
+			if not w.reloading:
+				frame.reload_pressed = true
+				frame.reload_just_pressed = true
+			return
+		if w.ammo_in_mag + w.reserve == 0 and _swap_cooldown <= 0.0:
+			frame.swap_weapon_just_pressed = true
+			_swap_cooldown = float(cfg.get("swap_cooldown_s", 0.5))
+		return
+	if (w == null or w.def.is_melee()) and gun_with_ammo and _swap_cooldown <= 0.0:
+		frame.swap_weapon_just_pressed = true
+		_swap_cooldown = float(cfg.get("swap_cooldown_s", 0.5))
 
 
 func _eye_height() -> float:
