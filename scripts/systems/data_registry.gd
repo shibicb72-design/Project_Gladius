@@ -10,6 +10,8 @@ const CAMERA_PATH := "res://data/camera.json"
 const MATCH_PATH := "res://data/match.json"
 const MAP_PATH := "res://data/maps/alesia_section.json"
 const MAP_SELECT_PATH := "res://data/map_select.json"
+## Test-only performance map (M2P1A); validated with the shipping maps so its files cannot rot.
+const TEST_MAP_PATH := "res://data/maps/test_300.json"
 const MAP_DIR := "res://data/maps/"
 
 var _cache: Dictionary = {}
@@ -105,8 +107,9 @@ func validate() -> PackedStringArray:
 			problems.append("combat.%s missing" % k)
 	problems.append_array(validate_squads(load_file(MATCH_PATH), load_file(MAP_PATH)))
 	problems.append_array(validate_map(MAP_PATH))
+	problems.append_array(validate_map(TEST_MAP_PATH))
 	var selected := str(load_file(MAP_SELECT_PATH).get("map", MAP_PATH))
-	if selected != MAP_PATH:
+	if selected != MAP_PATH and selected != TEST_MAP_PATH:
 		problems.append_array(validate_map(selected))
 	return problems
 
@@ -155,8 +158,15 @@ static func validate_map_def(def: Dictionary) -> PackedStringArray:
 		if not def.has(key):
 			continue
 		var piece_path := str(def[key])
-		if parse_quiet(piece_path).is_empty():
+		var pieces := parse_quiet(piece_path)
+		if pieces.is_empty():
 			problems.append("map %s '%s' is missing or not a non-empty json dictionary" % [key, piece_path])
+			continue
+		# The map builder indexes these lists (astra_map.gd: cover "pieces" and "decor"; WorldKit: "pieces").
+		var lists: Array = ["pieces", "decor"] if key == "cover_data" else ["pieces"]
+		for list: String in lists:
+			if typeof(pieces.get(list)) != TYPE_ARRAY:
+				problems.append("map %s '%s' has no '%s' array" % [key, piece_path, list])
 	return problems
 
 
