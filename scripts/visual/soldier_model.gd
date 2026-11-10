@@ -34,6 +34,7 @@ var _cfg: Dictionary
 var part_bounds: Array[AABB] = []
 var shown_squad := 0  # the squad id whose colour the armor shows (C3)
 var shown_tier := 0  # the armor tier whose trim the armor shows (S4)
+var _cape_lift := 0.0
 var pose: SoldierPose
 var blade: MeshInstance3D
 static var _blade: ArrayMesh
@@ -206,6 +207,13 @@ func _process(delta: float) -> void:
 		velocity = _replica_velocity
 	var local := _pawn.global_transform.basis.inverse() * velocity
 	animation_tree.set("parameters/locomotion/blend_position", Vector2(local.x, local.z) / pawn.get_move_speed())
+	# S4: the cape swings back with forward speed (and streams up in a fall); a per-instance shader value.
+	var cape: Dictionary = _cfg["material"]["cape"]
+	var lift := clampf(-local.z / maxf(pawn.get_max_move_speed(), 0.01), 0.0, 1.0)
+	if pawn.drop_state == Pawn.Drop.FALLING:
+		lift = 1.0
+	_cape_lift = lerpf(_cape_lift, lift, 1.0 - exp(-delta / float(cape["smooth_s"])))
+	armor.set_instance_shader_parameter(&"cape_lift", _cape_lift)
 	var pitch_limit := deg_to_rad(float(_upper_cfg["aim_pitch_limit_deg"]))
 	animation_tree.set("parameters/aim/blend_position", clampf(pawn.pitch / pitch_limit, -1.0, 1.0))
 

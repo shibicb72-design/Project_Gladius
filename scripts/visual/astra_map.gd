@@ -87,8 +87,8 @@ func _ready() -> void:
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
+	add_child(ambient)  # before configure: the tufts ask this builder (their parent) where the grass is
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
-	add_child(ambient)
 
 
 ## S2: the ground's blend material. The paint map comes from the map data (landmarks, cover and structure

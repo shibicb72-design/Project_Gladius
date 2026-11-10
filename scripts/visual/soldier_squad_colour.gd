@@ -24,6 +24,11 @@ static func material() -> ShaderMaterial:
 		WorldSurface.adopt(_material)
 		var look: Dictionary = LowpolyKit.config()["soldier"]["material"]
 		_material.set_shader_parameter(&"tier_surface", WorldSurface.surface_id(String(look["tier_surface"])))
+		var cape: Dictionary = look["cape"]
+		_material.set_shader_parameter(&"sway_surface", WorldSurface.surface_id(String(cape["surface"])))
+		_material.set_shader_parameter(&"sway_m", float(cape["ripple_m"]))
+		_material.set_shader_parameter(&"sway_lift_m", float(cape["lift_m"]))
+		_material.set_shader_parameter(&"sway_speed", float(cape["speed"]))
 		_material.set_shader_parameter(&"part_shade", float(look["part_shade"]))
 		_material.set_shader_parameter(&"rim_color", GreyboxArt.color_value(look["rim_color"]))
 		_material.set_shader_parameter(&"rim", float(look["rim"]))

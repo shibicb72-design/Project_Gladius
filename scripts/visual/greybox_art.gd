@@ -108,6 +108,27 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 	env.adjustment_brightness = float(post["adjust_brightness"])
 	env.adjustment_contrast = float(post["adjust_contrast"])
 	env.adjustment_saturation = float(post["adjust_saturation"])
+	# S9: effects only the Forward+ renderer draws (the Mobile renderer has none of them). They follow the
+	# preset's fx_* switches, which a Mobile build's default preset leaves off (OQ-GFX-RENDERER); their numbers
+	# are data/art_look.json "forward_plus".
+	var plus: Dictionary = MatchLook.config().get("forward_plus", {})
+	env.ssr_enabled = bool(preset.get("fx_ssr_enabled", false))
+	env.ssao_enabled = bool(preset.get("fx_ssao_enabled", false))
+	env.ssil_enabled = bool(preset.get("fx_ssil_enabled", false))
+	env.volumetric_fog_enabled = bool(preset.get("fx_volumetric_fog_enabled", false))
+	if not plus.is_empty():
+		env.ssr_max_steps = int(plus["ssr_max_steps"])
+		env.ssr_fade_in = float(plus["ssr_fade_in"])
+		env.ssr_fade_out = float(plus["ssr_fade_out"])
+		env.ssao_radius = float(plus["ssao_radius_m"])
+		env.ssao_intensity = float(plus["ssao_intensity"])
+		env.ssil_radius = float(plus["ssil_radius_m"])
+		env.ssil_intensity = float(plus["ssil_intensity"])
+		env.volumetric_fog_density = float(plus["volumetric_density"])
+		env.volumetric_fog_albedo = color_value(plus["volumetric_albedo"])
+		env.volumetric_fog_length = float(plus["volumetric_length_m"])
+		env.volumetric_fog_anisotropy = float(plus["volumetric_anisotropy"])
+		env.volumetric_fog_ambient_inject = float(plus["volumetric_ambient_inject"])
 	world.environment = env
 	var sun := world.get_parent().get_node("Light") as DirectionalLight3D
 	sun.light_color = color_value(cfg["sun_color"])
@@ -118,6 +139,14 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if astra["shadow_mode"] == "orthogonal" else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = float(astra["shadow_max_distance_m"])
 	sun.light_angular_distance = float(astra["light_angular_distance"])
+	# S9: a preset may ask for split shadows and a soft sun (the Forward+ comparison build does); the shadow
+	# distance stays the data's above.
+	match str(preset.get("shadow_mode", "")):
+		"pssm2": sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		"pssm4": sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	if preset.has("sun_angular_distance"):
+		sun.light_angular_distance = float(preset["sun_angular_distance"])
+	sun.light_volumetric_fog_energy = float(plus.get("volumetric_sun_energy", 1.0))
 	WorldSurface.set_wet(float(look["wet"]))
 	var match_look := world.get_node_or_null("MatchLook") as MatchLook
 	if match_look == null:

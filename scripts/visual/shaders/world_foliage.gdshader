@@ -21,6 +21,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (!FRONT_FACING) {
+		NORMAL = -NORMAL;  // the engine turns a back face's normal round; a blade is lit the same from both sides
+	}
 	ALBEDO = base_color.rgb * COLOR.rgb;
 	ROUGHNESS = roughness;
 }

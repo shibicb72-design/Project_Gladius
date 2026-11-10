@@ -71,6 +71,17 @@ func test_states_follow_the_pawn_and_never_write_to_it() -> void:
 	assert_eq(float(pose.wanted()["downed"]), 1.0, "a downed pawn asks for the downed pose")
 	await _wait(0.6)
 	assert_true(model.pose_cache[hips].origin.y < rest_height - 0.3, "the downed body is low (hips %.2f m, standing %.2f m)" % [model.pose_cache[hips].origin.y, rest_height])
+	# The downed pose reads about as low as the lead's downed hitbox: the head bone's centre near the data's height.
+	var downed_cfg: Dictionary = SoldierRig.config()["poses"]["downed"]
+	var head_y := model.pose_cache[model.skeleton.find_bone("Head")].origin.y
+	assert_true(absf(head_y - float(downed_cfg["head_height_m"])) <= float(downed_cfg["head_tolerance_m"]), "the downed head sits near %.2f m (it is at %.2f m)" % [float(downed_cfg["head_height_m"]), head_y])
+	var top := 0.0
+	var bounds: Array[AABB] = []
+	bounds.resize(model.local_part_bounds.size())
+	model.posed_bounds(bounds)
+	for box in bounds:
+		top = maxf(top, pawn.to_local(box.end).y)
+	print("ASTRA_POSE downed head_centre_m=%.2f highest_part_m=%.2f" % [head_y, top])
 	pawn.life = Pawn.Life.ALIVE
 	await _wait(0.6)
 	# The pose changed bones only: collider, head hitbox and pawn state are as the test left them.

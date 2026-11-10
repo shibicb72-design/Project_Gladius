@@ -74,7 +74,9 @@
 			}
 		},
 		"downed": {
-			"body_pitch_deg": -38, "body_offset_m": [0, -0.5, 0.08],
+			"_low_note": "The lead's note (Nov 10 2026): a downed pawn's hitbox becomes low (a 0.9 m body, head centre about 1.0 m up). The pose aims to read that low: head_height_m is where the pose puts the head bone's centre, within head_tolerance_m (tests/test_soldier_pose.gd). The hitbox itself is gameplay's and is not set from here.",
+			"head_height_m": 1.0, "head_tolerance_m": 0.1,
+			"body_pitch_deg": -44, "body_offset_m": [0, -0.55, 0.1],
 			"bones": {
 				"Spine": [-10, 0, 0], "Chest": [-6, 0, 0], "Head": [-20, 0, 0],
 				"RightUpperLeg": [38, 0, 0], "RightLowerLeg": [-98, 0, 0], "RightFoot": [44, 0, 0],

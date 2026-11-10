@@ -154,10 +154,19 @@ func _build_foliage() -> void:
 	multi.instance_count = int(cfg["count"])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(cfg["seed"])
+	# S7: tufts grow where the ground's paint map shows the surface the data names (grass), when the map
+	# builder above this node has one; a few tries per tuft, then it stands where the last try fell.
+	var builder := get_parent()
+	var paint: Image = builder.get("ground_paint") if builder != null else null
+	var wanted := String(cfg.get("on_surface", ""))
 	for i in multi.instance_count:
-		var angle := rng.randf_range(0, TAU)
-		var radius := rng.randf_range(float(cfg["radius_min_m"]), float(cfg["radius_max_m"]))
-		var at := Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+		var at := Vector3.ZERO
+		for attempt in maxi(int(cfg.get("place_tries", 1)), 1):
+			var angle := rng.randf_range(0, TAU)
+			var radius := rng.randf_range(float(cfg["radius_min_m"]), float(cfg["radius_max_m"]))
+			at = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+			if paint == null or wanted == "" or GroundPaint.surface_at(paint, float(builder.ground_size_m), at) == wanted:
+				break
 		var grow := rng.randf_range(float(cfg.get("scale_min", 1.0)), float(cfg.get("scale_max", 1.0)))
 		multi.set_instance_transform(i, Transform3D(Basis(Vector3.UP, rng.randf_range(0, TAU)).scaled(Vector3.ONE * grow), at))
 	batch.multimesh = multi

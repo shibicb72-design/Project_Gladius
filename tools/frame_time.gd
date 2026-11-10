@@ -4,21 +4,27 @@ extends SceneTree
 ## Starts an offline 18-player match with a fixed seed (no drop: everyone stands on the map), turns vsync and
 ## the frame cap off, lets 120 frames pass, then averages the viewport's measured CPU and GPU render times,
 ## the whole frame time and the renderer's draw call and primitive counts over the next frames.
-## It uses only the match scene's public surface, so the same file runs against an older checkout
-## (--path <that checkout> --script <absolute path of this file>).
+## --off=<preset keys> switches single effects off for the run (GraphicsPresets.overrides), so each effect's
+## cost on this PC can be read as a difference.
 
 func _initialize() -> void:
 	var frames := 400
 	var variant := ""
+	var off := {}
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--frames="):
 			frames = int(arg.substr(9))
 		elif arg.begins_with("--variant="):
 			variant = arg.substr(10)
+		elif arg.begins_with("--off="):  # preset switches to turn off for this run, e.g. --off=art_glow_enabled,art_weather_enabled
+			for key in arg.substr(6).split(","):
+				off[key] = false
 	await process_frame
 	# The look variant exists from the S1 commit on; an older checkout has no such script and ignores the flag.
 	if variant != "" and ResourceLoader.exists("res://scripts/visual/match_look.gd"):
 		load("res://scripts/visual/match_look.gd").variant_override = variant
+	if not off.is_empty():
+		GraphicsPresets.overrides = off
 	var match_scene: Node = load("res://scenes/match/match.tscn").instantiate()
 	match_scene.auto_start = false
 	match_scene.bake_navmesh = true

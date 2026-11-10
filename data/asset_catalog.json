@@ -54,7 +54,7 @@
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 192044,
-			"sha256": "82f9b0b8a43136ed34a1884118d9167b64b822d1b2f3a5c974be07e720dec993"
+			"sha256": "0f937115621139731c1e61b7322764df4aac847065ef96faac48061e883a176b"
 		},
 		{
 			"path": "res://assets/generated/audio/dry_fire.wav",
@@ -173,7 +173,7 @@
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 185644,
-			"sha256": "d4497b68c2cfc6b7cd84f6a7771bc3ea47a93bb177b5c439ec74e611adc5661a"
+			"sha256": "bbb52531bba6cdff4f8a1a7d7d32dcfcd4d8fde21d3364d57fa331a6a466042e"
 		},
 		{
 			"path": "res://assets/generated/audio/reload.wav",
@@ -390,7 +390,7 @@
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 384044,
-			"sha256": "2152a5ea71294261f93ba0925ed41bb2ba3a09bd5c13445df8aa7caac8d16966"
+			"sha256": "8272232aa8363ca6fc6bf2346da08f5fcc836848dc50c1674b5251db8e7a3c65"
 		},
 		{
 			"path": "res://assets/generated/audio/zone_burn_loop.wav",

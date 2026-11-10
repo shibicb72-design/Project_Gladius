@@ -3,13 +3,22 @@ extends RefCounted
 ## Data-driven graphics quality presets (data/graphics_presets.json).
 
 const PATH := "res://data/graphics_presets.json"
+## Tools only (tools/frame_time.gd switches single effects off to time them): keys here replace the preset's
+## for every get_preset() call in this process. Empty in the game and in the tests.
+static var overrides: Dictionary = {}
 
 
 ## Returns the preset dictionary for `preset_id` (empty id = the file's default); {} if unknown.
 func get_preset(preset_id: String = "") -> Dictionary:
 	var cfg := DataRegistry.new().load_file(PATH)
 	var id := preset_id if not preset_id.is_empty() else str(cfg.get("default", "default"))
-	return Dictionary(cfg.get("presets", {})).get(id, {})
+	var preset: Dictionary = Dictionary(cfg.get("presets", {})).get(id, {})
+	return preset if overrides.is_empty() or preset.is_empty() else preset.merged(overrides, true)
+
+
+## The renderer the data expects the project to be set to ("mobile" or "forward_plus"; OQ-GFX-RENDERER).
+func renderer_expected() -> String:
+	return str(DataRegistry.new().load_file(PATH).get("renderer_expected", "mobile"))
 
 
 ## Applies a preset to the engine and, when given, a viewport. Returns the applied preset.
