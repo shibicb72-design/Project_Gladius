@@ -124,6 +124,17 @@ func test_every_surface_the_game_reports_has_known_step_sounds() -> void:
 		if list is Array:
 			for id: Variant in list:
 				assert_true(not sfx.sound(String(id)).is_empty(), "surface %s: %s is a known sound" % [surface, id])
+	# Each surface has several ids of one take each (the no-repeat pick works on ids), and no take is shared.
+	var owner_of := {}
+	for surface: String in steps["surfaces"]:
+		var list: Array = steps["surfaces"][surface]
+		assert_true(list.size() >= 4, "surface %s has at least 4 step ids (%d)" % [surface, list.size()])
+		for id: Variant in list:
+			var paths: PackedStringArray = sfx.paths(String(id))
+			assert_eq(paths.size(), 1, "step %s has exactly one file" % id)
+			for path in paths:
+				assert_true(not owner_of.has(path), "step %s does not share %s with %s" % [id, path, owner_of.get(path, "")])
+				owner_of[path] = String(id)
 
 
 ## A MatchAudio under a plain Node3D pair: _match() finds no Director, so only show_look works.
@@ -306,20 +317,15 @@ func _steps(audio: PawnAudio, foley_id: String, count: int) -> int:
 func test_the_listeners_sprint_adds_one_foley_per_step() -> void:
 	var sfx := _sfx()
 	var steps: Dictionary = sfx.cfg["footsteps"]
-	var had_foley := steps.has("foley")
-	var foley: Dictionary = steps.get("foley", {"sprint_factor_above": 1.17, "sound": ""})
+	# The real data, no override: the listener's sprint foley is a known sound that is not a footstep.
+	assert_true(steps.has("foley"), "footsteps.foley is in the data")
+	var foley: Dictionary = steps.get("foley", {})
 	var old_sound: Variant = foley.get("sound")
-	var threshold := float(foley["sprint_factor_above"])
-	var step_ids: Array = []
+	var threshold := float(foley.get("sprint_factor_above", 1.17))
+	var foley_id := String(foley.get("sound", ""))
+	assert_true(not sfx.sound(foley_id).is_empty(), "the foley sound %s is a known sound" % foley_id)
 	for surface: String in steps["surfaces"]:
-		step_ids.append_array(steps["surfaces"][surface])
-	var foley_id := ""
-	for id: String in sfx.cfg["sounds"]:
-		if not step_ids.has(id) and not bool(sfx.sound(id)["loop"]):
-			foley_id = id
-			break
-	foley["sound"] = foley_id
-	steps["foley"] = foley
+		assert_true(not (steps["surfaces"][surface] as Array).has(foley_id), "the foley is not a %s step" % surface)
 	var pawn := _pawn()
 	var audio := pawn.get_node("Audio") as PawnAudio
 	var rig := Node3D.new()  # what _is_listener() looks for; no camera, so the listener stays at the origin
@@ -339,10 +345,7 @@ func test_the_listeners_sprint_adds_one_foley_per_step() -> void:
 	assert_eq(audio.step_foley(), "", "an empty foley sound plays nothing")
 	foley["sound"] = "no_such_sound"
 	assert_eq(audio.step_foley(), "", "an unknown foley sound plays nothing")
-	if had_foley:
-		foley["sound"] = old_sound
-	else:
-		steps.erase("foley")
+	foley["sound"] = old_sound
 	sfx.clear_log()
 	_free_voices()
 	pawn.free()
@@ -350,13 +353,23 @@ func test_the_listeners_sprint_adds_one_foley_per_step() -> void:
 
 func test_a_sound_with_two_takes_plays_both() -> void:
 	var sfx := _sfx()
-	var id := "step_earth_1"
+	# Two existing one-take, non-looping sounds: the first gets the second's file as a second take.
+	var single: Array[String] = []
+	for candidate: String in sfx.cfg["sounds"]:
+		if sfx.paths(candidate).size() == 1 and sfx.streams(candidate).size() == 1 and not bool(sfx.sound(candidate)["loop"]):
+			single.append(candidate)
+		if single.size() == 2:
+			break
+	assert_eq(single.size(), 2, "two one-take sounds exist")
+	if single.size() < 2:
+		return
+	var id := single[0]
 	var own: Dictionary = sfx.cfg["sounds"][id]
 	var had_files := own.has("files")
 	var old_files: Variant = own.get("files")
-	var dir := String(sfx.cfg["dir"])
-	var a := dir + "step_earth_1.wav"
-	var b := dir + "step_earth_2.wav"
+	var old_paths: PackedStringArray = sfx.paths(id)
+	var a := old_paths[0]
+	var b: String = sfx.paths(single[1])[0]
 	own["files"] = [a, b]
 	assert_eq(sfx.paths(id), PackedStringArray([a, b]), "paths() returns the listed takes")
 	assert_eq(sfx.streams(id).size(), 2, "streams() returns both takes")
@@ -373,6 +386,6 @@ func test_a_sound_with_two_takes_plays_both() -> void:
 		own["files"] = old_files
 	else:
 		own.erase("files")
-	assert_eq(sfx.paths(id), PackedStringArray([dir + id + ".wav"]), "the data is restored")
+	assert_eq(sfx.paths(id), old_paths, "the data is restored")
 	sfx.clear_log()
 	_free_voices()

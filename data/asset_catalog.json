@@ -398,6 +398,171 @@
 			"sha256": "0700db88efb09ded2ba7e83d390174499085baf3277fb302d00375547b52835b"
 		},
 		{
+			"id": "audio_step_grass_1",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_grass_1.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "605fcf15b432d3f64df50cf83123403dc0ddf569a80508c25850120a3d868c82"
+		},
+		{
+			"id": "audio_step_grass_2",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_grass_2.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "2e25f1d6c2ef71791c946569c9801164d2fe0c02fbdc5d615e62d39657efb499"
+		},
+		{
+			"id": "audio_step_grass_3",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_grass_3.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "b018a4d1e3dc1d09013103948cd8e665f49533cb4370bb5119312f9292bbc1c0"
+		},
+		{
+			"id": "audio_step_grass_4",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_grass_4.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "75c8db03e31784986216825daad8b8f7924d28a2c4b64d14d19b9a5c8e76f632"
+		},
+		{
+			"id": "audio_step_grass_5",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_grass_5.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "8338fcff50c4b0655f7e458d8295344bcb2d1e6ba88d6cd1f64769d42a75948d"
+		},
+		{
+			"id": "audio_step_stone_1",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_stone_1.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "878a8df5ed1588e79d5244f3cf1fc89d9e1cb00dc1f29939be469aa90ce03b87"
+		},
+		{
+			"id": "audio_step_stone_2",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_stone_2.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "bc9699547e64e00204bb276048f260a4f3cd1c96779ba4efbf4a83c44ebd7dac"
+		},
+		{
+			"id": "audio_step_stone_3",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_stone_3.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "6858daa76c5508a53c82673d70b5c51a8e361777b00bf7b065342c1d2a8fb37c"
+		},
+		{
+			"id": "audio_step_stone_4",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_stone_4.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "1bd1e4bb49a067103cb75e6427aebc90ae51a00b39ba8af16c61f73ddee05ba7"
+		},
+		{
+			"id": "audio_step_stone_5",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_stone_5.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "26c858a154411234380673852ab2421eb9f5f015b001418975bb7503374d1cb0"
+		},
+		{
+			"id": "audio_step_wood_1",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_wood_1.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "3cdc660ec038254386a0fb80403b87dd1366499c54ebb58580d8d936319ff26e"
+		},
+		{
+			"id": "audio_step_wood_2",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_wood_2.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "f7bb23f02fe2b24c157bea771f27e809b3f3575b5e9c51260072c5140e10d22c"
+		},
+		{
+			"id": "audio_step_wood_3",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_wood_3.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "7c36a8e3daf91df478c5329bfa203504a5c0f6541ac81148f929c4672295c476"
+		},
+		{
+			"id": "audio_step_wood_4",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_wood_4.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "da707b6f5aa02e601b9f88b3a8ae49b1663c6b97e3e9e1a3383e61c20838e61e"
+		},
+		{
+			"id": "audio_step_wood_5",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/step_wood_5.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "bbd5e6cd829f37869c36d795b5487d0cb0928a20d610be44fce64457a18372cd"
+		},
+		{
 			"id": "audio_dry_fire_1",
 			"path": "res://assets/third_party/audio/kenney_rpg_audio/dry_fire_1.ogg",
 			"source": "Kenney RPG Audio",
@@ -462,6 +627,182 @@
 			"redistribution_quote": "",
 			"download_date": "2026-11-10",
 			"sha256": "ecc611cfcc1bcfa7de6defd8ac2dc65df3e7b47cde701f589a47bdcef7ac8885"
+		},
+		{
+			"id": "audio_step_earth_1",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_1.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "4cea764ddb3730053bfc47faa45f53caa958b2727d903a6e5934fe35fb1008c9"
+		},
+		{
+			"id": "audio_step_earth_2",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_2.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "88175c6a7ae70dd5d6d142ac754b8c5eb54838bb0914d5ea2e49c8cb0d91edbc"
+		},
+		{
+			"id": "audio_step_earth_3",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_3.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "bbce775c12f9e6b66672b250b989d42e84b363f88c49aa1033c35afc91b15b8f"
+		},
+		{
+			"id": "audio_step_earth_4",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_4.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "8bad8f5a94da86dbb76e877765dbdbf1f378ee62d2bf212afa52b3e0bad9bf8a"
+		},
+		{
+			"id": "audio_step_earth_5",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_5.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "10bc30f33d753bb748d893794ee8db0030ff1dcecfaf8745374fc801b4cfd3b0"
+		},
+		{
+			"id": "audio_step_earth_6",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_6.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "9da1042134c8d12eea651752d11caf62126f60be20b2633bb8274fc88de4fb92"
+		},
+		{
+			"id": "audio_step_paving_1",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_paving_1.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "1b3fa70dd7008198dfea4b4ff3fc6ac404ba5fd73579cf9b8cc1c15ccfaf6a56"
+		},
+		{
+			"id": "audio_step_paving_2",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_paving_2.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "dc60782e48d4ef50a94bb50981a644eff56cb979f7430d18b7c689983e0a9a12"
+		},
+		{
+			"id": "audio_step_paving_3",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_paving_3.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "dd98d36bb7ec320b97a3c9d8c2a0b6dc91f9b054054e8455c3162ff8233fa607"
+		},
+		{
+			"id": "audio_step_paving_4",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_paving_4.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "cd4ac1a01863cbd173baa1b29698ec10ab7e7e979b3d32eb800e977e27d6b988"
+		},
+		{
+			"id": "audio_step_paving_5",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_paving_5.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "33441ef232c27d9f1165c8fdc1170d6224a907e810a8234031860ea2005d454c"
+		},
+		{
+			"id": "audio_step_paving_6",
+			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_paving_6.ogg",
+			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
+			"source_url": "https://opengameart.org/content/fantozzis-footsteps-grasssand-stone",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "9ef4a717198e6251992326d1ef9b4bdee69faa125b1cee59d52dfee294b0e982"
+		},
+		{
+			"id": "audio_foley_armour_1",
+			"path": "res://assets/third_party/audio/oga_footsteps_armor/foley_armour_1.ogg",
+			"source": "OpenGameArt Footsteps Leather Cloth Armor (HaelDB)",
+			"source_url": "https://opengameart.org/content/footsteps-leather-cloth-armor",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "405570c882d4fc82c508dd244714a99725bf83eb71e7ed0abea5a929eb2b27b9"
+		},
+		{
+			"id": "audio_foley_armour_2",
+			"path": "res://assets/third_party/audio/oga_footsteps_armor/foley_armour_2.ogg",
+			"source": "OpenGameArt Footsteps Leather Cloth Armor (HaelDB)",
+			"source_url": "https://opengameart.org/content/footsteps-leather-cloth-armor",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "0e0ad3e996c65afbea64236303109b847ee3da4a0481db0288308e392d7d3c2a"
+		},
+		{
+			"id": "audio_foley_armour_3",
+			"path": "res://assets/third_party/audio/oga_footsteps_armor/foley_armour_3.ogg",
+			"source": "OpenGameArt Footsteps Leather Cloth Armor (HaelDB)",
+			"source_url": "https://opengameart.org/content/footsteps-leather-cloth-armor",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "30d191fd3f9eaeab2f66b07c48b90012ed7d6d48987a1190dae2228a7542318e"
+		},
+		{
+			"id": "audio_foley_armour_4",
+			"path": "res://assets/third_party/audio/oga_footsteps_armor/foley_armour_4.ogg",
+			"source": "OpenGameArt Footsteps Leather Cloth Armor (HaelDB)",
+			"source_url": "https://opengameart.org/content/footsteps-leather-cloth-armor",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "1fa4edb892eae0797bf62aeea728be2937399d6359b5a1d726a85376ce3967a9"
 		},
 		{
 			"id": "audio_reload_1",
@@ -758,111 +1099,6 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 37164,
 			"sha256": "7a82e0ada379c12eb28ec91a4b586beeb3974e1467172e67ca00e1dec05ffdc1"
-		},
-		{
-			"path": "res://assets/generated/audio/step_earth_1.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "635aba8587f960fbfff9bf7690a551a31f3be112176983a347697b4ef48436e3"
-		},
-		{
-			"path": "res://assets/generated/audio/step_earth_2.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "c0888852c6b047334c67bab19449471810fed5d263e26c82a488adb928951b7a"
-		},
-		{
-			"path": "res://assets/generated/audio/step_earth_3.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "952943b29c31215a5d1d26feeb4f6651961255f5e5269d7a20e19ec1ee48b4d2"
-		},
-		{
-			"path": "res://assets/generated/audio/step_grass_1.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "d9352a3d789f239917db04ec150b91f516c5136c7c3faf9a320378d2afc74d8b"
-		},
-		{
-			"path": "res://assets/generated/audio/step_grass_2.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "0be608145b175bad78a87672bfdfe9843a515d713a0ce691718de19ba9064a15"
-		},
-		{
-			"path": "res://assets/generated/audio/step_grass_3.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "2b0fa460dee04620202bc9361cead5acf77d1c1022aa22313544b5779fd1b39c"
-		},
-		{
-			"path": "res://assets/generated/audio/step_paving_1.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "cbc3c511c8a71047a46d6d8fd22390936e97cde9d7ab5d88e44224b04015b9e6"
-		},
-		{
-			"path": "res://assets/generated/audio/step_paving_2.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "b324f37aa284b231fd924aab845d8db14381ad190f96badfbae7d3907f2d5fde"
-		},
-		{
-			"path": "res://assets/generated/audio/step_paving_3.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "1e109f040a5493f00349b4f4b2ed62683af3aed710b8ef9d517036ea4eca1274"
-		},
-		{
-			"path": "res://assets/generated/audio/step_stone_1.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "73d762d75765d831b248b8e8db0ca1d4da2d8bf61227a2de615054ff0f989bb6"
-		},
-		{
-			"path": "res://assets/generated/audio/step_stone_2.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "1159e48a904d9f17b1fb50f3f6e0a33712b2389e8ebbbe150f3348d3e8b3ba6c"
-		},
-		{
-			"path": "res://assets/generated/audio/step_stone_3.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "ebea255ac818088fc5fefd64dcd496b6b0185e7046a0081b1277732d04c34585"
-		},
-		{
-			"path": "res://assets/generated/audio/step_wood_1.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "9a9440566b847f373a8e0d21138b7fa6336bc3ec354b9800004e4ab6eb10cab6"
-		},
-		{
-			"path": "res://assets/generated/audio/step_wood_2.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "3b459945fc6ac6f436ade4d4be401d9c3af054b64fba5b561f83c289dbe13c8e"
-		},
-		{
-			"path": "res://assets/generated/audio/step_wood_3.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "f0247a7419d6d8968f9934ff1a455d97eb6bdfe0ec6dba91564e4ee66a772ec5"
 		},
 		{
 			"path": "res://assets/generated/audio/thunder_1.wav",
