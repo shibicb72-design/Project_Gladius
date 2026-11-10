@@ -5,6 +5,8 @@
 	"count": 70,
 	"area_half_m": 72.0,
 	"max_ground_y_m": 1.5,
+	"_zone_note": "OQ-BR-LOOT (W2): ground loot is placed inside the zone's start circle. The circle (start_center, start_radius_m) comes from the mode config the match holds (data/br.json zone), never from this file; zone_edge_margin_m is how far inside the circle's edge the outermost item may lie. Placeholder.",
+	"zone_edge_margin_m": 3.0,
 	"pickup_range_m": 2.0,
 	"start_kit": {"primary": "", "secondary": "gladius_lux", "sidearm": ""},
 	"items": {

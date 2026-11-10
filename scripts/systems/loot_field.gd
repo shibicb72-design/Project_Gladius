@@ -2,7 +2,7 @@ class_name LootField
 extends Node3D
 ## Battle royale ground loot (data/loot.json, placeholders OQ-BR-LOOT / OQ-BR-ARMOR). Places `count` seeded
 ## items on walkable ground on its first physics tick (downward rays; wall tops and roofs above
-## max_ground_y_m are skipped), then answers "nearest item in range", hands items out (take) and accepts
+## max_ground_y_m are skipped), inside the zone's start circle when setup is given one, then answers "nearest item in range", hands items out (take) and accepts
 ## dropped ones (drop). Decides no rules; MatchDirector calls it on the authority.
 
 var cfg: Dictionary = {}
@@ -11,11 +11,15 @@ var items: Dictionary = {}
 var placed: bool = false
 var _seed: int = 1
 var _next_id: int = 1
+## W2: the zone block of the merged mode config the match already holds (start_center [x, z], start_radius_m).
+## Empty = no circle: items land anywhere in the square of area_half_m, as before.
+var _zone: Dictionary = {}
 
 
-func setup(loot_cfg: Dictionary, seed_value: int) -> void:
+func setup(loot_cfg: Dictionary, seed_value: int, zone: Dictionary = {}) -> void:
 	cfg = loot_cfg
 	_seed = seed_value
+	_zone = zone
 
 
 func _physics_process(_delta: float) -> void:
@@ -50,10 +54,28 @@ func place_now() -> void:
 	var space := get_world_3d().direct_space_state
 	var half := float(cfg.get("area_half_m", 70.0))
 	var max_y := float(cfg.get("max_ground_y_m", 1.5))
+	# W2: with a zone circle, a try is a point in the part of the square area the circle's bounds cover (the
+	# circle is short of the zone edge by zone_edge_margin_m); a point outside the circle is a spent try. A
+	# circle wider than the square leaves the tries exactly as they were without one.
+	var in_circle := _zone.has("start_radius_m")
+	var center := Vector2.ZERO
+	var radius := 0.0
+	var low := Vector2(-half, -half)
+	var high := Vector2(half, half)
+	if in_circle:
+		var c: Array = _zone.get("start_center", [0, 0])
+		center = Vector2(float(c[0]), float(c[1]))
+		radius = maxf(float(_zone["start_radius_m"]) - float(cfg.get("zone_edge_margin_m", 0.0)), 0.0)
+		low = low.max(center - Vector2(radius, radius))
+		high = high.min(center + Vector2(radius, radius))
+		if low.x > high.x or low.y > high.y:
+			return  # the circle lies outside the loot area: nowhere to place
 	for item_id in pick_item_ids(cfg.get("items", {}), int(cfg.get("count", 0)), rng):
 		for attempt in 12:
-			var x := rng.randf_range(-half, half)
-			var z := rng.randf_range(-half, half)
+			var x := rng.randf_range(low.x, high.x)
+			var z := rng.randf_range(low.y, high.y)
+			if in_circle and Vector2(x, z).distance_to(center) > radius:
+				continue
 			var q := PhysicsRayQueryParameters3D.create(Vector3(x, 60.0, z), Vector3(x, -5.0, z), Hitscan.MASK_WORLD)
 			var hit := space.intersect_ray(q)
 			if hit.is_empty() or float(hit["position"].y) > max_y or (hit["normal"] as Vector3).y < 0.8:

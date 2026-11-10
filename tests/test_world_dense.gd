@@ -70,7 +70,9 @@ func test_dense_cover_structure_spacing_and_clusters() -> void:
 			if is_structure:
 				structures += 1
 				assert_true(not body in bodies, String(body.name) + ": a structure is not in the cover list")
-	assert_eq(structures, (map.get_node("ArtBuilder").structure_bodies as Array).size(), "every structure under Nav is one the builder placed")
+	# W2: the solid rim decor (arches, rocks) is in the same group: solid, parsed by the bake, never cover.
+	var builder := map.get_node("ArtBuilder")
+	assert_eq(structures, (builder.structure_bodies as Array).size() + (builder.decor_bodies as Array).size(), "every structure under Nav is a kit piece or a solid decor body the builder placed")
 	map.free()
 
 func test_new_composite_meshes_share_data_and_are_deterministic() -> void:

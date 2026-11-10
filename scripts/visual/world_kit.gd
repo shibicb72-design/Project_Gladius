@@ -152,6 +152,57 @@ static func display(type: String) -> MeshInstance3D:
 	return node
 
 
+## W2: colliders for one rim decor entry of data/maps/alesia_cover.json ({id, kind, size, at, yaw}); its look
+## stays the MeshInstance3D under Decor. `mode` comes from that file's "decor_colliders":
+## "hull" = the convex hull of the entry's own mesh (rocks); "piers_and_lintel" = two pier boxes and a lintel
+## box from the kit's arch proportions, so the way under the arch stays open. The piers are solid down to the
+## ground under the piece. The body goes under Nav in group "structure" (solid, not cover).
+static func decor_body(entry: Dictionary, mode: String, mesh: Mesh) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.name = String(entry["id"]) + "_Solid"
+	body.add_to_group(GROUP)
+	body.set_meta(&"decor_id", String(entry["id"]))
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.position = LowpolyKit.vec(entry["at"])
+	body.rotation.y = deg_to_rad(float(entry["yaw"]))
+	var size := LowpolyKit.vec(entry["size"])
+	var boxes: Array = []  # [size, centre] pairs
+	match mode:
+		"hull":
+			var hull := ConvexPolygonShape3D.new()
+			var seen := {}
+			var points := PackedVector3Array()
+			for p in mesh.get_faces():
+				if not seen.has(p):
+					seen[p] = true
+					points.append(p)
+			hull.points = points
+			var node := CollisionShape3D.new()
+			node.name = "Hull"
+			node.shape = hull
+			body.add_child(node)
+		"piers_and_lintel":
+			var k: Dictionary = LowpolyKit.config()["kit"]
+			var leg: Vector3 = size * LowpolyKit.vec(k["arch_leg_fraction"])
+			var bottom := -body.position.y
+			var top := leg.y * 0.5
+			for sign_x: float in [-1.0, 1.0]:
+				boxes.append([Vector3(leg.x, top - bottom, leg.z), Vector3(sign_x * (size.x - leg.x) * 0.5, (top + bottom) * 0.5, 0.0)])
+			boxes.append([size * LowpolyKit.vec(k["arch_lintel_fraction"]), Vector3(0.0, size.y * float(k["arch_lintel_y"]), 0.0)])
+		_:
+			push_error("WorldKit.decor_body: unknown collider mode '%s' for %s" % [mode, entry["id"]])
+	for i in boxes.size():
+		var node := CollisionShape3D.new()
+		node.name = ["PierLeft", "PierRight", "Lintel"][i]
+		var box := BoxShape3D.new()
+		box.size = boxes[i][0]
+		node.shape = box
+		node.position = boxes[i][1]
+		body.add_child(node)
+	return body
+
+
 ## Adds every piece of `pieces` to `nav` as bodies and one MultiMesh batch per type to `visuals`.
 static func populate(nav: Node, visuals: Node3D, pieces: Array) -> Array[StaticBody3D]:
 	var cfg := config()

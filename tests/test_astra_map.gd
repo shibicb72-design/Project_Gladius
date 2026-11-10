@@ -61,8 +61,28 @@ func test_cover_footprints_colliders_and_literal_baseline() -> void:
 		if cache.has(entry["type"]):
 			assert_true(mesh == cache[entry["type"]], "repeated cover shares mesh")
 		cache[entry["type"]] = mesh
+	# Was: "decor collider free" for every decor node. W2: a decor mesh still holds no collider itself; the kinds
+	# listed in "decor_colliders" (the twelve rim arches and rocks) each have a solid body under Nav on the same
+	# spot, and the eight flat paving slabs stay collider free (tests/test_world_rim.gd checks the shapes).
 	for node in map.get_node("Decor").get_children():
-		assert_true(node is MeshInstance3D and node.get_child_count() == 0, "decor collider free")
+		assert_true(node is MeshInstance3D and node.get_child_count() == 0, "a decor mesh holds no collider itself")
+	var solid := {}
+	for body: StaticBody3D in map.get_node("ArtBuilder").decor_bodies:
+		solid[String(body.get_meta(&"decor_id"))] = body
+	var rim := 0
+	var paving := 0
+	for entry: Dictionary in cfg["decor"]:
+		var look := map.get_node("Decor/" + String(entry["id"])) as MeshInstance3D
+		if (cfg["decor_colliders"] as Dictionary).has(entry["kind"]):
+			rim += 1
+			var body: StaticBody3D = solid.get(entry["id"])
+			assert_true(body != null and body.get_parent() == nav and body.transform.is_equal_approx(look.transform), String(entry["id"]) + ": a solid body under Nav on its decor mesh")
+		else:
+			paving += 1
+			assert_true(not solid.has(entry["id"]) and String(entry["id"]).begins_with("Paving_"), String(entry["id"]) + ": paving stays collider free")
+	assert_eq(rim, 12, "the twelve rim arches and rocks are solid")
+	assert_eq(paving, 8, "the eight paving slabs are not")
+	assert_eq(solid.size(), 12, "no other solid decor")
 	print("ASTRA_COVER count=", bodies.size(), " footprint_radius_min=", min_r, " max=", max_r)
 	map.free()
 

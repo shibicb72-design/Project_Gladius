@@ -1229,6 +1229,12 @@
 			]
 		}
 	],
+	"decor_colliders": {
+		"_placeholder": true,
+		"_todo": "OQ-WORLD-DENSE (W2): which decor kinds are solid, and how, is a placeholder choice. arch = two piers and a lintel (the way under stays open); rock = the convex hull of its mesh. Kinds not listed here (paving) have no collider.",
+		"arch": "piers_and_lintel",
+		"rock": "hull"
+	},
 	"decor": [
 		{
 			"id": "Rim_0",

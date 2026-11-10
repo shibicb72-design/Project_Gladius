@@ -187,7 +187,8 @@ func begin() -> bool:
 	if ground_loot:
 		loot = LootField.new()
 		loot.name = "Loot"
-		loot.setup(DataRegistry.new().load_file("res://data/loot.json"), seed_value)
+		# W2: loot lands inside the zone's start circle; the circle is the one this match's mode config holds.
+		loot.setup(DataRegistry.new().load_file("res://data/loot.json"), seed_value, director.mode_cfg.get("zone", {}))
 		add_child(loot)
 		director.loot = loot
 	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))

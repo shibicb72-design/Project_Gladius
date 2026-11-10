@@ -2,6 +2,7 @@ extends Node3D
 ## Synchronous map construction: ready before MatchRoot bakes parsed static colliders.
 var cover_bodies: Array[StaticBody3D] = []
 var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
+var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
 
 func _ready() -> void:
 	var map := get_parent()
@@ -56,6 +57,8 @@ func _ready() -> void:
 	add_child(structure_batches)
 	structure_bodies = WorldKit.populate(nav, structure_batches, WorldKit.config()["pieces"])
 	var decor := map.get_node("Decor") as Node3D
+	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
+	var decor_solid: Dictionary = cfg.get("decor_colliders", {})
 	for entry: Dictionary in cfg["decor"]:
 		var mesh := MeshInstance3D.new()
 		mesh.name = entry["id"]
@@ -67,6 +70,10 @@ func _ready() -> void:
 		mesh.rotation.y = deg_to_rad(float(entry["yaw"]))
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		decor.add_child(mesh)
+		if decor_solid.has(entry["kind"]):
+			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key])
+			nav.add_child(solid)
+			decor_bodies.append(solid)
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
