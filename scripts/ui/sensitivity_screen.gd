@@ -8,7 +8,7 @@ signal closed
 ## Emitted after every change was saved to the profile (the host panel forwards it).
 signal changed
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const TITLES := {"camera": "Camera", "ads": "ADS", "gyro": "Gyro", "ads_gyro": "ADS Gyro", "free_look": "Free Look"}
 const ROW_TITLES := {"tpp_fpp_no_scope": "TPP / FPP, no scope", "red_dot": "Red dot", "2x": "2x", "4x": "4x", "8x": "8x",
 		"16x": "16x", "tpp_character": "TPP character", "fpp_character": "FPP character"}
@@ -24,6 +24,8 @@ var invert_y_button: Button
 var sliders: Dictionary = {}  # "table/row" -> HSlider
 var value_labels: Dictionary = {}  # "table/row" -> Label
 var _built: bool = false
+## The safe-margin content (faded in on enter).
+var _content: Control
 
 
 func _ready() -> void:
@@ -32,6 +34,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	build()
 	UiScale.bind(self)
+	MenuStyle.fade_in(_content)
 
 
 ## Builds the screen from the profile (callable from tests after `save` is set).
@@ -41,36 +44,30 @@ func build() -> void:
 	_built = true
 	settings = SensitivitySettings.from_profile(save.load_profile())
 	var dp_h := 48.0 * PlatformServices.new().get_dp_scale()
-	var bg := ColorRect.new()
-	bg.color = Color(0.05, 0.05, 0.07, 1.0)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 12)
+	add_child(MenuBackdrop.make("page"))
+	var margin := MenuStyle.safe_margin()
 	add_child(margin)
+	_content = margin
 	var root := VBoxContainer.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	MenuStyle.gap(root, 1.5)
 	margin.add_child(root)
-	var head := HBoxContainer.new()
-	root.add_child(head)
-	back_button = _button(head, "Back", _on_back)
-	var title := Label.new()
-	title.text = "Sensitivity"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	head.add_child(title)
+	var header := MenuStyle.page_header("Sensitivity", _on_back)
+	back_button = header["back"]
+	root.add_child(header["row"])
+	root.add_child(HSeparator.new())
 	var presets := HBoxContainer.new()
+	MenuStyle.gap(presets, 1.0)
 	root.add_child(presets)
+	presets.add_child(_row_caption("PRESET"))
 	for p in settings.preset_names():
 		preset_buttons[p] = _toggle(presets, str(p).capitalize(), _on_preset.bind(p))
 	preset_buttons[SensitivitySettings.CUSTOM] = _toggle(presets, "Custom", Callable())
 	preset_buttons[SensitivitySettings.CUSTOM].disabled = true  # shows state only: any slider edit makes it Custom
 	var gyro_row := HBoxContainer.new()
+	MenuStyle.gap(gyro_row, 1.0)
 	root.add_child(gyro_row)
-	var gl := Label.new()
-	gl.text = "Gyro:"
-	gyro_row.add_child(gl)
+	gyro_row.add_child(_row_caption("GYRO"))
 	for m in settings.cfg["gyro_modes"]:
 		mode_buttons[m] = _toggle(gyro_row, MODE_TITLES[m], _on_mode.bind(m))
 	invert_x_button = _toggle(gyro_row, "Invert X", _on_invert_x)
@@ -81,14 +78,28 @@ func build() -> void:
 	root.add_child(scroll)
 	var list := VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	MenuStyle.gap(list, 1.0)
 	scroll.add_child(list)
+	var first := true
 	for t in settings.all_tables():
+		if not first:
+			list.add_child(HSeparator.new())
+		first = false
 		var h := Label.new()
 		h.text = TITLES[t]
+		h.theme_type_variation = &"HeadlineLabel"
 		list.add_child(h)
 		for row in settings.rows_of(t):
 			_add_row(list, t, row, dp_h)
 	_refresh()
+
+
+## The inline caption that starts the preset and gyro rows; same width on both so the rows line up.
+func _row_caption(text: String) -> Label:
+	var c := MenuStyle.caption(text)
+	MenuStyle.min_width(c, 10.0)
+	c.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return c
 
 
 func _button(parent: Node, text: String, handler: Callable) -> Button:
@@ -110,6 +121,7 @@ func _toggle(parent: Node, text: String, handler: Callable) -> Button:
 func _add_row(list: VBoxContainer, table: String, row: String, dp_h: float) -> void:
 	var key := "%s/%s" % [table, row]
 	var box := HBoxContainer.new()
+	MenuStyle.gap(box, 1.0)  # keeps a long row name off the slider
 	list.add_child(box)
 	var name_label := Label.new()
 	name_label.text = ROW_TITLES[row]
@@ -129,7 +141,8 @@ func _add_row(list: VBoxContainer, table: String, row: String, dp_h: float) -> v
 	s.value_changed.connect(_on_slider.bind(table, row))
 	box.add_child(s)
 	var v := Label.new()
-	v.custom_minimum_size.x = 60.0
+	# Left-aligned in a wide box: the box's empty right part keeps the scrollbar off the number.
+	MenuStyle.min_width(v, 9.0)
 	box.add_child(v)
 	sliders[key] = s
 	value_labels[key] = v

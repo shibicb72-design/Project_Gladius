@@ -251,6 +251,11 @@ android/              debug.keystore (shared debug key only)
   `PlatformServices.is_touch_device()` is false, unless forced on by a setting.
 - Layouts use anchors and containers only, and scale with DPI/aspect (S24/S25 Ultra, Fold7
   outer/inner).
+- The front-end (boot, main menu, lobby, settings pages, pause overlay, end screen) has its own look
+  (M2 U1): theme `menu_theme.tres`, the kit in `scripts/ui/menu/` (`MenuStyle`, `MenuIcon`,
+  `MenuBackdrop`, `MenuLogo`), numbers in `data/ui.json` `menu_style` / `menu_type_scale`. `UiScale`
+  sizes touch targets and applies the kit's sizes on every resize. Rules: `docs/UI_STYLE.md`. Proof
+  shots: `tools/menu_shots.tscn` (every screen at six phone sizes).
 
 ### 4.16 Camera and FOV per aspect ratio
 - `CameraRig` (SpringArm3D + Camera3D, third person). FOV and offset come from `camera.json`: a table

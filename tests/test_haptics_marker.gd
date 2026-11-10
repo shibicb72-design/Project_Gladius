@@ -3,6 +3,7 @@ extends "res://tests/test_case.gd"
 
 const PROFILE_PATH := "user://test_haptics_marker_profile.json"
 const _Theme := preload("res://scenes/ui/theme.tres")
+const _MenuTheme := preload("res://scenes/ui/menu_theme.tres")
 
 
 class FakeBackend extends HapticsBackend:
@@ -39,10 +40,15 @@ func test_selected_quality_has_marker_and_follows_selection() -> void:
 
 
 func test_theme_has_distinct_pressed_button_style() -> void:
-	assert_true(_Theme.has_stylebox("pressed", "Button"), "theme has Button pressed style")
-	assert_true(_Theme.has_stylebox("hover_pressed", "Button"), "theme has Button hover_pressed style")
-	var normal: StyleBoxFlat = _Theme.get_stylebox("normal", "Button")
-	var pressed: StyleBoxFlat = _Theme.get_stylebox("pressed", "Button")
-	var hover_pressed: StyleBoxFlat = _Theme.get_stylebox("hover_pressed", "Button")
-	assert_true(pressed.bg_color != normal.bg_color, "pressed background differs from normal")
-	assert_true(hover_pressed.bg_color != normal.bg_color, "hover_pressed background differs from normal")
+	# The HUD theme and the front-end theme (M2U1) both mark the selected choice with a pressed style.
+	var themes := {"theme.tres": _Theme, "menu_theme.tres": _MenuTheme}
+	for theme_name: String in themes:
+		var t: Theme = themes[theme_name]
+		assert_true(t.has_stylebox("pressed", "Button"), "%s has Button pressed style" % theme_name)
+		assert_true(t.has_stylebox("hover_pressed", "Button"), "%s has Button hover_pressed style" % theme_name)
+		var normal: StyleBoxFlat = t.get_stylebox("normal", "Button")
+		var pressed: StyleBoxFlat = t.get_stylebox("pressed", "Button")
+		var hover_pressed: StyleBoxFlat = t.get_stylebox("hover_pressed", "Button")
+		assert_true(pressed.bg_color != normal.bg_color, "%s pressed background differs from normal" % theme_name)
+		assert_true(hover_pressed.bg_color != normal.bg_color,
+				"%s hover_pressed background differs from normal" % theme_name)

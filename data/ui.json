@@ -9,6 +9,35 @@
 	"min_touch_target_frac_of_height": 0.09,
 	"min_touch_target_dp": 48.0,
 	"font_size_frac_of_height": 0.035,
+	"menu_type_scale": {
+		"_placeholder": true,
+		"_todo": "OQ-UI-TYPE: front-end type scale as multipliers of the UiScale font size (font_size_frac_of_height x canvas height). Placeholders by the M2U1 art pass, not design values. See docs/UI_STYLE.md.",
+		"logo": 3.4, "result": 3.0, "hero": 2.4, "headline": 1.5, "title": 1.2, "body": 1.0, "caption": 0.78
+	},
+	"menu_style": {
+		"_placeholder": true,
+		"_todo": "OQ-UI-STYLE: front-end palette, spacing and motion (docs/UI_STYLE.md). Placeholders by the M2U1 art pass, not design values. Colours are [r, g, b, a] in 0..1 and are mirrored in scenes/ui/menu_theme.tres (tests/test_menu_style.gd checks the mirror).",
+		"colors": {
+			"night": [0.047, 0.031, 0.035, 1.0], "oxblood": [0.165, 0.051, 0.063, 1.0], "ember": [0.769, 0.325, 0.165, 1.0],
+			"crimson": [0.702, 0.129, 0.122, 1.0], "crimson_hi": [0.824, 0.188, 0.169, 1.0], "crimson_deep": [0.431, 0.071, 0.078, 1.0],
+			"gold": [0.851, 0.663, 0.227, 1.0], "gold_hi": [0.953, 0.824, 0.478, 1.0],
+			"marble": [0.929, 0.902, 0.839, 1.0], "marble_dim": [0.659, 0.612, 0.533, 1.0],
+			"surface": [0.078, 0.051, 0.059, 0.82], "surface_hi": [0.133, 0.086, 0.102, 0.92], "field": [0.039, 0.027, 0.031, 0.85],
+			"warn": [1.0, 0.451, 0.349, 1.0]
+		},
+		"spacing_frac_of_height": 0.0125,
+		"screen_margin_units": 3.0,
+		"primary_height_mult": 1.25,
+		"motion": {"enabled": true, "screen_fade_s": 0.18, "press_scale": 0.97, "press_in_s": 0.06, "press_out_s": 0.1},
+		"backdrop": {
+			"_todo": "OQ-UI-BACKDROP: 2D layered dusk backdrop drawn in code (no 3D, no images). animate=false gives a still image.",
+			"animate": true, "drift_period_s": 48.0, "drift_frac_of_width": 0.012, "ember_count": 22, "page_dim": 0.62
+		},
+		"boot": {
+			"_todo": "OQ-UI-BOOT: how long the boot screen holds before the main menu. A guess, not a design value.",
+			"hold_s": 0.9, "logo_fade_s": 0.35
+		}
+	},
 	"shot_fx": {
 		"_placeholder": true,
 		"_todo": "OQ-FEEDBACK (GBTN): placeholder look of the muzzle flash, tracer and weapon mesh. Not design values.",

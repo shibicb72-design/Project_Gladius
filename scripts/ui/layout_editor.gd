@@ -13,7 +13,7 @@ signal closed
 ## Emitted after Save wrote the profile (the host re-reads it).
 signal changed
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const _TouchScene := preload("res://scenes/ui/touch_hud.tscn")
 const _HudScene := preload("res://scenes/ui/hud.tscn")
 const _SAMPLE_TEXT := {"alive": "Alive XVIII   Squads VI", "zone": "Zone closes in 1:00", "downed": "DOWNED 0:24",
@@ -63,11 +63,13 @@ func build() -> void:
 	cfg = HudLayoutModel.cfg()
 	model = HudLayoutModel.from_dict(save.load_profile().get("hud_layouts", null))
 	var bg := ColorRect.new()
-	bg.color = Color(0.05, 0.05, 0.07, 1.0)
+	bg.color = MenuStyle.color("night")  # a calm flat ground: placement on the HUD preview must stay readable
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	preview = _TouchScene.instantiate()
+	MenuStyle.skip(preview)  # the live HUD keeps its own look; the kit must not wire or size it
+	preview.theme = preload("res://scenes/ui/theme.tres")  # editor chrome uses the menu theme; the HUD keeps its own until H1
 	add_child(preview)
 	preview.cfg["force_touch_hud"] = true
 	preview.use_profile_lock_fallback = false  # the slots own the Sprint lock position while editing
@@ -109,8 +111,10 @@ func _build_panel() -> void:
 	panel.anchor_bottom = 0.0
 	add_child(panel)
 	var col := VBoxContainer.new()
+	MenuStyle.gap(col, 1.0)
 	panel.add_child(col)
 	var row1 := HBoxContainer.new()
+	MenuStyle.gap(row1, 0.75)
 	col.add_child(row1)
 	for i in model.slots.size():
 		var b := Button.new()
@@ -122,9 +126,11 @@ func _build_panel() -> void:
 		row1.add_child(b)
 		slot_buttons.append(b)
 	save_button = _button(row1, "Save", save_layout, dp_h)
+	save_button.theme_type_variation = &"PrimaryButton"  # the screen's one crimson control (no primary(): same height)
 	reset_button = _button(row1, "Reset", reset_current, dp_h)
 	back_button = _button(row1, "Back", close, dp_h)
 	var row2 := HBoxContainer.new()
+	MenuStyle.gap(row2, 0.75)
 	col.add_child(row2)
 	element_label = Label.new()
 	element_label.custom_minimum_size = Vector2(110.0 * _dp(), 0)
@@ -133,7 +139,7 @@ func _build_panel() -> void:
 	alpha_slider = _slider(row2, cfg["alpha_pct"], dp_h, _on_alpha_changed)
 	warn_label = Label.new()
 	warn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	warn_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35))
+	warn_label.theme_type_variation = &"WarnLabel"
 	col.add_child(warn_label)
 
 

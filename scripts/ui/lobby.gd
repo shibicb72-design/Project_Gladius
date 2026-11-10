@@ -4,13 +4,17 @@ extends Control
 ## H1 is wired: Start goes through NetLobby on every peer, MatchRoot then sends client input and fire
 ## to the host and applies its snapshots (see MatchRoot, NetMatchBridge, tests/test_net_match.gd).
 ## All networking goes through NetLobby (session.lobby); this UI only calls it and listens to its signals.
+## Layout (docs/UI_STYLE.md): page backdrop; header (title, IPs or status); the roster as a grid of squad cards in a
+## vertical scroll; the always-visible ActionBar (Back, Class, Mode, Start) at the bottom.
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
 var net_lobby: NetLobby
 var state := LobbyState.new()
 var rows_box: VBoxContainer
+## The squad cards (one VBoxContainer per squad: caption, then its rows), inside rows_box.
+var squad_grid: GridContainer
 ## One row button per slot, indexed by player_id (rebuilt in refresh()).
 var slot_buttons: Array[Button] = []
 var ips_label: Label
@@ -24,6 +28,10 @@ var _br_cfg: Dictionary = {}
 var _match_cfg: Dictionary = {}
 ## HudNumbers.roman_enabled() read once in _ready, not on every refresh.
 var roman_numerals: bool = false
+## The roster scroll (rows_box's parent).
+var _scroll: ScrollContainer
+## data/ui.json, read once.
+var _ui: Dictionary = {}
 
 
 func _ready() -> void:
@@ -38,31 +46,64 @@ func _ready() -> void:
 	AppFlow.lobby = state
 	var my_name := str(_profile().get("gamertag", SaveService.DEFAULT_GAMERTAG))
 
+	add_child(MenuBackdrop.make("page"))
+	var margin := MenuStyle.safe_margin()
+	add_child(margin)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(box)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	box.add_child(scroll)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	MenuStyle.gap(box, 1.5)
+	margin.add_child(box)
+	# Header: the title, then the host's IPs or the client's status line at the right.
+	var header := HBoxContainer.new()
+	header.name = "Header"
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	MenuStyle.gap(header, 2.0)
+	box.add_child(header)
+	header.add_child(MenuStyle.headline("Lobby"))
+	ips_label = Label.new()
+	ips_label.theme_type_variation = &"CaptionLabel"
+	ips_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ips_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ips_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ips_label.clip_text = true
+	ips_label.visible = is_host
+	header.add_child(ips_label)
+	status_label = Label.new()
+	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status_label.clip_text = true
+	status_label.visible = not is_host
+	header.add_child(status_label)
+	box.add_child(HSeparator.new())
+	# The roster (squad cards in a grid) takes the rest; the action bar below it is always visible.
+	_scroll = ScrollContainer.new()
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(_scroll)
 	rows_box = VBoxContainer.new()
 	rows_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(rows_box)
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_scroll.add_child(rows_box)
+	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	rows_box.mouse_filter = Control.MOUSE_FILTER_PASS
-	# One info line, then one always-visible action row (Class, Start, Back): the roster takes the rest.
-	var info := HBoxContainer.new()
-	box.add_child(info)
-	ips_label = Label.new()
-	ips_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ips_label.clip_text = true
-	info.add_child(ips_label)
-	status_label = Label.new()
-	status_label.clip_text = true
-	info.add_child(status_label)
+	squad_grid = GridContainer.new()
+	squad_grid.name = "SquadGrid"
+	squad_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	squad_grid.mouse_filter = Control.MOUSE_FILTER_PASS
+	MenuStyle.gap(squad_grid, 1.5)
+	rows_box.add_child(squad_grid)
 	var actions := HBoxContainer.new()
 	actions.name = "ActionBar"
+	actions.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	MenuStyle.gap(actions, 1.5)
 	box.add_child(actions)
+	var back := Button.new()
+	back.text = "Back"
+	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	back.size_flags_stretch_ratio = 0.8
+	MenuStyle.add_icon(back, "chevron_left")
+	back.pressed.connect(_on_back)
+	actions.add_child(back)
 	class_button = Button.new()
 	class_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	class_button.pressed.connect(toggle_class)
@@ -75,14 +116,14 @@ func _ready() -> void:
 	start_button = Button.new()
 	start_button.text = "Start"
 	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	start_button.size_flags_stretch_ratio = 1.4
+	MenuStyle.primary(start_button)  # the screen's one crimson control; before add_icon (picks the Icon twin)
+	MenuStyle.add_icon(start_button, "play")
 	start_button.visible = is_host
 	start_button.pressed.connect(_on_start)
 	actions.add_child(start_button)
-	var back := Button.new()
-	back.text = "Back"
-	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	back.pressed.connect(_on_back)
-	actions.add_child(back)
+	resized.connect(_update_columns)
+	_scroll.resized.connect(_update_columns)  # its first real width arrives after the first layout pass
 
 	session.host_lost.connect(_on_back)
 	net_lobby.state_changed.connect(_on_state_changed)
@@ -100,6 +141,7 @@ func _ready() -> void:
 		net_lobby.submit_local(my_name, "hastati")
 	refresh()
 	UiScale.bind(self)
+	MenuStyle.fade_in(box)
 
 
 func _profile() -> Dictionary:
@@ -167,24 +209,40 @@ static func _next_class(cur: String) -> String:
 
 func refresh() -> void:
 	var slots := state.assign()
-	for c in rows_box.get_children():
-		rows_box.remove_child(c)
+	for c in squad_grid.get_children():
+		squad_grid.remove_child(c)
 		c.queue_free()
 	slot_buttons.clear()
+	var me := net_lobby.local_id()
 	var last_squad := -1
+	var card: VBoxContainer = null
 	for s in slots:
-		if int(s["squad_id"]) != last_squad:
+		if int(s["squad_id"]) != last_squad or card == null:
 			last_squad = int(s["squad_id"])
+			card = VBoxContainer.new()
+			card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			card.mouse_filter = Control.MOUSE_FILTER_PASS
+			MenuStyle.gap(card, 0.75)
+			squad_grid.add_child(card)
 			var header := Label.new()
+			header.theme_type_variation = &"CaptionLabel"
 			header.text = HudNumbers.squad_name(last_squad, roman_numerals)
-			rows_box.add_child(header)
+			card.add_child(header)
+		var is_bot := bool(s["is_bot"])
 		var row := Button.new()
-		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		MenuStyle.row(row)
 		row.mouse_filter = Control.MOUSE_FILTER_PASS  # STOP would swallow touch drags before the ScrollContainer
 		row.text = "%s (%s)%s" % [s["name"], s["class_id"], "" if not s["is_bot"] else " [bot]"]
+		row.clip_text = true
+		row.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		MenuStyle.add_icon(row, "gear" if is_bot else "standard")
+		if not is_bot and int(s["peer_id"]) == me:
+			row.add_theme_color_override("font_color", MenuStyle.color("gold_hi"))  # find yourself at a glance
 		row.pressed.connect(on_slot_pressed.bind(int(s["player_id"])))
-		rows_box.add_child(row)
+		card.add_child(row)
 		slot_buttons.append(row)
+	_update_columns()
 	UiScale.apply_to(self)
 	var i := state.find_human(net_lobby.local_id())
 	class_button.text = "Class: %s" % (str(state.humans[i]["class_id"]) if i >= 0 else "-")
@@ -192,6 +250,31 @@ func refresh() -> void:
 	mode_button.text = "Mode: %s" % mode_name
 	if not is_host:
 		status_label.text = "Mode: %s. Waiting for the host to start." % mode_name
+
+
+## Squad card columns: one per ~15 body-font widths of roster width, 1 to 3.
+func _update_columns() -> void:
+	if squad_grid == null:
+		return
+	var vp := get_viewport()
+	var vis := vp.get_visible_rect().size if vp != null else size
+	var font_px := maxi(roundi(vis.y * float(_ui_cfg().get("font_size_frac_of_height", 0.0))), 1)
+	var w := _scroll.size.x if _scroll != null and _scroll.size.x > 0.0 else _content_width(vis)
+	squad_grid.columns = clampi(floori(w / (float(font_px) * 15.0)), 1, 3)
+
+
+## Root width minus the safe margin's left and right (before the first layout pass).
+func _content_width(vis: Vector2) -> float:
+	var w := size.x if size.x > 0.0 else vis.x
+	var base := MenuStyle.unit(vis.y) * float(MenuStyle.cfg().get("screen_margin_units", 0.0))
+	var insets := PlatformServices.new().get_safe_insets()
+	return w - 2.0 * base - (insets.x + insets.z) * vis.x
+
+
+func _ui_cfg() -> Dictionary:
+	if _ui.is_empty():
+		_ui = DataRegistry.new().load_file("res://data/ui.json")
+	return _ui
 
 
 func _on_state_changed() -> void:
