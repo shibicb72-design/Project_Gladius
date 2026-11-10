@@ -78,6 +78,9 @@ func show_variant(new_look: Dictionary, new_preset: Dictionary) -> void:
 		_build_vignette()
 	_rng.seed = 7
 	_next_flash()
+	# S9: smooth dusk gradients band without dithering; debanding is a few instructions in the tonemap pass.
+	if is_inside_tree() and preset.has("art_debanding_enabled"):
+		get_viewport().use_debanding = bool(preset["art_debanding_enabled"])
 
 
 func _director() -> MatchDirector:

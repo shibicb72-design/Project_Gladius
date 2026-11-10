@@ -5,7 +5,8 @@ extends SceneTree
 ## the frame cap off, lets 120 frames pass, then averages the viewport's measured CPU and GPU render times,
 ## the whole frame time and the renderer's draw call and primitive counts over the next frames.
 ## --off=<preset keys> switches single effects off for the run (GraphicsPresets.overrides), so each effect's
-## cost on this PC can be read as a difference.
+## cost on this PC can be read as a difference. The file uses only the match scene's public surface, so it also
+## runs against an older checkout: godot --path <that checkout> --script <absolute path of this file>.
 
 func _initialize() -> void:
 	var frames := 400
@@ -24,7 +25,8 @@ func _initialize() -> void:
 	if variant != "" and ResourceLoader.exists("res://scripts/visual/match_look.gd"):
 		load("res://scripts/visual/match_look.gd").variant_override = variant
 	if not off.is_empty():
-		GraphicsPresets.overrides = off
+		# Set through the script object, so this file still parses on a checkout whose GraphicsPresets has no overrides.
+		(load("res://scripts/systems/graphics_presets.gd") as Script).set("overrides", off)
 	var match_scene: Node = load("res://scenes/match/match.tscn").instantiate()
 	match_scene.auto_start = false
 	match_scene.bake_navmesh = true
