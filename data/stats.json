@@ -13,7 +13,9 @@
     "_placeholder": true, "_todo": "OQ-12 OQ-13 OQ-14",
     "shield_regen_delay_s": 5.0,
     "shield_regen_rate_per_s": 25.0,
-    "overflow_to_health": true
+    "overflow_to_health": true,
+    "auto_reload_on_empty": true,
+    "_auto_reload_note": "G1 (Nov 9 2026): a gun that runs dry with reserve left starts reloading by itself, for humans and bots. Placeholder (OQ-AUTO-RELOAD)."
   },
   "movement": {
     "_placeholder": true, "_todo": "OQ-18: jump itself is decided (jump_enabled true); all movement numbers are still placeholders",

@@ -43,6 +43,11 @@ func test_everyone_boards_the_carrier() -> void:
 		assert_eq(p.drop_state, Pawn.Drop.ABOARD, "player %d aboard" % id)
 		assert_true(not p.visible and p.collision_layer == 0, "aboard pawns are hidden and not hittable")
 		assert_true(absf(p.global_position.y - 25.0) < 0.01, "aboard at the carrier altitude")
+	var corpses := 0
+	for n in m.get_children():
+		if n.has_meta("corpse"):
+			corpses += 1
+	assert_eq(corpses, 0, "boarding the carrier spawns no corpses")
 	await _tree().process_frame
 	m.hud.refresh_pawn()
 	assert_eq(m.hud.downed_label.text, "Jump to drop", "HUD tells the player how to drop")

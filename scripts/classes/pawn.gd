@@ -110,6 +110,12 @@ func setup(new_class_id: String, new_squad_id: int) -> void:
 	_rng.randomize()
 
 
+## G0: MatchDirector.start seeds the shot-spread RNG from the match seed and the player id, so the same
+## match seed replays the same spread.
+func seed_rng(seed_value: int) -> void:
+	_rng.seed = seed_value
+
+
 func set_frame(frame: InputFrame) -> void:
 	_frame = frame
 
@@ -630,6 +636,11 @@ func _apply_weapon() -> void:
 		cover.round_fired()
 	for i in shots:
 		fire_shot()
+	# G1: a gun that just ran dry with reserve left reloads by itself (stats.json combat.auto_reload_on_empty).
+	if shots > 0 and not w.def.is_melee() and w.ammo_in_mag == 0 and w.reserve > 0 and not w.reloading \
+			and bool(bridge.combat_cfg.get("auto_reload_on_empty", false)):
+		if w.start_reload(_clock):
+			reload_started.emit()
 
 
 ## Explicit test seam; normal play uses the first-physics-tick CameraRig/no-Brain gate.

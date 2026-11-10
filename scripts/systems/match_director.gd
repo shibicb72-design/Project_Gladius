@@ -17,6 +17,8 @@ var mode_cfg: Dictionary = {}
 var match_cfg: Dictionary = {}
 var rules: BrRules
 var running: bool = false
+## The seed start() was given; bots and pawns derive their own RNG seeds from it (G0).
+var match_seed: int = 0
 ## False on a network client: no rules ticking or match_over of its own. The result arrives from the host
 ## through apply_remote_match_over. TODO(M3): zone and downed state are not replicated yet.
 var authoritative: bool = true
@@ -81,6 +83,7 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1, use_drop: bool = false
 		return false
 	rules.set_seed(seed_value)
 	rules.set_team_mode(team_mode())
+	match_seed = seed_value
 	var downed_pct := float(_downed_cfg().get("downed_move_speed_pct", 100.0))
 	var ids: Array = _players.keys()
 	ids.sort()
@@ -89,6 +92,7 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1, use_drop: bool = false
 		if not rules.register_player(id, pawn.squad_id):
 			return false
 		pawn.set_squad(rules.squad_of(id))  # solo: every player is its own squad (friendly fire, bot targets)
+		pawn.seed_rng(hash([seed_value, id]))
 		pawn.downed_move_speed_pct = downed_pct
 	_slot_in_squad.clear()
 	var members: Dictionary = {}  # squad id -> count so far

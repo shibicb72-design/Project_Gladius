@@ -121,3 +121,98 @@ func test_blade_only_bot_charges_a_close_enemy() -> void:
 	var d := Vector2(bot.global_position.x - enemy.global_position.x, bot.global_position.z - enemy.global_position.z).length()
 	assert_true(d < 7.0, "closed the distance (%.1f m)" % d)
 	m.queue_free()
+
+
+func test_bot_reloads_an_empty_gun_and_swaps_off_the_blade() -> void:
+	await start(calm_zone())
+	var bot: Pawn = m.bots[0]
+	isolate(bot)
+	bot.take_item({"item_id": "pilum_br"}, m.loot.def("pilum_br"))
+	var gun := bot.loadout.slots[0]
+	gun.ammo_in_mag = 0
+	gun.reserve = 30
+	await frames(3)
+	assert_true(gun.reloading or gun.ammo_in_mag > 0, "an empty gun with reserve gets reloaded")
+	var n := 0
+	while gun.ammo_in_mag == 0 and n < 300:
+		await frames(1)
+		n += 1
+	assert_true(gun.ammo_in_mag > 0, "and the magazine refills")
+	bot.loadout.active = 1  # the blade
+	await frames(40)
+	assert_eq(bot.loadout.active, 0, "a bot holding the blade swaps to its loaded gun")
+	gun.ammo_in_mag = 0
+	gun.reserve = 0
+	await frames(40)
+	assert_true(bot.loadout.get_active().def.is_melee(), "a gun with no ammo at all is put away for the blade")
+	m.queue_free()
+
+
+## A pawn driven frame by frame (its brain off): fire until the magazine is empty.
+func _fire_until_empty(p: Pawn) -> void:
+	var w := p.loadout.get_active()
+	var n := 0
+	while w.ammo_in_mag > 0 and n < 240:
+		var f := InputFrame.new()
+		f.fire_pressed = true
+		f.fire_just_pressed = (n % 2) == 0
+		p.set_frame(f)
+		await frames(1)
+		n += 1
+	p.set_frame(InputFrame.new())
+	await frames(1)
+
+
+func test_a_gun_that_runs_dry_by_firing_auto_reloads() -> void:
+	await start(calm_zone(), "solo", false)
+	var p: Pawn = m.bots[0]
+	isolate(p)
+	p.get_node("Brain").set_physics_process(false)
+	var w := p.loadout.get_active()
+	assert_true(w != null and not w.def.is_melee(), "class loadout starts with a gun")
+	w.ammo_in_mag = 2
+	w.reserve = 30
+	await _fire_until_empty(p)
+	assert_true(w.reloading, "fired its last round with reserve left: reloading started by itself")
+	# Flag off: no auto-reload.
+	w.cancel_reload()
+	w.ammo_in_mag = 2
+	p.bridge.combat_cfg["auto_reload_on_empty"] = false
+	await _fire_until_empty(p)
+	assert_true(not w.reloading, "flag off: no automatic reload")
+	# No reserve: nothing to reload.
+	p.bridge.combat_cfg["auto_reload_on_empty"] = true
+	w.ammo_in_mag = 2
+	w.reserve = 0
+	await _fire_until_empty(p)
+	assert_true(not w.reloading, "no reserve: no reload")
+	m.queue_free()
+
+
+func test_same_match_seed_gives_the_same_bot_and_pawn_draws() -> void:
+	var a := BotBrain.new()
+	var b := BotBrain.new()
+	var d := MatchDirector.new()
+	d.match_seed = 4242
+	var pa := Pawn.new()
+	var pb := Pawn.new()
+	pa.player_id = 107
+	pb.player_id = 107
+	a.setup(pa, d, {}, {})
+	b.setup(pb, d, {}, {})
+	a._ensure_seeded()
+	b._ensure_seeded()
+	assert_eq(a._spot_dir, b._spot_dir, "same seed and id: same landing spot direction")
+	pa.player_id = 108
+	var c := BotBrain.new()
+	c.setup(pa, d, {}, {})
+	c._ensure_seeded()
+	assert_true(c._spot_dir != a._spot_dir, "another player id: another spot")
+	pa.seed_rng(hash([4242, 107]))
+	pb.seed_rng(hash([4242, 107]))
+	assert_eq(pa._rng.randf(), pb._rng.randf(), "pawn spread RNG repeats for the same seed")
+	for n in [a, b, c]:
+		n.free()
+	pa.free()
+	pb.free()
+	d.free()
