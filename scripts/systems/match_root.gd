@@ -188,7 +188,10 @@ func begin() -> bool:
 		loot = LootField.new()
 		loot.name = "Loot"
 		# W2: loot lands inside the zone's start circle; the circle is the one this match's mode config holds.
-		loot.setup(DataRegistry.new().load_file("res://data/loot.json"), seed_value, director.mode_cfg.get("zone", {}))
+		# W3: the map definition names its landmark file; loot clusters refer to those landmarks by id.
+		var landmark_path := str(map_def.get("landmarks", ""))
+		var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
+		loot.setup(DataRegistry.new().load_file("res://data/loot.json"), seed_value, director.mode_cfg.get("zone", {}), landmarks)
 		add_child(loot)
 		director.loot = loot
 	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))

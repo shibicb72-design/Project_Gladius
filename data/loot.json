@@ -7,6 +7,13 @@
 	"max_ground_y_m": 1.5,
 	"_zone_note": "OQ-BR-LOOT (W2): ground loot is placed inside the zone's start circle. The circle (start_center, start_radius_m) comes from the mode config the match holds (data/br.json zone), never from this file; zone_edge_margin_m is how far inside the circle's edge the outermost item may lie. Placeholder.",
 	"zone_edge_margin_m": 3.0,
+	"_clusters_note": "OQ-BR-LOOT (W3), provisional shape (the bots will read it later): each entry puts `items` of the `count` items inside the named landmark's area instead of scattering them. A landmark is named by its id; its position and radius live only in the map's landmark file (data/maps/alesia_landmarks.json), never here. Items keep the ground rules (walkable ground below max_ground_y_m, 12 tries, inside the zone circle). Placeholder numbers.",
+	"clusters": [
+		{"landmark": "porta_astra", "items": 5},
+		{"landmark": "aqua_alta", "items": 5},
+		{"landmark": "specula", "items": 5},
+		{"landmark": "forum_aquilae", "items": 5}
+	],
 	"pickup_range_m": 2.0,
 	"start_kit": {"primary": "", "secondary": "gladius_lux", "sidearm": ""},
 	"items": {

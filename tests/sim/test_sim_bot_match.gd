@@ -33,6 +33,8 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 		causes[cause] = int(causes.get(cause, 0)) + 1
 		var k: Pawn = m.director.player(killer) if killer >= 0 else null
 		var v: Pawn = m.director.player(id)
+		if v != null:  # W3 (print only): where on the map the elimination happened; r = metres from the map centre
+			print("SIM_WHERE mode=%s seed=%d cause=%s at=(%d, %d) r=%d" % [mode, seed_value, cause, int(v.global_position.x), int(v.global_position.z), int(Vector2(v.global_position.x, v.global_position.z).length())])
 		if k != null and v != null:
 			var w := k.loadout.get_active() if k.loadout != null else null
 			kills.append("held:%s@%dm" % [w.def.id if w != null else "none", int(k.global_position.distance_to(v.global_position))]))

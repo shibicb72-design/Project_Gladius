@@ -79,6 +79,51 @@ func test_a_different_mode_config_circle_moves_the_limit() -> void:
 	await _tree().process_frame
 
 
+func _inside(loot: LootField, landmark: Dictionary) -> int:
+	var count := 0
+	for id in loot.items:
+		var p: Vector3 = loot.items[id]["pos"]
+		if Vector2(p.x, p.z).distance_to(Vector2(float(landmark["at"][0]), float(landmark["at"][1]))) <= float(landmark["radius_m"]):
+			count += 1
+	return count
+
+
+## W3: loot clusters name landmarks by id (data/loot.json "clusters"); MatchRoot hands LootField the landmarks of
+## the map's landmark file. Clustered items keep the ground rules.
+func test_loot_clusters_land_inside_their_landmarks_on_walkable_ground() -> void:
+	var loot_cfg := _loot_cfg()
+	var landmarks: Array = DataRegistry.new().load_file("res://data/maps/alesia_landmarks.json")["landmarks"]
+	var by_id := {}
+	for landmark: Dictionary in landmarks:
+		by_id[landmark["id"]] = landmark
+	var m := await _loot_match({}, 4242)
+	# The same seed and circle with no landmarks handed in: every item scattered.
+	var plain := LootField.new()
+	plain.setup(loot_cfg, 4242, m.director.mode_cfg["zone"])
+	m.add_child(plain)
+	await _tree().physics_frame
+	await _tree().physics_frame
+	assert_true(plain.placed and plain.items.size() > 30, "the scattered field placed its items (%d)" % plain.items.size())
+	var clustered := 0
+	var scattered := 0
+	var wanted := 0
+	for cluster: Dictionary in loot_cfg["clusters"]:
+		var landmark: Dictionary = by_id[cluster["landmark"]]
+		var here := _inside(m.loot, landmark)
+		assert_true(here >= int(cluster["items"]) - 1, "%s holds its cluster: %d items in its area (cluster of %d, one may find no ground)" % [cluster["landmark"], here, cluster["items"]])
+		clustered += here
+		scattered += _inside(plain, landmark)
+		wanted += int(cluster["items"])
+	assert_true(clustered >= scattered + wanted / 2, "nonvacuous: %d items at the landmarks with clusters, %d when everything is scattered" % [clustered, scattered])
+	assert_true(m.loot.items.size() > 30 and m.loot.items.size() <= int(loot_cfg["count"]), "the total stays within count (%d)" % m.loot.items.size())
+	for id in m.loot.items:
+		assert_true(float(m.loot.items[id]["pos"].y) <= float(loot_cfg["max_ground_y_m"]) + 0.25 + 0.001, "item %d lies on low walkable ground, not on a roof or a walkway" % id)
+	print("WORLD_LOOT clusters at_landmarks=", clustered, " scattered_baseline=", scattered, " placed=", m.loot.items.size())
+	plain.free()
+	m.queue_free()
+	await _tree().process_frame
+
+
 func test_without_a_zone_block_the_square_area_is_the_only_limit() -> void:
 	# The capture tool and bare scenes call setup(cfg, seed) with no zone: placement is the old square.
 	var ground := StaticBody3D.new()

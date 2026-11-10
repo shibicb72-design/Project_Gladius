@@ -11,8 +11,8 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 	var cfg := GreyboxArt.config()
 	assert_true(bool(cfg["_placeholder"]), "art values remain placeholders")
 	for body in map.get_node("Nav").get_children():
-		if body.is_in_group(WorldKit.GROUP):
-			continue  # W1: world kit pieces hold colliders only; their look is the batches checked below
+		if body.is_in_group(WorldKit.GROUP) or body.is_in_group(&"ring_cover"):
+			continue  # W1, W3: kit pieces and ring cover hold colliders only; their look is the batches checked below
 		var mesh := body.get_node_or_null("Mesh") as MeshInstance3D
 		assert_true(mesh != null and mesh.material_override is StandardMaterial3D, "material on " + String(body.name))
 		if mesh != null and mesh.material_override != null:
@@ -24,6 +24,11 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 		assert_true(material != null and batch.material_override == null, "material on " + String(batch.name))
 		if material != null:
 			assert_eq(material.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL, "world kit is lit")
+	var ring_batches := map.get_node("ArtBuilder/RingCover").get_children()
+	assert_true(not ring_batches.is_empty(), "ring cover batches present")
+	for batch: MultiMeshInstance3D in ring_batches:
+		var material := batch.material_override as StandardMaterial3D
+		assert_true(material != null and material.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, "lit material on " + String(batch.name))
 	map.free()
 	var match_scene: MatchRoot = load("res://scenes/match/match.tscn").instantiate()
 	match_scene.auto_start = false

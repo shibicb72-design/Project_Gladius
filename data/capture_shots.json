@@ -59,6 +59,20 @@
 		"look_height_m": 2.5,
 		"fov_deg": 40
 	},
+	"ground_views": {
+		"_note": "W3: views from a soldier's eye height. A view looks at a landmark (by id, from the map's landmark file) or at a fixed look_at point; from = [x, z] on open ground.",
+		"eye_height_m": 1.7,
+		"look_height_m": 3.0,
+		"fov_deg": 70,
+		"views": [
+			{"name": "porta_astra", "landmark": "porta_astra", "from": [-27, -27]},
+			{"name": "aqua_alta", "landmark": "aqua_alta", "from": [29, -23]},
+			{"name": "specula", "landmark": "specula", "from": [26, 28]},
+			{"name": "forum_aquilae", "landmark": "forum_aquilae", "from": [-25, 28]},
+			{"name": "west_route", "look_at": [-42, 1.5, 30], "from": [-39, -3]},
+			{"name": "rim_arch", "look_at": [67, 4, 0], "from": [52, -9]}
+		]
+	},
 	"wall_closeup": {
 		"bearing_start_deg": 15,
 		"bearing_step_deg": 30,

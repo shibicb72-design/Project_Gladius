@@ -14,12 +14,29 @@ var _next_id: int = 1
 ## W2: the zone block of the merged mode config the match already holds (start_center [x, z], start_radius_m).
 ## Empty = no circle: items land anywhere in the square of area_half_m, as before.
 var _zone: Dictionary = {}
+## W3: the map's landmarks ([{id, at [x, z], radius_m, ...}], data/maps/alesia_landmarks.json "landmarks"). The
+## clusters of loot.json name them by id. Empty = no clusters: every item is scattered.
+var _landmarks: Array = []
 
 
-func setup(loot_cfg: Dictionary, seed_value: int, zone: Dictionary = {}) -> void:
+func setup(loot_cfg: Dictionary, seed_value: int, zone: Dictionary = {}, landmarks: Array = []) -> void:
 	cfg = loot_cfg
 	_seed = seed_value
 	_zone = zone
+	_landmarks = landmarks
+
+
+## Where each of the first items goes when clusters apply: one [centre, radius] per clustered item, in cluster
+## order. A cluster whose landmark the map does not have is skipped (its items are scattered).
+func _cluster_slots() -> Array:
+	var slots: Array = []
+	for cluster: Dictionary in cfg.get("clusters", []):
+		for landmark: Dictionary in _landmarks:
+			if String(landmark.get("id", "")) == String(cluster.get("landmark", "")):
+				var at: Array = landmark["at"]
+				for i in int(cluster.get("items", 0)):
+					slots.append([Vector2(float(at[0]), float(at[1])), float(landmark["radius_m"])])
+	return slots
 
 
 func _physics_process(_delta: float) -> void:
@@ -70,11 +87,29 @@ func place_now() -> void:
 		high = high.min(center + Vector2(radius, radius))
 		if low.x > high.x or low.y > high.y:
 			return  # the circle lies outside the loot area: nowhere to place
-	for item_id in pick_item_ids(cfg.get("items", {}), int(cfg.get("count", 0)), rng):
+	# W3: the first items go to the landmark clusters (same tries, same ground rules, inside the landmark's
+	# area); the rest are scattered.
+	var slots := _cluster_slots()
+	var picks := pick_item_ids(cfg.get("items", {}), int(cfg.get("count", 0)), rng)
+	for index in picks.size():
+		var item_id := picks[index]
+		var from := low
+		var to := high
+		var place := Vector2.ZERO
+		var place_radius := -1.0
+		if index < slots.size():
+			place = slots[index][0]
+			place_radius = slots[index][1]
+			from = from.max(place - Vector2(place_radius, place_radius))
+			to = to.min(place + Vector2(place_radius, place_radius))
+			if from.x > to.x or from.y > to.y:
+				continue  # the landmark lies outside the loot area or the zone: this item is not placed
 		for attempt in 12:
-			var x := rng.randf_range(low.x, high.x)
-			var z := rng.randf_range(low.y, high.y)
+			var x := rng.randf_range(from.x, to.x)
+			var z := rng.randf_range(from.y, to.y)
 			if in_circle and Vector2(x, z).distance_to(center) > radius:
+				continue
+			if place_radius >= 0.0 and Vector2(x, z).distance_to(place) > place_radius:
 				continue
 			var q := PhysicsRayQueryParameters3D.create(Vector3(x, 60.0, z), Vector3(x, -5.0, z), Hitscan.MASK_WORLD)
 			var hit := space.intersect_ray(q)

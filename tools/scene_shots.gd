@@ -4,7 +4,7 @@ extends RefCounted
 ## Framing numbers: data/capture_shots.json (placeholders, OQ-3D-CAPTURE). Presentation only: nothing here feeds
 ## back into the match. World colliders pick a stage with a clear lane, so cover never hides the subject.
 
-const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup"]
+const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup", "ground_views"]
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -67,6 +67,8 @@ func run(tool: Node, which: String) -> bool:
 				await _wall_closeup()
 			"kit_lineup":
 				await _kit_lineup()
+			"ground_views":
+				await _ground_views()
 	return true
 
 
@@ -260,6 +262,40 @@ func _kit_lineup() -> void:
 			await _finish("kit_lineup_%d_%s" % [r + 1, view["name"]], ", ".join(PackedStringArray(rows[r])))
 
 
+## W3: ground-level views of the outer ring from a soldier's eye height (framing: capture_shots.json
+## "ground_views"). A view looks at a landmark of the map's landmark file (a soldier stands on the landmark's
+## anchor for scale) or at a fixed "look_at" point. Saves <tag>_ground_<name>.png.
+func _ground_views() -> void:
+	var c: Dictionary = _cfg["ground_views"]
+	var landmarks := {}
+	var path := String(_match.map_def.get("landmarks", ""))
+	if path != "":
+		for landmark: Dictionary in DataRegistry.new().load_file(path)["landmarks"]:
+			landmarks[landmark["id"]] = landmark
+	for view: Dictionary in c["views"]:
+		var g := _ground(float(view["from"][0]), float(view["from"][1]))
+		if g.is_empty():
+			_tool._log("RESULT scene_ground_view=false (%s: no open ground at %s)" % [view["name"], str(view["from"])])
+			continue
+		var eye: Vector3 = (g["position"] as Vector3) + Vector3.UP * float(c["eye_height_m"])
+		var target := Vector3.ZERO
+		var label := ""
+		if view.has("landmark"):
+			if not landmarks.has(view["landmark"]):
+				_tool._log("RESULT scene_ground_view=false (%s: the map has no landmark %s)" % [view["name"], view["landmark"]])
+				continue
+			var landmark: Dictionary = landmarks[view["landmark"]]
+			target = Vector3(float(landmark["at"][0]), float(c["look_height_m"]), float(landmark["at"][1]))
+			var anchor := LowpolyKit.vec(landmark["anchor"])
+			_pawn(anchor, (eye - anchor) * Vector3(1, 0, 1), 0.0, 0)
+			label = String(landmark["name"])
+		else:
+			target = LowpolyKit.vec(view["look_at"])
+			label = "looking at " + str(view["look_at"])
+		_aim(eye, target, float(c["fov_deg"]))
+		await _finish("ground_" + String(view["name"]), "%s, from (%s, %s) at eye height %s m" % [label, view["from"][0], view["from"][1], c["eye_height_m"]])
+
+
 ## From inside the zone, looking out at the wall with a soldier standing in front of it.
 func _wall_closeup() -> void:
 	var c: Dictionary = _cfg["wall_closeup"]
@@ -269,7 +305,7 @@ func _wall_closeup() -> void:
 		return
 	var center := Vector3(rules.zone_center().x, 0.0, rules.zone_center().y)
 	var radius := rules.zone_radius()
-	var a := float(c["bearing_start_deg"])  # rim decor has no colliders (W2): start between the rim pieces
+	var a := float(c["bearing_start_deg"])  # start between the rim pieces (solid since W2; the clear-sight rays below see them)
 	while a < 360.0:
 		var out := Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(a))
 		var wall_at := center + out * radius

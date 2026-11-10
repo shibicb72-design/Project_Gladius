@@ -3,6 +3,7 @@
 	"name": "Alesia (section)",
 	"scene": "res://scenes/maps/alesia_section.tscn",
 	"modes": ["br"],
+	"landmarks": "res://data/maps/alesia_landmarks.json",
 	"spawns": {
 		"spot_0": [40.0, 0.1, 0.0],
 		"spot_1": [20.0, 0.1, 34.64],
