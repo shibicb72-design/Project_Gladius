@@ -73,6 +73,15 @@
 			{"name": "rim_arch", "look_at": [67, 4, 0], "from": [52, -9]}
 		]
 	},
+	"in_match": {
+		"_note": "S0: the local pawn through the game's own third-person camera rig. at = [x, z] on open ground, look_at = [x, y, z]; others = [x, z, yaw_deg] inert soldiers (squads 1, 2, ...).",
+		"pitch_deg": -4,
+		"views": [
+			{"name": "forum", "at": [-27, 27], "look_at": [-41, 3, 42], "others": [[-33, 33, 0], [-36, 30, 40]]},
+			{"name": "citadel", "at": [-6, 36], "look_at": [0, 3, 0], "others": [[-3, 28, 0], [2, 30, 180]]},
+			{"name": "gate", "at": [-28, -28], "look_at": [-40, 3, -44], "others": [[-33, -34, 0]]}
+		]
+	},
 	"wall_closeup": {
 		"bearing_start_deg": 15,
 		"bearing_step_deg": 30,

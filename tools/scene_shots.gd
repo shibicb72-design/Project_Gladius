@@ -4,7 +4,7 @@ extends RefCounted
 ## Framing numbers: data/capture_shots.json (placeholders, OQ-3D-CAPTURE). Presentation only: nothing here feeds
 ## back into the match. World colliders pick a stage with a clear lane, so cover never hides the subject.
 
-const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup", "ground_views"]
+const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup", "ground_views", "in_match"]
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -69,6 +69,8 @@ func run(tool: Node, which: String) -> bool:
 				await _kit_lineup()
 			"ground_views":
 				await _ground_views()
+			"in_match":
+				await _in_match()
 	return true
 
 
@@ -294,6 +296,42 @@ func _ground_views() -> void:
 			label = "looking at " + str(view["look_at"])
 		_aim(eye, target, float(c["fov_deg"]))
 		await _finish("ground_" + String(view["name"]), "%s, from (%s, %s) at eye height %s m" % [label, view["from"][0], view["from"][1], c["eye_height_m"]])
+
+
+## S0: what a player sees. The local pawn stands at "at" facing "look_at" and the shot is taken through the
+## match's own third-person CameraRig (its framing, not the capture camera's); "others" are inert soldiers in
+## view for scale and squad colours. Saves <tag>_in_match_<name>.png. The HUD stays hidden: this is the art view.
+func _in_match() -> void:
+	var c: Dictionary = _cfg["in_match"]
+	var pawn := _match.local_player
+	var rig := pawn.get_node_or_null("CameraRig") as CameraRig
+	if rig == null:
+		_tool._log("RESULT scene_in_match=false (no CameraRig on the local pawn)")
+		return
+	for view: Dictionary in c["views"]:
+		var g := _ground(float(view["at"][0]), float(view["at"][1]))
+		if g.is_empty():
+			_tool._log("RESULT scene_in_match=false (%s: no open ground at %s)" % [view["name"], str(view["at"])])
+			continue
+		var at: Vector3 = g["position"]
+		var target := LowpolyKit.vec(view["look_at"])
+		var facing := (target - at) * Vector3(1, 0, 1)
+		pawn.visible = true
+		pawn.global_transform = Transform3D(Basis.looking_at(facing), at)
+		pawn.pitch = deg_to_rad(float(view.get("pitch_deg", c["pitch_deg"])))
+		rig.set_pitch(pawn.pitch)
+		var others: Array = view.get("others", [])
+		for i in others.size():
+			var og := _ground(float(others[i][0]), float(others[i][1]))
+			if not og.is_empty():
+				var yaw := float(others[i][2]) if (others[i] as Array).size() > 2 else 0.0
+				_pawn(og["position"], (at - (og["position"] as Vector3)) * Vector3(1, 0, 1), yaw, i + 1)
+		rig.ensure_current()
+		await _tool.get_tree().physics_frame
+		await _tool.get_tree().physics_frame  # the rig's spring arm settles against the world
+		await _finish("in_match_" + String(view["name"]), "third-person rig at (%s, %s)" % [view["at"][0], view["at"][1]])
+		pawn.visible = false
+	_camera.make_current()
 
 
 ## From inside the zone, looking out at the wall with a soldier standing in front of it.
