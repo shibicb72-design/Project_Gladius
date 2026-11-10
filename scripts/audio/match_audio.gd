@@ -56,19 +56,26 @@ func show_look(look: Dictionary, match_look: MatchLook) -> void:
 		if is_instance_valid(loop):
 			loop.queue_free()
 	_ambient_loops.clear()
-	var ids: Array[String] = [String(ambience["base_loop"])]
-	var by_weather: Dictionary = ambience["by_weather"]
-	var by_variant: Dictionary = ambience["by_variant"]
-	if by_weather.has(look.get("weather", "")):
-		ids.append(String(by_weather[look["weather"]]))
-	if by_variant.has(look.get("id", "")):
-		ids.append(String(by_variant[look["id"]]))
-	for id in ids:
+	for id in look_layers(look):
 		var loop: Node = sfx.make_loop(id, self, false)
 		if loop != null:
 			_ambient_loops.append(loop)
 	if match_look != null and not match_look.lightning_struck.is_connected(_on_lightning):
 		match_look.lightning_struck.connect(_on_lightning)
+
+
+## The ambience layers a look starts, in order: base_loop, then by_weather[look.weather], then by_variant[look.id].
+## Each entry is a list of sound ids (a plain String counts as a one-item list); an id listed twice starts once.
+func look_layers(look: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	var by_weather: Dictionary = ambience.get("by_weather", {})
+	var by_variant: Dictionary = ambience.get("by_variant", {})
+	for layer: Variant in [ambience.get("base_loop", []), by_weather.get(String(look.get("weather", "")), []), by_variant.get(String(look.get("id", "")), [])]:
+		var list: Array = [layer] if layer is String else (layer as Array if layer is Array else [])
+		for id: Variant in list:
+			if String(id) != "" and not ids.has(String(id)):
+				ids.append(String(id))
+	return ids
 
 
 func _on_lightning() -> void:

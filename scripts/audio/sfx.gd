@@ -16,7 +16,7 @@ var played: Array[Dictionary] = []
 var music: AudioStreamPlayer
 var announcer: AudioStreamPlayer
 
-var _streams := {}
+var _streams := {}  # take path (+ "|loop" for a looping copy) -> AudioStream, null for a missing file
 ## True under the dummy audio driver (headless runs): voices are assigned and timed as usual but never
 ## started, so nothing is left playing when the process exits. Tests may set it to compare.
 var silent := false
@@ -81,24 +81,76 @@ func sound(id: String) -> Dictionary:
 	return (cfg["defaults"] as Dictionary).merged(sounds[id], true)
 
 
-## The stream of a sound id (cached; a looping sound loops over its whole length). null for an unknown id.
-func stream(id: String) -> AudioStream:
-	if _streams.has(id):
-		return _streams[id]
+## The file of every take of a sound id: data "files" (full res:// paths, the recorded takes) or else the one
+## generated file in cfg "dir" ("file", default <id>.wav). Empty for an unknown id.
+func paths(id: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	var sounds: Dictionary = cfg["sounds"]
+	if not sounds.has(id):
+		return out
+	var own: Dictionary = sounds[id]
+	var files: Array = own.get("files", [])
+	if files.is_empty():
+		out.append(String(cfg["dir"]) + String(own.get("file", id + ".wav")))
+	for path: Variant in files:
+		out.append(String(path))
+	return out
+
+
+## The stream of every loadable take of a sound id (a looping sound's takes loop over their whole length).
+## Missing files are left out; empty for an unknown id.
+func streams(id: String) -> Array[AudioStream]:
+	var out: Array[AudioStream] = []
 	var s := sound(id)
+	if s.is_empty():
+		return out
+	var loop := bool(s["loop"])
+	for path in paths(id):
+		var take := _take(path, loop)
+		if take != null:
+			out.append(take)
+	return out
+
+
+## The stream for one play of a sound id: one of its takes, picked at random when it has several. null for an
+## unknown id or one with no loadable take. A single-take id draws nothing from _rng, so its pitch sequence holds.
+func stream(id: String) -> AudioStream:
+	var takes := streams(id)
+	if takes.is_empty():
+		return null
+	if takes.size() == 1:
+		return takes[0]
+	return takes[_rng.randi() % takes.size()]
+
+
+## One take's stream, cached per path and loop flag. Any AudioStream type (WAV, Ogg Vorbis, MP3).
+func _take(path: String, loop: bool) -> AudioStream:
+	var key := path + ("|loop" if loop else "")
+	if _streams.has(key):
+		return _streams[key]
 	var loaded: AudioStream = null
-	if not s.is_empty():
-		var path := String(cfg["dir"]) + String(s.get("file", id + ".wav"))
-		if ResourceLoader.exists(path):
-			loaded = load(path) as AudioStream
-			if loaded is AudioStreamWAV and bool(s["loop"]):
-				var wav := (loaded as AudioStreamWAV).duplicate() as AudioStreamWAV
-				wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-				wav.loop_begin = 0
-				wav.loop_end = int(wav.get_length() * wav.mix_rate)
-				loaded = wav
-	_streams[id] = loaded
+	if ResourceLoader.exists(path):
+		loaded = load(path) as AudioStream
+		if loaded != null and loop:
+			loaded = _looping(loaded)
+	_streams[key] = loaded
 	return loaded
+
+
+## A looping copy of a loaded stream. Always a duplicate: the resource ResourceLoader caches stays as imported
+## (no reliance on the .import loop flags), so another load() of the file still gets a one-shot.
+static func _looping(source: AudioStream) -> AudioStream:
+	if source is AudioStreamWAV:
+		var wav := source.duplicate() as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = int(wav.get_length() * wav.mix_rate)
+		return wav
+	if "loop" in source:  # AudioStreamOggVorbis, AudioStreamMP3
+		var copy := source.duplicate() as AudioStream
+		copy.set("loop", true)
+		return copy
+	return source
 
 
 ## The stream path of a music or announcer slot ("" = the slot is empty, as shipped).

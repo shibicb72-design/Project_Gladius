@@ -75,7 +75,8 @@ func _on_shot_shown(origin: Vector3, end: Vector3) -> void:
 	var id := String((hooks["shot_by_weapon"] as Dictionary).get(weapon_id, hooks["shot_default"]))
 	var listener: Vector3 = sfx._listener_position()
 	if origin.distance_to(listener) > float(hooks["shot_far_from_m"]):
-		id = String(hooks["shot_far"])
+		# Far away the report is the weapon's own distant one when the data lists it, else the shared far shot.
+		id = String((hooks.get("shot_far_by_weapon", {}) as Dictionary).get(weapon_id, hooks["shot_far"]))
 	sfx.play_at(id, origin)
 	# A round that passes close to the listener without being its own.
 	if not _is_listener():
@@ -149,6 +150,32 @@ func surface_under() -> String:
 	return "earth"
 
 
+## The foley layer one step adds ("" for none): only the listener's own steps while sprinting past the data
+## threshold (footsteps.foley), so bots stay one voice per step. An empty or unknown sound id adds nothing.
+func step_foley() -> String:
+	var foley: Dictionary = steps.get("foley", {})
+	var id := String(foley.get("sound", ""))
+	var sfx := _sfx()
+	if id == "" or sfx == null or pawn == null or (sfx.sound(id) as Dictionary).is_empty() or not _is_listener():
+		return ""
+	return id if pawn.sprint_factor > float(foley.get("sprint_factor_above", INF)) else ""
+
+
+## One footstep at `at`: a variant of the surface under the feet, plus the sprint foley for the listener.
+func play_step(at: Vector3) -> void:
+	var sfx := _sfx()
+	if sfx == null:
+		return
+	last_surface = surface_under()
+	var list: Array = (steps["surfaces"] as Dictionary).get(last_surface, [])
+	if not list.is_empty():
+		_step_index = (_step_index + 1 + (randi() % maxi(list.size() - 1, 1))) % list.size()
+		sfx.play_at(String(list[_step_index]), at, 0.0 if _is_listener() else float(steps["others_volume_db"]))
+	var foley := step_foley()
+	if foley != "":
+		sfx.play_at(foley, at)
+
+
 func _physics_process(_delta: float) -> void:
 	var sfx := _sfx()
 	if sfx == null or pawn == null:
@@ -162,11 +189,7 @@ func _physics_process(_delta: float) -> void:
 		_stride_left -= moved
 		if _stride_left <= 0.0:
 			_stride_left += float(steps["stride_m"])
-			last_surface = surface_under()
-			var list: Array = (steps["surfaces"] as Dictionary).get(last_surface, [])
-			if not list.is_empty():
-				_step_index = (_step_index + 1 + (randi() % maxi(list.size() - 1, 1))) % list.size()
-				sfx.play_at(String(list[_step_index]), at, 0.0 if _is_listener() else float(steps["others_volume_db"]))
+			play_step(at)
 	# Downed: read-only state, no signal on the pawn for it.
 	var downed := pawn.is_downed()
 	if downed and not _was_downed:

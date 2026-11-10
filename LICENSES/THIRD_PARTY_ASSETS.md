@@ -6,6 +6,26 @@ Only committed assets appear in data/asset_catalog.json. No map placement or col
 | Pack | Author | Source | Licence | Tier | Download date (America/New_York) | File SHA-256 (no zip) | Committed files |
 |---|---|---|---|---|---|---|---|
 | Poly Haven Aerial Grass Rock | Rob Tuytel / Poly Haven | https://polyhaven.com/a/aerial_grass_rock | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ ; https://polyhaven.com/license | Free, diffuse JPG variant | 2026-10-30 | 57b8041bfe0d0f01430e4dbaad45e7ddddf0a9fc97317f90dbc51f7b0d9e1b5d | assets/third_party/polyhaven/aerial_grass_rock/aerial_grass_rock_diff_1k.jpg and generated .import |
+| Free Firearm Sound Library | Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney | https://opengameart.org/content/the-free-firearm-sound-library | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ (page licence field and the authors' text: "CC0 NO RIGHTS RESERVED") | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/ffsl/ (15 .ogg) |
+| Kenney Impact Sounds | Kenney (kenney.nl) | https://kenney.nl/assets/impact-sounds | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/kenney_impact_sounds/ (35 .ogg) |
+| Kenney RPG Audio | Kenney (kenney.nl) | https://kenney.nl/assets/rpg-audio | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/kenney_rpg_audio/ (4 .ogg) |
+| OpenGameArt Gun Reload Sounds (SpringySpringo) | SpringySpringo | https://opengameart.org/content/gun-reload-sounds | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_gun_reload_sounds/ (2 .ogg) |
+| OpenGameArt 2 Gun Reloads (StarNinjas) | StarNinjas | https://opengameart.org/content/2-gun-reloads | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_2_gun_reloads/ (2 .ogg) |
+| OpenGameArt Light Sabre Sounds (aquinn) | aquinn | https://opengameart.org/content/light-sabre-sounds | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_light_sabre_sounds/ (6 .ogg) |
+| OpenGameArt 20 Sword Sound Effects (StarNinjas) | StarNinjas | https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_sword_clashes/ (6 .ogg) |
+| OpenGameArt Fantozzi's Footsteps (Fantozzi) | Fantozzi | https://opengameart.org/content/fantozzis-footsteps-grasssand-stone | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_fantozzi_footsteps/ (12 .ogg) |
+| OpenGameArt Footsteps Leather Cloth Armor (HaelDB) | HaelDB | https://opengameart.org/content/footsteps-leather-cloth-armor | Dual-licensed OGA-BY 3.0 / CC0 on its page; used here under CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_footsteps_armor/ (4 .ogg) |
+| OpenGameArt Mild Wind Background Noise (Bashar3A) | Bashar3A | https://opengameart.org/content/mild-wind-background-noise | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_mild_wind/ (1 .ogg) |
+| OpenGameArt Park Ambiences (Thimras) | Thimras | https://opengameart.org/content/park-ambiences | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_park_ambiences/ (2 .ogg) |
+| OpenGameArt Crowd Shouting Speaking Ambience (StarNinjas) | StarNinjas | https://opengameart.org/content/crowd-shoutingspeaking-ambience | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_crowd_ambience/ (1 .ogg) |
+| OpenGameArt Crickets Ambient Noise (Wolfgang_) | Wolfgang_ | https://opengameart.org/content/crickets-ambient-noise-loopable | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_crickets/ (1 .ogg) |
+| OpenGameArt Rain Loopable (Ylmir) | Ylmir | https://opengameart.org/content/rain-loopable | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_rain_loopable/ (1 .ogg) |
+| OpenGameArt Rain Long Thunder (WuxiaScrub) | WuxiaScrub | https://opengameart.org/content/rain-long-thunder | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_rain_long_thunder/ (2 .ogg) |
+| OpenGameArt Fireplace Sound Loop (PagDev) | PagDev | https://opengameart.org/content/fireplace-sound-loop | CC0-1.0, https://creativecommons.org/publicdomain/zero/1.0/ | Free | 2026-11-10 | per file in data/asset_catalog.json | assets/third_party/audio/oga_fireplace/ (1 .ogg) |
+
+Audio (M2A1): the files above are trimmed, levelled, re-encoded OGG Vorbis cuts made by tools/import_audio.gd from the recipe tools/audio_import.json; the raw downloads are not in the repo.
+Each pack's CC0 licence was read on its page on 2026-11-10 and recorded with author and URL in MANIFEST.csv beside the downloads, outside the repo.
+CC0 needs no attribution; credit is given here voluntarily.
 
 Poly Haven licence page, checked 2026-10-30: "Our assets are all licensed as CC0";
 "You can redistribute them, share them around, include them when sharing your own work, or even in a product you sell."
@@ -13,7 +33,7 @@ The API https://api.polyhaven.com/info/aerial_grass_rock identifies Rob Tuytel a
 No model or photoscan geometry was acquired. The original filename was already lowercase ASCII and is unchanged.
 No archive or extracted/external texture dependencies. Import settings are generated by Godot; .godot caches are never committed.
 Generated `aerial_grass_rock_diff_1k.jpg.import` SHA-256: af3d6e0f6c3d6f698f087e9f13289284a2ebd999a89d1bae31648b982ec11943.
-CC0 needs no attribution; credit is given here voluntarily. Thanks also to Quaternius and Kenney for their free libraries; neither pack below is imported yet.
+CC0 needs no attribution; credit is given here voluntarily. Thanks also to Quaternius and Kenney for their free libraries; the Quaternius animation library and the Kenney Survival Kit listed below are not imported yet (Kenney's two audio packs above are).
 
 ## NOT IN REPO
 

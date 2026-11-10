@@ -3,21 +3,34 @@ extends SceneTree
 ##   godot --headless --path . --script res://tools/gen_audio.gd [-- --only=shot_]
 ## Writes 16-bit mono WAV files to res://assets/generated/audio/. Every sound is synthesised here from noise,
 ## sine / saw / square sweeps, simple filters and echoes: there are no recordings and no samples from any game.
-## The ids match data/audio.json "sounds". After a run, tools/asset_hashes.gd --write records the sha256 values.
+## The ids match data/audio.json "sounds". Real recordings come from tools/import_audio.gd (tools/audio_import.json);
+## this tool makes the rest: an id whose "sounds" entry has a non-empty "files" list, or that is not in "sounds"
+## at all (nothing plays it), is still synthesised (so the seeded noise of later sounds stays the same) but not
+## written. After a run, tools/asset_hashes.gd --write records the sha256 values.
 
 const OUT := "res://assets/generated/audio"
+const AUDIO_DATA := "res://data/audio.json"
 const RATE := 32000
 const SEED := 20261109
 
 var _rng := RandomNumberGenerator.new()
 var _only := ""
 var _written := 0
+var _skipped_real := 0
+var _skipped_unused := 0
+var _sounds := {}
 
 
 func _initialize() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(AUDIO_DATA))
+	if not data is Dictionary or not data.get("sounds") is Dictionary:
+		printerr("GEN_AUDIO cannot read \"sounds\" from " + AUDIO_DATA)
+		quit(1)
+		return
+	_sounds = data["sounds"]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	_weapons()
 	_hits()
@@ -26,7 +39,7 @@ func _initialize() -> void:
 	_match_events()
 	_pickups_and_ui()
 	_ambience()
-	print("GEN_AUDIO wrote %d files to %s" % [_written, OUT])
+	print("GEN_AUDIO written=%d skipped_real=%d skipped_unused=%d (%s)" % [_written, _skipped_real, _skipped_unused, OUT])
 	quit()
 
 
@@ -196,6 +209,15 @@ func _loop(buf: PackedFloat32Array, cross: float) -> PackedFloat32Array:
 
 func _save(id: String, buf: PackedFloat32Array, peak: float = 0.9) -> void:
 	if _only != "" and not id.contains(_only):
+		return
+	if not _sounds.has(id):
+		_skipped_unused += 1
+		print("GEN_AUDIO %s skipped: not in %s \"sounds\"" % [id, AUDIO_DATA])
+		return
+	var files: Variant = (_sounds[id] as Dictionary).get("files", []) if _sounds[id] is Dictionary else []
+	if files is Array and not files.is_empty():
+		_skipped_real += 1
+		print("GEN_AUDIO %s skipped: real files %s" % [id, files])
 		return
 	_peak(buf, peak)
 	var bytes := PackedByteArray()
