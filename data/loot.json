@@ -15,7 +15,8 @@
 		{"landmark": "forum_aquilae", "items": 5}
 	],
 	"pickup_range_m": 2.0,
-	"start_kit": {"primary": "", "secondary": "gladius_lux", "sidearm": ""},
+	"start_kit": {"from_class": true, "primary": "", "secondary": "gladius_lux", "sidearm": "",
+		"_note": "Shibi, Nov 10 2026: each class starts with its own gun (data/loadouts.json: Hastati the Pilum BR, Sagittarii the rifle) plus the Gladius Lux; loot adds more. from_class false falls back to the slot ids here."},
 	"items": {
 		"pilum_br": {"kind": "weapon", "weapon": "pilum_br", "weight": 3, "display": "Pilum BR"},
 		"sagittarii_rifle": {"kind": "weapon", "weapon": "sagittarii_rifle", "weight": 2, "display": "Sagittarii rifle"},

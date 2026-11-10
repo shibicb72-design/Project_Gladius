@@ -112,7 +112,11 @@ func test_blade_only_bot_charges_a_close_enemy() -> void:
 	await start(calm_zone())
 	var bot: Pawn = m.bots[0]
 	isolate(bot)
+	bot.apply_start_kit({"secondary": "gladius_lux"})  # blade only (classes start with a gun since Nov 10 2026)
 	var enemy: Pawn = m.bots[1]
+	bot.global_position = Vector3(0.0, 0.2, 0.0)
+	enemy.global_position = Vector3(0.0, 0.2, -80.0)  # out of reach while the brain re-plans for the new kit
+	await frames(20)
 	bot.global_position = Vector3(0.0, 0.2, 0.0)
 	enemy.global_position = Vector3(0.0, 0.2, -8.0)
 	enemy.visible = true
@@ -127,6 +131,7 @@ func test_bot_reloads_an_empty_gun_and_swaps_off_the_blade() -> void:
 	await start(calm_zone())
 	var bot: Pawn = m.bots[0]
 	isolate(bot)
+	bot.apply_start_kit({"secondary": "gladius_lux"})  # blade only, then one gun from the ground
 	bot.take_item({"item_id": "pilum_br"}, m.loot.def("pilum_br"))
 	var gun := bot.loadout.slots[0]
 	gun.ammo_in_mag = 0

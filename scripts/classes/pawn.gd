@@ -430,13 +430,18 @@ var armor_tier: int = 0
 var _base_max_shield: float = -1.0
 
 
+## kit.from_class true (Shibi, Nov 10 2026: "start each class with its own gun"): the class loadout from
+## data/loadouts.json (its gun and the blade). Otherwise the kit's own slot ids.
 func apply_start_kit(kit: Dictionary) -> void:
-	loadout = Loadout.new()
-	for i in Loadout.SLOT_NAMES.size():
-		var wid := str(kit.get(Loadout.SLOT_NAMES[i], ""))
-		var wd := registry.get_weapon_def(wid) if wid != "" else null
-		if wd != null:
-			loadout.slots[i] = Weapon.new(wd)
+	if bool(kit.get("from_class", false)):
+		loadout = Loadout.from_class(class_id, registry)
+	else:
+		loadout = Loadout.new()
+		for i in Loadout.SLOT_NAMES.size():
+			var wid := str(kit.get(Loadout.SLOT_NAMES[i], ""))
+			var wd := registry.get_weapon_def(wid) if wid != "" else null
+			if wd != null:
+				loadout.slots[i] = Weapon.new(wd)
 	loadout.active = 0
 	for i in loadout.slots.size():
 		if loadout.slots[i] != null:

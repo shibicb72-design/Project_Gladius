@@ -81,22 +81,32 @@ func test_weighted_pick_is_seeded_and_valid() -> void:
 	assert_true(a_count > 240 and a_count < 360, "weights respected (a ~ 300 of 400, got %d)" % a_count)
 
 
-func test_loot_is_placed_on_the_ground_and_start_kit_is_the_blade() -> void:
+func test_loot_is_placed_on_the_ground_and_each_class_starts_with_its_gun() -> void:
 	await setup_loot_match()
 	assert_true(m.loot.placed, "placed on the first physics tick")
 	var n := m.loot.items.size()
 	assert_true(n > 30 and n <= 70, "most of the 70 items found ground (%d)" % n)
 	for id in m.loot.items:
 		assert_true(float(m.loot.items[id]["pos"].y) < 2.0, "item %d on walkable ground" % id)
-	var lo := m.local_player.loadout
-	assert_true(lo.slots[0] == null and lo.slots[2] == null, "no guns at the start")
-	assert_eq(lo.get_active().def.id, "gladius_lux", "the blade is active")
+	# Shibi, Nov 10 2026: each class starts with its own gun (data/loadouts.json) plus the blade.
+	var loadouts: Dictionary = DataRegistry.new().load_file("res://data/loadouts.json")["classes"]
+	for p: Pawn in [m.local_player] + m.bots:
+		var want: Dictionary = loadouts[p.class_id]
+		var lo := p.loadout
+		assert_true(lo.slots[0] != null and lo.slots[0].def.id == str(want["primary"]), "%s starts with its gun %s" % [p.class_id, want["primary"]])
+		assert_true(lo.slots[1] != null and lo.slots[1].def.id == "gladius_lux", "%s also has the blade" % p.class_id)
+		assert_true(lo.slots[2] == null, "the sidearm slot is free for a looted gun")
+		assert_eq(lo.active, 0, "%s holds the gun" % p.class_id)
+		assert_eq(lo.slots[0].ammo_in_mag, lo.slots[0].def.magazine, "a full magazine")
+	var me := m.local_player
+	assert_true(me.loadout.swap() and me.loadout.get_active().def.id == "gladius_lux", "swap goes to the blade")
 	await cleanup()
 
 
 func test_tap_interact_picks_up_a_gun() -> void:
 	await setup_loot_match()
 	var me := m.local_player
+	me.apply_start_kit({"secondary": "gladius_lux"})  # empty hands: the first gun goes to the primary slot
 	clear_near(me.global_position)
 	m.loot.drop({"item_id": "pilum_br"}, me.global_position + me.global_transform.basis.x * 0.8)
 	await frames(2)
@@ -117,6 +127,7 @@ func test_tap_interact_picks_up_a_gun() -> void:
 func test_armor_tiers_and_refusals() -> void:
 	await setup_loot_match()
 	var me := m.local_player
+	me.apply_start_kit({"secondary": "gladius_lux"})  # blade only, so ammo has no gun to go to
 	var base := me.bridge.state.max_shield
 	var a2 := m.loot.def("armor_2")
 	assert_true(me.can_take(a2), "armor II usable")
@@ -133,6 +144,7 @@ func test_armor_tiers_and_refusals() -> void:
 func test_gun_replacement_drops_the_old_gun_with_its_ammo_and_ammo_adds_reserve() -> void:
 	await setup_loot_match()
 	var me := m.local_player
+	me.apply_start_kit({"secondary": "gladius_lux"})  # empty gun slots: the two pickups fill them
 	clear_near(me.global_position)
 	me.take_item({"item_id": "pilum_br"}, m.loot.def("pilum_br"))
 	me.take_item({"item_id": "sagittarii_rifle"}, m.loot.def("sagittarii_rifle"))
@@ -163,7 +175,7 @@ func test_eliminated_player_drops_guns_and_bots_pick_up() -> void:
 	m.director.rules.report_zero_health(bot.player_id, -1, "zone")  # solo: straight to DEAD
 	await frames(2)
 	assert_eq(bot.life, Pawn.Life.DEAD, "bot eliminated")
-	assert_eq(m.loot.items.size(), before + 1, "its gun dropped")
+	assert_eq(m.loot.items.size(), before + 2, "both its guns dropped (its class gun and the one it picked up)")
 	var other: Pawn = m.bots[1]
 	clear_near(other.global_position)
 	m.loot.drop({"item_id": "armor_1"}, other.global_position)
