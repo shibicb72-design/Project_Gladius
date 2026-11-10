@@ -308,7 +308,7 @@ func _loot_goal(guns_only: bool = false) -> Vector3:
 	for id in loot.items:
 		var entry: Dictionary = loot.items[id]
 		var item_def := loot.def(str(entry["item_id"]))
-		if not pawn.wants_item(item_def, director.bot_ammo_low_magazines()) or (guns_only and str(item_def.get("kind", "")) != "weapon"):
+		if not pawn.wants_item(item_def, director.bot_ammo_low_magazines(), director.bot_heal_below_pct()) or (guns_only and str(item_def.get("kind", "")) != "weapon"):
 			continue
 		var pos: Vector3 = entry["pos"]
 		var d := Vector2(pos.x - pawn.global_position.x, pos.z - pawn.global_position.z).length()

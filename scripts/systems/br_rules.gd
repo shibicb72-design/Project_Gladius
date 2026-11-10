@@ -136,7 +136,7 @@ static func validate_config(c: Dictionary) -> Array[String]:
 					prev = float(p["radius_m"])
 	var d := _need_dict(c, "downed", out)
 	if true:
-		for k in ["bleed_out_s", "revive_s", "revive_range_m"]:
+		for k in ["bleed_out_s", "revive_s", "revive_range_m", "downed_body_height_m", "downed_head_y_m"]:
 			_need_num(d, k, "downed", out, 0.0)
 		for k in ["downed_move_speed_pct", "revive_health_pct"]:
 			_need_num(d, k, "downed", out, 0.0, 100.0)

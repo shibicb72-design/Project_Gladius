@@ -41,6 +41,12 @@ var life: Life = Life.ALIVE:
 			bridge.downed = value == Life.DOWNED
 		if value == Life.DOWNED and cover != null:
 			_leave_cover()
+		_apply_life_shapes()
+## Step 3 G5 (Shibi, Nov 9 2026: "downed lowers the hitbox"): body capsule height and head-hitbox height while
+## DOWNED (br.json downed.downed_body_height_m / downed_head_y_m, set by MatchDirector.start). Negative = unset:
+## the standing shapes stay.
+var downed_body_height_m: float = -1.0
+var downed_head_y_m: float = -1.0
 ## Move speed while DOWNED, percent of the normal speed (br.json downed.downed_move_speed_pct, set by
 ## MatchDirector.start).
 var downed_move_speed_pct: float = 100.0
@@ -303,6 +309,36 @@ func _kick_camera() -> void:
 		rig.apply_knockback()
 
 
+## Step 3 (Shibi, Nov 9 2026: "real recoil you pull against"): each ranged shot moves this pawn's real aim, up by
+## recoil.pitch_deg and sideways by up to recoil.yaw_deg (seeded random sign), from data/stats.json weapons.<id>.recoil
+## (placeholders, OQ-RECOIL). No automatic return: the player pulls the aim back down; bots re-aim every tick.
+## Separate from the view-only camera knockback above, which stays as it was.
+var _recoil_cache: Dictionary = {}
+
+
+func _recoil_of(weapon_id: String) -> Dictionary:
+	if not _recoil_cache.has(weapon_id):
+		var stats := registry.load_file(DataRegistry.STATS_PATH)
+		_recoil_cache[weapon_id] = (stats.get("weapons", {}).get(weapon_id, {}) as Dictionary).get("recoil", {})
+	return _recoil_cache[weapon_id]
+
+
+func _apply_recoil(def: WeaponDef, shots: int) -> void:
+	var r := _recoil_of(def.id)
+	if r.is_empty() or shots <= 0:
+		return
+	var up := deg_to_rad(float(r.get("pitch_deg", 0.0))) * shots
+	var side := deg_to_rad(float(r.get("yaw_deg", 0.0)))
+	pitch = clampf(pitch + up, deg_to_rad(float(_camera.get("pitch_min_deg", -70.0))),
+			deg_to_rad(float(_camera.get("pitch_max_deg", 70.0))))
+	if side > 0.0:
+		for i in shots:  # one sideways draw per shot
+			rotate_y(_rng.randf_range(-side, side))
+	var rig := get_node_or_null("CameraRig")
+	if rig != null:
+		rig.set_pitch(pitch)
+
+
 ## One melee swing from `origin` along `direction`; shows the placeholder swing visual.
 func melee_swing(def: WeaponDef, origin: Vector3, direction: Vector3, authority: Callable) -> Dictionary:
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state if is_inside_tree() else null
@@ -422,14 +458,17 @@ func can_take(item_def: Dictionary) -> bool:
 			return _ranged_slot() >= 0
 		"armor":
 			return int(item_def.get("tier", 0)) > armor_tier
+		"heal":
+			return bridge.state.health < bridge.state.max_health
 	return false
 
 
 ## Stricter than can_take, for bots (humans choose by tapping): a gun only into a free gun slot, ammo only
 ## when the guns hold less than two magazines in reserve, armor only of a higher tier. Stops bots swapping
 ## the same two guns back and forth.
-## ammo_low_mags: data/bots.json brain.ammo_low_magazines (placeholder, OQ-31).
-func wants_item(item_def: Dictionary, ammo_low_mags: float = 2.0) -> bool:
+## ammo_low_mags: data/bots.json brain.ammo_low_magazines (placeholder, OQ-31). heal_below_pct: a Bandage only
+## below this health percent (bots.json brain.heal_below_health_pct, placeholder, OQ-HEAL-ITEM).
+func wants_item(item_def: Dictionary, ammo_low_mags: float = 2.0, heal_below_pct: float = 70.0) -> bool:
 	if not can_take(item_def):
 		return false
 	match str(item_def.get("kind", "")):
@@ -438,6 +477,8 @@ func wants_item(item_def: Dictionary, ammo_low_mags: float = 2.0) -> bool:
 		"ammo":
 			var s := _ranged_slot()
 			return s >= 0 and float(loadout.slots[s].reserve) < float(loadout.slots[s].def.magazine) * ammo_low_mags
+		"heal":
+			return bridge.state.health < bridge.state.max_health * heal_below_pct / 100.0
 	return true
 
 
@@ -474,6 +515,9 @@ func take_item(item: Dictionary, item_def: Dictionary) -> Dictionary:
 			var new_max := _base_max_shield * (1.0 + float(item_def.get("shield_bonus_pct", 0.0)) / 100.0)
 			st.shield = clampf(st.shield + (new_max - st.max_shield), 0.0, new_max)
 			st.max_shield = new_max
+		"heal":
+			var hs := bridge.state
+			hs.health = minf(hs.max_health, hs.health + hs.max_health * float(item_def.get("health_pct", 0.0)) / 100.0)
 	return dropped
 
 
@@ -636,6 +680,8 @@ func _apply_weapon() -> void:
 		cover.round_fired()
 	for i in shots:
 		fire_shot()
+	if shots > 0 and not w.def.is_melee():
+		_apply_recoil(w.def, shots)
 	# G1: a gun that just ran dry with reserve left reloads by itself (stats.json combat.auto_reload_on_empty).
 	if shots > 0 and not w.def.is_melee() and w.ammo_in_mag == 0 and w.reserve > 0 and not w.reloading \
 			and bool(bridge.combat_cfg.get("auto_reload_on_empty", false)):
@@ -698,6 +744,19 @@ func _init_cover_shapes() -> void:
 	_cover_body.shape = _cover_body.shape.duplicate()
 	var head_shape := get_node("Head/CollisionShape3D") as CollisionShape3D
 	head_shape.shape = head_shape.shape.duplicate()
+
+## DOWNED: the low body and head from downed_body_height_m / downed_head_y_m. Back to ALIVE: the standing shapes
+## (cover, when on, re-applies its crouch on its next tick). Shares the standing sizes kept by _init_cover_shapes.
+func _apply_life_shapes() -> void:
+	if not is_inside_tree() or not has_node("CollisionShape3D") or not has_node("Head"):
+		return
+	_init_cover_shapes()
+	var capsule := _cover_body.shape as CapsuleShape3D
+	var down := life == Life.DOWNED and downed_body_height_m > 0.0
+	capsule.height = maxf(downed_body_height_m, capsule.radius * 2.0) if down else _cover_height
+	_cover_body.position.y = capsule.height * 0.5
+	_cover_head.position.y = downed_head_y_m if life == Life.DOWNED and downed_head_y_m > 0.0 else _cover_head_y
+
 
 func _apply_cover_shapes() -> void:
 	if _cover_body == null or cover == null:

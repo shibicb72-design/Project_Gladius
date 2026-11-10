@@ -31,8 +31,8 @@ index, position and the button/stick it hit (OQ-DEVICE-TOUCH). Default off.
 
 ## Layouts (virtual stick only, `vjoy_layout`)
 
-- **floating (default)**: "Option 1: Left side of screen is dedicated to movement, right side dedicated to aim. Fixed fire button on the right side. This is the default setup." (our layout differs: no main Fire button; the look zone fires) A `JOYSTICK_DYNAMIC` stick: a touch anywhere in the left half of the screen (`move_zone`, left 0.0 to right 0.5) spawns the base under the thumb. At rest the base is drawn at `move_stick_rest`. The left-half touch area is not drawn; `TouchHud.get_move_visual_rect()` is the drawn base.
-- **fixed**: "Option 3: The entire screen can be used for aim, with a fixed stick for movement and a fixed fire button." (our layout differs: no main Fire button; the look zone fires) A `JOYSTICK_FIXED` stick at `move_stick_rest`. Only touches on the stick grab it; a touch elsewhere on the left goes to look.
+- **floating (default)**: "Option 1: Left side of screen is dedicated to movement, right side dedicated to aim. Fixed fire button on the right side. This is the default setup." (since step 3, Nov 9 2026, we have one too: the right Fire button below; the look zone still fires) A `JOYSTICK_DYNAMIC` stick: a touch anywhere in the left half of the screen (`move_zone`, left 0.0 to right 0.5) spawns the base under the thumb. At rest the base is drawn at `move_stick_rest`. The left-half touch area is not drawn; `TouchHud.get_move_visual_rect()` is the drawn base.
+- **fixed**: "Option 3: The entire screen can be used for aim, with a fixed stick for movement and a fixed fire button." (since step 3 we also have the right Fire button below) A `JOYSTICK_FIXED` stick at `move_stick_rest`. Only touches on the stick grab it; a touch elsewhere on the left goes to look.
 
 ## How to switch
 
@@ -158,6 +158,14 @@ An accepted green tap stays buffered until Pawn confirms an actual shot; the wea
 ## Interact / Revive (battle royale, M1 S1b)
 
 A contextual round button, lower right next to the look stick (placement and size are placeholders in `data/ui.json` `interact_button`, OQ-BR-DOWNED). It shows "Revive" only while the local pawn is ALIVE and a DOWNED squad mate is within `br.json` `downed.revive_range_m`; holding it revives that mate over `revive_s`. Release, leaving range, the menu opening or the touch HUD hiding ends the revive (progress resets). Route: action `interact` as a non-frame action (`InputRouter.NON_FRAME_ACTIONS`, never latched or sent): `TouchProvider.trigger_action` / `release_action` -> `InputRouter` -> `MatchRoot` -> `MatchDirector.begin_revive` / `end_revive`. In M1 step S4 the same button also picks up loot. Keyboard/gamepad: bindings wait for `data/input.json`.
+
+## Right Fire button and swipe-look (step 3, Shibi Nov 9 2026)
+
+- **Swipe-look is the default:** `data/input.json` `look.mode` is `drag`. A finger on the right side turns the view by its travel (`drag_rad_per_screen_height` per screen height), not capped by `max_turn_rate_deg_s` (that cap applies to the stick mode only; uncapped swipe is a guess for Shibi, OQ-53). Stick-look is still there as `look.mode: stick`.
+- **Right Fire button:** element key `fire_right`, label "Fire", always on. Press holds the `fire` action; dragging the same finger also aims (`touch_hud.gd` `_on_drag` sends its travel to `TouchProvider.add_drag`). Releasing it stops firing unless Left Fire or a look hold still holds `fire`.
+- **Position:** `touch_layout.buttons.fire_right.offset` [-1.65, -0.15] button sizes from the look stick rest, just up-left of the look stick. It is the only patch clear of every HUD rect, the move zone and the north-west rule on all seven test screen sizes at 420 and 373 dpi (probe). Placeholder, OQ-FIRE-BUTTON; the Fold touch test decides.
+- **Real recoil (G4):** each ranged shot raises the pawn's real aim by `weapons.<id>.recoil.pitch_deg` and moves it sideways by up to `yaw_deg` (seeded random sign) in `data/stats.json`. It does not return on its own: pull down to hold the aim. Bots re-aim from their current pitch every tick. Separate from the view-only camera knockback. Values are guesses, OQ-RECOIL.
+- **Tests:** `tests/test_fire_button.gd`.
 
 ## Left Fire button (G3e, off by default)
 

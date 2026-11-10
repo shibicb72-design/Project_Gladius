@@ -70,6 +70,9 @@ func is_cover_slot_hidden(key: String) -> bool:
 	return cover_controls_active and key in _cover_hidden_slots
 ## G3e: element key of the optional left Fire button (not an InputMap action: it presses "fire").
 const LEFT_FIRE_KEY := "fire_left"
+## Step 3 (Shibi, Nov 9 2026): the right-side Fire button (data/input.json touch_layout.buttons.fire_right). It holds
+## "fire" and its drag also aims (TouchProvider.add_drag), so one thumb fires and tracks a moving target.
+const RIGHT_FIRE_KEY := "fire_right"
 const LEFT_FIRE_LABEL := "Fire"
 ## false in the layout editor: the slots alone decide the lock button, not the profile's mirrored sprint_lock_pos.
 var use_profile_lock_fallback: bool = true
@@ -122,7 +125,7 @@ func _add_button(key: String, label: String) -> void:
 
 ## G3e: the InputMap action an element key presses (the left Fire button presses "fire").
 func _action_of(key: String) -> String:
-	return "fire" if key == LEFT_FIRE_KEY else key
+	return "fire" if key == LEFT_FIRE_KEY or key == RIGHT_FIRE_KEY else key
 
 
 ## G3e: the profile's left_fire_enabled flag (its default comes from data/input.json touch_layout.left_fire).
@@ -788,6 +791,9 @@ func _sync_fire_action() -> void:
 
 func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:
 	var dz: Dictionary = cfg.get("dead_zones", {})
+	if _button_touch.get(idx, "") == RIGHT_FIRE_KEY:
+		provider.add_drag(relative, _area().y)  # the Fire thumb aims while it fires
+		return
 	if idx == _move_touch:
 		_move_pos = pos
 		if move_mode != "virtual":

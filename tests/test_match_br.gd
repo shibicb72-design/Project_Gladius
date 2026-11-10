@@ -131,6 +131,48 @@ func test_squads_hit_to_zero_downs_and_blocks_fire() -> void:
 	m.queue_free()
 
 
+## What a horizontal ray at `height_m` above the pawn's feet hits on the pawn layers (body 2, head 4), or null.
+func _ray_at(p: Pawn, height_m: float) -> Object:
+	var o := p.global_position + Vector3(0.0, height_m, 0.0)
+	var q := PhysicsRayQueryParameters3D.create(o + Vector3(-3.0, 0.0, 0.0), o + Vector3(3.0, 0.0, 0.0), 2 | 4)
+	q.collide_with_areas = true
+	var hit := p.get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.get("collider")
+
+
+## Step 3 G5 (Shibi, Nov 9 2026: "downed lowers the hitbox"): a DOWNED pawn's body and head drop to the br.json
+## downed sizes, so a chest-high shot passes over it; back to ALIVE restores the standing shapes.
+func test_downed_lowers_the_hitbox_and_revive_restores_it() -> void:
+	var m := await _new_match(_zone(5000.0, 0.0), "squads")
+	assert_true(m.begin(), "begin")
+	_idle_bots(m)
+	await _frames(2)
+	var victim: Pawn = m.bots[0]
+	var enemy: Pawn = m.bots[m.bots.size() - 1]
+	var down: Dictionary = DataRegistry.new().load_file("res://data/br.json")["downed"]
+	victim.drop_state = Pawn.Drop.NONE
+	victim.global_position = Vector3(40.0, 0.2, -40.0)
+	await _frames(20)
+	var head := victim.get_node("Head")
+	assert_eq(_ray_at(victim, 1.3), victim, "standing: a chest-high ray hits the body")
+	victim.bridge.state.shield = 0.0
+	victim.bridge.state.health = 1.0
+	_hit(enemy, victim)
+	await _frames(3)
+	assert_true(victim.is_downed(), "downed")
+	var capsule := (victim.get_node("CollisionShape3D") as CollisionShape3D).shape as CapsuleShape3D
+	assert_true(absf(capsule.height - float(down["downed_body_height_m"])) < 1e-4, "body capsule is downed_body_height_m (%s)" % capsule.height)
+	assert_true(absf((head as Node3D).position.y - float(down["downed_head_y_m"])) < 1e-4, "head hitbox at downed_head_y_m")
+	assert_eq(_ray_at(victim, 1.3), null, "downed: a chest-high ray passes over")
+	assert_eq(_ray_at(victim, 0.4), victim, "downed: a low ray still hits the body")
+	assert_eq(_ray_at(victim, float(down["downed_head_y_m"])), head, "downed: the head hitbox is at its low height")
+	victim.life = Pawn.Life.ALIVE
+	await _frames(2)
+	assert_true(absf(capsule.height - 1.6) < 1e-4 and absf((head as Node3D).position.y - 1.75) < 1e-4, "ALIVE again: standing shapes")
+	assert_eq(_ray_at(victim, 1.3), victim, "ALIVE again: a chest-high ray hits the body")
+	m.queue_free()
+
+
 ## One fast match: short phases, high damage; ends in a winner or a draw with consistent final states.
 func test_fast_match_ends_with_consistent_state() -> void:
 	var zone := {"start_center": [0, 0], "start_radius_m": 40.0, "damage_skips_shield": true,

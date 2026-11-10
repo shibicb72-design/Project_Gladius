@@ -37,6 +37,7 @@ func _start_match(profile: Dictionary) -> Dictionary:
 	m.pause_menu.settings.save = SaveService.new(_TMP)
 	var t := TouchProvider.new()
 	t.configure(DataRegistry.new().load_file("res://data/input.json"))
+	t.look_mode = "stick"  # a fixed deflection needs stick-look; swipe-look is the default since step 3
 	t.look_value = Vector2(0.5, 0.0)
 	m.router.add_provider(t)
 	await tree.physics_frame

@@ -137,14 +137,18 @@ func _report_missing_feel() -> void:
 		push_error(msg)
 
 
+## Step 3 (Shibi, Nov 9 2026: swipe-look default, a Fire button whose drag aims): the stick is a rate source
+## and stays capped at look.max_turn_rate_deg_s; dragged pixels (the look zone in drag mode, or a held Fire
+## button in either mode) turn the view 1:1 with the finger and are never capped, so a fast flick keeps its
+## full travel.
 func get_look() -> Vector2:
 	var v := Vector2.ZERO
-	if look_mode == "drag":
-		v = _LookMath.look_from_drag(_drag_accum, _viewport_h, _cfg)
+	if look_mode != "drag":
+		v = _LookMath.clamp_turn(_LookMath.look_from_stick(look_value, _cfg, _LookMath.tick_hz()) * sensitivity,
+				_cfg, _LookMath.tick_hz())
+	if _drag_accum != Vector2.ZERO:
+		v += _LookMath.drag_turn(_drag_accum, _viewport_h, _cfg) * sensitivity
 		_drag_accum = Vector2.ZERO
-	else:
-		v = _LookMath.look_from_stick(look_value, _cfg, _LookMath.tick_hz())
-	v *= sensitivity
 	if invert_y:
 		v.y = -v.y
-	return _LookMath.clamp_turn(v, _cfg, _LookMath.tick_hz())
+	return v

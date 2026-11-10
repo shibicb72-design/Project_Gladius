@@ -375,8 +375,12 @@ func test_release_on_target_locks_release_elsewhere_stops() -> void:
 		assert_true(fr.sprint and fr.move == Vector2(0.0, -1.0), tag + ": locked = forward sprint, %s" % fr.move)
 		# Look still works while locked.
 		_touch(hud, 2, Vector2(900, 300), true)
-		_drag(hud, 2, Vector2(960, 300))
-		assert_true(hud.provider.look_value.x > 0.0 and hud.provider.sprint_locked, tag + ": look works while locked")
+		var look_drag := InputEventScreenDrag.new()  # step 3: swipe-look is the default; a drag carries its travel
+		look_drag.index = 2
+		look_drag.position = Vector2(960, 300)
+		look_drag.relative = Vector2(60, 0)
+		hud._input(look_drag)
+		assert_true(hud.provider.get_look().x > 0.0 and hud.provider.sprint_locked, tag + ": look works while locked")
 		_touch(hud, 2, Vector2(960, 300), false)
 		# A new move-stick touch cancels the lock.
 		_touch(hud, 3, start, true)

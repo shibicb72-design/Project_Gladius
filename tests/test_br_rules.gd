@@ -8,7 +8,7 @@ const OUT := Vector2(500, 0)
 
 func _cfg(down: Dictionary = {}, mode: String = "squads") -> Dictionary:
 	var d := {"bleed_out_s": 10, "revive_s": 4, "revive_range_m": 2, "downed_move_speed_pct": 30,
-			"revive_health_pct": 30, "can_be_finished": true, "zone_finishes_downed": true,
+			"revive_health_pct": 30, "downed_body_height_m": 0.9, "downed_head_y_m": 1.0, "can_be_finished": true, "zone_finishes_downed": true,
 			"squad_wipe_kills_downed": true, "kill_credit_to_downer": true,
 			"bleed_pauses_while_reviving": true, "bleed_restarts_on_new_down": true}
 	d.merge(down, true)
@@ -110,7 +110,7 @@ func test_empty_sub_objects_name_every_missing_key() -> void:
 	var expected := {
 		"zone": ["start_center", "start_radius_m", "damage_skips_shield", "phases"],
 		"downed": ["bleed_out_s", "revive_s", "revive_range_m", "downed_move_speed_pct", "revive_health_pct",
-				"can_be_finished", "zone_finishes_downed", "squad_wipe_kills_downed", "kill_credit_to_downer",
+				"downed_body_height_m", "downed_head_y_m", "can_be_finished", "zone_finishes_downed", "squad_wipe_kills_downed", "kill_credit_to_downer",
 				"bleed_pauses_while_reviving", "bleed_restarts_on_new_down"],
 		"end": ["tie_result"],
 		"teams": ["mode", "squad_size_max"]}

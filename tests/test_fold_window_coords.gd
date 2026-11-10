@@ -124,10 +124,12 @@ func _buttons(size: Vector2i) -> void:
 	_touch(2, look_point, false)
 	await _frames(2)
 	assert_true(pawn.loadout.get_active().ammo_in_mag < look_ammo, "%s: window-coordinate look tap spent ammo" % ctx["tag"])
+	await _frames(20)  # let the weapon's fire interval pass before the Fire button's own ammo check
 	# Fire first: later buttons (swap, reload) change the weapon state its ammo check relies on.
-	if actions.has("fire"):
-		actions.erase("fire")
-		actions.push_front("fire")
+	for k in actions.duplicate():  # every key that presses "fire" (Left Fire, the step 3 right Fire button) goes first
+		if touch._action_of(k) == "fire":
+			actions.erase(k)
+			actions.push_front(k)
 	for key in actions:
 		var c: Vector2 = touch.get_button_rect(key).get_center()
 		assert_eq(touch._button_at(c), key, "%s: %s centre hit-tests to itself" % [ctx["tag"], key])

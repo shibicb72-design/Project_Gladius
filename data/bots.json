@@ -33,6 +33,8 @@
     "stuck_min_move_m": 0.6,
     "unstick_s": 1.0,
     "ammo_low_magazines": 2.0,
+    "heal_below_health_pct": 70.0,
+    "_heal_note": "Step 3 D6: bots go for a Bandage only below this health percent (placeholder, OQ-HEAL-ITEM).",
     "swap_cooldown_s": 0.5
   },
   "commands": {"_todo": "OQ-33: no squad commands in milestone 1; bots follow the battle royale brain (S5).", "enabled": []}

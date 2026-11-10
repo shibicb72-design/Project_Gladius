@@ -55,7 +55,7 @@
 	"look": {
 		"_placeholder": true,
 		"_todo": "OQ-36, OQ-53: units are degrees/second (rates) and radians per screen height (drag); not design values",
-		"mode": "stick",
+		"mode": "drag",
 		"max_turn_rate_deg_s": 360.0,
 		"stick_rate_deg_s": 180.0,
 		"drag_rad_per_screen_height": 3.14
@@ -131,7 +131,8 @@
 			"swap_weapon": {"label": "Swap", "offset": [-2.8, -1.25]},
 			"reload": {"label": "Reload", "offset": [-2.8, -0.1]},
 			"aim": {"label": "Aim", "offset": [-1.7, -1.25]},
-			"swap_shoulder": {"label": "Shoulder", "offset": [-0.6, -3.5]}
+			"swap_shoulder": {"label": "Shoulder", "offset": [-0.6, -3.5]},
+			"fire_right": {"label": "Fire", "offset": [-1.65, -0.15], "_placeholder": true, "_todo": "OQ-FIRE-BUTTON (Shibi, Nov 9 2026: a right-side Fire button; dragging it also aims). Just up-left of the look stick, between Reload and the look stick: the only patch clear of every touch button, the move zone and the north-west rule on all seven test sizes at 420 and 373 dpi (probe); the Interact button moved out of it (ui.json interact_button). Position is a placeholder for the Fold touch test."}
 		},
 		"_swap_shoulder_note": "Path A phase 2 (Shibi GO via EL, Oct 27 2026): the Shoulder button flips the local camera between the right (default, camera.json shoulder_side) and left shoulder. View only, never sent to the host. Its offset (above Jump) is a placeholder, not a design value (OQ-SHOULDER). The WIP slot [-1.7, -2.4] (left of Jump, above Aim) covered the look-zone centre on the Fold inner display (2176x1812) and the (900, 300) look touch of the 1152x648 tests, so look touches there pressed Shoulder; right of Jump is not north-west of the look stick (G2L) and hit the gear at 420 dpi. -3.5 is the highest row that stays inside 1512x648 at 420 dpi. The swap_shoulder InputMap action has no keyboard or gamepad binding yet (OQ-SHOULDER).",
 		"_sprint_lock_note": "G2L: the one default position of the movable Sprint lock button, [x of width, y of height] of its centre. The profile value (sprint_lock_pos) overrides it. Its size and min_dp stay in sprint.lock_button.",

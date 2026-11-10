@@ -101,16 +101,19 @@ static func _deal(target_state: HealthState, dmg: float, r: HitResult, combat_cf
 	r.killed = target_state.health <= 0.0
 
 
-## Advances the regen timer; shield (not health) refills after the delay.
+## Advances the regen timer; shield refills after shield_regen_delay_s, and health slowly after
+## health_regen_delay_s (step 3 D6; no health regen when health_regen_rate_per_s is missing or 0).
 static func tick_regen(state: HealthState, delta: float, combat_cfg: Dictionary) -> void:
 	if state.is_dead():
 		return
-	var delay: float = float(combat_cfg.get("shield_regen_delay_s", 5.0))
-	var rate: float = float(combat_cfg.get("shield_regen_rate_per_s", 25.0))
 	var before: float = state.time_since_damage
 	state.time_since_damage += delta
-	if state.shield >= state.max_shield:
-		return
-	var regen_time: float = state.time_since_damage - maxf(before, delay)
-	if regen_time > 0.0:
-		state.shield = minf(state.max_shield, state.shield + regen_time * rate)
+	if state.shield < state.max_shield:
+		var regen_time: float = state.time_since_damage - maxf(before, float(combat_cfg.get("shield_regen_delay_s", 5.0)))
+		if regen_time > 0.0:
+			state.shield = minf(state.max_shield, state.shield + regen_time * float(combat_cfg.get("shield_regen_rate_per_s", 25.0)))
+	var health_rate: float = float(combat_cfg.get("health_regen_rate_per_s", 0.0))
+	if health_rate > 0.0 and state.health < state.max_health:
+		var heal_time: float = state.time_since_damage - maxf(before, float(combat_cfg.get("health_regen_delay_s", 0.0)))
+		if heal_time > 0.0:
+			state.health = minf(state.max_health, state.health + heal_time * health_rate)

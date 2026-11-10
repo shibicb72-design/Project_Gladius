@@ -94,6 +94,8 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1, use_drop: bool = false
 		pawn.set_squad(rules.squad_of(id))  # solo: every player is its own squad (friendly fire, bot targets)
 		pawn.seed_rng(hash([seed_value, id]))
 		pawn.downed_move_speed_pct = downed_pct
+		pawn.downed_body_height_m = float(_downed_cfg().get("downed_body_height_m", -1.0))
+		pawn.downed_head_y_m = float(_downed_cfg().get("downed_head_y_m", -1.0))
 	_slot_in_squad.clear()
 	var members: Dictionary = {}  # squad id -> count so far
 	for id in ids:
@@ -142,6 +144,7 @@ func pickup_target_for(player_id: int, bot_rules: bool = false) -> int:
 
 
 var _bot_ammo_low := -1.0
+var _bot_heal_below := -1.0
 
 
 ## data/bots.json brain.ammo_low_magazines (placeholder, OQ-31): bots take ammo below this many magazines.
@@ -149,6 +152,13 @@ func bot_ammo_low_magazines() -> float:
 	if _bot_ammo_low < 0.0:
 		_bot_ammo_low = float(DataRegistry.new().load_file("res://data/bots.json").get("brain", {}).get("ammo_low_magazines", 2.0))
 	return _bot_ammo_low
+
+
+## data/bots.json brain.heal_below_health_pct (placeholder, OQ-HEAL-ITEM): bots want a Bandage only below it.
+func bot_heal_below_pct() -> float:
+	if _bot_heal_below < 0.0:
+		_bot_heal_below = float(DataRegistry.new().load_file("res://data/bots.json").get("brain", {}).get("heal_below_health_pct", 70.0))
+	return _bot_heal_below
 
 
 ## Picks up the current pickup target; a replaced gun goes on the ground. False if nothing to take.

@@ -201,9 +201,9 @@
 	},
 	"interact_button": {
 		"_placeholder": true,
-		"_todo": "OQ-BR-DOWNED: Interact (Revive) button placement, size, label and alpha are placeholders, not design values. Anchor = the touch HUD's data look-stick rest centre (input.json touch_layout.look_stick_rest); offset and size are in default touch button sides (touch_layout.button_size_frac_of_height, floor button_min_dp), the units the other touch buttons use. Lower right, between Reload and the look stick, below Aim.",
+		"_todo": "OQ-BR-DOWNED: Interact (Revive) button placement, size, label and alpha are placeholders, not design values. Anchor = the touch HUD's data look-stick rest centre (input.json touch_layout.look_stick_rest); offset and size are in default touch button sides (touch_layout.button_size_frac_of_height, floor button_min_dp), the units the other touch buttons use. Centre-right, five button sides left of the look stick (step 3, Nov 9 2026: moved from [-1.65, 0.0] so it no longer covers the right Fire button). The middle of the band clear of every touch button, the Sprint lock and target, gear and fire-mode buttons on the Fold cover and inner sizes at 420, 373 and 0 dpi (probe).",
 		"anchor": "look_stick_rest",
-		"offset_buttons": [-1.65, 0.0],
+		"offset_buttons": [-5.0, -1.2],
 		"size_buttons": 1.0,
 		"font_dp": 12.0,
 		"label": "Revive",

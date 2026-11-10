@@ -261,7 +261,10 @@ func _move_host(window_size: Vector2i, window_coords: bool = false) -> void:
 	await tree.process_frame
 
 
-func test_look_is_capped_in_both_modes() -> void:
+## Step 3 (Shibi, Nov 9 2026, swipe-look default): the stick is a rate source and stays capped at
+## look.max_turn_rate_deg_s; a swipe follows the finger 1:1 and is not capped (a fast flick keeps its travel).
+## Uncapped swipe is a guess for Shibi (OQ-53).
+func test_stick_look_is_capped_and_swipe_look_is_not() -> void:
 	for mode in ["stick", "drag"]:
 		var hud := _new_hud(mode)
 		var cap := _cap_per_tick(hud)
@@ -269,7 +272,10 @@ func test_look_is_capped_in_both_modes() -> void:
 		_touch(hud, 1, start, true)
 		_drag(hud, 1, start + Vector2(10000, 10000), Vector2(10000, 10000))
 		var v: Vector2 = hud.provider.get_look()
-		assert_true(absf(v.x) <= cap + 1e-6 and absf(v.y) <= cap + 1e-6, "%s capped, got %s cap %s" % [mode, v, cap])
+		if mode == "stick":
+			assert_true(absf(v.x) <= cap + 1e-6 and absf(v.y) <= cap + 1e-6, "stick capped, got %s cap %s" % [v, cap])
+		else:
+			assert_true(v.x > cap and v.y > cap, "a swipe is not capped, got %s cap %s" % [v, cap])
 		assert_true(v.x > 0.0 and v.y > 0.0, "%s direction" % mode)
 		hud.free()
 
@@ -339,19 +345,20 @@ func test_move_touch_never_fires_or_aims() -> void:
 
 
 const BUTTON_LABELS := {"aim": "Aim", "reload": "Reload", "swap_weapon": "Swap", "jump": "Jump",
-	"swap_shoulder": "Shoulder"}
+	"swap_shoulder": "Shoulder", "fire_right": "Fire"}
 
 
 func test_each_button_presses_and_releases_its_action() -> void:
 	var hud := _new_hud()
-	for action in BUTTON_LABELS:
-		var c: Vector2 = hud.get_button_rect(action).get_center()
+	for key in BUTTON_LABELS:
+		var action: String = hud._action_of(key)  # the right Fire button (key fire_right) presses "fire"
+		var c: Vector2 = hud.get_button_rect(key).get_center()
 		_touch(hud, 3, c, true)
-		assert_true(Input.is_action_pressed(action), "%s pressed on touch down" % action)
-		assert_eq(hud._move_touch, -1, "%s does not start move" % action)
-		assert_eq(hud._look_touch, -1, "%s does not start look" % action)
+		assert_true(Input.is_action_pressed(action), "%s pressed on touch down" % key)
+		assert_eq(hud._move_touch, -1, "%s does not start move" % key)
+		assert_eq(hud._look_touch, -1, "%s does not start look" % key)
 		_touch(hud, 3, c, false)
-		assert_true(not Input.is_action_pressed(action), "%s released on touch up" % action)
+		assert_true(not Input.is_action_pressed(action), "%s released on touch up" % key)
 	hud.free()
 
 
@@ -375,7 +382,7 @@ func test_fire_button_works_with_move_finger_held() -> void:
 func test_hud_has_six_labelled_buttons_and_no_sprint() -> void:
 	var hud := _new_hud()
 	assert_true(hud.visible, "HUD visible with force_touch_hud")
-	assert_eq(hud.get_button_actions().size(), 5, "five buttons after F1 main Fire removal")
+	assert_eq(hud.get_button_actions().size(), 6, "six buttons: the five after F1 plus the right Fire button (step 3, Shibi Nov 9 2026)")
 	for action in BUTTON_LABELS:
 		assert_true(hud.get_button_actions().has(action), "button %s" % action)
 		assert_eq(hud.get_button_label(action), BUTTON_LABELS[action], "label of %s" % action)
