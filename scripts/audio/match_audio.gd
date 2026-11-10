@@ -4,7 +4,9 @@ extends Node3D
 ## MatchDirector's signals and reads its public state: match start and end horns, the zone (the horn when it
 ## starts to close, the wall's hum at the nearest point of the circle, the burn while outside), the carrier,
 ## revives, eliminations, loot pickups (the loot field's item nodes leaving the tree), ambience by look variant,
-## thunder after lightning, braziers and banners. It writes nothing to gameplay. Data: data/audio.json.
+## thunder after lightning, braziers and banners, and the reverb zones of the enclosed structures (its own
+## child "ReverbZones", on a physics layer no gameplay query uses). It writes nothing to gameplay. Data:
+## data/audio.json.
 
 var director: MatchDirector
 var hooks: Dictionary = {}
@@ -20,6 +22,9 @@ var _loot: Node
 var _thunder_in := -1.0
 var _banner_in := 3.0
 var _fires_bound := false
+var _zones_bound := false
+## The reverb zones' parent (built by build_reverb_zones), a child of this node; null before.
+var reverb_zones: Node3D
 var _rng := RandomNumberGenerator.new()
 
 
@@ -138,6 +143,81 @@ func _set_loop(current: Node, wanted: bool, hook: String, positional: bool) -> N
 	return current
 
 
+## A reverb zone's box in piece space: the union (AABB) of a structure type's "open" volumes
+## ([{at, size}], data/maps/alesia_structures.json), widened by `padding_m` on x and z, its bottom lowered by
+## `floor_drop_m` so sounds at foot level are inside; the top stays at the roof underside. Empty for no volumes.
+static func zone_box(open: Array, padding_m: float, floor_drop_m: float) -> AABB:
+	var box := AABB()
+	var first := true
+	for entry: Dictionary in open:
+		var size := LowpolyKit.vec(entry["size"])
+		var part := AABB(LowpolyKit.vec(entry["at"]) - size * 0.5, size)
+		box = part if first else box.merge(part)
+		first = false
+	if first:
+		return AABB()
+	box.position -= Vector3(padding_m, floor_drop_m, padding_m)
+	box.size += Vector3(padding_m * 2.0, floor_drop_m, padding_m * 2.0)
+	return box
+
+
+## Builds the reverb zones (data "reverb_zones") under a fresh child "ReverbZones": one Area3D per structure
+## body of `map` whose structure_type is listed, a box (zone_box) at the body's global transform, on the zones'
+## physics layer only, never monitoring. A positional voice that starts inside one also sends to its bus (the
+## engine looks the area up at the player's own position through its area_mask). Not loops: no voice budget is
+## used. Returns the number of zones; 0, quietly, without the block, its types or its bus.
+func build_reverb_zones(map: Node) -> int:
+	if is_instance_valid(reverb_zones):
+		reverb_zones.free()  # a rebuild: free now so the new node keeps its plain name
+	reverb_zones = null
+	var sfx := _sfx()
+	if sfx == null or map == null:
+		return 0
+	var data: Dictionary = sfx.cfg.get("reverb_zones", {})
+	var amounts: Dictionary = data.get("types", {})
+	var bus := String(data.get("bus", ""))
+	if amounts.is_empty() or bus == "" or AudioServer.get_bus_index(bus) < 0:
+		return 0
+	var types: Dictionary = WorldKit.config()["types"]
+	reverb_zones = Node3D.new()
+	reverb_zones.name = "ReverbZones"
+	add_child(reverb_zones)
+	var count := 0
+	for body: Node in get_tree().get_nodes_in_group(WorldKit.GROUP):
+		if not map.is_ancestor_of(body) or not body.has_meta(&"structure_type"):
+			continue  # another match's map, or a decor body
+		var type := String(body.get_meta(&"structure_type"))
+		var open: Array = (types.get(type, {}) as Dictionary).get("open", [])
+		if not amounts.has(type) or open.is_empty():
+			continue
+		var box := zone_box(open, float(data["padding_m"]), float(data["floor_drop_m"]))
+		var zone := Area3D.new()
+		zone.name = "Zone_" + String(body.name)
+		zone.set_meta(&"structure_type", type)
+		zone.set_meta(&"structure_id", String(body.name))
+		zone.collision_layer = sfx.zone_mask()
+		zone.collision_mask = 0
+		# The player's own lookup is a point query: under Jolt it finds the area with neither monitoring nor
+		# monitorable (measured in tests/test_audio_space.gd), from the next physics frame on.
+		zone.monitoring = false
+		zone.monitorable = false
+		zone.reverb_bus_enabled = true
+		zone.reverb_bus_name = StringName(bus)
+		zone.reverb_bus_amount = float(amounts[type])
+		zone.reverb_bus_uniformity = float(data["uniformity"])
+		var shape := CollisionShape3D.new()
+		shape.name = "Box"
+		var box_shape := BoxShape3D.new()
+		box_shape.size = box.size
+		shape.shape = box_shape
+		shape.position = box.get_center()
+		zone.add_child(shape)
+		reverb_zones.add_child(zone)
+		zone.global_transform = (body as Node3D).global_transform
+		count += 1
+	return count
+
+
 func _process(delta: float) -> void:
 	var sfx := _sfx()
 	if sfx == null or director == null:
@@ -159,6 +239,10 @@ func _process(delta: float) -> void:
 		if ambient != null:
 			for light: Node in ambient.get("lights"):
 				sfx.make_loop(String(ambience["brazier_loop"]), light.get_parent(), true)
+	# Reverb zones in the enclosed structures, once the map exists.
+	if not _zones_bound and root != null and root.get("map") != null:
+		_zones_bound = true
+		build_reverb_zones(root.map as Node)
 	# The zone.
 	var rules: BrRules = director.rules
 	var zone_live := rules != null and director.running

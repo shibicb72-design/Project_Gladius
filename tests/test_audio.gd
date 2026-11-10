@@ -68,7 +68,7 @@ func test_data_is_placeholder_and_every_sound_has_a_generated_file() -> void:
 
 func test_buses_and_empty_music_and_announcer_slots() -> void:
 	var sfx := _sfx()
-	for bus in ["Master", "SFX", "Ambience", "Music"]:
+	for bus in ["Master", "SFX", "Ambience", "Music", "Reverb"]:
 		assert_true(AudioServer.get_bus_index(bus) >= 0, "bus " + bus)
 	assert_eq(String(sfx.music.bus), "Music", "the music slot sits on the Music bus")
 	assert_true(sfx.music.stream == null and not sfx.music.playing, "no music plays")

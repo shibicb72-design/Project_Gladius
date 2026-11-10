@@ -1,8 +1,10 @@
 extends Node
 ## S5 audio layer, autoload "Sfx". Plays generated sound effects and ambience (data/audio.json; placeholders,
 ## OQ-AUDIO-MIX / OQ-AUDIO-VOICES). It only listens: gameplay never calls it, and it adds nothing to gameplay
-## nodes. Buses Master / SFX / Ambience / Music are created here when the project has none of that name; Music
-## and the announcer are empty named slots (data "music_slots", "announcer_slots").
+## nodes. Buses SFX / Ambience / Music / Reverb are created here when the project has none of that name; Music
+## and the announcer are empty named slots (data "music_slots", "announcer_slots"). Reverb (an AudioEffectReverb,
+## dry 0, sending to SFX) is fed only by the reverb zones MatchAudio builds: every positional player has the
+## zones' physics bit as its area_mask, so a sound that starts inside a zone sends a copy there.
 ## Positional one-shots come from a fixed pool (voices.max_3d): when every voice is busy, a new sound that is
 ## nearer to the listener replaces the farthest one, otherwise it is dropped. Headless runs use the dummy
 ## audio driver: the players exist and "play", nothing is heard.
@@ -38,6 +40,7 @@ func _ready() -> void:
 	for i in int(cfg["voices"]["max_3d"]):
 		var voice := AudioStreamPlayer3D.new()
 		voice.name = "Voice3D_%d" % i
+		voice.area_mask = zone_mask()  # once: a reused voice keeps it, play_at need not touch it
 		add_child(voice)
 		_pool.append(voice)
 		_pool_id.append("")
@@ -60,17 +63,46 @@ func _ready() -> void:
 	get_tree().node_added.connect(_on_node_added)
 
 
+## Creates, in data order, each bus of data "buses" the project lacks: its volume, its send (data "send",
+## default Master; listed earlier so it exists) and, for a "reverb" block, one AudioEffectReverb with each
+## listed property set. A bus the project already has is left exactly as it is.
 func _ensure_buses() -> void:
 	var buses: Dictionary = cfg["buses"]
 	for bus_name: String in buses:
 		if bus_name.begins_with("_"):
 			continue
 		if AudioServer.get_bus_index(bus_name) < 0:
+			var entry: Dictionary = buses[bus_name]
 			AudioServer.add_bus()
 			var index := AudioServer.bus_count - 1
 			AudioServer.set_bus_name(index, bus_name)
-			AudioServer.set_bus_send(index, &"Master")
-			AudioServer.set_bus_volume_db(index, float(buses[bus_name]["volume_db"]))
+			AudioServer.set_bus_send(index, StringName(String(entry.get("send", "Master"))))
+			AudioServer.set_bus_volume_db(index, float(entry["volume_db"]))
+			var reverb: Variant = entry.get("reverb")
+			if reverb is Dictionary:
+				AudioServer.add_bus_effect(index, _reverb_effect(reverb as Dictionary))
+
+
+## An AudioEffectReverb with each key of `props` set as a property (keys starting with "_" are notes).
+func _reverb_effect(props: Dictionary) -> AudioEffectReverb:
+	var effect := AudioEffectReverb.new()
+	for key: String in props:
+		if key.begins_with("_"):
+			continue
+		if not (key in effect):
+			push_warning("audio.json: AudioEffectReverb has no property '%s'" % key)
+			continue
+		effect.set(key, props[key])
+	return effect
+
+
+## The physics bit of the reverb zones (data reverb_zones.physics_layer), used as every positional voice's
+## area_mask. 0 without that block: no zones, and voices make no area query at all.
+func zone_mask() -> int:
+	var zones: Dictionary = cfg.get("reverb_zones", {})
+	if not zones.has("physics_layer"):
+		return 0
+	return 1 << (int(zones["physics_layer"]) - 1)
 
 
 ## A sound's settings: data "defaults" with the sound's own keys on top. {} for an unknown id.
@@ -240,8 +272,10 @@ func _apply_filter(player: AudioStreamPlayer3D, s: Dictionary) -> void:
 
 
 ## Plays a positional one-shot at a world position: stream, bus, volume, unit size, max distance, distance
-## filter and pitch all from the sound's settings. Returns the voice, or null when it was not played
-## (unknown id, retriggered too soon, polyphony cap reached, or every voice busy with nearer sounds).
+## filter and pitch all from the sound's settings (the pool voices carry the reverb zones' area_mask from
+## _ready, so a sound that starts inside a zone also sends to its reverb bus). Returns the voice, or null when
+## it was not played (unknown id, retriggered too soon, polyphony cap reached, or every voice busy with nearer
+## sounds).
 func play_at(id: String, at: Vector3, volume_offset_db: float = 0.0) -> AudioStreamPlayer3D:
 	var s := sound(id)
 	var key := _source_key(id, at)
@@ -319,7 +353,7 @@ func play_ui(id: String, volume_offset_db: float = 0.0) -> AudioStreamPlayer:
 
 
 ## A looping source owned by `parent` (freed with it). Positional when `positional` (an AudioStreamPlayer3D
-## with the sound's unit size, max distance and distance filter); null past voices.max_loops
+## with the sound's unit size, max distance, distance filter and the reverb zones' area_mask); null past voices.max_loops
 ## or for an unknown id. The caller starts and stops it (play() / stop()) or just leaves it running.
 func make_loop(id: String, parent: Node, positional: bool = true, autoplay: bool = true) -> Node:
 	var s := sound(id)
@@ -342,6 +376,7 @@ func make_loop(id: String, parent: Node, positional: bool = true, autoplay: bool
 		p.unit_size = float(s["unit_size"])
 		p.max_distance = float(s["max_distance_m"])
 		_apply_filter(p, s)
+		p.area_mask = zone_mask()
 		node = p
 	else:
 		var p := AudioStreamPlayer.new()

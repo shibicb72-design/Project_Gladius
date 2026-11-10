@@ -5,10 +5,11 @@
 	"dir": "res://assets/generated/audio/",
 	"_files_note": "A sound may list \"files\": full res:// paths of its recorded takes (Ogg Vorbis, MP3 or WAV); one is picked at random per play. Without it the sound plays its generated file in dir (\"file\", default <id>.wav). hooks.shot_far_by_weapon maps a weapon id to its own far report (else shot_far). First mix for Shibi, placeholder (OQ-AUDIO-MIX).",
 	"buses": {
-		"_note": "Created at start if the project has no bus of that name. Music stays empty until the music exists.",
+		"_note": "Created at start, in this order, if the project has no bus of that name. Music stays empty until the music exists. A bus may name its \"send\" (default Master; the target must be listed before it) and a \"reverb\" block whose keys are AudioEffectReverb properties. The Reverb bus is fed only by the reverb zones' extra send while each voice's own bus keeps the direct sound, so its dry is 0; it sends to SFX so reverb follows the SFX level. Placeholders (OQ-AUDIO-SPACE).",
 		"SFX": {"volume_db": 0.0},
 		"Ambience": {"volume_db": -5.0},
-		"Music": {"volume_db": 0.0}
+		"Music": {"volume_db": 0.0},
+		"Reverb": {"volume_db": 0.0, "send": "SFX", "reverb": {"room_size": 0.5, "damping": 0.4, "wet": 0.5, "dry": 0.0}}
 	},
 	"voices": {
 		"_note": "OQ-AUDIO-VOICES: caps for 18 pawns firing at once. max_3d = positional one-shot voices alive at once (a new sound nearer to the listener replaces the farthest one when all are busy), max_ui = non-positional one-shots, max_loops = looping positional sources (braziers, the zone, the carrier, revives).",
@@ -158,6 +159,15 @@
 		"ground": "stone",
 		"by_material": {"stone": "impact_stone", "wood": "impact_wood", "metal": "impact_metal"},
 		"default": "stone"
+	},
+	"reverb_zones": {
+		"_note": "One Area3D per structure body whose structure_type is listed in types (value = reverb_bus_amount, 0..1), built by MatchAudio once the map exists. Each box is computed at runtime as the union of the type's \"open\" volumes in data/maps/alesia_structures.json (never hand-copied), widened by padding_m on x and z only (the top stays at the roof underside) and lowered by floor_drop_m so sounds at foot level (steps, landings) are inside; it takes the body's transform. physics_layer is the one physics layer the zones use (layer 10 = bit 512; named here because project.godot is not touched); no gameplay query uses it, and every positional voice has that bit as its area_mask. The reverb follows where the sound is, not the listener. watchtower (a solid block, no inside), aqueduct_span (a raised span: a box would put reverb on pawns on top) and pediment_front are left out on purpose. Placeholders for Shibi (OQ-AUDIO-SPACE).",
+		"bus": "Reverb",
+		"physics_layer": 10,
+		"padding_m": 0.25,
+		"floor_drop_m": 0.3,
+		"uniformity": 0.5,
+		"types": {"barracks": 0.5, "gate": 0.3, "colonnade": 0.15}
 	},
 	"footsteps": {
 		"_note": "A step sounds every stride of ground covered. The surface is what the visual side shows under the pawn: the ground's paint map (earth, grass, paving) or the kind of piece stood on. Other pawns' steps are quieter than the listener's own. Each surface lists several ids of one recorded take each (a step never repeats the last id). Grass, wood and stone are Kenney footsteps (stone = footstep_concrete, the stone of walls and buildings); paving is Fantozzi Stone (left/right alternating); earth is Fantozzi Sand, sand standing in for dry earth is a guess. Placeholder choice (OQ-AUDIO-MIX).",
