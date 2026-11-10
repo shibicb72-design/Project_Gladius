@@ -232,7 +232,15 @@ func _pitch(s: Dictionary) -> float:
 	return 1.0 + _rng.randf_range(-jitter, jitter)
 
 
-## Plays a positional one-shot at a world position. Returns the voice, or null when it was not played
+## The distance low-pass of a positional player from a sound's settings (data attenuation_filter_cutoff_hz
+## and attenuation_filter_db; the defaults block always carries both).
+func _apply_filter(player: AudioStreamPlayer3D, s: Dictionary) -> void:
+	player.attenuation_filter_cutoff_hz = float(s["attenuation_filter_cutoff_hz"])
+	player.attenuation_filter_db = float(s["attenuation_filter_db"])
+
+
+## Plays a positional one-shot at a world position: stream, bus, volume, unit size, max distance, distance
+## filter and pitch all from the sound's settings. Returns the voice, or null when it was not played
 ## (unknown id, retriggered too soon, polyphony cap reached, or every voice busy with nearer sounds).
 func play_at(id: String, at: Vector3, volume_offset_db: float = 0.0) -> AudioStreamPlayer3D:
 	var s := sound(id)
@@ -271,6 +279,7 @@ func play_at(id: String, at: Vector3, volume_offset_db: float = 0.0) -> AudioStr
 	voice.volume_db = float(s["volume_db"]) + volume_offset_db
 	voice.unit_size = float(s["unit_size"])
 	voice.max_distance = float(s["max_distance_m"])
+	_apply_filter(voice, s)  # every play: the reused voice must not keep the previous sound's filter
 	voice.pitch_scale = _pitch(s)
 	voice.global_position = at
 	if not silent:
@@ -309,7 +318,8 @@ func play_ui(id: String, volume_offset_db: float = 0.0) -> AudioStreamPlayer:
 	return pick
 
 
-## A looping source owned by `parent` (freed with it). Positional when `positional`; null past voices.max_loops
+## A looping source owned by `parent` (freed with it). Positional when `positional` (an AudioStreamPlayer3D
+## with the sound's unit size, max distance and distance filter); null past voices.max_loops
 ## or for an unknown id. The caller starts and stops it (play() / stop()) or just leaves it running.
 func make_loop(id: String, parent: Node, positional: bool = true, autoplay: bool = true) -> Node:
 	var s := sound(id)
@@ -331,6 +341,7 @@ func make_loop(id: String, parent: Node, positional: bool = true, autoplay: bool
 		p.volume_db = float(s["volume_db"])
 		p.unit_size = float(s["unit_size"])
 		p.max_distance = float(s["max_distance_m"])
+		_apply_filter(p, s)
 		node = p
 	else:
 		var p := AudioStreamPlayer.new()
