@@ -6,6 +6,10 @@ extends Control
 
 const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const LATER_ENTRIES: Array[String] = ["Loadout", "Profile", "Shop", "Tutorials"]
+## Home row stretch ratios: the hero column (logo) and the action card. The later grid's column decision reads
+## the same numbers, so they cannot drift. The boot screen mirrors this layout (scripts/ui/boot.gd).
+const HERO_RATIO := 1.3
+const CARD_RATIO := 1.0
 
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")
 
@@ -54,6 +58,10 @@ var sprint_slider: HSlider:
 var sprint_lock_pos: Array:
 	get: return settings.sprint_lock_pos
 var later_buttons: Array[Button] = []
+## Holds later_buttons: 2 columns when two of the widest fit side by side, else 1.
+var later_grid: GridContainer
+var _card: PanelContainer
+var _gutter: MarginContainer
 
 
 func _ready() -> void:
@@ -73,6 +81,9 @@ func _ready() -> void:
 	_build_settings_page()
 	UiScale.bind(self)
 	MenuStyle.fade_in(home)
+	# Deferred: on a window resize UiScale (viewport size_changed) may re-size the fonts after home resizes.
+	home.resized.connect(_update_later_columns, CONNECT_DEFERRED)
+	_update_later_columns.call_deferred()  # after the first layout and UiScale's sizes
 
 
 ## Left: the logo at the top-left; the space below it shows the backdrop art. Nothing interactive.
@@ -81,7 +92,7 @@ func _build_hero(parent: Control) -> void:
 	hero.name = "Hero"
 	hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hero.size_flags_stretch_ratio = 1.3
+	hero.size_flags_stretch_ratio = HERO_RATIO
 	parent.add_child(hero)
 	logo = MenuLogo.new()
 	logo.name = "Logo"
@@ -95,8 +106,9 @@ func _build_card(parent: Control, profile: Dictionary) -> void:
 	card.name = "HeroCard"
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	card.size_flags_stretch_ratio = 1.0
+	card.size_flags_stretch_ratio = CARD_RATIO
 	parent.add_child(card)
+	_card = card
 	# Not inside a CenterContainer (that would shrink the scroll to its own minimum size). The expand +
 	# shrink-center flags keep the column centred while it fits; taller than the card, it scrolls.
 	scroll = ScrollContainer.new()
@@ -110,6 +122,7 @@ func _build_card(parent: Control, profile: Dictionary) -> void:
 	gutter.size_flags_vertical = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
 	MenuStyle.pad(gutter, 0.0, 0.0, 1.75, 0.0)
 	scroll.add_child(gutter)
+	_gutter = gutter
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -137,18 +150,61 @@ func _build_card(parent: Control, profile: Dictionary) -> void:
 	join_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(HSeparator.new())
 	settings_button = _button(box, "Settings", open_settings, "gear")
-	var later_row := HFlowContainer.new()
-	MenuStyle.gap(later_row, 1.5)
-	box.add_child(later_row)
-	for entry in LATER_ENTRIES:
-		var b := _button(later_row, "%s (later)" % entry, Callable(), "lock")
+	# A grid, not a flow: a flow wraps 1 / 2 / 1. Two columns when two of the widest fit, else one.
+	later_grid = GridContainer.new()
+	later_grid.name = "LaterGrid"
+	later_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	later_grid.mouse_filter = Control.MOUSE_FILTER_PASS
+	MenuStyle.gap(later_grid, 1.5)
+	box.add_child(later_grid)
+	for entry: String in LATER_ENTRIES:
+		var b := _button(later_grid, "%s (later)" % entry, Callable(), "lock")
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.disabled = true
+		# Trims instead of pinning its text width: on a near-square canvas the widest entry alone would push the
+		# card past its share and squeeze the hero column (the boot screen's logo would then not match).
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		later_buttons.append(b)
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.theme_type_variation = &"WarnLabel"
 	box.add_child(status_label)
+
+
+## The width the action card is allotted: its CARD_RATIO share of the home row, never its current width (two
+## grid columns pin a minimum width, so measuring the grid or the card would feed back into the decision).
+func card_share() -> float:
+	var home_gap := float(home.get_theme_constant(&"separation"))
+	return maxf(home.size.x - home_gap, 0.0) * CARD_RATIO / (HERO_RATIO + CARD_RATIO)
+
+
+## Picks the later grid's column count from the card's allotted share and the widest button (fonts and gaps
+## come from UiScale): 2 columns when two of the widest fit inside the card's content area, else 1.
+func _update_later_columns() -> void:
+	if later_grid == null or _card == null or _gutter == null:
+		return
+	var panel := _card.get_theme_stylebox(&"panel")
+	var avail := card_share() - float(_gutter.get_theme_constant(&"margin_right"))
+	if panel != null:
+		avail -= panel.get_margin(SIDE_LEFT) + panel.get_margin(SIDE_RIGHT)
+	var widest := 0.0
+	for b: Button in later_buttons:
+		widest = maxf(widest, natural_width(b))
+	var sep := float(later_grid.get_theme_constant(&"h_separation"))
+	var cols := 2 if 2.0 * widest + sep <= avail else 1
+	if later_grid.columns != cols:
+		later_grid.columns = cols
+
+
+## A button's untrimmed width: its text at its font size plus the current stylebox's content margins (the later
+## buttons trim, so their minimum size no longer tells).
+static func natural_width(b: Button) -> float:
+	var style := b.get_theme_stylebox(&"disabled" if b.disabled else &"normal")
+	var w := b.get_theme_font(&"font").get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+			b.get_theme_font_size(&"font_size")).x
+	if style != null:
+		w += style.get_margin(SIDE_LEFT) + style.get_margin(SIDE_RIGHT)
+	return ceilf(w)
 
 
 ## The settings page: own dimmed backdrop, Back header, then the shared panel in a centred column that scrolls.

@@ -16,6 +16,8 @@ const META_MIN_W_UNITS := &"ui_min_w_units"
 const META_SAFE_MARGIN := &"ui_safe_margin_units"
 const META_PRESS_WIRED := &"ui_press_wired"
 const META_PAD_UNITS := &"ui_pad_units"
+## A node with this meta (and everything below it) is left alone by apply_scale.
+const META_SKIP := &"ui_style_skip"
 
 ## Canvas units on the left of an Icon button variation reserved for its MenuIcon (matches menu_theme.tres).
 const ICON_AREA := 66.0
@@ -187,6 +189,11 @@ static func pad(c: MarginContainer, left: float, top: float, right: float, botto
 	c.set_meta(META_PAD_UNITS, Vector4(left, top, right, bottom))
 
 
+## Keeps the kit out of a subtree (e.g. a live HUD preview): apply_scale does not touch or descend into `n`.
+static func skip(n: Node) -> void:
+	n.set_meta(META_SKIP, true)
+
+
 ## A sub-page header: Back (with chevron) at the left, then the title. Returns {"row", "back", "title"}.
 static func page_header(title_text: String, on_back: Callable) -> Dictionary:
 	var row_box := HBoxContainer.new()
@@ -245,6 +252,8 @@ static func apply_scale(root: Control, font_px: int, canvas_h: float) -> void:
 
 static func _apply_node(n: Node, font_px: int, u: float, scales: Dictionary, vp_size: Vector2, insets: Vector4,
 		motion: bool) -> void:
+	if n.has_meta(META_SKIP):
+		return
 	if n is Control:
 		var c := n as Control
 		if c.has_meta(META_ROLE):

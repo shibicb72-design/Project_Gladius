@@ -122,6 +122,28 @@ func test_pad_sets_margins_in_spacing_units() -> void:
 	root.free()
 
 
+func test_skip_keeps_the_kit_out_of_a_subtree() -> void:
+	var root := _themed_root()
+	var skipped := VBoxContainer.new()
+	MenuStyle.skip(skipped)
+	MenuStyle.gap(skipped, 2.0)
+	root.add_child(skipped)
+	var inside := Label.new()
+	inside.text = "Inside"
+	MenuStyle.set_role(inside, "title")
+	skipped.add_child(inside)
+	var outside := Label.new()
+	outside.text = "Outside"
+	MenuStyle.set_role(outside, "title")
+	root.add_child(outside)
+	UiScale.apply_to(root, 800.0)
+	assert_true(skipped.has_meta(MenuStyle.META_SKIP), "skip sets the meta")
+	assert_true(not inside.has_theme_font_size_override("font_size"), "a role under a skipped node is not sized")
+	assert_true(not skipped.has_theme_constant_override("separation"), "the skipped node itself is not touched")
+	assert_true(outside.has_theme_font_size_override("font_size"), "a sibling outside the skipped node is sized")
+	root.free()
+
+
 func test_text_fields_and_primary_buttons_get_touch_heights() -> void:
 	var root := _themed_root()
 	var field := LineEdit.new()

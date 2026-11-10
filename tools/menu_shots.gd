@@ -35,7 +35,7 @@ const SIZES: Array = [
 ]
 
 const SCREENS: Array[String] = [
-	"boot", "main_menu", "main_menu_settings", "lobby", "lobby_squads", "end_victory", "end_placed",
+	"boot", "main_menu", "main_menu_later", "main_menu_settings", "lobby", "lobby_squads", "end_victory", "end_placed",
 	"pause", "pause_confirm", "pause_settings", "sensitivity", "haptics", "layout_editor",
 ]
 
@@ -130,11 +130,14 @@ func _one(screen: String, px: Vector2i, dpi: float) -> bool:
 			else:
 				boot.set_script(null)  # old boot changes scene in _ready; without it only its static Label shows
 			svp.add_child(boot)
-		"main_menu", "main_menu_settings":
+		"main_menu", "main_menu_later", "main_menu_settings":
 			var menu: MainMenu = _MainMenu.instantiate()
 			menu.save = SaveService.new(TMP_PROFILE)
 			svp.add_child(menu)
-			if screen == "main_menu_settings":
+			if screen == "main_menu_later":  # the home column scrolled to its end: the disabled later entries
+				await _frames(4)
+				menu.scroll.ensure_control_visible(menu.later_buttons[menu.later_buttons.size() - 1])
+			elif screen == "main_menu_settings":
 				await _frames(4)
 				if menu.has_method("open_settings"):
 					menu.call("open_settings")

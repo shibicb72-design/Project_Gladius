@@ -25,6 +25,8 @@ var category_buttons: Dictionary = {}  # category -> Button
 var quality_buttons: Dictionary = {}  # quality -> Button
 var unsupported_label: Label
 var _built: bool = false
+## The safe-margin content (faded in on enter).
+var _content: Control
 
 
 func _ready() -> void:
@@ -33,6 +35,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	build()
 	UiScale.bind(self)
+	MenuStyle.fade_in(_content)
 
 
 func build() -> void:
@@ -42,38 +45,47 @@ func build() -> void:
 	if service == null:
 		service = Haptics.get_service()
 	service.apply_settings(save.load_profile()["haptics"])
-	var bg := ColorRect.new()
-	bg.color = Color(0.05, 0.05, 0.07, 1.0)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 12)
+	add_child(MenuBackdrop.make("page"))
+	var margin := MenuStyle.safe_margin()
 	add_child(margin)
+	_content = margin
 	var root := VBoxContainer.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	MenuStyle.gap(root, 1.5)
 	margin.add_child(root)
-	var head := HBoxContainer.new()
-	root.add_child(head)
-	back_button = _button(head, "Back", _on_back, false)
-	var title := Label.new()
-	title.text = "Haptics"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	head.add_child(title)
+	var header := MenuStyle.page_header("Haptics", _on_back)
+	back_button = header["back"]
+	root.add_child(header["row"])
+	root.add_child(HSeparator.new())
+	# Taller than a short phone screen (S24/S25 Ultra guess): the list scrolls.
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	root.add_child(scroll)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
+	col.mouse_filter = Control.MOUSE_FILTER_PASS
+	MenuStyle.min_width(col, 78.0)
+	MenuStyle.gap(col, 1.25)
+	scroll.add_child(col)
 	unsupported_label = Label.new()
 	unsupported_label.text = "Not available on this device"
-	root.add_child(unsupported_label)
-	master_button = _button(root, "", _on_master)
+	unsupported_label.theme_type_variation = &"WarnLabel"
+	col.add_child(unsupported_label)
+	master_button = _button(col, "", _on_master)
+	col.add_child(MenuStyle.caption("CATEGORIES"))
 	for cat in service.cfg["categories"]:
-		category_buttons[cat] = _button(root, CATEGORY_TITLES[cat], _on_category.bind(cat))
+		category_buttons[cat] = _button(col, CATEGORY_TITLES[cat], _on_category.bind(cat))
+	col.add_child(MenuStyle.caption("QUALITY"))
 	var quality_row := HBoxContainer.new()
-	root.add_child(quality_row)
-	var ql := Label.new()
-	ql.text = "Quality:"
-	quality_row.add_child(ql)
+	quality_row.mouse_filter = Control.MOUSE_FILTER_PASS
+	MenuStyle.gap(quality_row, 1.0)
+	col.add_child(quality_row)
 	for q in service.cfg["qualities"]:
 		quality_buttons[q] = _button(quality_row, QUALITY_TITLES[q], _on_quality.bind(q))
+	for b: Button in col.find_children("*", "Button", true, false):
+		b.mouse_filter = Control.MOUSE_FILTER_PASS  # STOP would swallow touch drags before the ScrollContainer
 	_refresh()
 
 

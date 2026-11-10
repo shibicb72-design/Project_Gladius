@@ -28,6 +28,8 @@ var _overlay: Control
 var _main_box: VBoxContainer
 var _confirm_box: VBoxContainer
 var _settings_box: VBoxContainer
+## The sheet under the main list and the confirm step.
+var _card: PanelContainer
 
 
 func _ready() -> void:
@@ -57,18 +59,26 @@ func _build() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.add_child(center)
+	# The list and the confirm step sit on one sheet; the card hugs whichever box is visible.
+	_card = MenuStyle.card("HeroCard")
+	center.add_child(_card)
 	var holder := VBoxContainer.new()
-	center.add_child(holder)
+	_card.add_child(holder)
 	_main_box = _box(holder)
 	resume_button = _button(_main_box, _menu["resume_text"], close)
+	MenuStyle.primary(resume_button)  # the overlay's one crimson control; before add_icon (picks the Icon twin)
+	MenuStyle.add_icon(resume_button, "play")
 	settings_button = _button(_main_box, _menu["settings_text"], func() -> void: _show(_settings_box))
+	MenuStyle.add_icon(settings_button, "gear")
 	quit_button = _button(_main_box, _menu["quit_text"], func() -> void: _show(_confirm_box))
 	_confirm_box = _box(holder)
 	var prompt := Label.new()
 	prompt.text = _menu["confirm_prompt"]
 	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt.theme_type_variation = &"HeadlineLabel"
 	_confirm_box.add_child(prompt)
 	confirm_button = _button(_confirm_box, _menu["confirm_text"], func() -> void: quit_confirmed.emit())
+	MenuStyle.primary(confirm_button)
 	cancel_button = _button(_confirm_box, _menu["cancel_text"], func() -> void: _show(_main_box))
 	# Settings lives outside the CenterContainer (that would shrink a scroll to its own minimum size). The
 	# expand + shrink-center flags keep it centred while it fits; taller than the view, it scrolls.
@@ -80,6 +90,14 @@ func _build() -> void:
 	_settings_box = _box(settings_scroll)
 	_settings_box.size_flags_horizontal = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
 	_settings_box.size_flags_vertical = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
+	MenuStyle.min_width(_settings_box, 78.0)
+	_settings_box.add_child(_edge_space())  # with the box gap: a screen margin above Back when the column scrolls
+	# Back sits at the top of a sub-page (docs/UI_STYLE.md), left in the column, above the panel.
+	back_button = _button(_settings_box, _menu["back_text"], func() -> void: _show(_main_box))
+	back_button.mouse_filter = Control.MOUSE_FILTER_PASS  # STOP would swallow touch drags before the ScrollContainer
+	back_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	MenuStyle.add_icon(back_button, "chevron_left")
+	MenuStyle.min_width(back_button, 14.0)  # the page-header Back width (MenuStyle.page_header)
 	# Device export can return empty PackedScene for this preload (measured on Fold).
 	# Prefer runtime load()+instantiate; .new() fallback if PackedScene unusable.
 	settings = _make_settings_panel()
@@ -87,18 +105,25 @@ func _build() -> void:
 		_settings_box.add_child(settings)
 	else:
 		push_error("PauseMenu: settings panel failed to create; in-match Settings unavailable")
-	back_button = _button(_settings_box, _menu["back_text"], func() -> void: _show(_main_box))
-	back_button.mouse_filter = Control.MOUSE_FILTER_PASS  # STOP would swallow touch drags before the ScrollContainer
+	_settings_box.add_child(_edge_space())
 	UiScale.bind(_overlay)
 	_show(_main_box)
 
 
 func _box(parent: Node) -> VBoxContainer:
 	var b := VBoxContainer.new()
-	b.add_theme_constant_override("separation", int(float(_menu["gap_dp"]) * PlatformServices.new().get_dp_scale()))
+	MenuStyle.gap(b, 1.5)  # spacing units, so gaps scale like the rest of the front-end
 	b.process_mode = Node.PROCESS_MODE_ALWAYS
 	parent.add_child(b)
 	return b
+
+
+## An empty 1.5-unit spacer for the ends of the scrolling settings column (no wrapper around the column).
+func _edge_space() -> MarginContainer:
+	var s := MarginContainer.new()
+	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	MenuStyle.pad(s, 0.0, 1.5, 0.0, 0.0)
+	return s
 
 
 func _button(parent: Node, text: String, handler: Callable) -> Button:
@@ -131,6 +156,7 @@ func _make_settings_panel() -> SettingsPanel:
 func _show(which: Control) -> void:
 	for b in [_main_box, _confirm_box, _settings_box]:
 		b.visible = b == which
+	_card.visible = which != _settings_box  # the sheet only holds the list and the confirm step
 	settings_scroll.visible = which == _settings_box  # full-screen: left visible it would take every list tap
 
 
