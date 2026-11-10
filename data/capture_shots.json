@@ -33,7 +33,8 @@
 	"map_overview": {
 		"camera_at": [0, 150, 120],
 		"look_at": [0, 0, 0],
-		"fov_deg": 50
+		"fov_deg": 50,
+		"fog": false
 	},
 	"loot_lineup": {
 		"spacing_m": 1.3,
@@ -71,6 +72,57 @@
 			{"name": "forum_aquilae", "landmark": "forum_aquilae", "from": [-25, 28]},
 			{"name": "west_route", "look_at": [-42, 1.5, 30], "from": [-39, -3]},
 			{"name": "rim_arch", "look_at": [67, 4, 0], "from": [52, -9]}
+		]
+	},
+	"in_match": {
+		"_note": "S0: the local pawn through the game's own third-person camera rig. at = [x, z] on open ground, look_at = [x, y, z]; others = [x, z, yaw_deg] inert soldiers (squads 1, 2, ...).",
+		"pitch_deg": -4,
+		"views": [
+			{"name": "forum", "at": [-27, 27], "look_at": [-41, 3, 42], "others": [[-33, 33, 0], [-36, 30, 40]]},
+			{"name": "citadel", "at": [-6, 36], "look_at": [0, 3, 0], "others": [[-3, 28, 0], [2, 30, 180]]},
+			{"name": "gate", "at": [-28, -28], "look_at": [-40, 3, -44], "others": [[-33, -34, 0]]}
+		]
+	},
+	"soldier_poses": {
+		"_note": "S4: a row of soldiers, each holding one pose (data/anim.json poses) at full weight, with the blade and an armor tier where asked.",
+		"spacing_m": 1.7,
+		"frame_margin_m": 1.0,
+		"frame_height_m": 2.6,
+		"camera_height_m": 1.2,
+		"look_height_m": 0.95,
+		"fov_deg": 32,
+		"views": [{"name": "front", "yaw_deg": 0}, {"name": "back", "yaw_deg": 180}],
+		"row": [
+			{"label": "rifle", "pose": "", "tier": 0},
+			{"label": "blade, tier I", "pose": "", "blade": true, "tier": 1},
+			{"label": "falling", "pose": "fall", "blade": true, "tier": 0},
+			{"label": "landing", "pose": "land", "blade": true, "tier": 2},
+			{"label": "downed", "pose": "downed", "tier": 0},
+			{"label": "reviving, tier III", "pose": "revive", "tier": 3}
+		]
+	},
+	"carrier": {
+		"_note": "S6: the carrier model on a made-up stretch of flight. camera_offset is from the carrier position.",
+		"at": [0, 60, 10],
+		"heading_deg": 35,
+		"look_offset": [0, 3, 0],
+		"fov_deg": 50,
+		"views": [
+			{"name": "side", "camera_offset": [-30, 6, -22]},
+			{"name": "below", "camera_offset": [8, -22, 26]},
+			{"name": "rider", "camera_offset": [1.2, 1.4, 5.5]}
+		]
+	},
+	"drop_capture": {
+		"_note": "S9: tools/drop_capture.gd, a real match opening. at_s = seconds after the match began (the carrier flies 20 s, br.json drop.carrier_s; an idle pawn is let go at the end of the line).",
+		"match_seed": 20261109,
+		"shots": [
+			{"name": "1_aboard", "at_s": 4.0},
+			{"name": "2_aboard_late", "at_s": 16.0},
+			{"name": "3_falling", "at_s": 23.0},
+			{"name": "4_falling_low", "at_s": 27.5},
+			{"name": "5_landed", "at_s": 33.0},
+			{"name": "6_on_the_ground", "at_s": 40.0}
 		]
 	},
 	"wall_closeup": {

@@ -1,9 +1,10 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/classes/pawn.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/visual/greybox_art.gd" id="art"]
 [ext_resource type="Script" path="res://scripts/visual/soldier_model.gd" id="soldier"]
 [ext_resource type="Script" path="res://scripts/visual/death_fx.gd" id="death"]
+[ext_resource type="Script" path="res://scripts/audio/pawn_audio.gd" id="audio"]
 
 [sub_resource type="CapsuleShape3D" id="body_shape"]
 radius = 0.4
@@ -62,3 +63,6 @@ script = ExtResource("soldier")
 
 [node name="DeathFx" type="Node" parent="."]
 script = ExtResource("death")
+
+[node name="Audio" type="Node3D" parent="."]
+script = ExtResource("audio")

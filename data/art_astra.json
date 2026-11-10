@@ -3,24 +3,11 @@
 	"_placeholder": true,
 	"_todo": "OQ-ART-ASTRA: all procedural geometry ratios, colors, counts, animation and budgets are replaceable presentation trials, not approved design values.",
 	"colors": {
-		"stone": [
-			0.55,
-			0.53,
-			0.47,
-			1
-		],
-		"trim": [
-			0.68,
-			0.64,
-			0.53,
-			1
-		],
-		"dark": [
-			0.26,
-			0.29,
-			0.3,
-			1
-		],
+		"_s2_note": "S2: every colour here is sRGB paint under a textured surface (data/art_materials.json); stone, trim and dark were retuned for that, and rock is the boulders' own colour.",
+		"stone": [0.66, 0.6, 0.5, 1],
+		"trim": [0.76, 0.72, 0.62, 1],
+		"dark": [0.3, 0.33, 0.37, 1],
+		"rock": [0.5, 0.46, 0.42, 1],
 		"cloth": [
 			0.42,
 			0.4,
@@ -45,14 +32,16 @@
 		"plate_shade": [0.58, 0.59, 0.6, 1],
 		"plate_dark": [0.3, 0.32, 0.36, 1],
 		"bronze": [0.76, 0.56, 0.24, 1],
+		"gold": [0.98, 0.78, 0.3, 1],
+		"ember": [1.0, 0.42, 0.1, 1],
 		"leather": [0.36, 0.22, 0.13, 1],
 		"visor": [0.04, 0.05, 0.07, 1],
 		"_squad_note": "C3: alpha 0 marks a squad colour field. On the soldier the shared shader paints those faces with the instance's squad colour (soldier.squad_colour); the rgb here is what a material without that shader shows.",
 		"squad": [0.66, 0.1, 0.09, 0],
 		"_world_kit_note": "OQ-ART-ASTRA: the colours below belong to the world kit (W1, data/maps/alesia_structures.json), written as sRGB. Trial palette: travertine and marble for structures, legion red and bronze for cloth and trim, one bright accent for the future lines. lit_accent is paint in the lit material, not glow.",
-		"travertine": [0.8, 0.75, 0.65, 1],
-		"travertine_shade": [0.66, 0.61, 0.52, 1],
-		"marble": [0.9, 0.89, 0.86, 1],
+		"travertine": [0.78, 0.71, 0.59, 1],
+		"travertine_shade": [0.64, 0.58, 0.48, 1],
+		"marble": [0.82, 0.8, 0.76, 1],
 		"roof_tile": [0.55, 0.27, 0.18, 1],
 		"legion_red": [0.62, 0.1, 0.09, 1],
 		"timber": [0.38, 0.26, 0.16, 1],
@@ -80,6 +69,8 @@
 			1
 		],
 		"arch_lintel_y": 0.375,
+		"arch_leg_y": -0.125,
+		"_arch_leg_note": "S7 (lead's review): the arch legs' centre, as a fraction of the piece's height. -0.125 stands the 0.75-high legs on the piece's bottom and ends them at the lintel's underside (0.25); they used to be centred (0), which left the rim arches' legs 0.625 m above the ground while their pier colliders reached it.",
 		"bag_columns": 4,
 		"bag_rows": 2,
 		"bag_fill": 0.96,
@@ -135,19 +126,15 @@
 	"environment": {
 		"tonemap": "aces",
 		"fog_mode": "depth",
-		"fog_color": [
-			0.48,
-			0.46,
-			0.41,
-			1
-		],
-		"fog_density": 0.007,
-		"fog_sky_affect": 0.25,
-		"fog_depth_begin_m": 12,
-		"fog_depth_end_m": 90,
-		"fog_depth_curve": 1.2,
+		"_note": "S1: dusk haze. In depth mode fog_density is the fog's strongest opacity (0.007 was invisible).",
+		"fog_color": [0.62, 0.45, 0.45, 1],
+		"fog_density": 0.6,
+		"fog_sky_affect": 0.0,
+		"fog_depth_begin_m": 24,
+		"fog_depth_end_m": 230,
+		"fog_depth_curve": 1.0,
 		"shadow_mode": "orthogonal",
-		"shadow_max_distance_m": 48,
+		"shadow_max_distance_m": 70,
 		"light_angular_distance": 0
 	},
 	"soldier": {
@@ -196,31 +183,31 @@
 			{"name": "shin_r", "shape": "lathe", "segments": 8, "profile": [[0, 0], [0.8, 0], [1, 1], [0, 1]], "size": [0.11, 0.29, 0.14], "at": [0.135, 0.33, -0.01], "color": "undersuit"},
 			{"name": "boot_r", "shape": "taper", "top": [0.8, 0.55], "top_shift": [0, 0.225], "bevel": 0.15, "size": [0.19, 0.16, 0.33], "at": [0.135, 0.09, -0.06], "color": "plate_dark"},
 			{"name": "helmet_bowl", "shape": "lathe", "axis": true, "segments": 12, "profile": [[0, 0], [0.61, 0], [0.88, 0.22], [1, 0.46], [1, 0.62], [0.82, 0.86], [0.41, 0.99], [0, 1]], "size": [0.49, 0.5, 0.49], "at": [0, 1.74, 0], "color": "plate"},
-			{"name": "helmet_brow", "shape": "plate", "axis": true, "arc_deg": 240, "segments": 8, "thickness": 0.14, "size": [0.515, 0.05, 0.515], "at": [0, 1.84, 0], "color": "bronze"},
+			{"name": "helmet_brow", "surface": "tier_trim","shape": "plate", "axis": true, "arc_deg": 240, "segments": 8, "thickness": 0.14, "size": [0.515, 0.05, 0.515], "at": [0, 1.84, 0], "color": "bronze"},
 			{"name": "helmet_visor", "shape": "plate", "axis": true, "arc_deg": 180, "segments": 6, "thickness": 0.12, "size": [0.505, 0.11, 0.505], "at": [0, 1.745, 0], "color": "visor"},
 			{"name": "helmet_eye", "shape": "plate", "axis": true, "arc_deg": 120, "segments": 4, "thickness": 0.1, "size": [0.515, 0.03, 0.515], "at": [0, 1.752, 0], "color": "accent"},
 			{"name": "helmet_cheek_l", "shape": "plate", "axis": true, "arc_deg": 60, "segments": 2, "thickness": 0.14, "rot": [0, 60, 0], "size": [0.5, 0.17, 0.5], "at": [0, 1.6, 0], "color": "plate"},
 			{"name": "helmet_cheek_r", "shape": "plate", "axis": true, "arc_deg": 60, "segments": 2, "thickness": 0.14, "rot": [0, -60, 0], "size": [0.5, 0.17, 0.5], "at": [0, 1.6, 0], "color": "plate"},
 			{"name": "helmet_neck", "shape": "lathe", "axis": true, "sweep_deg": 180, "segments": 6, "rot": [0, 180, 0], "profile": [[0.84, 0], [1, 0], [0.9, 1], [0.8, 1]], "size": [0.515, 0.11, 0.515], "at": [0, 1.555, 0], "color": "plate"},
-			{"name": "helmet_crest", "shape": "taper", "top": [1, 0.7], "top_shift": [0, 0.15], "bevel": 0, "size": [0.06, 0.17, 0.38], "at": [0, 2.015, 0.03], "color": "squad"},
+			{"name": "helmet_crest", "surface": "squad_cloth","shape": "taper", "top": [1, 0.7], "top_shift": [0, 0.15], "bevel": 0, "size": [0.06, 0.17, 0.38], "at": [0, 2.015, 0.03], "color": "squad"},
 			{"name": "cuirass_upper", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.92, 0], [1, 0.5], [0.9, 1], [0, 1]], "size": [0.6, 0.17, 0.37], "at": [0, 1.385, 0], "color": "plate"},
 			{"name": "cuirass_mid", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.94, 0], [1, 0.6], [0.95, 1], [0, 1]], "size": [0.55, 0.15, 0.34], "at": [0, 1.235, 0], "color": "plate_shade"},
 			{"name": "cuirass_low", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.94, 0], [1, 0.6], [0.95, 1], [0, 1]], "size": [0.51, 0.13, 0.32], "at": [0, 1.105, 0], "color": "plate"},
-			{"name": "chest_plate", "shape": "taper", "top": [1, 1], "bottom": [0.45, 1], "bevel": 0, "size": [0.26, 0.1, 0.03], "at": [0, 1.385, -0.19], "color": "bronze"},
+			{"name": "chest_plate", "surface": "tier_trim","shape": "taper", "top": [1, 1], "bottom": [0.45, 1], "bevel": 0, "size": [0.26, 0.1, 0.03], "at": [0, 1.385, -0.19], "color": "bronze"},
 			{"name": "gorget", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [1, 0], [0.8, 1], [0, 1]], "size": [0.3, 0.06, 0.3], "at": [0, 1.46, 0], "color": "plate_dark"},
 			{"name": "back_unit", "shape": "taper", "top": [0.8, 1], "bevel": 0.15, "size": [0.3, 0.22, 0.11], "at": [0, 1.33, 0.215], "color": "plate_dark"},
 			{"name": "back_core", "shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.05, 0.14, 0.012], "at": [0, 1.33, 0.273], "color": "accent"},
-			{"name": "cape", "shape": "taper", "top": [0.82, 1], "bevel": 0, "rot": [-7, 0, 0], "size": [0.46, 0.4, 0.03], "at": [0, 1.02, 0.22], "color": "squad"},
+			{"name": "cape", "surface": "squad_cape", "sway": true,"shape": "taper", "top": [0.82, 1], "bevel": 0, "rot": [-7, 0, 0], "size": [0.46, 0.4, 0.03], "at": [0, 1.02, 0.22], "color": "squad"},
 			{"name": "pauldron_l", "shape": "lathe", "axis": true, "sweep_deg": 230, "segments": 6, "rot": [0, 90, 0], "profile": [[0, 0], [1, 0], [0.97, 0.35], [0.8, 0.72], [0.45, 0.95], [0, 1]], "size": [0.38, 0.2, 0.39], "at": [-0.345, 1.395, 0], "color": "squad"},
 			{"name": "pauldron_r", "shape": "lathe", "axis": true, "sweep_deg": 230, "segments": 6, "rot": [0, -90, 0], "profile": [[0, 0], [1, 0], [0.97, 0.35], [0.8, 0.72], [0.45, 0.95], [0, 1]], "size": [0.38, 0.2, 0.39], "at": [0.345, 1.395, 0], "color": "squad"},
-			{"name": "pauldron_rim_l", "shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, 90, 0], "profile": [[0, 0], [0.9, 0], [1, 0.5], [0.92, 1], [0, 1]], "size": [0.34, 0.09, 0.38], "at": [-0.36, 1.255, 0], "color": "plate"},
-			{"name": "pauldron_rim_r", "shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, -90, 0], "profile": [[0, 0], [0.9, 0], [1, 0.5], [0.92, 1], [0, 1]], "size": [0.34, 0.09, 0.38], "at": [0.36, 1.255, 0], "color": "plate"},
+			{"name": "pauldron_rim_l", "surface": "tier_trim","shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, 90, 0], "profile": [[0, 0], [0.9, 0], [1, 0.5], [0.92, 1], [0, 1]], "size": [0.34, 0.09, 0.38], "at": [-0.36, 1.255, 0], "color": "plate"},
+			{"name": "pauldron_rim_r", "surface": "tier_trim","shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, -90, 0], "profile": [[0, 0], [0.9, 0], [1, 0.5], [0.92, 1], [0, 1]], "size": [0.34, 0.09, 0.38], "at": [0.36, 1.255, 0], "color": "plate"},
 			{"name": "rerebrace_l", "shape": "plate", "axis": true, "arc_deg": 190, "segments": 4, "thickness": 0.3, "rot": [0, 180, 0], "size": [0.2, 0.13, 0.21], "at": [-0.37, 1.165, 0], "color": "plate"},
 			{"name": "rerebrace_r", "shape": "plate", "axis": true, "arc_deg": 190, "segments": 4, "thickness": 0.3, "rot": [0, 180, 0], "size": [0.2, 0.13, 0.21], "at": [0.37, 1.165, 0], "color": "plate"},
 			{"name": "vambrace_l", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.78, 0], [1, 0.72], [0.9, 1], [0, 1]], "size": [0.16, 0.17, 0.18], "at": [-0.39, 0.985, -0.04], "color": "plate"},
 			{"name": "vambrace_r", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.78, 0], [1, 0.72], [0.9, 1], [0, 1]], "size": [0.16, 0.17, 0.18], "at": [0.39, 0.985, -0.04], "color": "plate"},
 			{"name": "belt", "shape": "lathe", "axis": true, "segments": 8, "size": [0.47, 0.08, 0.31], "at": [0, 1.01, 0], "color": "leather"},
-			{"name": "belt_buckle", "shape": "taper", "top": [0.8, 1], "bevel": 0.2, "size": [0.09, 0.07, 0.025], "at": [0, 1.01, -0.16], "color": "bronze"},
+			{"name": "belt_buckle", "surface": "tier_trim","shape": "taper", "top": [0.8, 1], "bevel": 0.2, "size": [0.09, 0.07, 0.025], "at": [0, 1.01, -0.16], "color": "bronze"},
 			{"name": "strip_1", "shape": "taper", "top": [1, 1], "bottom": [0.75, 1], "bevel": 0, "size": [0.062, 0.25, 0.018], "at": [-0.108, 0.855, -0.14], "color": "leather"},
 			{"name": "strip_2", "shape": "taper", "top": [1, 1], "bottom": [0.75, 1], "bevel": 0, "size": [0.062, 0.25, 0.018], "at": [-0.036, 0.855, -0.14], "color": "leather"},
 			{"name": "strip_3", "shape": "taper", "top": [1, 1], "bottom": [0.75, 1], "bevel": 0, "size": [0.062, 0.25, 0.018], "at": [0.036, 0.855, -0.14], "color": "leather"},
@@ -229,8 +216,8 @@
 			{"name": "tasset_r", "shape": "plate", "axis": true, "arc_deg": 75, "segments": 3, "thickness": 0.12, "rot": [0, -90, 0], "size": [0.33, 0.19, 0.47], "at": [0, 0.875, 0], "color": "plate"},
 			{"name": "cuisse_l", "shape": "plate", "axis": true, "arc_deg": 230, "segments": 5, "thickness": 0.25, "rot": [0, 30, 0], "size": [0.24, 0.22, 0.24], "at": [-0.135, 0.65, 0], "color": "plate"},
 			{"name": "cuisse_r", "shape": "plate", "axis": true, "arc_deg": 230, "segments": 5, "thickness": 0.25, "rot": [0, -30, 0], "size": [0.24, 0.22, 0.24], "at": [0.135, 0.65, 0], "color": "plate"},
-			{"name": "knee_l", "shape": "taper", "top": [0.75, 0.5], "bevel": 0.2, "size": [0.12, 0.11, 0.07], "at": [-0.135, 0.485, -0.105], "color": "bronze"},
-			{"name": "knee_r", "shape": "taper", "top": [0.75, 0.5], "bevel": 0.2, "size": [0.12, 0.11, 0.07], "at": [0.135, 0.485, -0.105], "color": "bronze"},
+			{"name": "knee_l", "surface": "tier_trim","shape": "taper", "top": [0.75, 0.5], "bevel": 0.2, "size": [0.12, 0.11, 0.07], "at": [-0.135, 0.485, -0.105], "color": "bronze"},
+			{"name": "knee_r", "surface": "tier_trim","shape": "taper", "top": [0.75, 0.5], "bevel": 0.2, "size": [0.12, 0.11, 0.07], "at": [0.135, 0.485, -0.105], "color": "bronze"},
 			{"name": "greave_l", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.74, 0], [1, 0.68], [0.88, 1], [0, 1]], "size": [0.18, 0.27, 0.21], "at": [-0.135, 0.315, -0.01], "color": "plate"},
 			{"name": "greave_r", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.74, 0], [1, 0.68], [0.88, 1], [0, 1]], "size": [0.18, 0.27, 0.21], "at": [0.135, 0.315, -0.01], "color": "plate"}
 		],
@@ -517,7 +504,36 @@
 				"color": "cloth"
 			}
 		],
-		"bob_full_speed_mps": 5
+		"bob_full_speed_mps": 5,
+		"material": {
+			"_placeholder": true,
+			"_todo": "OQ-ART-ASTRA / OQ-BR-ARMOR (S4): how the soldier's surfaces are shaded (rim light, per-part shade) and how the three armor tiers of data/loot.json show on a soldier are presentation trials. A tier repaints the trim parts (brow, chest plate, pauldron rims, knees, buckle: parts with surface tier_trim) and may make them glow; it changes no number of the armor itself.",
+			"tier_surface": "tier_trim",
+			"cape": {"_note": "The cape (the part with \"sway\": true, surface squad_cape) ripples by ripple_m and swings back by lift_m at full speed.", "surface": "squad_cape", "ripple_m": 0.035, "lift_m": 0.28, "speed": 2.6, "smooth_s": 0.25},
+			"part_shade": 0.05,
+			"rim_color": [0.55, 0.7, 1.0, 1.0],
+			"rim": 0.3,
+			"rim_power": 3.0,
+			"armor_tiers": [
+				{"name": "I", "paint": [0.86, 0.58, 0.26, 1.0], "glow": 0.0},
+				{"name": "II", "paint": [0.3, 0.8, 0.95, 1.0], "glow": 0.9},
+				{"name": "III", "paint": [1.0, 0.76, 0.24, 1.0], "glow": 1.3}
+			]
+		},
+		"blade": {
+			"_placeholder": true,
+			"_todo": "OQ-ART-ASTRA (S4): the Gladius Lux a soldier holds when the blade is the active weapon (the rifle is hidden then). A hard-light blade on a bronze hilt, Fable's own design; hand_offset_m and hand_rot_deg place it in the right hand.",
+			"hand_offset_m": [0, -0.02, -0.03],
+			"hand_rot_deg": [-70, 0, 0],
+			"parts": [
+				{"name": "grip", "shape": "lathe", "segments": 6, "size": [0.045, 0.15, 0.045], "at": [0, 0, 0], "color": "leather"},
+				{"name": "pommel", "shape": "lathe", "segments": 6, "profile": [[0, 0], [0.7, 0], [1, 0.5], [0.7, 1], [0, 1]], "size": [0.07, 0.05, 0.07], "at": [0, -0.1, 0], "color": "bronze"},
+				{"name": "guard", "shape": "taper", "top": [0.7, 0.6], "bevel": 0.2, "size": [0.2, 0.045, 0.06], "at": [0, 0.095, 0], "color": "bronze"},
+				{"name": "emitter", "shape": "taper", "top": [0.7, 0.7], "bevel": 0.1, "size": [0.07, 0.05, 0.04], "at": [0, 0.14, 0], "color": "plate_dark"},
+				{"name": "blade_core", "shape": "taper", "top": [0.25, 0.4], "bevel": 0, "size": [0.075, 0.62, 0.018], "at": [0, 0.47, 0], "color": "lit_accent"},
+				{"name": "blade_edge", "shape": "taper", "top": [0.2, 0.4], "bevel": 0, "size": [0.11, 0.56, 0.008], "at": [0, 0.44, 0], "color": "accent"}
+			]
+		}
 	},
 	"rifle": {
 		"parts": [

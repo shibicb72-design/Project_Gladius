@@ -5,9 +5,13 @@ extends Node
 ## events, saves PNGs with a "desktop render" overlay and writes <out>/<tag>_report.txt. Optional: --dpi=N (default: the desktop's reported DPI).
 ## Optional for --sprint-shot: --offscreen=WxH renders into an offscreen SubViewport of exactly WxH px (same canvas_items
 ## expand stretch as the window), for sizes taller than the desktop screen, where the OS clamps the window.
-## 3D shots (C0): --scene-shot=<soldier_turntable|soldier_50m|soldier_50m_zoom|map_overview|loot_lineup|wall_closeup|kit_lineup|ground_views|all> saves
-## <out>/<tag>_<shot>.png with the HUD hidden; --offscreen=WxH gives the exact pixel size. Framing: data/capture_shots.json.
+## 3D shots (C0): --scene-shot=<soldier_turntable|soldier_50m|soldier_50m_zoom|map_overview|loot_lineup|wall_closeup|kit_lineup|ground_views|
+## in_match|soldier_poses|carrier|all> saves <out>/<tag>_<shot>.png with the HUD hidden; --offscreen=WxH gives the exact pixel size.
+## Framing: data/capture_shots.json.
 ##   godot --path . res://tools/touch_capture.tscn -- --out=<dir> --tag=c0_2520x1080 --scene-shot=all --offscreen=2520x1080
+## Look switches for the 3D shots (S1, S9): --variant=<dusk|night|storm> (default: the data's base variant, no rotation by seed);
+## --on=<preset keys> / --off=<preset keys> / --set=<key:value,...> override the graphics preset for this run. Run with
+## --audio-driver Dummy to keep the PC quiet.
 
 const _LobbyScene := preload("res://scenes/ui/lobby.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
@@ -51,6 +55,15 @@ func _ready() -> void:
 			_pawn_shot_name = a.substr(12)
 		elif a.begins_with("--scene-shot="):  # C0: 3D shots without the HUD (tools/scene_shots.gd); see the header
 			_scene_shot_name = a.substr(13)
+		elif a.begins_with("--variant="):  # S1: force a look variant (dusk | night | storm) for the 3D shots
+			MatchLook.variant_override = a.substr(10)
+		elif a.begins_with("--on=") or a.begins_with("--off="):  # S9: preset switches for this run, e.g. --on=fx_ssr_enabled,fx_ssao_enabled
+			for key in a.get_slice("=", 1).split(","):
+				GraphicsPresets.overrides[key] = a.begins_with("--on=")
+		elif a.begins_with("--set="):  # S9: preset values for this run, e.g. --set=shadow_mode:pssm4,sun_angular_distance:0.6
+			for pair in a.substr(6).split(","):
+				var value := pair.get_slice(":", 1)
+				GraphicsPresets.overrides[pair.get_slice(":", 0)] = float(value) if value.is_valid_float() else value
 		elif a == "--left-fire":  # G3e: shot with the optional left Fire button on (profile flag), e.g. --tag=left_fire_on --layout-shot=cover_landscape
 			_left_fire = true
 		elif a.begins_with("--menu-shot="):  # in-match menu: saves <tag>_closed_<value>_landscape.png and <tag>_open_...; use --tag=menu

@@ -1,8 +1,8 @@
 {
 	"_note": "Frozen copy of part data, written by tools/kit_hash_record.gd. Not live art data: do not edit by hand.",
 	"canonical_hashes": {
-		"build/arch/2.0x1.0x1.0": "0a84d9625280f59de6ba0ac440d973c050be105b032e7d7dacc3c6b94a536f11",
-		"build/arch/3.0x2.5x0.6": "fa785e62460b3b9a4a1887c4624b10b0380d8f6e88a7da26a52b7544fc0cd158",
+		"build/arch/2.0x1.0x1.0": "d9d7ec42ade511d8656e306d8592b52554d52477afab014b2aa0642bfdd9e2d3",
+		"build/arch/3.0x2.5x0.6": "41f268919bc65f9dcadda17a544896af66fed9ea1e636b9dace970b183b74d54",
 		"build/barrier/2.0x1.0x1.0": "cf884f24c76fea6dfe4868aeda52ab944572614325e0047a1bb27def91f3064d",
 		"build/barrier/3.0x2.5x0.6": "4dcfc211bc2ec562667a021a5b8148b2a30e600a769823cd21e6c5ab634f2238",
 		"build/box/2.0x1.0x1.0": "be17fc5fe4bfe3d7aa2b7f0f4ff0fea46cdc8a0615a21560f5b951b98a60ba8c",
@@ -23,7 +23,7 @@
 		"build/sandbags/3.0x2.5x0.6": "b939bf8f8c97b7da50c5786f59ec2a0a5fbb7dfeabf24720498ed7adc13deeb0",
 		"build/wall/2.0x1.0x1.0": "a1c3b2d4aa4d0cd0c0b819c8d5a57af9a375ef23640029d673cddaff6f133946",
 		"build/wall/3.0x2.5x0.6": "e1b9ae48b5244c3ebce0ca48c5dc658b07a6f3a48e4423e28d85eefccb0b9847",
-		"cover_types/arch": "5956a944b6b8e873778909db915fd30de06f22c8ba432fcc5486bd00a0292241",
+		"cover_types/arch": "0a8c223b5830f8197879fed6a663620aeff9d21833dbe664630da2cd7fa39564",
 		"cover_types/barrier": "d29ff69d18a0989f85add4ea12bd89fab4b4c175a3766c16a29ff21f67687fa7",
 		"cover_types/barrier_line": "8c62e3608762c6a382e5becd2b90a8734a861653491911fbedbc08a6d97ba420",
 		"cover_types/crate": "9ad7c30fe16b814f740a461d8ef3f65221b4b6331a5e8cdf75b936d50cead615",
@@ -606,10 +606,10 @@
 			]
 		}
 	},
-	"exact_source_commit": "45b76aa",
+	"exact_source_commit": "47f9ef8",
 	"hashes": {
-		"build/arch/2.0x1.0x1.0": "3f8d2f9e5a814fca829128e5cf337548bd0db13c667b6bdc65d37151e3998a2a",
-		"build/arch/3.0x2.5x0.6": "5a82a861890fde600ff62eb4acf527d131aa88dc5f6bffc874b5de18987067a1",
+		"build/arch/2.0x1.0x1.0": "1bc0363635e06808a44e7f1e019ae75fc0ff3201224c17453e64909f1373fdf5",
+		"build/arch/3.0x2.5x0.6": "08e93607b05369f7fcd76acff21bb612413604d5c32dc92558848e1fcf57744d",
 		"build/barrier/2.0x1.0x1.0": "32878b137154f771c49574878d251627c0a558121ec50a09a6331319469f32d4",
 		"build/barrier/3.0x2.5x0.6": "fe6aca0a35e6af65f25d1ac2ae0fdbb2ffd78caa3ff6310c5d25f6c89b2eab85",
 		"build/box/2.0x1.0x1.0": "562655e8bfb5379787168d455f6aa4992fbd8d0df2a20cbb428b58af3b8500e9",
@@ -630,7 +630,7 @@
 		"build/sandbags/3.0x2.5x0.6": "bc3e5a75f726a02c1130cf8f6224311862b8d3767ab1dc9cc1d07e6665dadfe4",
 		"build/wall/2.0x1.0x1.0": "9eefae4de6281d85e44bf9686934099464e9f9b5a170f9c5a529433b5b09d030",
 		"build/wall/3.0x2.5x0.6": "caf5d6bc51058b780a01af4f3f23a0e4764ab7793d381166c9fed29a0a4b4b22",
-		"cover_types/arch": "f1f840c9b1d71fa7d59f8eb14c0ffd09b21ff15d4ea8878934943a07b737e57c",
+		"cover_types/arch": "bf5443caa8c3420ff98747aa8ee60ab03e8554a8cf1b451599fa2c09442fce8a",
 		"cover_types/barrier": "2698e84de526d8e02798e44113a41193906d816b36fddea23ab920ebebd26732",
 		"cover_types/barrier_line": "a2c65be30bf4479ed81fecfe14837a2fde14ba57d6bea826b6e732a673b0fcaa",
 		"cover_types/crate": "5bb4e34c4a47373377b61cfbed68b0c845b66725d6c56f24d366ac36d5a0a497",

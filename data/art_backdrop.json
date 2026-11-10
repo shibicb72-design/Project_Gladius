@@ -1,0 +1,91 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-GFX-BACKDROP: everything a player sees beyond the playable ground (the ground skirt, the outer wall ring with its towers, the far spires, the broken aqueduct run and two rings of hills) is a presentation trial in Fable's own design. None of it has a collider and all of it stands outside the 160 m ground square, so it changes nowhere a player can walk or shoot.",
+	"clear_of_ground_m": 3.0,
+	"_clear_note": "No backdrop piece may stand on the playable ground square or within this many metres of its edge (tests/test_backdrop.gd).",
+	"skirt": {
+		"size_m": 2400.0,
+		"y_m": -0.03
+	},
+	"outer_wall": {
+		"radius_m": 126.0,
+		"segments": 40,
+		"tower_every": 5,
+		"cast_shadows": false,
+		"segment_length_m": 19.8,
+		"segment_parts": [
+			{"shape": "block", "size": [19.8, 2.0, 4.6], "at": [0, 1.0, 0], "color": "travertine_shade"},
+			{"shape": "block", "size": [19.8, 7.0, 3.6], "at": [0, 5.5, 0], "color": "travertine"},
+			{"shape": "block", "size": [19.8, 0.5, 4.3], "at": [0, 9.25, 0], "color": "marble"},
+			{"shape": "block", "size": [19.8, 0.9, 0.5], "at": [0, 9.95, -1.85], "color": "travertine"},
+			{"shape": "block", "size": [1.8, 0.9, 0.5], "at": [-7.9, 10.85, -1.85], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.8, 0.9, 0.5], "at": [-3.95, 10.85, -1.85], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.8, 0.9, 0.5], "at": [0, 10.85, -1.85], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.8, 0.9, 0.5], "at": [3.95, 10.85, -1.85], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.8, 0.9, 0.5], "at": [7.9, 10.85, -1.85], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.5, 7.0, 0.7], "at": [-6.6, 5.5, -2.05], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.5, 7.0, 0.7], "at": [0, 5.5, -2.05], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.5, 7.0, 0.7], "at": [6.6, 5.5, -2.05], "color": "travertine_shade"},
+			{"shape": "block", "size": [1.9, 0.4, 0.9], "at": [-6.6, 8.8, -2.05], "color": "bronze"},
+			{"shape": "block", "size": [1.9, 0.4, 0.9], "at": [0, 8.8, -2.05], "color": "bronze"},
+			{"shape": "block", "size": [1.9, 0.4, 0.9], "at": [6.6, 8.8, -2.05], "color": "bronze"},
+			{"shape": "block", "size": [4.2, 4.6, 0.14], "at": [-3.3, 4.9, -1.84], "color": "plate_dark"},
+			{"shape": "block", "size": [4.2, 4.6, 0.14], "at": [3.3, 4.9, -1.84], "color": "plate_dark"},
+			{"shape": "block", "size": [19.8, 0.14, 0.1], "at": [0, 2.25, -2.33], "color": "lit_accent"},
+			{"shape": "block", "size": [4.2, 0.12, 0.1], "at": [-3.3, 7.4, -1.9], "color": "lit_accent"},
+			{"shape": "block", "size": [4.2, 0.12, 0.1], "at": [3.3, 7.4, -1.9], "color": "lit_accent"}
+		],
+		"tower_parts": [
+			{"shape": "block", "size": [8.4, 2.4, 8.4], "at": [0, 1.2, 0], "color": "travertine_shade"},
+			{"shape": "block", "size": [7.2, 14.0, 7.2], "at": [0, 9.4, 0], "color": "travertine"},
+			{"shape": "block", "size": [8.2, 0.7, 8.2], "at": [0, 16.75, 0], "color": "marble"},
+			{"shape": "block", "size": [8.2, 1.3, 0.6], "at": [0, 17.75, -3.8], "color": "travertine"},
+			{"shape": "block", "size": [8.2, 1.3, 0.6], "at": [0, 17.75, 3.8], "color": "travertine"},
+			{"shape": "block", "size": [0.6, 1.3, 7.0], "at": [-3.8, 17.75, 0], "color": "travertine"},
+			{"shape": "block", "size": [0.6, 1.3, 7.0], "at": [3.8, 17.75, 0], "color": "travertine"},
+			{"shape": "taper", "top": [0.3, 0.3], "bevel": 0, "size": [5.0, 5.0, 5.0], "at": [0, 19.6, 0], "color": "roof_tile"},
+			{"shape": "block", "size": [0.35, 5.0, 0.35], "at": [0, 24.6, 0], "color": "plate_dark"},
+			{"shape": "block", "size": [0.9, 0.9, 0.9], "at": [0, 27.4, 0], "color": "lit_accent"},
+			{"shape": "block", "size": [0.5, 9.0, 0.12], "at": [-1.6, 9.5, -3.63], "color": "lit_accent"},
+			{"shape": "block", "size": [0.5, 9.0, 0.12], "at": [1.6, 9.5, -3.63], "color": "lit_accent"},
+			{"shape": "block", "size": [2.6, 5.0, 0.1], "at": [0, 11.0, -3.66], "color": "legion_red"},
+			{"shape": "block", "size": [2.9, 0.3, 0.2], "at": [0, 13.6, -3.7], "color": "bronze"},
+			{"shape": "block", "size": [1.4, 1.1, 0.16], "at": [0, 14.6, -3.7], "color": "bronze"},
+			{"shape": "block", "size": [3.4, 0.36, 0.5], "at": [0, 15.2, -3.8], "color": "bronze"}
+		]
+	},
+	"spires": {
+		"cast_shadows": false,
+		"parts": [
+			{"shape": "taper", "top": [0.75, 0.75], "bevel": 0.12, "size": [9, 6, 9], "at": [0, 3, 0], "color": "travertine_shade"},
+			{"shape": "taper", "top": [0.5, 0.5], "bevel": 0.1, "size": [6, 52, 6], "at": [0, 32, 0], "color": "travertine"},
+			{"shape": "taper", "top": [0.05, 0.05], "bevel": 0, "size": [3.2, 7, 3.2], "at": [0, 61.5, 0], "color": "bronze"},
+			{"shape": "block", "size": [0.5, 34, 0.14], "at": [0, 28, -2.3], "color": "lit_accent"},
+			{"shape": "block", "size": [0.14, 34, 0.5], "at": [-2.3, 28, 0], "color": "lit_accent"},
+			{"shape": "block", "size": [0.14, 34, 0.5], "at": [2.3, 28, 0], "color": "lit_accent"},
+			{"shape": "block", "size": [0.5, 34, 0.14], "at": [0, 28, 2.3], "color": "lit_accent"},
+			{"shape": "block", "size": [1.6, 1.6, 1.6], "at": [0, 66, 0], "color": "lit_accent"}
+		],
+		"_at_note": "[x, z, yaw degrees, scale]",
+		"at": [[-170, -150, 20, 1.0], [205, 120, 40, 1.25], [-230, 60, 10, 0.9], [150, -230, 30, 1.4], [40, 260, 15, 1.1], [-110, 250, 25, 0.8]]
+	},
+	"aqueduct_run": {
+		"_note": "The Aqua Alta's spans carry on past the map's edge towards the hills, after a broken gap so that nobody takes the far side for a way to walk, and again beyond the outer wall. Kit piece type and yaw; each run is a first centre [x, z], a step [x, z] and a count.",
+		"type": "aqueduct_span",
+		"yaw_deg": 90,
+		"cast_shadows": false,
+		"runs": [
+			{"first": [47, -89], "step": [0, -10], "count": 2},
+			{"first": [47, -141], "step": [0, -10], "count": 26}
+		]
+	},
+	"hills": {
+		"seed": 17,
+		"surface": "rock",
+		"rings": [
+			{"radius_m": 330, "depth_m": 150, "height_m": 40, "segments": 56, "rough": 0.9, "color": [0.4, 0.37, 0.3, 1]},
+			{"radius_m": 560, "depth_m": 260, "height_m": 120, "segments": 44, "rough": 0.92, "color": [0.36, 0.34, 0.33, 1]}
+		]
+	}
+}

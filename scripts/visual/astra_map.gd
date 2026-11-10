@@ -26,7 +26,7 @@ func _ready() -> void:
 		var mesh := MeshInstance3D.new()
 		mesh.name = "Mesh"
 		mesh.mesh = meshes[entry["type"]]
-		mesh.material_override = GreyboxArt.material_for("citadel")
+		mesh.material_override = WorldSurface.palette_material(String(definition.get("palette", "citadel")))
 		body.add_child(mesh)
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
@@ -76,11 +76,41 @@ func _ready() -> void:
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key])
 			nav.add_child(solid)
 			decor_bodies.append(solid)
+	_paint_ground(nav)
+	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
+	if bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false)):
+		var backdrop := Backdrop.new()
+		backdrop.name = "Backdrop"
+		add_child(backdrop)
+		var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
+		backdrop.build(ground_mesh.material_override if ground_mesh != null else null)
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
+	add_child(ambient)  # before configure: the tufts ask this builder (their parent) where the grass is
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
-	add_child(ambient)
+
+
+## S2: the ground's blend material. The paint map comes from the map data (landmarks, cover and structure
+## positions); `ground_paint` and `ground_size_m` stay readable for the footstep sounds (GroundPaint.surface_at).
+var ground_paint: Image
+var ground_size_m := 0.0
+
+func _paint_ground(nav: Node) -> void:
+	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
+	if ground_mesh == null:
+		return
+	ground_size_m = ground_mesh.get_aabb().size.x
+	var map_def := DataRegistry.new().load_file(MatchRoot.MAP_PATH)
+	var landmark_path := String(map_def.get("landmarks", ""))
+	var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
+	var trodden := PackedVector2Array()
+	for group: Array in [cover_bodies, ring_bodies, structure_bodies]:
+		for body: StaticBody3D in group:
+			trodden.append(Vector2(body.position.x, body.position.z))
+	add_to_group(&"ground_paint")
+	ground_paint = GroundPaint.build(MatchRoot.MAP_PATH, ground_size_m, landmarks, trodden)
+	ground_mesh.material_override = WorldSurface.ground_material(GroundPaint.texture(MatchRoot.MAP_PATH), ground_size_m)
 
 
 ## W3: the outer ring's cover (cfg "ring_pieces"): the same one-box cover types as the inner band, in their own
@@ -118,9 +148,7 @@ func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
 	for type: String in by_type:
 		var palette := String(cfg["types"][type].get("palette", "citadel"))
 		if not materials.has(palette):
-			var material := GreyboxArt.material_for(palette).duplicate() as StandardMaterial3D
-			material.vertex_color_use_as_albedo = true  # as GreyboxArt does for each inner cover piece
-			materials[palette] = material
+			materials[palette] = WorldSurface.palette_material(palette)  # the inner cover pieces' material
 		var transforms: Array = by_type[type]
 		var batch := MultiMesh.new()
 		batch.transform_format = MultiMesh.TRANSFORM_3D

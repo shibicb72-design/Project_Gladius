@@ -33,6 +33,11 @@ var _pawn: CharacterBody3D
 var _cfg: Dictionary
 var part_bounds: Array[AABB] = []
 var shown_squad := 0  # the squad id whose colour the armor shows (C3)
+var shown_tier := 0  # the armor tier whose trim the armor shows (S4)
+var _cape_lift := 0.0
+var pose: SoldierPose
+var blade: MeshInstance3D
+static var _blade: ArrayMesh
 
 func _ready() -> void:
 	_cfg = LowpolyKit.config()["soldier"]
@@ -78,6 +83,11 @@ func _ready() -> void:
 	_recoil_power = float(SoldierRig.config()["recoil"]["recover_power"])
 	var pawn := _pawn as Pawn
 	_show_squad()
+	# S4: poses from read-only pawn state (falling, landing, downed, reviving, blade), over the graph's result.
+	pose = SoldierPose.new()
+	pose.name = "Pose"
+	skeleton.add_child(pose)
+	pose.setup(pawn)
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.weapon_switched.connect(_on_weapon_switched)
 	pawn.visibility_changed.connect(_on_visibility_changed)
@@ -137,6 +147,17 @@ func mount_rifle(mesh: MeshInstance3D) -> void:
 		elif part["name"] == "barrel":
 			barrel_tip.position = LowpolyKit.vec(part["at"]) + Vector3.FORWARD * float(part["size"][2]) * 0.5
 	_rifle_rest = rifle.transform
+	# S4: the blade shares the hand with the rifle; only the active weapon's model is shown (_process).
+	var blade_cfg: Dictionary = _cfg["blade"]
+	if _blade == null:
+		_blade = LowpolyKit.merge(blade_cfg["parts"])
+	blade = MeshInstance3D.new()
+	blade.name = "BladeModel"
+	blade.mesh = _blade
+	var turn := LowpolyKit.vec(blade_cfg["hand_rot_deg"])
+	blade.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(turn.x), deg_to_rad(turn.y), deg_to_rad(turn.z))), LowpolyKit.vec(blade_cfg["hand_offset_m"]))
+	blade.visible = false
+	hand_attachment.add_child(blade)
 	var sync := SoldierHandSync.new()
 	sync.name = "HandTargetSync"
 	sync.model = self
@@ -163,8 +184,13 @@ func _process(delta: float) -> void:
 	# D2: squad ids change without a signal (MatchDirector.start), so the model polls its own pawn.
 	if (_pawn as Pawn).squad_id != shown_squad:
 		_show_squad()
+	# S4: the armor tier is read the same way (it changes on pickup, without a signal).
+	if (_pawn as Pawn).armor_tier != shown_tier:
+		shown_tier = (_pawn as Pawn).armor_tier
+		SoldierSquadColour.apply_tier(armor, shown_tier)
 	if not is_visible_in_tree():
 		return
+	_show_weapon()
 	_clock += delta
 	_update_recoil(delta)
 	var pawn := _pawn as Pawn
@@ -181,8 +207,29 @@ func _process(delta: float) -> void:
 		velocity = _replica_velocity
 	var local := _pawn.global_transform.basis.inverse() * velocity
 	animation_tree.set("parameters/locomotion/blend_position", Vector2(local.x, local.z) / pawn.get_move_speed())
+	# S4: the cape swings back with forward speed (and streams up in a fall); a per-instance shader value.
+	var cape: Dictionary = _cfg["material"]["cape"]
+	var lift := clampf(-local.z / maxf(pawn.get_max_move_speed(), 0.01), 0.0, 1.0)
+	if pawn.drop_state == Pawn.Drop.FALLING:
+		lift = 1.0
+	_cape_lift = lerpf(_cape_lift, lift, 1.0 - exp(-delta / float(cape["smooth_s"])))
+	armor.set_instance_shader_parameter(&"cape_lift", _cape_lift)
 	var pitch_limit := deg_to_rad(float(_upper_cfg["aim_pitch_limit_deg"]))
 	animation_tree.set("parameters/aim/blend_position", clampf(pawn.pitch / pitch_limit, -1.0, 1.0))
+
+
+## S4: the model in the hand is the active weapon's: the rifle, or the blade when only the blade is held.
+## The left hand lets go of the rifle's foregrip as far as a pose takes the arms (SoldierPose.arms_weight).
+func _show_weapon() -> void:
+	if rifle == null or blade == null:
+		return
+	var pawn := _pawn as Pawn
+	var weapon := pawn.loadout.get_active() if pawn.loadout != null else null
+	var melee := weapon != null and weapon.def.is_melee()
+	rifle.visible = not melee
+	blade.visible = melee
+	if left_ik != null and pose != null:
+		left_ik.influence = 1.0 - pose.arms_weight
 
 
 func bind_shot_fx(fx: ShotFx) -> void:

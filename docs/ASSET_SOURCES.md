@@ -31,3 +31,14 @@ Standing: keep current art as **replaceable placeholders** so 3D models/textures
 - KenneyNL/Starter-Kit-FPS + Whimfoome etc. for weapons/CC0 loot only
 
 Updated: 2026-10-24 America/Detroit (Engineering Lead, from Shibi standing + DeepTechTR fact-check).
+
+## Generated in this project (Saltline pass, Nov 9-10 2026)
+Nothing below is downloaded, recorded or taken from any game: each file is written by a tool in this repo from noise and maths, and is listed with its sha256 in `data/asset_catalog.json` `generated` (checked by `tests/test_generated_assets.gd`).
+
+| Files | Made by | What |
+|---|---|---|
+| `assets/generated/textures/world_surfaces.png` | `tools/gen_textures.gd` (seed 20261109) | 16 surface tiles of 512 px (ashlar, marble, plaster, brushed metal, wood, cloth, roof tiles, rock, plating, earth, grass, paving, bronze, sand, cast stone, neutral), imported as one texture array. Per tile: R albedo modulation, G roughness, B / A normal. |
+| `assets/generated/textures/noise_pack.png` | `tools/gen_textures.gd` | Clouds, large-scale variation, grain, stars. |
+| `assets/generated/audio/*.wav` (57) | `tools/gen_audio.gd` (seed 20261109) | Sound effects and ambience synthesised from noise, sine / saw / square sweeps, filters and echoes. `tools/audio_report.gd` draws their spectrograms. |
+
+To regenerate: run the tool, then `tools/asset_hashes.gd -- --write`, then `--import`.

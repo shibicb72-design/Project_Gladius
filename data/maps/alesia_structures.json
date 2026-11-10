@@ -21,15 +21,27 @@
 	"types": {
 		"wall_walk": {
 			"label": "wall segment with walkway",
+			"_s7_note": "S7: a plinth course, the wall, a marble walkway slab, the parapet with merlons, three pilasters with bronze caps on the outer face (-Z) and two plated panels on the inner face. The wall with a stair stands this look (\"use\") and adds its stair.",
 			"parts": [
-				{"shape": "block", "size": [8, 2.7, 2.3], "at": [0, 1.35, 0], "color": "travertine"},
-				{"shape": "block", "size": [8, 0.3, 2.4], "at": [0, 2.85, 0], "color": "travertine_shade"},
+				{"shape": "block", "size": [8, 0.5, 2.5], "at": [0, 0.25, 0], "color": "travertine_shade"},
+				{"shape": "block", "size": [8, 2.2, 2.3], "at": [0, 1.6, 0], "color": "travertine"},
+				{"shape": "block", "size": [8, 0.3, 2.44], "at": [0, 2.85, 0], "color": "marble"},
 				{"shape": "block", "size": [8, 0.6, 0.4], "at": [0, 3.3, -1.0], "color": "travertine"},
 				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [-3, 3.85, -1.0], "color": "travertine_shade"},
 				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [-1, 3.85, -1.0], "color": "travertine_shade"},
 				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [1, 3.85, -1.0], "color": "travertine_shade"},
 				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [3, 3.85, -1.0], "color": "travertine_shade"},
-				{"shape": "block", "size": [8, 0.08, 0.06], "at": [0, 2.3, -1.17], "color": "lit_accent"}
+				{"shape": "block", "size": [8, 0.08, 0.06], "at": [0, 2.3, -1.17], "color": "lit_accent"},
+				{"shape": "block", "size": [0.56, 2.2, 0.2], "at": [-2.7, 1.6, -1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.56, 2.2, 0.2], "at": [0, 1.6, -1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.56, 2.2, 0.2], "at": [2.7, 1.6, -1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.7, 0.14, 0.28], "at": [-2.7, 2.63, -1.24], "color": "bronze"},
+				{"shape": "block", "size": [0.7, 0.14, 0.28], "at": [0, 2.63, -1.24], "color": "bronze"},
+				{"shape": "block", "size": [0.7, 0.14, 0.28], "at": [2.7, 2.63, -1.24], "color": "bronze"},
+				{"shape": "block", "size": [2.4, 1.3, 0.08], "at": [-2.0, 1.55, 1.17], "color": "plate_dark"},
+				{"shape": "block", "size": [2.4, 1.3, 0.08], "at": [2.0, 1.55, 1.17], "color": "plate_dark"},
+				{"shape": "block", "size": [2.4, 0.06, 0.05], "at": [-2.0, 2.3, 1.19], "color": "lit_accent"},
+				{"shape": "block", "size": [2.4, 0.06, 0.05], "at": [2.0, 2.3, 1.19], "color": "lit_accent"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [8, 3, 2.4], "at": [0, 1.5, 0]},
@@ -42,16 +54,10 @@
 		"wall_stair": {
 			"label": "wall segment with walkway and stair",
 			"parts": [
-				{"shape": "block", "size": [8, 2.7, 2.3], "at": [0, 1.35, 0], "color": "travertine"},
-				{"shape": "block", "size": [8, 0.3, 2.4], "at": [0, 2.85, 0], "color": "travertine_shade"},
-				{"shape": "block", "size": [8, 0.6, 0.4], "at": [0, 3.3, -1.0], "color": "travertine"},
-				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [-3, 3.85, -1.0], "color": "travertine_shade"},
-				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [-1, 3.85, -1.0], "color": "travertine_shade"},
-				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [1, 3.85, -1.0], "color": "travertine_shade"},
-				{"shape": "block", "size": [1.2, 0.5, 0.4], "at": [3, 3.85, -1.0], "color": "travertine_shade"},
-				{"shape": "block", "size": [8, 0.08, 0.06], "at": [0, 2.3, -1.17], "color": "lit_accent"},
+				{"use": "wall_walk", "at": [0, 0, 0]},
 				{"shape": "wedge", "ridge": 1, "size": [2.0, 3, 6], "at": [-1, 1.5, 2.2], "rot": [0, 90, 0], "color": "travertine_shade"},
-				{"shape": "block", "size": [2, 3, 2.0], "at": [3, 1.5, 2.2], "color": "travertine"}
+				{"shape": "block", "size": [2, 3, 2.0], "at": [3, 1.5, 2.2], "color": "travertine"},
+				{"shape": "block", "size": [2.06, 0.06, 2.06], "at": [3, 2.97, 2.2], "color": "marble"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [8, 3, 2.4], "at": [0, 1.5, 0]},
@@ -82,7 +88,25 @@
 				{"shape": "block", "size": [1.0, 1.6, 0.06], "at": [3, 2.9, -1.13], "color": "legion_red"},
 				{"shape": "block", "size": [0.06, 3.5, 0.3], "at": [-2.08, 2.4, 0], "color": "lit_accent"},
 				{"shape": "block", "size": [0.06, 3.5, 0.3], "at": [2.08, 2.4, 0], "color": "lit_accent"},
-				{"shape": "block", "size": [4, 0.06, 0.3], "at": [0, 4.47, 0], "color": "lit_accent"}
+				{"shape": "block", "size": [4, 0.06, 0.3], "at": [0, 4.47, 0], "color": "lit_accent"},
+				{"_s7": "S7: an attic slab with a bronze eagle over the keystone, corner blocks, pilaster strips and their caps on both piers, and a winged disc on the outer face.", "shape": "block", "size": [8.3, 0.14, 2.7], "at": [0, 6.57, 0], "color": "marble"},
+				{"shape": "block", "size": [0.5, 0.3, 0.5], "at": [-3.8, 6.79, 0], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.5, 0.3, 0.5], "at": [3.8, 6.79, 0], "color": "travertine_shade"},
+				{"shape": "taper", "top": [0.45, 0.6], "bevel": 0, "size": [0.36, 0.4, 0.36], "at": [0, 6.84, 0], "color": "bronze"},
+				{"shape": "block", "size": [0.7, 0.08, 0.26], "at": [-0.4, 6.9, 0], "rot": [0, 0, -22], "color": "bronze"},
+				{"shape": "block", "size": [0.7, 0.08, 0.26], "at": [0.4, 6.9, 0], "rot": [0, 0, 22], "color": "bronze"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [-3.7, 2.35, -1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [-2.3, 2.35, -1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [2.3, 2.35, -1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [3.7, 2.35, -1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [-3.7, 2.35, 1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [-2.3, 2.35, 1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [2.3, 2.35, 1.22], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.3, 3.5, 0.12], "at": [3.7, 2.35, 1.22], "color": "travertine_shade"},
+				{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [0.9, 0.08, 0.9], "at": [0, 5.4, -1.22], "color": "bronze"},
+				{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [0.46, 0.1, 0.46], "at": [0, 5.4, -1.25], "color": "lit_accent"},
+				{"shape": "block", "size": [1.5, 0.16, 0.06], "at": [-1.25, 5.4, -1.2], "rot": [0, 0, 10], "color": "bronze"},
+				{"shape": "block", "size": [1.5, 0.16, 0.06], "at": [1.25, 5.4, -1.2], "rot": [0, 0, -10], "color": "bronze"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [2, 4.5, 2.4], "at": [-3, 2.25, 0]},
@@ -108,7 +132,15 @@
 				{"shape": "block", "size": [1.0, 0.5, 0.04], "at": [-1.4, 7.6, -2.0], "color": "legion_red"},
 				{"shape": "block", "size": [3.4, 0.08, 0.06], "at": [0, 3.3, -2.12], "color": "lit_accent"},
 				{"shape": "wedge", "ridge": 1, "size": [2.0, 4, 7.2], "at": [3.2, 2, -3.4], "color": "travertine_shade"},
-				{"shape": "block", "size": [2.0, 4, 2.0], "at": [3.2, 2, 1.2], "color": "travertine"}
+				{"shape": "block", "size": [2.0, 4, 2.0], "at": [3.2, 2, 1.2], "color": "travertine"},
+				{"_s7": "S7: corner pilasters, a bronze band under the deck slab and a plated door panel with two light slits on the outer face.", "shape": "block", "size": [0.5, 3.1, 0.5], "at": [-2.02, 2.15, -2.02], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.5, 3.1, 0.5], "at": [2.02, 2.15, -2.02], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.5, 3.1, 0.5], "at": [-2.02, 2.15, 2.02], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.5, 3.1, 0.5], "at": [2.02, 2.15, 2.02], "color": "travertine_shade"},
+				{"shape": "block", "size": [4.52, 0.16, 4.52], "at": [0, 3.62, 0], "color": "bronze"},
+				{"shape": "block", "size": [1.6, 1.9, 0.08], "at": [0, 1.9, -2.12], "color": "plate_dark"},
+				{"shape": "block", "size": [0.1, 1.9, 0.06], "at": [-0.9, 1.9, -2.15], "color": "lit_accent"},
+				{"shape": "block", "size": [0.1, 1.9, 0.06], "at": [0.9, 1.9, -2.15], "color": "lit_accent"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [4.4, 4, 4.4], "at": [0, 2, 0]},
@@ -130,11 +162,15 @@
 		},
 		"column": {
 			"label": "column",
+			"_s7_note": "S7: plinth, base moulding, a fluted shaft (16 sides, every other corner pulled in), a bronze neck ring, a flared capital and its slab. The colonnade and the pediment front stand this look four times (\"use\").",
 			"parts": [
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [0, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [0, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [0, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [0.84, 0.06, 0.84], "at": [0, 0.9, 0], "color": "lit_accent"}
+				{"shape": "block", "size": [1.0, 0.22, 1.0], "at": [0, 0.11, 0], "color": "marble"},
+				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [0.92, 0], [1, 0.5], [0.9, 1], [0, 1]], "size": [0.98, 0.2, 0.98], "at": [0, 0.32, 0], "color": "marble"},
+				{"shape": "lathe", "segments": 16, "flute": 0.1, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.52, 0.8], "at": [0, 2.18, 0], "color": "marble"},
+				{"shape": "lathe", "segments": 8, "size": [0.76, 0.07, 0.76], "at": [0, 3.975, 0], "color": "bronze"},
+				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [0.7, 0], [1, 1], [0, 1]], "size": [1.02, 0.3, 1.02], "at": [0, 4.16, 0], "color": "marble"},
+				{"shape": "block", "size": [1.06, 0.19, 1.06], "at": [0, 4.405, 0], "color": "marble"},
+				{"shape": "lathe", "segments": 8, "size": [0.92, 0.05, 0.92], "at": [0, 0.62, 0], "color": "lit_accent"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [1.0, 4.5, 1.0], "at": [0, 2.25, 0]}
@@ -143,21 +179,21 @@
 		"colonnade": {
 			"label": "colonnade, walkable between the columns",
 			"parts": [
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [-4.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [-4.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [-4.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [-1.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [-1.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [-1.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [1.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [1.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [1.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [4.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [4.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [4.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [10, 0.7, 1.1], "at": [0, 4.85, 0], "color": "travertine"},
-				{"shape": "block", "size": [10, 0.2, 1.2], "at": [0, 5.3, 0], "color": "travertine_shade"},
-				{"shape": "block", "size": [10, 0.08, 0.06], "at": [0, 4.9, -0.57], "color": "lit_accent"}
+				{"use": "column", "at": [-4.5, 0, 0]},
+				{"use": "column", "at": [-1.5, 0, 0]},
+				{"use": "column", "at": [1.5, 0, 0]},
+				{"use": "column", "at": [4.5, 0, 0]},
+				{"shape": "block", "size": [10, 0.34, 1.1], "at": [0, 4.67, 0], "color": "marble"},
+				{"shape": "block", "size": [10, 0.36, 1.0], "at": [0, 5.02, 0], "color": "travertine"},
+				{"shape": "block", "size": [10.2, 0.2, 1.3], "at": [0, 5.3, 0], "color": "marble"},
+				{"shape": "block", "size": [10, 0.07, 0.06], "at": [0, 4.86, -0.57], "color": "lit_accent"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [-4.5, 5.02, -0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [-1.5, 5.02, -0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [1.5, 5.02, -0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [4.5, 5.02, -0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [-3.0, 5.02, 0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [0, 5.02, 0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [3.0, 5.02, 0.52], "color": "bronze"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [1.0, 4.5, 1.0], "at": [-4.5, 2.25, 0]},
@@ -175,23 +211,30 @@
 		"pediment_front": {
 			"label": "colonnade with a pediment",
 			"parts": [
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [-4.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [-4.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [-4.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [-1.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [-1.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [-1.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [1.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [1.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [1.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.3, 1.0], "at": [4.5, 0.15, 0], "color": "marble"},
-				{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.8, 3.8, 0.8], "at": [4.5, 2.2, 0], "color": "marble"},
-				{"shape": "block", "size": [1.0, 0.4, 1.0], "at": [4.5, 4.3, 0], "color": "marble"},
-				{"shape": "block", "size": [10, 0.7, 1.1], "at": [0, 4.85, 0], "color": "travertine"},
-				{"shape": "block", "size": [10, 0.2, 1.2], "at": [0, 5.3, 0], "color": "travertine_shade"},
-				{"shape": "block", "size": [10, 0.08, 0.06], "at": [0, 4.9, -0.57], "color": "lit_accent"},
+				{"use": "column", "at": [-4.5, 0, 0]},
+				{"use": "column", "at": [-1.5, 0, 0]},
+				{"use": "column", "at": [1.5, 0, 0]},
+				{"use": "column", "at": [4.5, 0, 0]},
+				{"shape": "block", "size": [10, 0.34, 1.1], "at": [0, 4.67, 0], "color": "marble"},
+				{"shape": "block", "size": [10, 0.36, 1.0], "at": [0, 5.02, 0], "color": "travertine"},
+				{"shape": "block", "size": [10.2, 0.2, 1.3], "at": [0, 5.3, 0], "color": "marble"},
+				{"shape": "block", "size": [10, 0.07, 0.06], "at": [0, 4.86, -0.57], "color": "lit_accent"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [-4.5, 5.02, -0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [-1.5, 5.02, -0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [1.5, 5.02, -0.52], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.26, 0.06], "at": [4.5, 5.02, -0.52], "color": "bronze"},
 				{"shape": "wedge", "ridge": 0.5, "size": [1.2, 1.6, 10], "at": [0, 6.2, 0], "rot": [0, 90, 0], "color": "marble"},
-				{"shape": "block", "size": [1.6, 0.7, 0.06], "at": [0, 6.0, -0.62], "color": "bronze"}
+				{"shape": "block", "size": [5.36, 0.16, 1.36], "at": [-2.5, 6.27, 0], "rot": [0, 0, 17.74], "color": "travertine_shade"},
+				{"shape": "block", "size": [5.36, 0.16, 1.36], "at": [2.5, 6.27, 0], "rot": [0, 0, -17.74], "color": "travertine_shade"},
+				{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [1.0, 0.08, 1.0], "at": [0, 6.05, -0.63], "color": "bronze"},
+				{"shape": "block", "size": [1.3, 0.14, 0.06], "at": [-1.05, 6.02, -0.63], "rot": [0, 0, 12], "color": "bronze"},
+				{"shape": "block", "size": [1.3, 0.14, 0.06], "at": [1.05, 6.02, -0.63], "rot": [0, 0, -12], "color": "bronze"},
+				{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [0.36, 0.1, 0.36], "at": [0, 6.05, -0.66], "color": "lit_accent"},
+				{"shape": "taper", "top": [0.45, 0.6], "bevel": 0, "size": [0.34, 0.5, 0.34], "at": [0, 7.22, 0], "color": "bronze"},
+				{"shape": "block", "size": [0.62, 0.08, 0.26], "at": [-0.36, 7.36, 0], "rot": [0, 0, -24], "color": "bronze"},
+				{"shape": "block", "size": [0.62, 0.08, 0.26], "at": [0.36, 7.36, 0], "rot": [0, 0, 24], "color": "bronze"},
+				{"shape": "block", "size": [0.34, 0.34, 0.5], "at": [-4.86, 5.57, 0], "color": "marble"},
+				{"shape": "block", "size": [0.34, 0.34, 0.5], "at": [4.86, 5.57, 0], "color": "marble"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [1.0, 4.5, 1.0], "at": [-4.5, 2.25, 0]},
@@ -217,7 +260,17 @@
 				{"shape": "block", "size": [10, 0.5, 0.3], "at": [0, 5.25, 1.25], "color": "travertine"},
 				{"shape": "block", "size": [10, 0.04, 1.2], "at": [0, 5.02, 0], "color": "lit_accent"},
 				{"shape": "block", "size": [10, 0.08, 0.05], "at": [0, 4.75, -1.41], "color": "lit_accent"},
-				{"shape": "block", "size": [10, 0.08, 0.05], "at": [0, 4.75, 1.41], "color": "lit_accent"}
+				{"shape": "block", "size": [10, 0.08, 0.05], "at": [0, 4.75, 1.41], "color": "lit_accent"},
+				{"_s7": "S7: pier bases and imposts (flush with the piers' inner faces, so the way under stays as wide as the colliders leave it) and stone marks on both faces of the deck.", "shape": "block", "size": [1.1, 0.5, 3.0], "at": [-4.55, 0.25, 0], "color": "travertine_shade"},
+				{"shape": "block", "size": [1.1, 0.5, 3.0], "at": [4.55, 0.25, 0], "color": "travertine_shade"},
+				{"shape": "block", "size": [1.08, 0.3, 2.96], "at": [-4.54, 4.05, 0], "color": "marble"},
+				{"shape": "block", "size": [1.08, 0.3, 2.96], "at": [4.54, 4.05, 0], "color": "marble"},
+				{"shape": "taper", "top": [1, 1], "bottom": [0.7, 1], "bevel": 0, "size": [0.6, 0.7, 0.1], "at": [0, 4.6, -1.44], "color": "marble"},
+				{"shape": "taper", "top": [1, 1], "bottom": [0.7, 1], "bevel": 0, "size": [0.6, 0.7, 0.1], "at": [0, 4.6, 1.44], "color": "marble"},
+				{"shape": "block", "size": [0.28, 0.5, 0.08], "at": [-2.4, 4.62, -1.43], "color": "travertine"},
+				{"shape": "block", "size": [0.28, 0.5, 0.08], "at": [2.4, 4.62, -1.43], "color": "travertine"},
+				{"shape": "block", "size": [0.28, 0.5, 0.08], "at": [-2.4, 4.62, 1.43], "color": "travertine"},
+				{"shape": "block", "size": [0.28, 0.5, 0.08], "at": [2.4, 4.62, 1.43], "color": "travertine"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [1, 4.2, 2.8], "at": [-4.5, 2.1, 0]},
@@ -264,7 +317,18 @@
 				{"shape": "block", "size": [8.2, 0.04, 5.2], "at": [0, 0.02, 0], "color": "travertine_shade"},
 				{"shape": "block", "size": [2.0, 0.08, 0.06], "at": [-2.5, 2.4, -3.02], "color": "lit_accent"},
 				{"shape": "block", "size": [2.0, 0.08, 0.06], "at": [2.5, 2.4, 3.02], "color": "lit_accent"},
-				{"shape": "block", "size": [0.7, 1.5, 0.05], "at": [-0.6, 1.9, -3.02], "color": "legion_red"}
+				{"shape": "block", "size": [0.7, 1.5, 0.05], "at": [-0.6, 1.9, -3.02], "color": "legion_red"},
+				{"_s7": "S7: corner quoins, marble door jambs outside both doorways, a bronze window sill and bronze edging along the roof.", "shape": "block", "size": [0.46, 3, 0.46], "at": [-4.33, 1.5, -2.83], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.46, 3, 0.46], "at": [4.33, 1.5, -2.83], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.46, 3, 0.46], "at": [-4.33, 1.5, 2.83], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.46, 3, 0.46], "at": [4.33, 1.5, 2.83], "color": "travertine_shade"},
+				{"shape": "block", "size": [0.16, 2.3, 0.5], "at": [-3.58, 1.15, -2.8], "color": "marble"},
+				{"shape": "block", "size": [0.16, 2.3, 0.5], "at": [-1.42, 1.15, -2.8], "color": "marble"},
+				{"shape": "block", "size": [0.16, 2.3, 0.5], "at": [1.42, 1.15, 2.8], "color": "marble"},
+				{"shape": "block", "size": [0.16, 2.3, 0.5], "at": [3.58, 1.15, 2.8], "color": "marble"},
+				{"shape": "block", "size": [1.7, 0.08, 0.5], "at": [2.0, 1.06, -2.8], "color": "bronze"},
+				{"shape": "block", "size": [9.5, 0.1, 0.14], "at": [0, 3.33, -3.2], "color": "bronze"},
+				{"shape": "block", "size": [9.5, 0.1, 0.14], "at": [0, 3.33, 3.2], "color": "bronze"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [1.0, 3, 0.4], "at": [-4.0, 1.5, -2.8]},
@@ -294,7 +358,10 @@
 				{"shape": "wedge", "ridge": 0.5, "size": [3.6, 2.4, 4.0], "at": [0, 1.2, 0], "color": "canvas"},
 				{"shape": "block", "size": [0.05, 1.6, 1.0], "at": [1.81, 0.8, 0], "color": "plate_dark"},
 				{"shape": "block", "size": [0.08, 0.6, 0.08], "at": [0, 2.6, 0], "color": "timber"},
-				{"shape": "block", "size": [0.5, 0.3, 0.03], "at": [0.3, 2.75, 0], "color": "legion_red"}
+				{"shape": "block", "size": [0.5, 0.3, 0.03], "at": [0.3, 2.75, 0], "color": "legion_red"},
+				{"shape": "block", "size": [3.9, 0.09, 0.09], "at": [0, 2.42, 0], "color": "timber"},
+				{"shape": "block", "size": [0.09, 2.4, 0.09], "at": [-1.86, 1.2, 0], "color": "timber"},
+				{"shape": "block", "size": [0.09, 2.4, 0.09], "at": [1.86, 1.2, 0], "color": "timber"}
 			],
 			"colliders": [
 				{"shape": "wedge", "ridge": 0.5, "size": [3.6, 2.4, 4.0], "at": [0, 1.2, 0]}
@@ -325,7 +392,13 @@
 				{"shape": "block", "size": [1.1, 1.3, 0.05], "at": [0, 4.9, -0.12], "color": "legion_red"},
 				{"shape": "taper", "top": [0.5, 0.6], "bevel": 0, "size": [0.4, 0.55, 0.5], "at": [0, 6.47, 0], "color": "bronze"},
 				{"shape": "block", "size": [0.9, 0.1, 0.4], "at": [0.55, 6.65, 0], "rot": [0, 0, 25], "color": "bronze"},
-				{"shape": "block", "size": [0.9, 0.1, 0.4], "at": [-0.55, 6.65, 0], "rot": [0, 0, -25], "color": "bronze"}
+				{"shape": "block", "size": [0.9, 0.1, 0.4], "at": [-0.55, 6.65, 0], "rot": [0, 0, -25], "color": "bronze"},
+				{"_s7": "S7: the eagle gets a head and beak and a second row of wing feathers; a wreath disc sits under it and a gold bar weights the banner.", "shape": "block", "size": [0.2, 0.22, 0.26], "at": [0, 6.86, -0.12], "color": "bronze"},
+				{"shape": "taper", "top": [0.2, 0.3], "bevel": 0, "size": [0.1, 0.18, 0.1], "rot": [-100, 0, 0], "at": [0, 6.82, -0.32], "color": "gold"},
+				{"shape": "block", "size": [0.6, 0.08, 0.32], "at": [0.95, 6.98, 0.02], "rot": [0, 0, 40], "color": "bronze"},
+				{"shape": "block", "size": [0.6, 0.08, 0.32], "at": [-0.95, 6.98, 0.02], "rot": [0, 0, -40], "color": "bronze"},
+				{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [0.7, 0.08, 0.7], "at": [0, 5.98, 0], "color": "gold"},
+				{"shape": "block", "size": [1.16, 0.1, 0.07], "at": [0, 4.22, -0.12], "color": "gold"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [1.6, 1.2, 1.6], "at": [0, 0.6, 0]},
@@ -349,7 +422,8 @@
 			"label": "step block (terrace)",
 			"parts": [
 				{"size": [4, 1.2, 4], "at": [0, 0.6, 0], "color": "travertine"},
-				{"shape": "block", "size": [4.04, 0.06, 4.04], "at": [0, 0.9, 0], "color": "lit_accent"}
+				{"shape": "block", "size": [4.04, 0.06, 4.04], "at": [0, 0.9, 0], "color": "lit_accent"},
+				{"shape": "block", "size": [4.12, 0.26, 4.12], "at": [0, 0.13, 0], "color": "travertine_shade"}
 			],
 			"colliders": [
 				{"shape": "box", "size": [4, 1.2, 4], "at": [0, 0.6, 0]}

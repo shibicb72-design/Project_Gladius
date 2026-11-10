@@ -13,7 +13,6 @@ extends RefCounted
 const PATH := "res://data/maps/alesia_structures.json"
 const GROUP := &"structure"
 static var _registry := DataRegistry.new()
-static var _material: StandardMaterial3D
 static var _meshes := {}
 static var _shapes := {}
 
@@ -22,15 +21,10 @@ static func config() -> Dictionary:
 	return _registry.load_file(PATH)
 
 
-## The one material of every world kit mesh: vertex colours as paint, written as sRGB in data.
-static func material() -> StandardMaterial3D:
-	if _material == null:
-		_material = StandardMaterial3D.new()
-		_material.resource_name = "WorldKit"
-		_material.vertex_color_use_as_albedo = true
-		_material.vertex_color_is_srgb = true
-		_material.roughness = float(LowpolyKit.config()["kit"]["roughness"])
-	return _material
+## The one material of every world kit mesh: vertex colours as paint (sRGB in data), textured by the paint's
+## surface (S2: WorldSurface, data/art_materials.json).
+static func material() -> ShaderMaterial:
+	return WorldSurface.material()
 
 
 ## A "block" is the plain four-cornered box (16 triangles; the kit's chamfered box has 64).
@@ -44,10 +38,31 @@ static func _kit_part(part: Dictionary) -> Dictionary:
 	return plain
 
 
+## S7: a type's parts with every {"use": other type, "at": [x, y, z]} entry replaced by that type's own parts
+## moved by "at" (one level: a column is written once and stood four times under a colonnade). The colliders,
+## walk surfaces and open volumes of the used type are not taken over: only its look.
+static func expanded_parts(definition: Dictionary) -> Array:
+	var out: Array = []
+	var types: Dictionary = config()["types"]
+	for part: Dictionary in definition["parts"]:
+		if not part.has("use"):
+			out.append(part)
+			continue
+		var shift := LowpolyKit.vec(part.get("at", [0, 0, 0]))
+		for inner: Dictionary in types[String(part["use"])]["parts"]:
+			if inner.has("use"):
+				continue
+			var moved := inner.duplicate()
+			var at := LowpolyKit.vec(inner["at"]) + shift
+			moved["at"] = [at.x, at.y, at.z]
+			out.append(moved)
+	return out
+
+
 ## Builds a type's mesh from its parts (uncached; deterministic).
 static func build_mesh(definition: Dictionary) -> ArrayMesh:
 	var parts: Array = []
-	for part: Dictionary in definition["parts"]:
+	for part: Dictionary in expanded_parts(definition):
 		parts.append(_kit_part(part))
 	var mesh := LowpolyKit.merge(parts)
 	mesh.surface_set_material(0, material())
@@ -186,7 +201,9 @@ static func decor_body(entry: Dictionary, mode: String, mesh: Mesh) -> StaticBod
 			var k: Dictionary = LowpolyKit.config()["kit"]
 			var leg: Vector3 = size * LowpolyKit.vec(k["arch_leg_fraction"])
 			var bottom := -body.position.y
-			var top := leg.y * 0.5
+			# S7: the piers end where the kit's arch legs end (LowpolyKit "arch": leg centre + half its height),
+			# which is the lintel's underside; they used to run on up into the lintel's own box.
+			var top := size.y * float(k.get("arch_leg_y", 0.0)) + leg.y * 0.5
 			for sign_x: float in [-1.0, 1.0]:
 				boxes.append([Vector3(leg.x, top - bottom, leg.z), Vector3(sign_x * (size.x - leg.x) * 0.5, (top + bottom) * 0.5, 0.0)])
 			boxes.append([size * LowpolyKit.vec(k["arch_lintel_fraction"]), Vector3(0.0, size.y * float(k["arch_lintel_y"]), 0.0)])

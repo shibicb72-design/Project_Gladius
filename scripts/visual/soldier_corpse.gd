@@ -55,7 +55,14 @@ static func build(model: SoldierModel) -> Node3D:
 	rifle.name = "RifleModel"
 	rifle.mesh = model.rifle.mesh
 	rifle.transform = model.rifle.transform
+	rifle.visible = model.rifle.visible
 	hand.add_child(rifle)
+	if model.blade != null and model.blade.visible:  # S4: a soldier who held the blade falls with it
+		var blade := MeshInstance3D.new()
+		blade.name = "BladeModel"
+		blade.mesh = model.blade.mesh
+		blade.transform = model.blade.transform
+		hand.add_child(blade)
 	var player := AnimationPlayer.new()
 	player.name = "Collapse"
 	player.root_node = NodePath("..")

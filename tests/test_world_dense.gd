@@ -164,7 +164,8 @@ func test_outer_ring_band_gaps_and_clearances() -> void:
 	# One batch per ring cover type draws the pieces.
 	var drawn := 0
 	for batch: MultiMeshInstance3D in builder.get_node("RingCover").get_children():
-		assert_true(batch.multimesh.mesh is ArrayMesh and batch.material_override is StandardMaterial3D, String(batch.name) + ": kit mesh with the cover material")
+		# S2: the cover material is the shared textured world material (was a StandardMaterial3D per palette).
+		assert_true(batch.multimesh.mesh is ArrayMesh and WorldSurface.is_lit(batch.material_override), String(batch.name) + ": kit mesh with the cover material")
 		drawn += batch.multimesh.instance_count
 	assert_eq(drawn, ring.size(), "every ring piece is drawn by its type's batch")
 	print("WORLD_RING cover=", ring.size(), " kit_pieces=", kit.size(), " footprint_radius_min=", snappedf(band.x, 0.01), " max=", snappedf(band.y, 0.01), " quadrants=", quadrant)

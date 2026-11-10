@@ -4,7 +4,7 @@ extends RefCounted
 ## Framing numbers: data/capture_shots.json (placeholders, OQ-3D-CAPTURE). Presentation only: nothing here feeds
 ## back into the match. World colliders pick a stage with a clear lane, so cover never hides the subject.
 
-const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup", "ground_views"]
+const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup", "ground_views", "in_match", "soldier_poses", "carrier"]
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -26,6 +26,8 @@ func run(tool: Node, which: String) -> bool:
 		if not SHOTS.has(n):
 			_tool._log("RESULT scene_shot_known=false (%s; known: %s, all)" % [n, ", ".join(SHOTS)])
 			return false
+	if MatchLook.variant_override == "":
+		MatchLook.variant_override = String(MatchLook.config()["variant"])  # shots compare: no rotation by seed unless --variant asks
 	var host: Node = _tool
 	if _tool._offscreen.x > 0 and _tool._offscreen.y > 0:
 		_view = _tool._offscreen_viewport()
@@ -69,6 +71,12 @@ func run(tool: Node, which: String) -> bool:
 				await _kit_lineup()
 			"ground_views":
 				await _ground_views()
+			"in_match":
+				await _in_match()
+			"soldier_poses":
+				await _soldier_poses()
+			"carrier":
+				await _carrier()
 	return true
 
 
@@ -192,7 +200,12 @@ func _soldier_50m(zoom: bool) -> void:
 func _map_overview() -> void:
 	var c: Dictionary = _cfg["map_overview"]
 	_aim(LowpolyKit.vec(c["camera_at"]), LowpolyKit.vec(c["look_at"]), float(c["fov_deg"]))
-	await _finish("map_overview", "camera at %s" % str(c["camera_at"]))
+	# S1: from 190 m up the dusk haze hides the map; "fog": false shows the layout (said in the caption).
+	var env := (_match.get_node("WorldEnvironment") as WorldEnvironment).environment
+	var fog := env.fog_enabled
+	env.fog_enabled = fog and bool(c.get("fog", true))
+	await _finish("map_overview", "camera at %s%s" % [str(c["camera_at"]), "" if env.fog_enabled == fog else ", fog off for this shot"])
+	env.fog_enabled = fog
 
 
 ## One of every item in data/loot.json, dropped in a row by the real LootField, with a soldier for scale.
@@ -209,6 +222,10 @@ func _loot_lineup() -> void:
 	ids.sort()
 	for i in ids.size():
 		loot.drop({"item_id": ids[i]}, _stage + _right() * float(c["spacing_m"]) * (i - ids.size() * 0.5))
+	var look := LootLook.new()  # S6: the same look a match gives its loot field
+	_match.add_child(look)
+	look.bind(loot)
+	_props.append(look)
 	_pawn(_stage + _right() * float(c["spacing_m"]) * (ids.size() * 0.5), _lane, 0.0, 0)
 	_aim(_stage + _lane * _fit_distance(c, float(c["spacing_m"]) * ids.size()) + Vector3.UP * float(c["camera_height_m"]),
 			_stage + Vector3.UP * float(c["look_height_m"]), float(c["fov_deg"]))
@@ -294,6 +311,85 @@ func _ground_views() -> void:
 			label = "looking at " + str(view["look_at"])
 		_aim(eye, target, float(c["fov_deg"]))
 		await _finish("ground_" + String(view["name"]), "%s, from (%s, %s) at eye height %s m" % [label, view["from"][0], view["from"][1], c["eye_height_m"]])
+
+
+## S0: what a player sees. The local pawn stands at "at" facing "look_at" and the shot is taken through the
+## match's own third-person CameraRig (its framing, not the capture camera's); "others" are inert soldiers in
+## view for scale and squad colours. Saves <tag>_in_match_<name>.png. The HUD stays hidden: this is the art view.
+func _in_match() -> void:
+	var c: Dictionary = _cfg["in_match"]
+	var pawn := _match.local_player
+	var rig := pawn.get_node_or_null("CameraRig") as CameraRig
+	if rig == null:
+		_tool._log("RESULT scene_in_match=false (no CameraRig on the local pawn)")
+		return
+	for view: Dictionary in c["views"]:
+		var g := _ground(float(view["at"][0]), float(view["at"][1]))
+		if g.is_empty():
+			_tool._log("RESULT scene_in_match=false (%s: no open ground at %s)" % [view["name"], str(view["at"])])
+			continue
+		var at: Vector3 = g["position"]
+		var target := LowpolyKit.vec(view["look_at"])
+		var facing := (target - at) * Vector3(1, 0, 1)
+		pawn.visible = true
+		pawn.global_transform = Transform3D(Basis.looking_at(facing), at)
+		pawn.pitch = deg_to_rad(float(view.get("pitch_deg", c["pitch_deg"])))
+		rig.set_pitch(pawn.pitch)
+		var others: Array = view.get("others", [])
+		for i in others.size():
+			var og := _ground(float(others[i][0]), float(others[i][1]))
+			if not og.is_empty():
+				var yaw := float(others[i][2]) if (others[i] as Array).size() > 2 else 0.0
+				_pawn(og["position"], (at - (og["position"] as Vector3)) * Vector3(1, 0, 1), yaw, i + 1)
+		rig.ensure_current()
+		await _tool.get_tree().physics_frame
+		await _tool.get_tree().physics_frame  # the rig's spring arm settles against the world
+		await _finish("in_match_" + String(view["name"]), "third-person rig at (%s, %s)" % [view["at"][0], view["at"][1]])
+		pawn.visible = false
+	_camera.make_current()
+
+
+## S4: one soldier per entry of "soldier_poses.row": a pose held at full weight (SoldierPose.force), the blade
+## in hand where asked, and an armor tier. Front and back views. Saves <tag>_soldier_poses_<view>.png.
+func _soldier_poses() -> void:
+	var c: Dictionary = _cfg["soldier_poses"]
+	var row: Array = c["row"]
+	for view: Dictionary in c["views"]:
+		var labels := PackedStringArray()
+		for i in row.size():
+			var entry: Dictionary = row[i]
+			var pawn := _pawn(_stage + _right() * float(c["spacing_m"]) * (i - (row.size() - 1) * 0.5), _lane, float(view["yaw_deg"]), i)
+			pawn.armor_tier = int(entry.get("tier", 0))
+			if bool(entry.get("blade", false)):
+				for attempt in 3:
+					var weapon := pawn.loadout.get_active()
+					if weapon != null and weapon.def.is_melee():
+						break
+					pawn.loadout.swap()
+			var model := pawn.get_node("SoldierModel") as SoldierModel
+			if String(entry.get("pose", "")) != "":
+				model.pose.force = {String(entry["pose"]): 1.0}
+			labels.append(String(entry["label"]))
+		_aim(_stage + _lane * _fit_distance(c, float(c["spacing_m"]) * (row.size() - 1)) + Vector3.UP * float(c["camera_height_m"]),
+				_stage + Vector3.UP * float(c["look_height_m"]), float(c["fov_deg"]))
+		await _finish("soldier_poses_" + String(view["name"]), " / ".join(labels))
+
+
+## S6: the drop carrier's model, placed by the capture tool on a made-up stretch of flight (no drop runs in a
+## capture match). Saves <tag>_carrier_<view>.png.
+func _carrier() -> void:
+	var c: Dictionary = _cfg["carrier"]
+	var look := _match.get_node_or_null("WorldEnvironment/CarrierLook") as CarrierLook
+	if look == null:
+		_tool._log("RESULT scene_carrier=false (the match has no CarrierLook)")
+		return
+	var at := LowpolyKit.vec(c["at"])
+	var heading := Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(float(c["heading_deg"])))
+	for view: Dictionary in c["views"]:
+		look.show_at(at, heading)
+		_aim(at + LowpolyKit.vec(view["camera_offset"]), at + LowpolyKit.vec(c["look_offset"]), float(c["fov_deg"]))
+		await _finish("carrier_" + String(view["name"]), "carrier at %s, heading %s deg" % [str(c["at"]), c["heading_deg"]])
+	look.model.visible = false
 
 
 ## From inside the zone, looking out at the wall with a soldier standing in front of it.

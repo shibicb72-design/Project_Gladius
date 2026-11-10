@@ -59,7 +59,7 @@ static func triangles(part: Dictionary, defaults: Dictionary) -> PackedVector3Ar
 					float(part.get("arc_deg", defaults["plate_arc_deg"])), bool(part.get("axis", false)))
 		"lathe":
 			return _lathe(size, part.get("profile", defaults["lathe_profile"]), int(part.get("segments", defaults["lathe_segments"])),
-					float(part.get("sweep_deg", defaults["lathe_sweep_deg"])), bool(part.get("axis", false)))
+					float(part.get("sweep_deg", defaults["lathe_sweep_deg"])), bool(part.get("axis", false)), float(part.get("flute", 0.0)))
 	return PackedVector3Array()
 
 
@@ -151,7 +151,9 @@ static func _wedge(size: Vector3, ridge: float) -> PackedVector3Array:
 ## result is rescaled to fill the size box exactly (the fractions are then relative to each other). With
 ## `on_axis` ("axis": true on the part) nothing is rescaled: `at` is the turning axis at mid height and `size`
 ## the box of the full turn, so several arcs can share one centre and "rot" turns them around it.
-static func _lathe(size: Vector3, profile: Array, segments: int, sweep_deg: float, on_axis: bool) -> PackedVector3Array:
+## S7: `flute` > 0 pulls every other corner of the turn in by that fraction of the radius, so a shaft of an even
+## number of segments shows flutes (a column); 0 leaves the shape exactly as before.
+static func _lathe(size: Vector3, profile: Array, segments: int, sweep_deg: float, on_axis: bool, flute: float = 0.0) -> PackedVector3Array:
 	var polygon := PackedVector2Array()
 	for p: Array in profile:
 		polygon.append(Vector2(maxf(float(p[0]), 0.0), float(p[1])))
@@ -168,15 +170,17 @@ static func _lathe(size: Vector3, profile: Array, segments: int, sweep_deg: floa
 	for s in steps:
 		var a0 := -sweep * 0.5 + sweep * s / steps
 		var a1 := -sweep * 0.5 + sweep * (s + 1) / steps
+		var r0 := 1.0 - flute if flute > 0.0 and s % 2 == 1 else 1.0
+		var r1 := 1.0 - flute if flute > 0.0 and (s + 1) % 2 == 1 else 1.0
 		for i in polygon.size():
 			var p := polygon[i]
 			var q := polygon[(i + 1) % polygon.size()]
 			if p.x <= 0.0 and q.x <= 0.0:
 				continue
-			var a := _turn(p, a0)
-			var b := _turn(q, a0)
-			var c := _turn(q, a1)
-			var d := _turn(p, a1)
+			var a := _turn(Vector2(p.x * r0, p.y), a0)
+			var b := _turn(Vector2(q.x * r0, q.y), a0)
+			var c := _turn(Vector2(q.x * r1, q.y), a1)
+			var d := _turn(Vector2(p.x * r1, p.y), a1)
 			if q.x <= 0.0:
 				_push_raw(raw, a, b, d)
 			else:
