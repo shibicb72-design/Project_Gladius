@@ -308,7 +308,26 @@ android/              debug.keystore (shared debug key only)
   `base_loop` + `by_weather[weather]` + `by_variant[look id]`. A far shot swaps to the weapon's own
   far report (`hooks.shot_far_by_weapon`, fallback `shot_far`). The local player's sprint adds one
   foley sound per step; other pawns stay one voice per step.
-- Part b (not built): reverb zones, impacts by material, distance filters.
+- Part b (M2A1b, Nov 10 2026), all values placeholders (OQ-AUDIO-SPACE):
+  - Distance filters: every positional player takes `attenuation_filter_cutoff_hz` and
+    `attenuation_filter_db` from the sound's settings (`defaults` plus per sound). `play_at` sets them on
+    every play because pool voices are reused; `make_loop` sets them on its 3D player.
+  - Impacts by material: Hitscan reports no collider and `scripts/weapons/` is not changed, so
+    `pawn_audio.gd` casts its own short ray (mask 1, bodies only) through a world hit's end point on
+    `shot_resolved` and reads the body's meta: `structure_type`, else `cover_palette`, else `decor_id`,
+    else the body named Ground. Data `impacts` (top level, not under `hooks`) maps that to a material
+    and the material to a sound id; `hooks.impact_world` stays the fallback.
+  - Reverb zones: `Sfx` creates a `Reverb` bus with an AudioEffectReverb from data `buses` (a bus may
+    name its `send` and a `reverb` block; dry is 0 because the zones send an extra copy). Once the map
+    exists, `match_audio.gd` builds one Area3D per structure body whose type is listed in data
+    `reverb_zones.types`, under its own child `ReverbZones` (never under the bodies or Nav). The box is
+    the union of the type's `open` volumes from `WorldKit.config()`, padded sideways only, at the
+    body's global transform. Zones sit on physics layer 10 (bit 512, named only in `audio.json`), with
+    `collision_mask` 0, `monitoring` false and `monitorable` false; every gameplay query uses mask 7 or
+    less, so rays pass through them. Every positional player has `area_mask` 512, so the engine finds
+    the zone at the player's own position: reverb depends on where the sound is, not the listener.
+    Under Jolt that point query finds a zone from the physics frame after it is built
+    (`tests/test_audio_space.gd`). Zones are not loops and use no voice budget.
 
 ### 4.20 Maps and the chunked map builder
 - Status (M2 P1a, Nov 10 2026): the first of three pipeline slices towards the 1 km map. Built: map
