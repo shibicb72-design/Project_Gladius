@@ -106,9 +106,9 @@ func _on_loot_node_exiting(node: Node) -> void:
 	var sfx := _sfx()
 	if sfx == null or _loot == null or not (node is Node3D) or not director.running:
 		return
-	# Leaving the match frees the whole tree; those loot nodes were not picked up (Saltline review S4).
-	var root := _match()
-	if _loot.is_queued_for_deletion() or (root != null and root.is_queued_for_deletion()):
+	# Only a real pickup: LootField.take queue_frees the item's own node. Leaving the match (AppFlow.go ->
+	# change_scene, remove_child, queue_free) takes every node out without marking it (Saltline review S4).
+	if not node.is_queued_for_deletion() or _loot.is_queued_for_deletion():
 		return
 	# Godot renames a second sibling of the same name ("@Loot_ammo@3"): take the longest item id the name holds.
 	var best := ""

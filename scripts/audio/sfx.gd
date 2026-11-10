@@ -132,15 +132,27 @@ func busy_voices() -> Array[String]:
 
 ## The retrigger guard: the same sound from the same source within min_interval_s plays once. key is the sound id
 ## for UI sounds, and id plus the 1 m cell of the position for positional ones, so different pawns firing in one
-## frame are separate sources (Saltline review B2). It only reads; _mark records a sound that actually started.
+## frame are separate sources (Saltline review B2). Two pawns in the same 1 m cell share one guard; that is accepted.
+## It only reads; _mark records a sound that actually started.
 func _allowed(key: String, s: Dictionary) -> bool:
 	if not enabled or s.is_empty():
 		return false
 	return not (_last_play.has(key) and Time.get_ticks_msec() - int(_last_play[key]) < int(float(s["min_interval_s"]) * 1000.0))
 
 
+## Past GUARD_MAX keys (footsteps add one per cell), keys older than GUARD_KEEP_MS are dropped: no sound's
+## min_interval_s is near that long, so a dropped key could not have blocked anything.
+const GUARD_MAX := 512
+const GUARD_KEEP_MS := 5000
+
+
 func _mark(key: String) -> void:
-	_last_play[key] = Time.get_ticks_msec()
+	var now := Time.get_ticks_msec()
+	_last_play[key] = now
+	if _last_play.size() > GUARD_MAX:
+		for k: String in _last_play.keys():
+			if now - int(_last_play[k]) > GUARD_KEEP_MS:
+				_last_play.erase(k)
 
 
 static func _source_key(id: String, at: Vector3) -> String:

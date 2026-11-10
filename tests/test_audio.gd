@@ -191,14 +191,17 @@ func test_each_match_hook_starts_one_sound_and_leaving_plays_no_pickups() -> voi
 	m.director.match_over.emit({})
 	_check_one(String(hooks["match_over"]), false, "match_over")
 	sfx.clear_log()
-	audio._on_lightning()
-	audio._thunder_in = 0.0001
-	await _tree().process_frame
-	await _tree().process_frame
-	var thunder := 0
-	for id: String in sfx.cfg["ambience"]["thunder"]:
-		thunder += _played(id).size()
-	assert_eq(thunder, 1, "thunder follows lightning once")
+	var look := m.find_child("MatchLook", true, false) as MatchLook
+	assert_true(look != null and look.lightning_struck.is_connected(audio._on_lightning), "MatchAudio listens to the look's lightning")
+	if look != null:
+		look.lightning_struck.emit()  # the real signal (review: not the handler directly)
+		audio._thunder_in = minf(audio._thunder_in, 0.0001)  # skip the data delay, keep the armed state
+		await _tree().process_frame
+		await _tree().process_frame
+		var thunder := 0
+		for id: String in sfx.cfg["ambience"]["thunder"]:
+			thunder += _played(id).size()
+		assert_eq(thunder, 1, "thunder follows lightning once")
 	# A pickup: a loot item's node leaving the field while the match runs.
 	assert_true(m.director.running, "the match is running")
 	var field := m.director.loot
@@ -210,14 +213,70 @@ func test_each_match_hook_starts_one_sound_and_leaving_plays_no_pickups() -> voi
 		field.take(loot_id)  # the pickup path: LootField.take frees the item's node (deferred)
 		await _tree().process_frame
 		_check_one(String(hooks["pickup_by_kind"][kind]), true, "picking up a %s" % kind)
-	# Leaving the match frees every remaining loot node: no pickup sound for them (review S4).
+	# Leaving the match frees every remaining loot node: no pickup sound for them (review S4). The game leaves
+	# through AppFlow.go -> change_scene_to_file, which removes the scene from the tree and then frees it.
+	sfx.clear_log()
+	_tree().root.remove_child(m)
+	m.free()
+	await _tree().process_frame
+	assert_eq(_pickups(hooks), 0, "leaving the match (scene change) plays no pickup sounds")
+
+
+func _pickups(hooks: Dictionary) -> int:
+	var n := 0
+	for kind_id: String in hooks["pickup_by_kind"]:
+		n += _played(String(hooks["pickup_by_kind"][kind_id])).size()
+	return n
+
+
+func test_a_match_freed_with_queue_free_plays_no_pickups_either() -> void:
+	var sfx := _sfx()
+	var m: MatchRoot = load("res://scenes/match/match.tscn").instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.seed_override = 4243
+	m.ground_loot = true
+	_tree().root.add_child(m)
+	await _tree().process_frame
+	m.director.load_config()
+	assert_true(m.begin(), "match begins")
+	for i in 4:
+		await _tree().physics_frame
+		await _tree().process_frame
+	assert_true(m.director.running and not m.director.loot.items.is_empty(), "running with loot")
 	sfx.clear_log()
 	m.queue_free()
 	await _tree().process_frame
-	var pickups := 0
-	for kind_id: String in hooks["pickup_by_kind"]:
-		pickups += _played(String(hooks["pickup_by_kind"][kind_id])).size()
-	assert_eq(pickups, 0, "leaving the match plays no pickup sounds")
+	assert_eq(_pickups(sfx.cfg["hooks"]), 0, "queue_free of the match plays no pickup sounds")
+
+
+## Review S2: a sound refused for polyphony does not record its timer, so the same source plays as soon as a
+## voice frees.
+func test_a_refused_sound_does_not_block_its_next_try() -> void:
+	var sfx := _sfx()
+	var poly := int((sfx.sound("shot_pilum_br") as Dictionary)["max_polyphony"])
+	sfx._last_play.clear()
+	for i in sfx._pool_until.size():
+		sfx._pool_until[i] = 0
+	for i in poly:
+		sfx.play_at("shot_pilum_br", Vector3(i * 3.0, 1.0, 50.0))
+	sfx.clear_log()
+	var spot := Vector3(-30.0, 1.0, 50.0)
+	assert_true(sfx.play_at("shot_pilum_br", spot) == null, "past its polyphony the sound is refused")
+	for i in sfx._pool_until.size():
+		sfx._pool_until[i] = 0  # every voice frees
+	assert_true(sfx.play_at("shot_pilum_br", spot) != null, "the refused source plays at once when a voice is free")
+
+
+func test_the_retrigger_guard_stays_bounded() -> void:
+	var sfx := _sfx()
+	sfx._last_play.clear()
+	for i in 600:
+		sfx._last_play["old_%d" % i] = Time.get_ticks_msec() - 60000
+	for i in sfx._pool_until.size():
+		sfx._pool_until[i] = 0
+	sfx.play_at("reload", Vector3(7.0, 0.0, 7.0))
+	assert_true(sfx._last_play.size() < 10, "old keys are dropped once the guard grows past its cap (%d left)" % sfx._last_play.size())
 
 
 func test_voice_caps_hold_when_eighteen_pawns_fire_at_once() -> void:
