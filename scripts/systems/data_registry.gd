@@ -9,6 +9,8 @@ const LOADOUTS_PATH := "res://data/loadouts.json"
 const CAMERA_PATH := "res://data/camera.json"
 const MATCH_PATH := "res://data/match.json"
 const MAP_PATH := "res://data/maps/alesia_section.json"
+const MAP_SELECT_PATH := "res://data/map_select.json"
+const MAP_DIR := "res://data/maps/"
 
 var _cache: Dictionary = {}
 
@@ -102,6 +104,59 @@ func validate() -> PackedStringArray:
 		if not combat.has(k):
 			problems.append("combat.%s missing" % k)
 	problems.append_array(validate_squads(load_file(MATCH_PATH), load_file(MAP_PATH)))
+	problems.append_array(validate_map(MAP_PATH))
+	var selected := str(load_file(MAP_SELECT_PATH).get("map", MAP_PATH))
+	if selected != MAP_PATH:
+		problems.append_array(validate_map(selected))
+	return problems
+
+
+## Problems of one map definition; empty means usable. The path must be res://data/maps/<file>.json.
+## Never calls push_error (MatchRoot reports a bad selection once).
+func validate_map(path: String) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var file := path.trim_prefix(MAP_DIR)
+	if not path.begins_with(MAP_DIR) or not path.ends_with(".json") or file.contains("/") or file.contains(".."):
+		problems.append("map path '%s' is not res://data/maps/<file>.json" % path)
+		return problems
+	if not FileAccess.file_exists(path):
+		problems.append("map file '%s' does not exist" % path)
+		return problems
+	var def := parse_quiet(path)
+	if def.is_empty():
+		problems.append("map file '%s' is not a non-empty json dictionary" % path)
+		return problems
+	problems.append_array(validate_map_def(def))
+	return problems
+
+
+## The dictionary in a json file, or {} when missing or invalid. Unlike JSON.parse_string it reports nothing.
+static func parse_quiet(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var json := JSON.new()
+	if json.parse(FileAccess.get_file_as_string(path)) != OK or typeof(json.data) != TYPE_DICTIONARY:
+		return {}
+	return json.data
+
+
+## The content rules of a map definition (scene, spawns, optional piece files); validate_map adds the path rules.
+static func validate_map_def(def: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var scene: Variant = def.get("scene", "")
+	if typeof(scene) != TYPE_STRING or String(scene) == "":
+		problems.append("map has no scene")
+	elif not ResourceLoader.exists(String(scene)):
+		problems.append("map scene '%s' does not exist" % scene)
+	var spawns: Variant = def.get("spawns", {})
+	if typeof(spawns) != TYPE_DICTIONARY or (spawns as Dictionary).is_empty():
+		problems.append("map has no spawn spots")
+	for key in ["cover_data", "structure_data"]:
+		if not def.has(key):
+			continue
+		var piece_path := str(def[key])
+		if parse_quiet(piece_path).is_empty():
+			problems.append("map %s '%s' is missing or not a non-empty json dictionary" % [key, piece_path])
 	return problems
 
 

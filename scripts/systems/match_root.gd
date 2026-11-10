@@ -5,6 +5,11 @@ extends Node3D
 
 const UI_PATH := "res://data/ui.json"
 const MAP_PATH := "res://data/maps/alesia_section.json"
+## A phone measurement tool, like PerfLog's flag file: its first line names the map json to load instead of
+## data/map_select.json (written over adb on a debug build:
+## `adb shell run-as <package> sh -c 'echo res://data/maps/<file>.json > files/map_select_override'`).
+## Only an existing res://data/maps/*.json map is accepted; anything else falls back to MAP_PATH.
+const MAP_OVERRIDE_PATH := "user://map_select_override"
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
 
@@ -15,6 +20,10 @@ const _RigScene := preload("res://scenes/player/camera_rig.tscn")
 @export var fill_bots: bool = true
 
 var map_def: Dictionary = {}
+## The map json this match loaded (set by begin()).
+var map_path: String = MAP_PATH
+## Tests set this to load another map json instead of the selection (still validated, same fallback).
+var map_path_override: String = ""
 var map: Node3D
 var router: InputRouter
 var local_player: Pawn
@@ -96,6 +105,23 @@ func apply_sensitivity() -> void:
 	_gyro.configure({"gyro_mode": router.sens.gyro_mode})
 
 
+## Which map json a match loads: {"path", "error"}. The override file's first line wins when the file exists,
+## otherwise the "map" key of the select json. A map that fails DataRegistry.validate_map gives MAP_PATH and
+## a non-empty error (an invalid override does not fall through to the select json). Reports nothing itself.
+static func select_map(select_path: String = DataRegistry.MAP_SELECT_PATH, override_path: String = MAP_OVERRIDE_PATH) -> Dictionary:
+	if FileAccess.file_exists(override_path):
+		var text := FileAccess.get_file_as_string(override_path)
+		return _check_map(text.split("\n")[0].strip_edges(), "override")
+	return _check_map(str(DataRegistry.parse_quiet(select_path).get("map", "")), "map_select")
+
+
+static func _check_map(wanted: String, source: String) -> Dictionary:
+	var problems := DataRegistry.new().validate_map(wanted)
+	if problems.is_empty():
+		return {"path": wanted, "error": ""}
+	return {"path": MAP_PATH, "error": "%s '%s': %s" % [source, wanted, "; ".join(problems)]}
+
+
 ## Loads the map and starts the match. Returns false if the data is unusable.
 func begin() -> bool:
 	# P0c: temporary Fold presentation diagnostic. Magenta clear splits "world not drawing" from the engine default gray.
@@ -104,12 +130,19 @@ func begin() -> bool:
 		add_child(PerfLog.new())
 	if director.mode_cfg.is_empty():
 		director.load_config()
-	map_def = DataRegistry.new().load_file(MAP_PATH)
+	var chosen := _check_map(map_path_override, "map_path_override") if map_path_override != "" else select_map()
+	if String(chosen["error"]) != "":
+		push_error("MatchRoot.begin: %s; loading %s" % [chosen["error"], chosen["path"]])
+	map_path = String(chosen["path"])
+	map_def = DataRegistry.new().load_file(map_path)
 	var scene: PackedScene = load(str(map_def.get("scene", ""))) as PackedScene
 	if scene == null:
-		push_error("MatchRoot.begin: map scene is null (path '%s' from %s)" % [str(map_def.get("scene", "")), MAP_PATH])
+		push_error("MatchRoot.begin: map scene is null (path '%s' from %s)" % [str(map_def.get("scene", "")), map_path])
 		return false
 	map = scene.instantiate()
+	var builder := map.get_node_or_null("ArtBuilder")
+	if builder != null and "map_json" in builder:
+		builder.set("map_json", map_path)  # before add_child: the builder reads it in _ready
 	add_child(map)
 	print("MatchRoot.begin: map load OK, scene non-null")
 	var nav := map.get_node_or_null("Nav") as NavigationRegion3D

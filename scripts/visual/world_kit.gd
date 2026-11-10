@@ -21,6 +21,12 @@ static func config() -> Dictionary:
 	return _registry.load_file(PATH)
 
 
+## The structure pieces of one map: the "pieces" of the map's "structure_data" file (default PATH). Types,
+## batches and rules always come from config().
+static func pieces_for(map_def: Dictionary) -> Array:
+	return _registry.load_file(String(map_def.get("structure_data", PATH))).get("pieces", [])
+
+
 ## The one material of every world kit mesh: vertex colours as paint (sRGB in data), textured by the paint's
 ## surface (S2: WorldSurface, data/art_materials.json).
 static func material() -> ShaderMaterial:

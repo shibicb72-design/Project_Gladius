@@ -4,11 +4,28 @@ var cover_bodies: Array[StaticBody3D] = []
 var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
 var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
 var ring_bodies: Array[StaticBody3D] = []  # W3 cover of the outer ring (groups "ring_cover" and "cover_wall")
+## The map json this scene builds. MatchRoot sets it before the map enters the tree; scenes built
+## directly keep the default.
+@export var map_json: String = "res://data/maps/alesia_section.json"
+
+const COVER_PATH := "res://data/maps/alesia_cover.json"
 
 func _ready() -> void:
 	var map := get_parent()
 	var nav := map.get_node("Nav")
-	var cfg := DataRegistry.new().load_file("res://data/maps/alesia_cover.json")
+	var reg := DataRegistry.new()
+	var map_def := reg.load_file(map_json)
+	# Cover types and decor colliders always come from the alesia cover file; the pieces, ring pieces and
+	# decor come from the map's "cover_data" file (default: the same alesia file).
+	var base := reg.load_file(COVER_PATH)
+	var placed := reg.load_file(String(map_def.get("cover_data", COVER_PATH)))
+	var cfg := {
+		"types": base["types"],
+		"decor_colliders": base.get("decor_colliders", {}),
+		"pieces": placed["pieces"],
+		"ring_pieces": placed.get("ring_pieces", []),
+		"decor": placed["decor"],
+	}
 	var meshes := {}
 	for type: String in cfg["types"]:
 		var definition: Dictionary = cfg["types"][type]
@@ -56,7 +73,7 @@ func _ready() -> void:
 	var structure_batches := Node3D.new()
 	structure_batches.name = "Structures"
 	add_child(structure_batches)
-	structure_bodies = WorldKit.populate(nav, structure_batches, WorldKit.config()["pieces"])
+	structure_bodies = WorldKit.populate(nav, structure_batches, WorldKit.pieces_for(map_def))
 	_build_ring(nav, cfg, meshes)
 	var decor := map.get_node("Decor") as Node3D
 	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
@@ -101,7 +118,7 @@ func _paint_ground(nav: Node) -> void:
 	if ground_mesh == null:
 		return
 	ground_size_m = ground_mesh.get_aabb().size.x
-	var map_def := DataRegistry.new().load_file(MatchRoot.MAP_PATH)
+	var map_def := DataRegistry.new().load_file(map_json)
 	var landmark_path := String(map_def.get("landmarks", ""))
 	var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
 	var trodden := PackedVector2Array()
@@ -109,8 +126,8 @@ func _paint_ground(nav: Node) -> void:
 		for body: StaticBody3D in group:
 			trodden.append(Vector2(body.position.x, body.position.z))
 	add_to_group(&"ground_paint")
-	ground_paint = GroundPaint.build(MatchRoot.MAP_PATH, ground_size_m, landmarks, trodden)
-	ground_mesh.material_override = WorldSurface.ground_material(GroundPaint.texture(MatchRoot.MAP_PATH), ground_size_m)
+	ground_paint = GroundPaint.build(map_json, ground_size_m, landmarks, trodden)
+	ground_mesh.material_override = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
 
 
 ## W3: the outer ring's cover (cfg "ring_pieces"): the same one-box cover types as the inner band, in their own

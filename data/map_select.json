@@ -1,0 +1,4 @@
+{
+	"map": "res://data/maps/alesia_section.json",
+	"_note": "Which map json MatchRoot loads. A missing or invalid map falls back to alesia_section. When the file user://map_select_override is present, its first line wins (a phone measurement tool)."
+}

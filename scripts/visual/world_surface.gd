@@ -12,7 +12,7 @@ const MAX_SURFACES := 32
 static var _registry := DataRegistry.new()
 static var _ids := {}
 static var _materials := {}
-static var _ground: ShaderMaterial
+static var _grounds := {}  # map key -> the ground ShaderMaterial of that map
 static var _wet := 0.0
 
 
@@ -102,12 +102,16 @@ static func palette_material(key: String) -> ShaderMaterial:
 
 
 ## The ground material; `paint_map` is GroundPaint's image as a texture, `map_size_m` the ground's side.
-static func ground_material(paint_map: Texture2D, map_size_m: float) -> ShaderMaterial:
+## One material per map `key` (the map json): the same key gives the same resource, so two maps in one
+## process keep their own paint map and size.
+static func ground_material(paint_map: Texture2D, map_size_m: float, key: String = "") -> ShaderMaterial:
 	var cfg := config()
 	var g: Dictionary = cfg["ground"]
 	var layers: Array = cfg["layers"]
+	var _ground: ShaderMaterial = _grounds.get(key)
 	if _ground == null:
 		_ground = ShaderMaterial.new()
+		_grounds[key] = _ground
 		_ground.resource_name = "WorldGround"
 		_ground.shader = load(GROUND_SHADER_PATH)
 		_ground.set_shader_parameter("surfaces", load(String(cfg["texture"])))
@@ -136,8 +140,8 @@ static func set_wet(amount: float) -> void:
 	_wet = clampf(amount, 0.0, 1.0)
 	for key in _materials:
 		(_materials[key] as ShaderMaterial).set_shader_parameter("wet", _wet)
-	if _ground != null:
-		_ground.set_shader_parameter("wet", _wet)
+	for key in _grounds:
+		(_grounds[key] as ShaderMaterial).set_shader_parameter("wet", _wet)
 
 
 static func wet() -> float:
