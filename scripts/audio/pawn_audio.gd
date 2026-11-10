@@ -5,9 +5,14 @@ extends Node3D
 ## "footsteps" (placeholders, OQ-AUDIO-MIX). The footstep surface comes from the visual side: the ground's
 ## paint map under the feet, or the kind of piece stood on.
 
+## How many CharacterBody3Ds one impact probe looks past before it gives up on the shot (so at most 3 casts).
+## A guard: pawn bodies are on layer 2 today (scenes/player/pawn.tscn), which the probe's mask 1 never sees.
+const PROBE_SKIPS := 2
+
 var pawn: Pawn
 var hooks: Dictionary = {}
 var steps: Dictionary = {}
+var impacts: Dictionary = {}
 var _stride_left := 0.0
 var _last_at := Vector3.ZERO
 var _was_downed := false
@@ -29,6 +34,7 @@ func _ready() -> void:
 		return
 	hooks = sfx.cfg["hooks"]
 	steps = sfx.cfg["footsteps"]
+	impacts = sfx.cfg.get("impacts", {})
 	_stride_left = float(steps["stride_m"])
 	_last_at = pawn.global_position
 	pawn.shot.connect(_on_shot)
@@ -85,17 +91,76 @@ func _on_shot_shown(origin: Vector3, end: Vector3) -> void:
 			sfx.play_at(String(hooks["near_miss"]), nearest)
 
 
-func _on_shot_resolved(_origin: Vector3, end: Vector3, hit: Dictionary) -> void:
+func _on_shot_resolved(origin: Vector3, end: Vector3, hit: Dictionary) -> void:
 	var sfx := _sfx()
 	if sfx == null:
 		return
 	var target: Variant = hit.get("target")
 	if target == null:
 		if not hit.is_empty():
-			_play("impact_world", end)
+			var id := impact_sound(impact_material_at(origin, end))
+			if id != "":
+				sfx.play_at(id, end)
 		return
 	if _is_listener():
 		sfx.play_ui(String(hooks["local_headshot"] if bool(hit.get("is_headshot", false)) else hooks["local_hit"]))
+
+
+## The material a world hit sounds like (data/audio.json "impacts"), found by a short ray along the shot
+## through its end point. The probe exists because Hitscan reports no collider for a world hit (and
+## scripts/weapons stays as it is); a CharacterBody3D on the probe is looked past (PROBE_SKIPS).
+## impacts.default when the shot has no direction, the pawn is not in a world, or only pawns or nothing
+## are there.
+func impact_material_at(origin: Vector3, end: Vector3) -> String:
+	var fallback := String(impacts.get("default", ""))
+	var dir := end - origin
+	if dir.is_zero_approx() or pawn == null or not pawn.is_inside_tree() or pawn.get_world_3d() == null:
+		return fallback
+	dir = dir.normalized()
+	var space := pawn.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(end - dir * float(impacts.get("probe_back_m", 0.05)), end + dir * float(impacts.get("probe_ahead_m", 0.1)), 1)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	var skipped: Array[RID] = []
+	for i in PROBE_SKIPS + 1:
+		var found := space.intersect_ray(query)
+		if found.is_empty():
+			return fallback
+		if not (found["collider"] is CharacterBody3D):
+			return material_of(found["collider"], impacts)
+		skipped.append(found["rid"])
+		query.exclude = skipped
+	return fallback
+
+
+## The rule alone: the material of a body by its metas (structure_type, then cover_palette, then decor_id),
+## else "Ground" by name, else impacts.default. Metas, not groups: decor bodies share the "structure" group.
+static func material_of(body: Object, data: Dictionary) -> String:
+	var fallback := String(data.get("default", ""))
+	if not (body is Node):
+		return fallback
+	var node := body as Node
+	if node.has_meta(&"structure_type"):
+		return String((data.get("by_structure", {}) as Dictionary).get(String(node.get_meta(&"structure_type")), fallback))
+	if node.has_meta(&"cover_palette"):
+		var by_palette: Dictionary = data.get("by_palette", {})
+		return String(by_palette.get(String(node.get_meta(&"cover_palette")), by_palette.get("default", fallback)))
+	if node.has_meta(&"decor_id"):
+		return String(data.get("decor", fallback))
+	if node.name == &"Ground":
+		return String(data.get("ground", fallback))
+	return fallback
+
+
+## The sound id of a material (impacts.by_material); hooks.impact_world when the impacts block is missing or
+## the material or its sound is unknown to Sfx.
+func impact_sound(material: String) -> String:
+	var fallback := String(hooks.get("impact_world", ""))
+	var sfx := _sfx()
+	var id := String((impacts.get("by_material", {}) as Dictionary).get(material, ""))
+	if id == "" or sfx == null or (sfx.sound(id) as Dictionary).is_empty():
+		return fallback
+	return id
 
 
 func _on_damaged(result: DamageRules.HitResult) -> void:

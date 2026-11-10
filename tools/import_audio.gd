@@ -27,8 +27,10 @@ extends SceneTree
 ## Recipe (JSON; keys starting with "_" are notes and ignored):
 ##   "version": 1, "out_dir": "res://assets/third_party/audio", "catalog": "res://data/asset_catalog.json",
 ##   "download_date": "YYYY-MM-DD",
-##   "defaults": {"rate": 44100, "quality": 4, "one_shot_max_s": 1.5, "fade_in_s": 0.003, "fade_out_s": 0.06, "peak_db": -1.0}
-##     (each key falls back to the value shown when missing),
+##   "defaults": {"rate": 44100, "quality": 4, "one_shot_max_s": 1.6, "fade_in_s": 0.003, "fade_out_s": 0.06, "peak_db": -1.0}
+##     (each key falls back to the value shown when missing; one_shot_max_s is also the CAP for positional one-shots:
+##     an output with "channels": "mono" and no "loop" whose own "max_s" is over it fails validation, so a long
+##     take is never played positionally; stereo one-shots are not positional and not capped),
 ##   "packs": {"<folder, [a-z0-9_-]>": {"source": <name as in LICENSES/THIRD_PARTY_ASSETS.md>, "source_url": <MANIFEST.csv
 ##     page>, "manifest_file": <MANIFEST.csv file value, or a list of them; each row's licence must start with "CC0">}},
 ##   "outputs": [{
@@ -36,7 +38,7 @@ extends SceneTree
 ##     "pack": <packs key>, "group": <free text, used by --only>, "src": <path relative to --stage, not a .zip/.7z>,
 ##     "channels": "mono" | "stereo"   REQUIRED (mono for positional sounds, stereo for beds and UI),
 ##     "channel_pick": "mix" (default, ordinary downmix) | "left" | "right"   (mono from a stereo source),
-##     "start_s": 0.0, "max_s": defaults.one_shot_max_s, "fade_in_s"/"fade_out_s": defaults (fade out ends at the
+##     "start_s": 0.0, "max_s": defaults.one_shot_max_s (at most that for mono), "fade_in_s"/"fade_out_s": defaults (fade out ends at the
 ##       real end of the cut, also when the source is shorter than max_s),
 ##     "peak_db": defaults.peak_db (normalise the processed take to this peak, measured by a first pass over the
 ##       same filter chain, in float with astats since volumedetect clamps at 0 dBFS; if the encoded file then decodes more than 0.1 dB above peak_db + gain_db, as Vorbis
@@ -54,6 +56,7 @@ extends SceneTree
 const DEFAULT_RECIPE := "res://tools/audio_import.json"
 const CHECK_DIR := "res://build/import_audio_check"
 const AUDIO_EXT := ["wav", "ogg", "mp3", "flac"]
+const ONE_SHOT_MAX_S := 1.6  # fallback for defaults.one_shot_max_s: the default cut and the positional one-shot cap
 const PEAK_SLACK_DB := 0.1
 const PEAK_ATTEMPTS := 4  # encodes per output at most; one correction is not enough, each re-encode moves the overshoot
 # Peaks for levelling are measured in float with astats: volumedetect works in s16 and clamps at 0 dBFS, which
@@ -171,9 +174,23 @@ func _validate(recipe: Dictionary) -> Array:
 			var cross := float(loop.get("crossfade_s", 0.0))
 			if length <= 0.0 or cross < 0.0 or cross > length:
 				problems.append("%s: loop needs length_s > 0 and 0 <= crossfade_s <= length_s" % id)
+		var capped := one_shot_cap_problem(out, recipe.get("defaults", {}))
+		if not capped.is_empty():
+			problems.append(capped)
 	if outputs.is_empty():
 		problems.append("recipe has no outputs")
 	return problems
+
+
+## A positional one-shot (mono, no loop) may not be cut longer than defaults.one_shot_max_s; "" when it is fine.
+## Static so a test can call it without a staging folder.
+static func one_shot_cap_problem(out: Dictionary, defaults: Dictionary) -> String:
+	if out.get("channels") != "mono" or out.has("loop") or not out.has("max_s"):
+		return ""
+	var cap := float(defaults.get("one_shot_max_s", ONE_SHOT_MAX_S))
+	if float(out["max_s"]) <= cap:
+		return ""
+	return "%s: positional one-shot max_s %s is over the one-shot cap %s" % [out.get("id", ""), out["max_s"], cap]
 
 
 # ---------- ffmpeg helpers ----------
@@ -216,7 +233,7 @@ func _graph(out: Dictionary, defaults: Dictionary, tail: String) -> String:
 		chain.append("lowpass=f=" + _num(float(out["lowpass_hz"])))
 	var start := roundi(float(out.get("start_s", 0.0)) * rate)
 	if not out.has("loop"):
-		var length := roundi(float(_setting(out, defaults, "max_s", 1.5, "one_shot_max_s")) * rate)
+		var length := roundi(float(_setting(out, defaults, "max_s", ONE_SHOT_MAX_S, "one_shot_max_s")) * rate)
 		chain.append("atrim=start_sample=%d:end_sample=%d" % [start, start + length])
 		chain.append("asetpts=PTS-STARTPTS")
 		chain.append("afade=t=in:st=0:d=" + _num(float(_setting(out, defaults, "fade_in_s", 0.003))))

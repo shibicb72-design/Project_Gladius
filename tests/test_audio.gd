@@ -40,11 +40,11 @@ func test_data_is_placeholder_and_every_sound_has_a_generated_file() -> void:
 	assert_true(bool(cfg["_placeholder"]) and String(cfg["_todo"]).contains("OQ-AUDIO-MIX") and String(cfg["_todo"]).contains("OQ-AUDIO-VOICE"), "audio numbers are placeholders with OQ ids")
 	var sfx := _sfx()
 	assert_true(sfx != null, "the Sfx autoload exists")
+	assert_true(String(cfg["dir"]).begins_with("res://assets/generated/audio"), "sounds without recorded takes are generated assets")
 	for id: String in cfg["sounds"]:
 		var stream := sfx.stream(id) as AudioStream
 		# Any stream type (WAV, Ogg Vorbis, MP3): "non-empty" is a real length.
 		assert_true(stream != null and stream.get_length() > 0.03, "sound %s has a non-empty stream" % id)
-		assert_true(String(cfg["dir"]).begins_with("res://assets/generated/audio"), "sounds without recorded takes are generated assets")
 		for path in sfx.paths(id):
 			assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(path), "sound %s: its file %s exists" % [id, path])
 		var settings: Dictionary = sfx.sound(id)
@@ -68,7 +68,7 @@ func test_data_is_placeholder_and_every_sound_has_a_generated_file() -> void:
 
 func test_buses_and_empty_music_and_announcer_slots() -> void:
 	var sfx := _sfx()
-	for bus in ["Master", "SFX", "Ambience", "Music"]:
+	for bus in ["Master", "SFX", "Ambience", "Music", "Reverb"]:
 		assert_true(AudioServer.get_bus_index(bus) >= 0, "bus " + bus)
 	assert_eq(String(sfx.music.bus), "Music", "the music slot sits on the Music bus")
 	assert_true(sfx.music.stream == null and not sfx.music.playing, "no music plays")

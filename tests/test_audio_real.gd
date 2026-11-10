@@ -168,10 +168,35 @@ func test_the_brazier_loop_is_mono_and_beds_may_be_stereo() -> void:
 			assert_eq(channels, 1, "the brazier loop (positional) is mono: %s" % path)
 
 
+## Every value GroundPaint.surface_at gives, sorted: a 16 x 16 paint whose R and G each run from 0 to 1 across the
+## map, sampled at every pixel centre, plus no paint at all.
+static func _ground_paint_surfaces() -> Array:
+	var side := 16
+	var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
+	for y in side:
+		for x in side:
+			image.set_pixel(x, y, Color(float(x) / float(side - 1), float(y) / float(side - 1), 0.0))
+	var found := {GroundPaint.surface_at(null, float(side), Vector3.ZERO): true}
+	for y in side:
+		for x in side:
+			# Map side metres wide centred on the origin: pixel (x, y) covers [x - side / 2, x + 1 - side / 2).
+			var at := Vector3(float(x) + 0.5 - side * 0.5, 0.0, float(y) + 0.5 - side * 0.5)
+			found[GroundPaint.surface_at(image, float(side), at)] = true
+	var out := found.keys()
+	out.sort()
+	return out
+
+
 func test_every_surface_the_game_reports_has_known_step_sounds() -> void:
 	var sfx := _sfx()
 	var steps: Dictionary = sfx.cfg["footsteps"]
-	var surfaces: Array = ["paving", "grass", "earth"]  # what GroundPaint.surface_at returns
+	# What GroundPaint.surface_at returns (scripts/visual/ground_paint.gd:77-87). GroundPaint has no constant for it,
+	# so the list is checked against the real function: a new or renamed paint surface fails here.
+	var paint: Array = ["paving", "grass", "earth"]
+	var sorted_paint := paint.duplicate()
+	sorted_paint.sort()
+	assert_eq(_ground_paint_surfaces(), sorted_paint, "GroundPaint.surface_at returns exactly %s" % [paint])
+	var surfaces: Array = paint.duplicate()
 	surfaces.append_array((steps["piece_surface"] as Dictionary).values())
 	surfaces.append(steps["cover_surface"])
 	for surface: Variant in surfaces:
@@ -366,6 +391,36 @@ func test_a_far_shot_plays_the_weapons_far_report_or_the_shared_one() -> void:
 	else:
 		hooks.erase("shot_far_by_weapon")
 	assert_true(hooks.get("shot_far_by_weapon") == original, "the data is restored")
+	sfx.clear_log()
+	_free_voices()
+	pawn.free()
+
+
+## The shipped hooks, untouched: a Pilum fired 100 m from the listener plays the Pilum's own far report.
+func test_a_far_pilum_shot_plays_the_shipped_pilum_far_report() -> void:
+	var sfx := _sfx()
+	var hooks: Dictionary = sfx.cfg["hooks"]
+	var pawn := _pawn()
+	await _tree().process_frame  # the shot visual is bound deferred
+	for i in pawn.loadout.slots.size():
+		if pawn.loadout.get_active() != null and pawn.loadout.get_active().def.id == "pilum_br":
+			break
+		pawn.loadout.swap()
+	var active := pawn.loadout.get_active()
+	var holds := active != null and active.def.id == "pilum_br"
+	assert_true(holds, "the test pawn (class %s) holds a pilum_br" % pawn.class_id)
+	if not holds:
+		pawn.free()
+		return
+	var far_from := Vector3(0, 1.4, -100)
+	# No camera in the test tree: the listener is the origin, so the shot is 100 m away.
+	assert_true(far_from.distance_to(sfx._listener_position()) > float(hooks["shot_far_from_m"]), "100 m is past shot_far_from_m")
+	sfx.clear_log()
+	_free_voices()
+	pawn.shot_fx.show_shot(far_from, far_from + Vector3(0, 0, -20))
+	assert_eq(_played("shot_far_pilum_br").size(), 1, "a far Pilum shot plays shot_far_pilum_br once")
+	assert_eq(_played("shot_far").size(), 0, "and not the shared far shot")
+	assert_eq(_played("shot_pilum_br").size(), 0, "and not the near Pilum report")
 	sfx.clear_log()
 	_free_voices()
 	pawn.free()
