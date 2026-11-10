@@ -121,3 +121,104 @@ func instance_total(source: String, type: String = "") -> int:
 		if type == "" or String(node.get_meta(&"type", "")) == type:
 			total += node.multimesh.instance_count
 	return total
+
+
+## Tree counts of a built map scene (the root that holds Nav, ArtBuilder and Decor); a proxy, not measured
+## frame cost. "per_map": the whole scene tree (multimesh, mesh_instances, materials, bodies, chunks, batches,
+## batch_instances). "per_chunk": the largest count of any chunk index, and "per_chunk_at" where it occurs
+## (first in index order). A chunk holds its batches, plus the unbatched looks under Nav (not Nav/Ground) and
+## Decor and the bodies under Nav (not Ground) whose origin maps to it. The map must be in the tree.
+static func proxies(map: Node) -> Dictionary:
+	var chunks := map.get_node("ArtBuilder/Chunks") as MapChunks
+	var nav := map.get_node("Nav")
+	var multimesh := map.find_children("*", "MultiMeshInstance3D", true, false)
+	var meshes := map.find_children("*", "MeshInstance3D", true, false)
+	var per_map := {
+		"multimesh": multimesh.size(),
+		"mesh_instances": meshes.size(),
+		"materials": _unique_materials(multimesh + meshes).size(),
+		"bodies": map.find_children("*", "StaticBody3D", true, false).size(),
+		"chunks": chunks.get_child_count(),
+		"batches": chunks.batches().size(),
+		"batch_instances": 0,
+	}
+	var cells := {}  # Vector2i -> {"multimesh": [nodes], "meshes": [nodes], "bodies": int}
+	for chunk in chunks.get_children():
+		var cell := _cell(cells, chunk.get_meta(&"index"))
+		for node in chunk.get_children():
+			if node is MultiMeshInstance3D:
+				(cell["multimesh"] as Array).append(node)
+				per_map["batch_instances"] += (node as MultiMeshInstance3D).multimesh.instance_count
+	var ground := nav.get_node_or_null("Ground")
+	var loose := nav.find_children("*", "MeshInstance3D", true, false)
+	var decor := map.get_node_or_null("Decor")
+	if decor != null:
+		loose.append_array(decor.find_children("*", "MeshInstance3D", true, false))
+	for node: MeshInstance3D in loose:
+		if ground != null and ground.is_ancestor_of(node):
+			continue
+		(_cell(cells, chunks.index_of(node.global_position))["meshes"] as Array).append(node)
+	for body in nav.get_children():
+		if body is StaticBody3D and body != ground:
+			_cell(cells, chunks.index_of((body as StaticBody3D).global_position))["bodies"] += 1
+	var per_chunk := {"multimesh": 0, "mesh_instances": 0, "materials": 0, "bodies": 0}
+	var per_chunk_at := {"multimesh": Vector2i.ZERO, "mesh_instances": Vector2i.ZERO, "materials": Vector2i.ZERO, "bodies": Vector2i.ZERO}
+	var indices: Array = cells.keys()
+	indices.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x < b.x or (a.x == b.x and a.y < b.y))
+	for index: Vector2i in indices:
+		var cell: Dictionary = cells[index]
+		var counts := {
+			"multimesh": (cell["multimesh"] as Array).size(),
+			"mesh_instances": (cell["meshes"] as Array).size(),
+			"materials": _unique_materials((cell["multimesh"] as Array) + (cell["meshes"] as Array)).size(),
+			"bodies": int(cell["bodies"]),
+		}
+		for key: String in counts:
+			if int(counts[key]) > int(per_chunk[key]):
+				per_chunk[key] = counts[key]
+				per_chunk_at[key] = index
+	return {"per_map": per_map, "per_chunk": per_chunk, "per_chunk_at": per_chunk_at}
+
+
+## Every count in `counts` (from proxies) above its limit in `limits` ({"per_map": {..}, "per_chunk": {..}}),
+## one line each; a limited key missing from the counts is a problem too. Empty: all within limits.
+static func proxy_problems(counts: Dictionary, limits: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	for scope: String in ["per_map", "per_chunk"]:
+		var wanted: Dictionary = limits.get(scope, {})
+		var have: Dictionary = counts.get(scope, {})
+		for key: String in wanted:
+			if not have.has(key):
+				problems.append("%s %s: no count" % [scope, key])
+			elif int(have[key]) > int(wanted[key]):
+				var at := " at %s" % str(counts["per_chunk_at"][key]) if scope == "per_chunk" and counts.has("per_chunk_at") else ""
+				problems.append("%s %s=%d over the limit %d%s" % [scope, key, int(have[key]), int(wanted[key]), at])
+	return problems
+
+
+static func _cell(cells: Dictionary, index: Vector2i) -> Dictionary:
+	if not cells.has(index):
+		cells[index] = {"multimesh": [], "meshes": [], "bodies": 0}
+	return cells[index]
+
+
+## Unique materials by resource identity: a node's material_override, otherwise each non-null surface
+## material of its mesh (for a MultiMeshInstance3D, of multimesh.mesh).
+static func _unique_materials(nodes: Array) -> Dictionary:
+	var found := {}
+	for node: GeometryInstance3D in nodes:
+		if node.material_override != null:
+			found[node.material_override] = true
+			continue
+		var mesh: Mesh = null
+		if node is MeshInstance3D:
+			mesh = (node as MeshInstance3D).mesh
+		elif node is MultiMeshInstance3D and (node as MultiMeshInstance3D).multimesh != null:
+			mesh = (node as MultiMeshInstance3D).multimesh.mesh
+		if mesh == null:
+			continue
+		for surface in mesh.get_surface_count():
+			var material := mesh.surface_get_material(surface)
+			if material != null:
+				found[material] = true
+	return found

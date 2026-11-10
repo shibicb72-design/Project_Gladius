@@ -1,0 +1,101 @@
+extends "res://tests/test_case.gd"
+## M2P1A: tree counts per map and per chunk (MapChunks.proxies), a proxy, not measured frame cost, checked
+## against the placeholder limits in data/map_build.json "proxy_limits" (OQ-MAP-PROXY). One map is built at a
+## time and freed before the next.
+
+const MAPS := {
+	"alesia_section": "res://scenes/maps/alesia_section.tscn",
+	"test_300": "res://scenes/maps/test_300.tscn",
+}
+const KEYS := ["multimesh", "mesh_instances", "materials", "bodies"]
+
+
+func _build(scene_path: String) -> Node3D:
+	var tree: SceneTree = Engine.get_main_loop()
+	var map: Node3D = load(scene_path).instantiate()
+	tree.root.add_child(map)
+	return map
+
+
+func _limits() -> Dictionary:
+	return MapChunks.config().get("proxy_limits", {})
+
+
+func _at(index: Vector2i) -> String:
+	return "@(%d,%d)" % [index.x, index.y]
+
+
+func test_limits_are_a_placeholder_from_data() -> void:
+	var limits := _limits()
+	assert_true(bool(limits.get("_placeholder", false)), "the proxy limits are a placeholder")
+	assert_true(String(limits.get("_todo", "")).contains("OQ-MAP-PROXY"), "the limits name their open question")
+	for scope: String in ["per_chunk", "per_map"]:
+		for key: String in KEYS:
+			assert_true(int((limits.get(scope, {}) as Dictionary).get(key, 0)) > 0, "a %s limit for %s" % [scope, key])
+
+
+func test_counts_within_limits_on_both_maps() -> void:
+	var limits := _limits()
+	for id: String in MAPS:
+		var map := _build(MAPS[id])
+		var counts := MapChunks.proxies(map)
+		map.free()
+		var per_map: Dictionary = counts["per_map"]
+		var per_chunk: Dictionary = counts["per_chunk"]
+		var at: Dictionary = counts["per_chunk_at"]
+		for key: String in KEYS:
+			assert_true(int(per_map[key]) > 0, "%s: nonvacuous per-map %s" % [id, key])
+			assert_true(int(per_chunk[key]) > 0, "%s: nonvacuous per-chunk %s" % [id, key])
+			assert_true(int(per_chunk[key]) <= int(per_map[key]), "%s: a chunk holds no more %s than the map" % [id, key])
+		assert_true(int(per_map["chunks"]) > 1 and int(per_map["batches"]) > 0 and int(per_map["batch_instances"]) > 0, id + ": chunks and batches built")
+		var problems := MapChunks.proxy_problems(counts, limits)
+		assert_true(problems.is_empty(), "%s: within the proxy limits: %s" % [id, "; ".join(problems)])
+		print("MAP_PROXY map=", id, " proxy, not measured: chunks=", per_map["chunks"], " batches=", per_map["batches"],
+				" batch_instances=", per_map["batch_instances"], " multimesh=", per_map["multimesh"],
+				" mesh_instances=", per_map["mesh_instances"], " materials=", per_map["materials"], " bodies=", per_map["bodies"],
+				" chunk_max_multimesh=", per_chunk["multimesh"], _at(at["multimesh"]),
+				" chunk_max_mesh_instances=", per_chunk["mesh_instances"], _at(at["mesh_instances"]),
+				" chunk_max_materials=", per_chunk["materials"], _at(at["materials"]),
+				" chunk_max_bodies=", per_chunk["bodies"], _at(at["bodies"]))
+
+
+func test_limit_check_fails_when_a_limit_is_exceeded() -> void:
+	var map := _build(MAPS["alesia_section"])
+	var counts := MapChunks.proxies(map)
+	map.free()
+	var limits := _limits()
+	assert_true(MapChunks.proxy_problems(counts, limits).is_empty(), "the real limits pass")
+	for scope: String in ["per_map", "per_chunk"]:
+		for key: String in KEYS:
+			var tight := limits.duplicate(true)
+			tight[scope][key] = 0
+			var problems := MapChunks.proxy_problems(counts, tight)
+			assert_eq(problems.size(), 1, "%s %s set to 0 gives one problem" % [scope, key])
+			assert_true(problems.size() == 1 and problems[0].contains(key), "the problem names the count: " + key)
+	var missing := {"per_map": {"no_such_count": 1}}
+	assert_eq(MapChunks.proxy_problems(counts, missing).size(), 1, "a limit without a count is a problem")
+
+
+func test_per_map_counts_agree_with_a_recount_on_alesia() -> void:
+	var map := _build(MAPS["alesia_section"])
+	var counts: Dictionary = MapChunks.proxies(map)["per_map"]
+	var recount := {"multimesh": 0, "mesh_instances": 0, "bodies": 0}
+	var instances := 0
+	var stack: Array[Node] = [map]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node is MultiMeshInstance3D:
+			recount["multimesh"] += 1
+		elif node is MeshInstance3D:
+			recount["mesh_instances"] += 1
+		elif node is StaticBody3D:
+			recount["bodies"] += 1
+		stack.append_array(node.get_children())
+	for chunk in map.get_node("ArtBuilder/Chunks").get_children():
+		for batch in chunk.get_children():
+			instances += (batch as MultiMeshInstance3D).multimesh.instance_count
+	map.free()
+	for key: String in recount:
+		assert_eq(int(counts[key]), int(recount[key]), "alesia per-map %s agrees with the recount" % key)
+	assert_eq(int(counts["batch_instances"]), instances, "alesia batch instances agree with the recount")
+	assert_true(int(counts["multimesh"]) > 0 and int(counts["mesh_instances"]) > 0 and int(counts["bodies"]) > 0, "nonvacuous recount")
