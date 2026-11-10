@@ -113,6 +113,18 @@
 			{"name": "rider", "camera_offset": [1.2, 1.4, 5.5]}
 		]
 	},
+	"drop_capture": {
+		"_note": "S9: tools/drop_capture.gd, a real match opening. at_s = seconds after the match began (the carrier flies 20 s, br.json drop.carrier_s; an idle pawn is let go at the end of the line).",
+		"match_seed": 20261109,
+		"shots": [
+			{"name": "1_aboard", "at_s": 4.0},
+			{"name": "2_aboard_late", "at_s": 16.0},
+			{"name": "3_falling", "at_s": 23.0},
+			{"name": "4_falling_low", "at_s": 27.5},
+			{"name": "5_landed", "at_s": 33.0},
+			{"name": "6_on_the_ground", "at_s": 40.0}
+		]
+	},
 	"wall_closeup": {
 		"bearing_start_deg": 15,
 		"bearing_step_deg": 30,

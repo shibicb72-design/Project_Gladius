@@ -5,9 +5,13 @@ extends Node
 ## events, saves PNGs with a "desktop render" overlay and writes <out>/<tag>_report.txt. Optional: --dpi=N (default: the desktop's reported DPI).
 ## Optional for --sprint-shot: --offscreen=WxH renders into an offscreen SubViewport of exactly WxH px (same canvas_items
 ## expand stretch as the window), for sizes taller than the desktop screen, where the OS clamps the window.
-## 3D shots (C0): --scene-shot=<soldier_turntable|soldier_50m|soldier_50m_zoom|map_overview|loot_lineup|wall_closeup|kit_lineup|ground_views|all> saves
-## <out>/<tag>_<shot>.png with the HUD hidden; --offscreen=WxH gives the exact pixel size. Framing: data/capture_shots.json.
+## 3D shots (C0): --scene-shot=<soldier_turntable|soldier_50m|soldier_50m_zoom|map_overview|loot_lineup|wall_closeup|kit_lineup|ground_views|
+## in_match|soldier_poses|carrier|all> saves <out>/<tag>_<shot>.png with the HUD hidden; --offscreen=WxH gives the exact pixel size.
+## Framing: data/capture_shots.json.
 ##   godot --path . res://tools/touch_capture.tscn -- --out=<dir> --tag=c0_2520x1080 --scene-shot=all --offscreen=2520x1080
+## Look switches for the 3D shots (S1, S9): --variant=<dusk|night|storm> (default: the data's base variant, no rotation by seed);
+## --on=<preset keys> / --off=<preset keys> / --set=<key:value,...> override the graphics preset for this run. Run with
+## --audio-driver Dummy to keep the PC quiet.
 
 const _LobbyScene := preload("res://scenes/ui/lobby.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")

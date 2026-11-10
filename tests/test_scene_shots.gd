@@ -14,6 +14,12 @@ func test_every_shot_has_framing_data_marked_placeholder() -> void:
 	var cfg: Dictionary = DataRegistry.new().load_file("res://data/capture_shots.json")
 	assert_true(bool(cfg["_placeholder"]) and String(cfg["_todo"]).contains("OQ-3D-CAPTURE"), "framing numbers are placeholders with an OQ id")
 	assert_eq(SceneShots.SHOTS.size(), 11, "turntable, 50 m, 50 m magnifier, overview, loot line-up, wall close-up, kit line-up (W1), ground views (W3), in-match third person (S0), soldier poses (S4), carrier (S6)")
+	# S9: the match-opening shots (tools/drop_capture.gd) are timed from data, in order.
+	var last_s := 0.0
+	for shot: Dictionary in cfg["drop_capture"]["shots"]:
+		assert_true(shot.has("name") and float(shot["at_s"]) > last_s, "drop shots have a name and rising times")
+		last_s = float(shot["at_s"])
+	assert_true(FileAccess.file_exists("res://tools/drop_capture.gd"), "the match-opening capture tool exists")
 	for entry: Dictionary in cfg["soldier_poses"]["row"]:
 		assert_true(String(entry["pose"]) == "" or SoldierPose.STATES.has(String(entry["pose"])), "a pose shot names a known pose")
 	for view: Dictionary in cfg["in_match"]["views"]:
