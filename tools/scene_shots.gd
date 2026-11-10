@@ -26,6 +26,8 @@ func run(tool: Node, which: String) -> bool:
 		if not SHOTS.has(n):
 			_tool._log("RESULT scene_shot_known=false (%s; known: %s, all)" % [n, ", ".join(SHOTS)])
 			return false
+	if MatchLook.variant_override == "":
+		MatchLook.variant_override = String(MatchLook.config()["variant"])  # shots compare: no rotation by seed unless --variant asks
 	var host: Node = _tool
 	if _tool._offscreen.x > 0 and _tool._offscreen.y > 0:
 		_view = _tool._offscreen_viewport()
@@ -194,7 +196,12 @@ func _soldier_50m(zoom: bool) -> void:
 func _map_overview() -> void:
 	var c: Dictionary = _cfg["map_overview"]
 	_aim(LowpolyKit.vec(c["camera_at"]), LowpolyKit.vec(c["look_at"]), float(c["fov_deg"]))
-	await _finish("map_overview", "camera at %s" % str(c["camera_at"]))
+	# S1: from 190 m up the dusk haze hides the map; "fog": false shows the layout (said in the caption).
+	var env := (_match.get_node("WorldEnvironment") as WorldEnvironment).environment
+	var fog := env.fog_enabled
+	env.fog_enabled = fog and bool(c.get("fog", true))
+	await _finish("map_overview", "camera at %s%s" % [str(c["camera_at"]), "" if env.fog_enabled == fog else ", fog off for this shot"])
+	env.fog_enabled = fog
 
 
 ## One of every item in data/loot.json, dropped in a row by the real LootField, with a soldier for scale.

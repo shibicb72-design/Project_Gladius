@@ -67,9 +67,18 @@ func test_kit_data_is_placeholder_and_every_type_builds_a_deterministic_mesh() -
 		assert_true(solid.grow(margin).encloses(mesh.get_aabb()), "%s: look %s within its colliders %s plus %s m" % [type, mesh.get_aabb(), solid, margin])
 		assert_true(is_zero_approx(solid.position.y), type + ": stands on the ground (lowest collider at y 0)")
 		counts[type] = Perf.triangles(mesh)
+	# S2: the kit material is the textured world shader (was a StandardMaterial3D): still vertex paint, lit, opaque.
 	var shared := WorldKit.material()
-	assert_true(shared.vertex_color_use_as_albedo and shared.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL
-			and shared.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED, "kit material: vertex paint, lit, opaque")
+	var code := shared.shader.code
+	assert_true(is_equal_approx(float(shared.get_shader_parameter("paint_mix")), 1.0) and WorldSurface.is_lit(shared)
+			and not code.contains("ALPHA") and not code.contains("blend_"), "kit material: vertex paint, lit, opaque")
+	for type: String in types:
+		var arrays := WorldKit.mesh_for(type).surface_get_arrays(0)
+		assert_true(arrays[Mesh.ARRAY_TEX_UV] != null and arrays[Mesh.ARRAY_TEX_UV2] != null and arrays[Mesh.ARRAY_TANGENT] != null, type + ": every vertex carries UV, surface id and tangent for the textures")
+		for uv2: Vector2 in arrays[Mesh.ARRAY_TEX_UV2]:
+			if uv2.x < 0.0 or uv2.x >= float((WorldSurface.config()["surface_order"] as Array).size()):
+				assert_true(false, type + ": a vertex names a surface outside surface_order")
+				break
 	print("WORLD_KIT types=", types.size(), " triangles ", counts)
 
 

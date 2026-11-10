@@ -12,12 +12,42 @@ static func vec(a: Array) -> Vector3:
 ## Callers pass corners so that (b - a) x (c - a) points out of the solid. Godot's front face is clockwise,
 ## which is the opposite order, so the corners are written a, c, b (finding F1: written a, b, c every kit mesh
 ## was culled on its outside and showed the inside of its far faces).
+## S2: every vertex also gets UV (metres on the face's main plane; down a pitched top the v axis runs
+## downhill), a tangent along +u, and UV2 = (surface id of the paint, per-part shade). The hashed streams
+## (vertices, normals, order) are unchanged.
 static func _triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, color: Color) -> void:
 	var normal := (b - a).cross(c - a).normalized()
+	var ax := absf(normal.x)
+	var ay := absf(normal.y)
+	var az := absf(normal.z)
+	var u_axis := Vector3.RIGHT
+	var v_axis := Vector3.DOWN
+	if ay >= ax and ay >= az:
+		v_axis = Vector3.BACK
+		if ay < 0.985:
+			v_axis = Vector3(normal.x, 0.0, normal.z).normalized() * (1.0 if normal.y >= 0.0 else -1.0)
+			u_axis = Vector3(v_axis.z, 0.0, -v_axis.x)
+	elif ax >= az:
+		u_axis = Vector3.BACK
+	var tangent := (u_axis - normal * normal.dot(u_axis)).normalized()
+	var side := 1.0 if normal.cross(tangent).dot(v_axis) >= 0.0 else -1.0
+	var uv2 := Vector2(float(_surface if _surface >= 0 else int(_surface_of_color.get(color, 0))), _shade)
 	for v in [a, c, b]:
 		st.set_normal(normal)
+		st.set_tangent(Plane(tangent, side))
 		st.set_color(color)
+		st.set_uv(Vector2(v.dot(u_axis), v.dot(v_axis)))
+		st.set_uv2(uv2)
 		st.add_vertex(v)
+
+## S2 surface bookkeeping for _triangle: _surface >= 0 names the surface outright (a data part), otherwise the
+## colour is looked up in _surface_of_color (the kinds of build()). _shade is the part's light / dark offset.
+static var _surface := -1
+static var _surface_of_color := {}
+static var _shade := 0.5
+
+static func _shade_at(at: Vector3) -> float:
+	return fposmod(sin(at.dot(Vector3(12.9898, 78.233, 37.719))) * 43758.5453, 1.0)
 
 static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, color: Color) -> void:
 	_triangle(st, a, b, c, color)
@@ -25,6 +55,7 @@ static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector
 
 ## Eight-sided chamfered rectangular prism, with inset bevelled top and bottom.
 static func _box(st: SurfaceTool, size: Vector3, at: Vector3, color: Color, bevel: float) -> void:
+	_shade = _shade_at(at + size)
 	var half := size * 0.5
 	var cut := minf(minf(size.x, size.y), size.z) * bevel
 	var outline: Array[Vector2] = [
@@ -90,6 +121,13 @@ static func build(kind: String, size: Vector3) -> ArrayMesh:
 	var trim := GreyboxArt.color_value(cfg["colors"]["trim"])
 	var dark := GreyboxArt.color_value(cfg["colors"]["dark"])
 	var bevel := float(k["bevel_fraction"])
+	_surface = -1
+	_shade = 0.5
+	_surface_of_color = {stone: WorldSurface.id_for_paint("stone", kind), trim: WorldSurface.id_for_paint("trim", kind), dark: WorldSurface.id_for_paint("dark", kind)}
+	if kind == "rock" or kind == "rubble":
+		# S2: boulders have their own paint (colours are not hashed; the shape is unchanged).
+		dark = GreyboxArt.color_value(cfg["colors"].get("rock", cfg["colors"]["dark"]))
+		_surface_of_color[dark] = WorldSurface.id_for_paint("rock", kind)
 	match kind:
 		"pillar":
 			_pillar(st, size, Vector3.ZERO, stone, int(k["pillar_sides"]))
@@ -140,10 +178,7 @@ static func build(kind: String, size: Vector3) -> ArrayMesh:
 		_:
 			_box(st, size, Vector3.ZERO, stone, bevel)
 	var mesh := st.commit()
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	material.roughness = float(k["roughness"])
-	mesh.surface_set_material(0, material)
+	mesh.surface_set_material(0, WorldSurface.material())  # S2: the shared textured world material
 	return mesh
 
 ## World composites are one static mesh and one box collider per JSON piece.
@@ -157,10 +192,13 @@ static func build_cover(definition: Dictionary) -> ArrayMesh:
 ## "taper", "wedge", "plate" and "lathe" come from LowpolyShapes (C1).
 static func _part(st: SurfaceTool, part: Dictionary) -> void:
 	var color := GreyboxArt.color_value(config()["colors"][part["color"]])
+	_surface = WorldSurface.surface_id(String(part["surface"])) if part.has("surface") else WorldSurface.id_for_paint(String(part["color"]))
 	if LowpolyShapes.is_custom(part):
+		_shade = _shade_at(vec(part["at"]) + vec(part["size"]))
 		LowpolyShapes.add(st, part, color, config()["kit"]["shapes"])
 	else:
 		_box(st, vec(part["size"]), vec(part["at"]), color, float(config()["kit"]["bevel_fraction"]))
+	_surface = -1
 
 ## Soldier-only variant. Keep merge() below unchanged: map geometry has no bone streams.
 static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:
@@ -184,8 +222,5 @@ static func merge(parts: Array) -> ArrayMesh:
 	for part: Dictionary in parts:
 		_part(st, part)
 	var mesh := st.commit()
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	material.roughness = float(config()["kit"]["roughness"])
-	mesh.surface_set_material(0, material)
+	mesh.surface_set_material(0, WorldSurface.material())  # S2: the shared textured world material
 	return mesh

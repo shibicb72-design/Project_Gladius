@@ -13,7 +13,6 @@ extends RefCounted
 const PATH := "res://data/maps/alesia_structures.json"
 const GROUP := &"structure"
 static var _registry := DataRegistry.new()
-static var _material: StandardMaterial3D
 static var _meshes := {}
 static var _shapes := {}
 
@@ -22,15 +21,10 @@ static func config() -> Dictionary:
 	return _registry.load_file(PATH)
 
 
-## The one material of every world kit mesh: vertex colours as paint, written as sRGB in data.
-static func material() -> StandardMaterial3D:
-	if _material == null:
-		_material = StandardMaterial3D.new()
-		_material.resource_name = "WorldKit"
-		_material.vertex_color_use_as_albedo = true
-		_material.vertex_color_is_srgb = true
-		_material.roughness = float(LowpolyKit.config()["kit"]["roughness"])
-	return _material
+## The one material of every world kit mesh: vertex colours as paint (sRGB in data), textured by the paint's
+## surface (S2: WorldSurface, data/art_materials.json).
+static func material() -> ShaderMaterial:
+	return WorldSurface.material()
 
 
 ## A "block" is the plain four-cornered box (16 triangles; the kit's chamfered box has 64).

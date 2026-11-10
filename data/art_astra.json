@@ -3,24 +3,11 @@
 	"_placeholder": true,
 	"_todo": "OQ-ART-ASTRA: all procedural geometry ratios, colors, counts, animation and budgets are replaceable presentation trials, not approved design values.",
 	"colors": {
-		"stone": [
-			0.55,
-			0.53,
-			0.47,
-			1
-		],
-		"trim": [
-			0.68,
-			0.64,
-			0.53,
-			1
-		],
-		"dark": [
-			0.26,
-			0.29,
-			0.3,
-			1
-		],
+		"_s2_note": "S2: every colour here is sRGB paint under a textured surface (data/art_materials.json); stone, trim and dark were retuned for that, and rock is the boulders' own colour.",
+		"stone": [0.66, 0.6, 0.5, 1],
+		"trim": [0.76, 0.72, 0.62, 1],
+		"dark": [0.3, 0.33, 0.37, 1],
+		"rock": [0.5, 0.46, 0.42, 1],
 		"cloth": [
 			0.42,
 			0.4,
@@ -50,9 +37,9 @@
 		"_squad_note": "C3: alpha 0 marks a squad colour field. On the soldier the shared shader paints those faces with the instance's squad colour (soldier.squad_colour); the rgb here is what a material without that shader shows.",
 		"squad": [0.66, 0.1, 0.09, 0],
 		"_world_kit_note": "OQ-ART-ASTRA: the colours below belong to the world kit (W1, data/maps/alesia_structures.json), written as sRGB. Trial palette: travertine and marble for structures, legion red and bronze for cloth and trim, one bright accent for the future lines. lit_accent is paint in the lit material, not glow.",
-		"travertine": [0.8, 0.75, 0.65, 1],
-		"travertine_shade": [0.66, 0.61, 0.52, 1],
-		"marble": [0.9, 0.89, 0.86, 1],
+		"travertine": [0.78, 0.71, 0.59, 1],
+		"travertine_shade": [0.64, 0.58, 0.48, 1],
+		"marble": [0.82, 0.8, 0.76, 1],
 		"roof_tile": [0.55, 0.27, 0.18, 1],
 		"legion_red": [0.62, 0.1, 0.09, 1],
 		"timber": [0.38, 0.26, 0.16, 1],
@@ -135,19 +122,15 @@
 	"environment": {
 		"tonemap": "aces",
 		"fog_mode": "depth",
-		"fog_color": [
-			0.48,
-			0.46,
-			0.41,
-			1
-		],
-		"fog_density": 0.007,
-		"fog_sky_affect": 0.25,
-		"fog_depth_begin_m": 12,
-		"fog_depth_end_m": 90,
-		"fog_depth_curve": 1.2,
+		"_note": "S1: dusk haze. In depth mode fog_density is the fog's strongest opacity (0.007 was invisible).",
+		"fog_color": [0.62, 0.45, 0.45, 1],
+		"fog_density": 0.6,
+		"fog_sky_affect": 0.0,
+		"fog_depth_begin_m": 24,
+		"fog_depth_end_m": 230,
+		"fog_depth_curve": 1.0,
 		"shadow_mode": "orthogonal",
-		"shadow_max_distance_m": 48,
+		"shadow_max_distance_m": 70,
 		"light_angular_distance": 0
 	},
 	"soldier": {

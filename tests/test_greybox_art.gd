@@ -13,22 +13,28 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 	for body in map.get_node("Nav").get_children():
 		if body.is_in_group(WorldKit.GROUP) or body.is_in_group(&"ring_cover"):
 			continue  # W1, W3: kit pieces and ring cover hold colliders only; their look is the batches checked below
+		# S2: the world's material is the textured surface shader (or a per-pixel StandardMaterial3D); either
+		# way it must take light (WorldSurface.is_lit), which is what this check has always been about.
 		var mesh := body.get_node_or_null("Mesh") as MeshInstance3D
-		assert_true(mesh != null and mesh.material_override is StandardMaterial3D, "material on " + String(body.name))
+		assert_true(mesh != null and mesh.material_override != null, "material on " + String(body.name))
 		if mesh != null and mesh.material_override != null:
-			assert_eq((mesh.material_override as StandardMaterial3D).shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL, "world is lit")
+			assert_true(WorldSurface.is_lit(mesh.material_override), "world is lit: " + String(body.name))
 	var batches := map.get_node("ArtBuilder/Structures").get_children()
 	assert_true(not batches.is_empty(), "world kit batches present")
 	for batch: MultiMeshInstance3D in batches:
-		var material := batch.multimesh.mesh.surface_get_material(0) as StandardMaterial3D
+		var material := batch.multimesh.mesh.surface_get_material(0)
 		assert_true(material != null and batch.material_override == null, "material on " + String(batch.name))
-		if material != null:
-			assert_eq(material.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL, "world kit is lit")
+		assert_true(WorldSurface.is_lit(material), "world kit is lit")
 	var ring_batches := map.get_node("ArtBuilder/RingCover").get_children()
 	assert_true(not ring_batches.is_empty(), "ring cover batches present")
 	for batch: MultiMeshInstance3D in ring_batches:
-		var material := batch.material_override as StandardMaterial3D
-		assert_true(material != null and material.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL, "lit material on " + String(batch.name))
+		assert_true(WorldSurface.is_lit(batch.material_override), "lit material on " + String(batch.name))
+	var unlit := StandardMaterial3D.new()
+	unlit.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	assert_true(not WorldSurface.is_lit(unlit) and not WorldSurface.is_lit(null), "the lit check tells an unshaded material apart")
+	var flat_shader := ShaderMaterial.new()
+	flat_shader.shader = load("res://scripts/visual/shaders/sun_shaft.gdshader")
+	assert_true(not WorldSurface.is_lit(flat_shader), "the lit check tells an unshaded shader apart")
 	map.free()
 	var match_scene: MatchRoot = load("res://scenes/match/match.tscn").instantiate()
 	match_scene.auto_start = false
@@ -37,7 +43,13 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 	assert_true(world.environment.background_mode != Environment.BG_CLEAR_COLOR, "serialized explicit background")
 	_tree().root.add_child(match_scene)
 	assert_eq(world.environment.background_mode, Environment.BG_SKY, "procedural sky overrides magenta diagnostic")
-	assert_true(world.environment.sky.sky_material is ProceduralSkyMaterial, "no sky asset dependency")
+	# S1: the sky is the project's own sky shader fed by data and one generated noise tile (was a
+	# ProceduralSkyMaterial): still no sky image and no third-party asset.
+	var sky_material := world.environment.sky.sky_material as ShaderMaterial
+	assert_true(sky_material != null and sky_material.shader.resource_path == "res://scripts/visual/shaders/sky_astra.gdshader", "the sky is the in-engine sky shader")
+	if sky_material != null:
+		var noise := sky_material.get_shader_parameter("noise_pack") as Texture2D
+		assert_true(noise != null and noise.resource_path.begins_with("res://assets/generated/"), "its only texture is generated in the project: no sky asset dependency")
 	assert_eq(world.environment.ambient_light_source, Environment.AMBIENT_SOURCE_COLOR, "explicit colour fill")
 	assert_true(world.environment.glow_enabled == bool(GraphicsPresets.new().get_preset()["art_glow_enabled"]) and world.environment.fog_enabled == bool(GraphicsPresets.new().get_preset()["art_fog_enabled"]), "cost toggles follow preset")
 	assert_true(not world.environment.ssao_enabled and not world.environment.ssil_enabled and not world.environment.sdfgi_enabled

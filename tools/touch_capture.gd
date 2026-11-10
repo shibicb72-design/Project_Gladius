@@ -51,6 +51,8 @@ func _ready() -> void:
 			_pawn_shot_name = a.substr(12)
 		elif a.begins_with("--scene-shot="):  # C0: 3D shots without the HUD (tools/scene_shots.gd); see the header
 			_scene_shot_name = a.substr(13)
+		elif a.begins_with("--variant="):  # S1: force a look variant (dusk | night | storm) for the 3D shots
+			MatchLook.variant_override = a.substr(10)
 		elif a == "--left-fire":  # G3e: shot with the optional left Fire button on (profile flag), e.g. --tag=left_fire_on --layout-shot=cover_landscape
 			_left_fire = true
 		elif a.begins_with("--menu-shot="):  # in-match menu: saves <tag>_closed_<value>_landscape.png and <tag>_open_...; use --tag=menu

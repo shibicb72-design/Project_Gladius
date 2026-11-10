@@ -12,5 +12,421 @@
 			"download_date": "2026-10-30",
 			"sha256": "57b8041bfe0d0f01430e4dbaad45e7ddddf0a9fc97317f90dbc51f7b0d9e1b5d"
 		}
-	]
+	],
+	"generated": [
+		{
+			"path": "res://assets/generated/audio/banner_flap.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 16044,
+			"sha256": "2a1b20a8a161c27791d18b55205e0047463518fc7c92dac4a2cad5d35832326e"
+		},
+		{
+			"path": "res://assets/generated/audio/blade_hit.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 44844,
+			"sha256": "48170f167dbab5d64a1de4af9b54105c73a9eec775f25e68606607502b5a9f21"
+		},
+		{
+			"path": "res://assets/generated/audio/blade_swing.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 24364,
+			"sha256": "165fadabe9bb7fedc8e87de991626b9f713fae1118f76ff5d7a8601a31f04c78"
+		},
+		{
+			"path": "res://assets/generated/audio/carrier_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 192044,
+			"sha256": "b20c77eaa2ce3eacc851d150f0c10873b9cbe18764c9fecec110a2b901bf9747"
+		},
+		{
+			"path": "res://assets/generated/audio/downed.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 44844,
+			"sha256": "04e867192d6a4ae3410d95b872e4d6828c3fb446f4818fc6c1e697c6c370a655"
+		},
+		{
+			"path": "res://assets/generated/audio/drop_wind_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 192044,
+			"sha256": "82f9b0b8a43136ed34a1884118d9167b64b822d1b2f3a5c974be07e720dec993"
+		},
+		{
+			"path": "res://assets/generated/audio/dry_fire.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 5164,
+			"sha256": "897be254983eb72604da9f1ebcbbb62c9247f9e8350286b782da8adc046439f0"
+		},
+		{
+			"path": "res://assets/generated/audio/eliminated.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 108844,
+			"sha256": "84c07df0b283c025ee4225ce10ef7409b18c586a528901232af0235d02b63cdb"
+		},
+		{
+			"path": "res://assets/generated/audio/fire_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 185644,
+			"sha256": "10ab816e78bdbbb05e2cf23f821a880a46a8ee78a332c772ddceeef6f5018bd8"
+		},
+		{
+			"path": "res://assets/generated/audio/hit_body.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 16044,
+			"sha256": "646f566897a9baef79ebcb5ad96515df9362741085b2c50134a028e0ddd96315"
+		},
+		{
+			"path": "res://assets/generated/audio/hit_marker.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 4524,
+			"sha256": "b34a26a405fa4e1e037e75346867ba163d2634ec5eacfd916bc1c50ef6738203"
+		},
+		{
+			"path": "res://assets/generated/audio/hit_marker_head.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 12844,
+			"sha256": "95a3dcd3715fcda2f4baf442b1d48e322f39d331242c94287937246773b37cfb"
+		},
+		{
+			"path": "res://assets/generated/audio/hit_shield.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "c847bae90f767c05281efbc5cd5dc5e7e1ed85092d96ca0ea4866a9fc96fd953"
+		},
+		{
+			"path": "res://assets/generated/audio/impact_stone.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "ed2dbdb3fe6af5cae127c296dc2581678432f2d97f5f0f7796a0947d6033cfca"
+		},
+		{
+			"path": "res://assets/generated/audio/kill_confirm.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 51244,
+			"sha256": "5c5b73c4b754d7b24757b484e6a982380af6c7ca18fece06a9ede51c70fb1117"
+		},
+		{
+			"path": "res://assets/generated/audio/land.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 32044,
+			"sha256": "b8a6e8d365265a6692144a67a5efdc890c935426829e35d6d6d53b58d4dcdd54"
+		},
+		{
+			"path": "res://assets/generated/audio/match_end.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 211244,
+			"sha256": "434c6c8e6112479ddbf00cf0c56df674e14029e54606e9c8b2d4cf6960a8c88b"
+		},
+		{
+			"path": "res://assets/generated/audio/match_start.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 211244,
+			"sha256": "0b7ae28010c41657f25e235306c0ab9aaeb982ca0b9d987a32854eabfb1ec2b7"
+		},
+		{
+			"path": "res://assets/generated/audio/night_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 236844,
+			"sha256": "6f0c85d7c978a24879264ef72f3d6a14d1b5315a92002126054bbd0efa8b128a"
+		},
+		{
+			"path": "res://assets/generated/audio/pickup_ammo.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "32507c8fb2cabaa67624c4bff19ffb3d6e63e8a90099fb716ff6d3ae2943fd3e"
+		},
+		{
+			"path": "res://assets/generated/audio/pickup_armor.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 38444,
+			"sha256": "0d0fddcd52132d24f85d0c1cc2c32a58b102ec347da3f47c98a1c627b81c31f9"
+		},
+		{
+			"path": "res://assets/generated/audio/pickup_weapon.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 22444,
+			"sha256": "a8e351afd2711a5292d7a37e6dc6dfbffb417b89cd9eedf4bf131a15e3a51a85"
+		},
+		{
+			"path": "res://assets/generated/audio/rain_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 185644,
+			"sha256": "d4497b68c2cfc6b7cd84f6a7771bc3ea47a93bb177b5c439ec74e611adc5661a"
+		},
+		{
+			"path": "res://assets/generated/audio/reload.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 81964,
+			"sha256": "3f634854c629bb53b4a22ff2b190f0af51d45be1200fa566d11947f4e5202fbf"
+		},
+		{
+			"path": "res://assets/generated/audio/revive_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 64044,
+			"sha256": "c752efc85af267c1c2b4f86e2d6285ea507abd323f0a15c60046d98bb232cd35"
+		},
+		{
+			"path": "res://assets/generated/audio/revived.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 57644,
+			"sha256": "ec067e87a4ed6bd082a8e9a08107627ea57af3a2a1001540037e10b3a0691a3e"
+		},
+		{
+			"path": "res://assets/generated/audio/shield_break.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 64044,
+			"sha256": "22824a6b5cacaaa28a27959333d5d149d425d912cc22bd82aae3fa7963db0d27"
+		},
+		{
+			"path": "res://assets/generated/audio/shot_default.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 37164,
+			"sha256": "7a82e0ada379c12eb28ec91a4b586beeb3974e1467172e67ca00e1dec05ffdc1"
+		},
+		{
+			"path": "res://assets/generated/audio/shot_far.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 92844,
+			"sha256": "a9daba458f8f94b54207cb0bfa80225d91b568db7c93d8bbd77523d511ec2173"
+		},
+		{
+			"path": "res://assets/generated/audio/shot_pilum_br.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 39084,
+			"sha256": "784f8f6e8738cec0493ed995947760026c442a2470c761296865bfca75a5a91e"
+		},
+		{
+			"path": "res://assets/generated/audio/shot_sagittarii_rifle.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 82604,
+			"sha256": "2939d9f21f4ea15530f6e18357c86eb7c094716e95743aaae6e5e1a57d132163"
+		},
+		{
+			"path": "res://assets/generated/audio/step_earth_1.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "297a4b22fe6e2dd3243556495f8da05571a082920168fca2b841aa5dec87cd8d"
+		},
+		{
+			"path": "res://assets/generated/audio/step_earth_2.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "358eff3db9f1630d2782484f5e9eb719d11d132f9c45069a2ca24be5d2e7ae32"
+		},
+		{
+			"path": "res://assets/generated/audio/step_earth_3.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "235b1ed2969c588a32eceef2f62c0177f7aad0a687d3836ba8e778f183261b74"
+		},
+		{
+			"path": "res://assets/generated/audio/step_grass_1.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "8d1af2b33dcf3509d09437f9ddc15ac33b7d00132fcda6c80f3dadbce6c660b3"
+		},
+		{
+			"path": "res://assets/generated/audio/step_grass_2.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "7e0e37345b1debd5ad692d94878d79facebc38265ecf13a408d68349e9e3ac75"
+		},
+		{
+			"path": "res://assets/generated/audio/step_grass_3.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "cc52155ce94e6196509ea195d2b9341fca0bf29e7fa0bd5a62e7e131aae23856"
+		},
+		{
+			"path": "res://assets/generated/audio/step_paving_1.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "8da212a4972bab735d8c9449fd7c3f9d03d1ec2bab707a0faadd92b7f7d80632"
+		},
+		{
+			"path": "res://assets/generated/audio/step_paving_2.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "d423276f5c364ea9f2c2442701d195fe20080750941cd55a62e826d8865d0dde"
+		},
+		{
+			"path": "res://assets/generated/audio/step_paving_3.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "142f0fd94a295bbfc45683645a80f0b7d4d1fb67eeba892c2353f01349fe7726"
+		},
+		{
+			"path": "res://assets/generated/audio/step_stone_1.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "2e93db82f2e65a53ad53c559847306510a14ee5c83d226eb7817a7b8fde99959"
+		},
+		{
+			"path": "res://assets/generated/audio/step_stone_2.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "6558dcd4314a82a5d6d8b28c872365854a454f739a3ab127e85d7d4af82a7dfa"
+		},
+		{
+			"path": "res://assets/generated/audio/step_stone_3.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "ae58202f918fe6266c4bbdf67ebf725534b783d20a882a5ca5f816ec4c3f01ec"
+		},
+		{
+			"path": "res://assets/generated/audio/step_wood_1.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "d89a3cb6dacda9bed6a7bf0729d33db63accdfb3b2b00d2231e837925ace0bc7"
+		},
+		{
+			"path": "res://assets/generated/audio/step_wood_2.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "957c33edfbd818c7a0e54e93e0820e415cf4e7e25e8e9e802c8ce133da73ee4c"
+		},
+		{
+			"path": "res://assets/generated/audio/step_wood_3.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "b1d486695abda89309d2d84d019612cf851b29c9c9c49443298f45d5ecbd316b"
+		},
+		{
+			"path": "res://assets/generated/audio/thunder_1.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 275244,
+			"sha256": "e2a49749ac2aa93bcab542eca14d18394bd6839f0b752a420fd04c726c574d5d"
+		},
+		{
+			"path": "res://assets/generated/audio/thunder_2.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 275244,
+			"sha256": "5c0fefcdef5f6367d08e8dbbbaf3a0c555e358926cc2e2ae6cd3f72434ba328a"
+		},
+		{
+			"path": "res://assets/generated/audio/ui_back.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 4524,
+			"sha256": "516222513e476ff0855d345642bfe11d7ab462c5043041ec038aa96c28858eac"
+		},
+		{
+			"path": "res://assets/generated/audio/ui_click.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 3244,
+			"sha256": "fdaad64acab6c7b3a12a0673398464a8dd7c5f08314f381aa5ee97d073f06854"
+		},
+		{
+			"path": "res://assets/generated/audio/ui_toggle.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 7724,
+			"sha256": "031473b0bd54cd61e0e4a6ae6799c65bbf4df6ad8c9b2610b1170d097e31f60c"
+		},
+		{
+			"path": "res://assets/generated/audio/weapon_switch.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "17e2482b1fe9577528710774f30ad350b8f85f524b2c7e1a1f818be3b09f3d56"
+		},
+		{
+			"path": "res://assets/generated/audio/whiz.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 19244,
+			"sha256": "b27bbaee0891a0dcd59942b296c8125f0ab009360e7fd3c5c3f91d17108be2e5"
+		},
+		{
+			"path": "res://assets/generated/audio/wind_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 384044,
+			"sha256": "2152a5ea71294261f93ba0925ed41bb2ba3a09bd5c13445df8aa7caac8d16966"
+		},
+		{
+			"path": "res://assets/generated/audio/zone_burn_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 70444,
+			"sha256": "66ea0f21cfc2b5283248771a51c8a2381087f9b511129786ddbdd107585810a8"
+		},
+		{
+			"path": "res://assets/generated/audio/zone_horn.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 192044,
+			"sha256": "8cc8e54ee1b236ddc48c3ea2d83efb11266b10ede071f0c45075081d8876ea87"
+		},
+		{
+			"path": "res://assets/generated/audio/zone_hum_loop.wav",
+			"made_by": "tools/gen_audio.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 192044,
+			"sha256": "705a8bb1479724922a2c82d7c29d1b0e6f38db34bf1f87de2ff6ea23e52bc2dd"
+		},
+		{
+			"path": "res://assets/generated/textures/noise_pack.png",
+			"made_by": "tools/gen_textures.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 472740,
+			"sha256": "39398ef78d2b1afb04bb4127394f532d611578a18aa004fb0db1b00cd885b6cb"
+		},
+		{
+			"path": "res://assets/generated/textures/world_surfaces.png",
+			"made_by": "tools/gen_textures.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 7250923,
+			"sha256": "1d0e55c3243989cc8e3de7c92b2405d7060a82b3b78c7459bd03510c059a425d"
+		}
+	],
+	"_generated_note": "S2 / S5: files made by the project's own tools (tools/gen_textures.gd, tools/gen_audio.gd) from noise and maths, no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 }
