@@ -215,6 +215,7 @@ func test_each_match_hook_starts_one_sound_and_leaving_plays_no_pickups() -> voi
 		_check_one(String(hooks["pickup_by_kind"][kind]), true, "picking up a %s" % kind)
 	# Leaving the match frees every remaining loot node: no pickup sound for them (review S4). The game leaves
 	# through AppFlow.go -> change_scene_to_file, which removes the scene from the tree and then frees it.
+	assert_true(m.director.running and not m.director.loot.items.is_empty(), "loot is left and the match runs when it is left")
 	sfx.clear_log()
 	_tree().root.remove_child(m)
 	m.free()
@@ -275,7 +276,13 @@ func test_the_retrigger_guard_stays_bounded() -> void:
 		sfx._last_play["old_%d" % i] = Time.get_ticks_msec() - 60000
 	for i in sfx._pool_until.size():
 		sfx._pool_until[i] = 0
+	sfx._last_play["fresh"] = Time.get_ticks_msec() - 10
 	sfx.play_at("reload", Vector3(7.0, 0.0, 7.0))
+	assert_true(sfx._last_play.has("fresh"), "a recent key survives the prune")
+	var biggest := 0.0
+	for id: String in sfx.cfg["sounds"]:
+		biggest = maxf(biggest, float(sfx.sound(id).get("min_interval_s", 0.0)))
+	assert_true(biggest * 1000.0 < float(sfx.GUARD_KEEP_MS), "every min_interval_s (max %.2f s) is shorter than the prune window" % biggest)
 	assert_true(sfx._last_play.size() < 10, "old keys are dropped once the guard grows past its cap (%d left)" % sfx._last_play.size())
 
 
