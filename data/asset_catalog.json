@@ -11,6 +11,611 @@
 			"redistribution_quote": "",
 			"download_date": "2026-10-30",
 			"sha256": "57b8041bfe0d0f01430e4dbaad45e7ddddf0a9fc97317f90dbc51f7b0d9e1b5d"
+		},
+		{
+			"id": "audio_shot_far_1",
+			"path": "res://assets/third_party/audio/ffsl/shot_far_1.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "d065516a096c1c2906eac0c8fc958e346b36267673d33df9421c1cb9806ee237"
+		},
+		{
+			"id": "audio_shot_far_2",
+			"path": "res://assets/third_party/audio/ffsl/shot_far_2.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "f63555eaa3160c7e202b3ce3a4ff7212e0bc8f8bfae004dda3bcc9338791fc44"
+		},
+		{
+			"id": "audio_shot_far_pilum_br_1",
+			"path": "res://assets/third_party/audio/ffsl/shot_far_pilum_br_1.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "d188be8a9348be0aec59106e3144b5bbf67998ae186ed0126e51d99b521e6c4e"
+		},
+		{
+			"id": "audio_shot_far_pilum_br_2",
+			"path": "res://assets/third_party/audio/ffsl/shot_far_pilum_br_2.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "79fb4b2ea0d9efe2b8b64d69f808471a9746c65f126525ea5830735823662cb8"
+		},
+		{
+			"id": "audio_shot_far_sagittarii_rifle_1",
+			"path": "res://assets/third_party/audio/ffsl/shot_far_sagittarii_rifle_1.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "5f6e825f3813493b9245afd9b4b5b9d90b4679f02e14c4e1bb3c91a42ed63b87"
+		},
+		{
+			"id": "audio_shot_far_sagittarii_rifle_2",
+			"path": "res://assets/third_party/audio/ffsl/shot_far_sagittarii_rifle_2.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "88bc51db46bb48797aeadae3a7bf9bc807d050c54f477fd87fbd1e962c381222"
+		},
+		{
+			"id": "audio_shot_far_sagittarii_rifle_3",
+			"path": "res://assets/third_party/audio/ffsl/shot_far_sagittarii_rifle_3.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "12aab078c6cbc4c1d81e7a5ebb6942e34a293b04559cdab250167b98ebe77826"
+		},
+		{
+			"id": "audio_shot_pilum_br_1",
+			"path": "res://assets/third_party/audio/ffsl/shot_pilum_br_1.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "43f1259968dd41f150db761e919614bc52451981aa4660cfcf9331f9ff7b4ce0"
+		},
+		{
+			"id": "audio_shot_pilum_br_2",
+			"path": "res://assets/third_party/audio/ffsl/shot_pilum_br_2.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "2ac92b3e0ece66f7eef3c87a72fd8c0e684c49710bd952e55920a34e52d818bd"
+		},
+		{
+			"id": "audio_shot_pilum_br_3",
+			"path": "res://assets/third_party/audio/ffsl/shot_pilum_br_3.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "c03c83cfe9e486bb653ce9241c77b5c987f0b80501205e227d9315368da91476"
+		},
+		{
+			"id": "audio_shot_pilum_br_4",
+			"path": "res://assets/third_party/audio/ffsl/shot_pilum_br_4.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "ee006ac687d2f9295d6a31a6895b9bc357dc6c5e7f381f02c79d64513ccf93bf"
+		},
+		{
+			"id": "audio_shot_sagittarii_rifle_1",
+			"path": "res://assets/third_party/audio/ffsl/shot_sagittarii_rifle_1.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "8e039dce9337724adeadbc1848308d322ce6c6a7213f92acf240cf936bf4979e"
+		},
+		{
+			"id": "audio_shot_sagittarii_rifle_2",
+			"path": "res://assets/third_party/audio/ffsl/shot_sagittarii_rifle_2.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "a604b8a3fa9ba1da0f37e220ea4cbb33479a99df7d511de8d41a9ec367fcd2f7"
+		},
+		{
+			"id": "audio_shot_sagittarii_rifle_3",
+			"path": "res://assets/third_party/audio/ffsl/shot_sagittarii_rifle_3.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "a6b9f7e7bc62e674fca586bce6678e8389177c8374da9271c78f09909fc1f388"
+		},
+		{
+			"id": "audio_shot_sagittarii_rifle_4",
+			"path": "res://assets/third_party/audio/ffsl/shot_sagittarii_rifle_4.ogg",
+			"source": "Free Firearm Sound Library",
+			"source_url": "https://opengameart.org/content/the-free-firearm-sound-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "559a7a453584ba0287efd3c22681c3e4fcec929fd2eff1be9cc215b773c07d5b"
+		},
+		{
+			"id": "audio_hit_body_1",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_body_1.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "e7aaa83ae0b4edd4769e50fa8ab50d077304ee589583184caee8f65f1bdb42b7"
+		},
+		{
+			"id": "audio_hit_body_2",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_body_2.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "c92eac585dbbded59d537c4cb17534ee28f94fc8724a7b8e0c724e3b01e69191"
+		},
+		{
+			"id": "audio_hit_body_3",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_body_3.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "d6d76c50088d47fb971a28c530860c1c963e2885fb5cbacc77d74f27f5382fb3"
+		},
+		{
+			"id": "audio_hit_body_4",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_body_4.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "3ccd8e524cfdadd8c0f78dc793d35e4bfcc7e8ed2b8e486f003279957890b92d"
+		},
+		{
+			"id": "audio_hit_body_5",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_body_5.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "7ab5e939ceb8c7c5fd96caf15fe59da95ea7766a9fe495d8aff76fec5810293c"
+		},
+		{
+			"id": "audio_hit_shield_1",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_shield_1.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "36c24c0dc76b46df39669c5172e9a76aa5e96c6b10d9162f16166d11ff8bc39e"
+		},
+		{
+			"id": "audio_hit_shield_2",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_shield_2.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "91c503382752cba8b8e884cd71acdbc56e889586bc41671337c70c7d122e1ad7"
+		},
+		{
+			"id": "audio_hit_shield_3",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_shield_3.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "14cc0de395810f9b324f86578cb6d4805fc64b00cc7e03bd46aab27dcbea7758"
+		},
+		{
+			"id": "audio_hit_shield_4",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_shield_4.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "baec5de650b8baae28366454a3d215d999d75a1dad911b9e4bdb5e3ae367fa1f"
+		},
+		{
+			"id": "audio_hit_shield_5",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/hit_shield_5.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "d3932282994d01afbe55e6ee7fae42f93b5b67c129a841ead9feda8064b49a95"
+		},
+		{
+			"id": "audio_impact_stone_1",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_1.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "2e33f639e4546d537c7a804900dafff40915aded8c9cf503d0680afc1e4917ed"
+		},
+		{
+			"id": "audio_impact_stone_2",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_2.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "b366e6f8720b54a0f2dd18ddc96cac800ceab99d21ef5ea169b1cfa941cedb19"
+		},
+		{
+			"id": "audio_impact_stone_3",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_3.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "b0d015a666e073760aa784a5178f106ea2cb4a62e4f28e068f9c85a106cab86a"
+		},
+		{
+			"id": "audio_impact_stone_4",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_4.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "26e737444485559983c437259a46f5647271ef682b1421f024e0caddde3da423"
+		},
+		{
+			"id": "audio_impact_stone_5",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_5.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "b9875ce90cda41492e1f0c55474c93739dbb6061b26d669a78f4a1ffcf76cd52"
+		},
+		{
+			"id": "audio_land_1",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/land_1.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "6e9193fb695e1ff63a301bee399fb0f48651b558407dcd61e3296e58b885a3eb"
+		},
+		{
+			"id": "audio_land_2",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/land_2.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "3cf2668bb107bd77da7a968747065c650f7ed3f697aa96322f50459d837461bb"
+		},
+		{
+			"id": "audio_land_3",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/land_3.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "c4962ed51ca02f2004644d2b7e07d1450fd5af8d2ee979a37a4c9938b558d0d1"
+		},
+		{
+			"id": "audio_land_4",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/land_4.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "905ba01f2dd27f34b95c169627b02226d7d45b64bdb1666b410b1d3d1a691d24"
+		},
+		{
+			"id": "audio_land_5",
+			"path": "res://assets/third_party/audio/kenney_impact_sounds/land_5.ogg",
+			"source": "Kenney Impact Sounds",
+			"source_url": "https://kenney.nl/assets/impact-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "0700db88efb09ded2ba7e83d390174499085baf3277fb302d00375547b52835b"
+		},
+		{
+			"id": "audio_dry_fire_1",
+			"path": "res://assets/third_party/audio/kenney_rpg_audio/dry_fire_1.ogg",
+			"source": "Kenney RPG Audio",
+			"source_url": "https://kenney.nl/assets/rpg-audio",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "bd114b537e09d08a487562ac8d7233f6d68fa854411daeef397508da57ef922f"
+		},
+		{
+			"id": "audio_weapon_switch_1",
+			"path": "res://assets/third_party/audio/kenney_rpg_audio/weapon_switch_1.ogg",
+			"source": "Kenney RPG Audio",
+			"source_url": "https://kenney.nl/assets/rpg-audio",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "422d357ce02c90fd845bad8203c3f8c1b3f0a52b2e3d254c1c52bc5094641828"
+		},
+		{
+			"id": "audio_weapon_switch_2",
+			"path": "res://assets/third_party/audio/kenney_rpg_audio/weapon_switch_2.ogg",
+			"source": "Kenney RPG Audio",
+			"source_url": "https://kenney.nl/assets/rpg-audio",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "a0d07d517c91e8597b19a88ae73ea2a85a55942b72d14cacb9aed5a42c86fe95"
+		},
+		{
+			"id": "audio_weapon_switch_3",
+			"path": "res://assets/third_party/audio/kenney_rpg_audio/weapon_switch_3.ogg",
+			"source": "Kenney RPG Audio",
+			"source_url": "https://kenney.nl/assets/rpg-audio",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "6e1732b4a033e948654afc178f6ed23fed94d4bc22f44c1759199ca69998c266"
+		},
+		{
+			"id": "audio_reload_3",
+			"path": "res://assets/third_party/audio/oga_2_gun_reloads/reload_3.ogg",
+			"source": "OpenGameArt 2 Gun Reloads (StarNinjas)",
+			"source_url": "https://opengameart.org/content/2-gun-reloads",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "4cbc4165f55f6ba68665e43eeaf433f66581b2db6dfc12694e42a7be8f1a03fd"
+		},
+		{
+			"id": "audio_reload_4",
+			"path": "res://assets/third_party/audio/oga_2_gun_reloads/reload_4.ogg",
+			"source": "OpenGameArt 2 Gun Reloads (StarNinjas)",
+			"source_url": "https://opengameart.org/content/2-gun-reloads",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "ecc611cfcc1bcfa7de6defd8ac2dc65df3e7b47cde701f589a47bdcef7ac8885"
+		},
+		{
+			"id": "audio_reload_1",
+			"path": "res://assets/third_party/audio/oga_gun_reload_sounds/reload_1.ogg",
+			"source": "OpenGameArt Gun Reload Sounds (SpringySpringo)",
+			"source_url": "https://opengameart.org/content/gun-reload-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "b5d8cd24e011ac0bc26da90bcc728d96481c7d115f23ed1a3e5be055fd897720"
+		},
+		{
+			"id": "audio_reload_2",
+			"path": "res://assets/third_party/audio/oga_gun_reload_sounds/reload_2.ogg",
+			"source": "OpenGameArt Gun Reload Sounds (SpringySpringo)",
+			"source_url": "https://opengameart.org/content/gun-reload-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "5ed71702e20d287e629bbd5b0e31a2a9e517e78092e5668dfd48d94849713cf8"
+		},
+		{
+			"id": "audio_blade_swing_1",
+			"path": "res://assets/third_party/audio/oga_light_sabre_sounds/blade_swing_1.ogg",
+			"source": "OpenGameArt Light Sabre Sounds (aquinn)",
+			"source_url": "https://opengameart.org/content/light-sabre-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "9bc26fcaef9bcb2575dc3487bfc83638f167bda0e5928ac777be18e2f62de724"
+		},
+		{
+			"id": "audio_blade_swing_2",
+			"path": "res://assets/third_party/audio/oga_light_sabre_sounds/blade_swing_2.ogg",
+			"source": "OpenGameArt Light Sabre Sounds (aquinn)",
+			"source_url": "https://opengameart.org/content/light-sabre-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "b918b28d6ff0568b3c06eef61b214f3914f6bf5cbcefd3bc51b4adf24db149fa"
+		},
+		{
+			"id": "audio_blade_swing_3",
+			"path": "res://assets/third_party/audio/oga_light_sabre_sounds/blade_swing_3.ogg",
+			"source": "OpenGameArt Light Sabre Sounds (aquinn)",
+			"source_url": "https://opengameart.org/content/light-sabre-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "85be367f931751670c96863981ea83d70d3142e09d6972f35c80c901f35f8830"
+		},
+		{
+			"id": "audio_blade_swing_4",
+			"path": "res://assets/third_party/audio/oga_light_sabre_sounds/blade_swing_4.ogg",
+			"source": "OpenGameArt Light Sabre Sounds (aquinn)",
+			"source_url": "https://opengameart.org/content/light-sabre-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "3f350fd6b81fbf8ff783661a80b66e972e05ff1c08544b1823b59edec00458a5"
+		},
+		{
+			"id": "audio_blade_swing_5",
+			"path": "res://assets/third_party/audio/oga_light_sabre_sounds/blade_swing_5.ogg",
+			"source": "OpenGameArt Light Sabre Sounds (aquinn)",
+			"source_url": "https://opengameart.org/content/light-sabre-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "a963e583bb6f6e3cca5d5f53aca7f5679d8ed549df3ac596af921493b94033c1"
+		},
+		{
+			"id": "audio_blade_swing_6",
+			"path": "res://assets/third_party/audio/oga_light_sabre_sounds/blade_swing_6.ogg",
+			"source": "OpenGameArt Light Sabre Sounds (aquinn)",
+			"source_url": "https://opengameart.org/content/light-sabre-sounds",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "caa54923094c9cc0735ef0aa77485693deb7d7aa18a3d98f5eeec46d7c0a0df6"
+		},
+		{
+			"id": "audio_blade_hit_1",
+			"path": "res://assets/third_party/audio/oga_sword_clashes/blade_hit_1.ogg",
+			"source": "OpenGameArt 20 Sword Sound Effects (StarNinjas)",
+			"source_url": "https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "902b26d74df36dbc855770470beb553513437504094fbd6621d0c613f162e41b"
+		},
+		{
+			"id": "audio_blade_hit_2",
+			"path": "res://assets/third_party/audio/oga_sword_clashes/blade_hit_2.ogg",
+			"source": "OpenGameArt 20 Sword Sound Effects (StarNinjas)",
+			"source_url": "https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "e15c37b74393f08200b4a22d6fd3c7de34e9729e236b356f95e818383d86cb76"
+		},
+		{
+			"id": "audio_blade_hit_3",
+			"path": "res://assets/third_party/audio/oga_sword_clashes/blade_hit_3.ogg",
+			"source": "OpenGameArt 20 Sword Sound Effects (StarNinjas)",
+			"source_url": "https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "077d9645a7bb4318fc950d05be8cd2e09aedd89607a0c0b87fe479caffe25821"
+		},
+		{
+			"id": "audio_blade_hit_4",
+			"path": "res://assets/third_party/audio/oga_sword_clashes/blade_hit_4.ogg",
+			"source": "OpenGameArt 20 Sword Sound Effects (StarNinjas)",
+			"source_url": "https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "06a8e6f383fe6ab94413a5d60684ed094c78f8b70b0d8a45250802573156c0f8"
+		},
+		{
+			"id": "audio_blade_hit_5",
+			"path": "res://assets/third_party/audio/oga_sword_clashes/blade_hit_5.ogg",
+			"source": "OpenGameArt 20 Sword Sound Effects (StarNinjas)",
+			"source_url": "https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "56e99ff78dab69989bc7cdb9474e529dcd96b1214dbee7cfe86fe54e90483cab"
+		},
+		{
+			"id": "audio_blade_hit_6",
+			"path": "res://assets/third_party/audio/oga_sword_clashes/blade_hit_6.ogg",
+			"source": "OpenGameArt 20 Sword Sound Effects (StarNinjas)",
+			"source_url": "https://opengameart.org/content/20-sword-sound-effects-attacks-and-clashes",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "7de45577b092db7f42b2fde64f722c05ff57df5edef9bfb5b77fe2cecceb09b1"
 		}
 	],
 	"generated": [
@@ -20,20 +625,6 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 16044,
 			"sha256": "2a1b20a8a161c27791d18b55205e0047463518fc7c92dac4a2cad5d35832326e"
-		},
-		{
-			"path": "res://assets/generated/audio/blade_hit.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 44844,
-			"sha256": "48170f167dbab5d64a1de4af9b54105c73a9eec775f25e68606607502b5a9f21"
-		},
-		{
-			"path": "res://assets/generated/audio/blade_swing.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 24364,
-			"sha256": "165fadabe9bb7fedc8e87de991626b9f713fae1118f76ff5d7a8601a31f04c78"
 		},
 		{
 			"path": "res://assets/generated/audio/carrier_loop.wav",
@@ -57,13 +648,6 @@
 			"sha256": "0f937115621139731c1e61b7322764df4aac847065ef96faac48061e883a176b"
 		},
 		{
-			"path": "res://assets/generated/audio/dry_fire.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 5164,
-			"sha256": "897be254983eb72604da9f1ebcbbb62c9247f9e8350286b782da8adc046439f0"
-		},
-		{
 			"path": "res://assets/generated/audio/eliminated.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
@@ -76,13 +660,6 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 185644,
 			"sha256": "10ab816e78bdbbb05e2cf23f821a880a46a8ee78a332c772ddceeef6f5018bd8"
-		},
-		{
-			"path": "res://assets/generated/audio/hit_body.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 16044,
-			"sha256": "646f566897a9baef79ebcb5ad96515df9362741085b2c50134a028e0ddd96315"
 		},
 		{
 			"path": "res://assets/generated/audio/hit_marker.wav",
@@ -99,32 +676,11 @@
 			"sha256": "95a3dcd3715fcda2f4baf442b1d48e322f39d331242c94287937246773b37cfb"
 		},
 		{
-			"path": "res://assets/generated/audio/hit_shield.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "c847bae90f767c05281efbc5cd5dc5e7e1ed85092d96ca0ea4866a9fc96fd953"
-		},
-		{
-			"path": "res://assets/generated/audio/impact_stone.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "ed2dbdb3fe6af5cae127c296dc2581678432f2d97f5f0f7796a0947d6033cfca"
-		},
-		{
 			"path": "res://assets/generated/audio/kill_confirm.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 51244,
 			"sha256": "5c5b73c4b754d7b24757b484e6a982380af6c7ca18fece06a9ede51c70fb1117"
-		},
-		{
-			"path": "res://assets/generated/audio/land.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 32044,
-			"sha256": "b8a6e8d365265a6692144a67a5efdc890c935426829e35d6d6d53b58d4dcdd54"
 		},
 		{
 			"path": "res://assets/generated/audio/match_end.wav",
@@ -176,13 +732,6 @@
 			"sha256": "bbb52531bba6cdff4f8a1a7d7d32dcfcd4d8fde21d3364d57fa331a6a466042e"
 		},
 		{
-			"path": "res://assets/generated/audio/reload.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 81964,
-			"sha256": "3f634854c629bb53b4a22ff2b190f0af51d45be1200fa566d11947f4e5202fbf"
-		},
-		{
 			"path": "res://assets/generated/audio/revive_loop.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
@@ -209,27 +758,6 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 37164,
 			"sha256": "7a82e0ada379c12eb28ec91a4b586beeb3974e1467172e67ca00e1dec05ffdc1"
-		},
-		{
-			"path": "res://assets/generated/audio/shot_far.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 92844,
-			"sha256": "a9daba458f8f94b54207cb0bfa80225d91b568db7c93d8bbd77523d511ec2173"
-		},
-		{
-			"path": "res://assets/generated/audio/shot_pilum_br.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 39084,
-			"sha256": "784f8f6e8738cec0493ed995947760026c442a2470c761296865bfca75a5a91e"
-		},
-		{
-			"path": "res://assets/generated/audio/shot_sagittarii_rifle.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 82604,
-			"sha256": "2939d9f21f4ea15530f6e18357c86eb7c094716e95743aaae6e5e1a57d132163"
 		},
 		{
 			"path": "res://assets/generated/audio/step_earth_1.wav",
@@ -370,13 +898,6 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 7724,
 			"sha256": "031473b0bd54cd61e0e4a6ae6799c65bbf4df6ad8c9b2610b1170d097e31f60c"
-		},
-		{
-			"path": "res://assets/generated/audio/weapon_switch.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 19244,
-			"sha256": "17e2482b1fe9577528710774f30ad350b8f85f524b2c7e1a1f818be3b09f3d56"
 		},
 		{
 			"path": "res://assets/generated/audio/whiz.wav",

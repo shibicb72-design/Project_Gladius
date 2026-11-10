@@ -60,6 +60,18 @@ func test_every_sound_resolves_to_existing_loadable_takes() -> void:
 	print("AUDIO_TAKES files=%d" % checked)
 
 
+func test_recorded_takes_are_third_party_oggs_and_some_sound_has_several() -> void:
+	var sfx := _sfx()
+	var several := 0
+	for id: String in sfx.cfg["sounds"]:
+		var files: Array = (sfx.cfg["sounds"][id] as Dictionary).get("files", [])
+		if files.size() > 1:
+			several += 1
+		for path: Variant in files:
+			assert_true(String(path).begins_with("res://assets/third_party/audio/") and String(path).ends_with(".ogg"), "sound %s: take %s is a third-party .ogg" % [id, path])
+	assert_true(several > 0, "at least one sound has several recorded takes (%d)" % several)
+
+
 func _files_under(dir_path: String, out: Array[String]) -> void:
 	var dir := DirAccess.open(dir_path)
 	if dir == null:
@@ -222,8 +234,15 @@ func test_a_far_shot_plays_the_weapons_far_report_or_the_shared_one() -> void:
 	var hooks: Dictionary = sfx.cfg["hooks"]
 	var had_key := hooks.has("shot_far_by_weapon")
 	var original: Variant = hooks.get("shot_far_by_weapon")
-	for id: Variant in (hooks.get("shot_far_by_weapon", {}) as Dictionary).values():
+	var far_by: Dictionary = hooks.get("shot_far_by_weapon", {})
+	for id: Variant in far_by.values():
 		assert_true(not sfx.sound(String(id)).is_empty(), "shot_far_by_weapon names a known sound (%s)" % id)
+	# Every weapon with its own report also has its own far report, a different sound.
+	for weapon: String in hooks["shot_by_weapon"]:
+		assert_true(far_by.has(weapon), "weapon %s has a far report in shot_far_by_weapon" % weapon)
+		var own_far := String(far_by.get(weapon, ""))
+		assert_true(not sfx.sound(own_far).is_empty(), "weapon %s: its far report %s is a known sound" % [weapon, own_far])
+		assert_true(own_far != String(hooks["shot_by_weapon"][weapon]), "weapon %s: the far report differs from the near one" % weapon)
 	var pawn := _pawn()
 	await _tree().process_frame  # the shot visual is bound deferred
 	var weapon_id := pawn.loadout.get_active().def.id

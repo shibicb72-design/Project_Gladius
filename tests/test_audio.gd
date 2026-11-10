@@ -44,7 +44,7 @@ func test_data_is_placeholder_and_every_sound_has_a_generated_file() -> void:
 		var stream := sfx.stream(id) as AudioStream
 		# Any stream type (WAV, Ogg Vorbis, MP3): "non-empty" is a real length.
 		assert_true(stream != null and stream.get_length() > 0.03, "sound %s has a non-empty stream" % id)
-		assert_true(String(cfg["dir"]).begins_with("res://assets/generated/audio"), "sounds are generated assets")
+		assert_true(String(cfg["dir"]).begins_with("res://assets/generated/audio"), "sounds without recorded takes are generated assets")
 		for path in sfx.paths(id):
 			assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(path), "sound %s: its file %s exists" % [id, path])
 		var settings: Dictionary = sfx.sound(id)
