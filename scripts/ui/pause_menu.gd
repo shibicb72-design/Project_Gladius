@@ -78,7 +78,8 @@ func _build() -> void:
 	prompt.theme_type_variation = &"HeadlineLabel"
 	_confirm_box.add_child(prompt)
 	confirm_button = _button(_confirm_box, _menu["confirm_text"], func() -> void: quit_confirmed.emit())
-	MenuStyle.primary(confirm_button)
+	# Crimson, but in the body face: in the display face the R of "Confirm" reads as an A (docs/UI_STYLE.md 3).
+	confirm_button.theme_type_variation = &"PrimaryButton"
 	cancel_button = _button(_confirm_box, _menu["cancel_text"], func() -> void: _show(_main_box))
 	# Settings lives outside the CenterContainer (that would shrink a scroll to its own minimum size). The
 	# expand + shrink-center flags keep it centred while it fits; taller than the view, it scrolls.

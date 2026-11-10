@@ -76,16 +76,10 @@ func build() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	root.add_child(scroll)
-	# A right gutter keeps the scrollbar off the value labels.
-	var gutter := MarginContainer.new()
-	gutter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gutter.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	MenuStyle.pad(gutter, 0.0, 0.0, 1.75, 0.0)
-	scroll.add_child(gutter)
 	var list := VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	MenuStyle.gap(list, 1.0)
-	gutter.add_child(list)
+	scroll.add_child(list)
 	var first := true
 	for t in settings.all_tables():
 		if not first:
@@ -147,8 +141,8 @@ func _add_row(list: VBoxContainer, table: String, row: String, dp_h: float) -> v
 	s.value_changed.connect(_on_slider.bind(table, row))
 	box.add_child(s)
 	var v := Label.new()
-	MenuStyle.min_width(v, 8.0)
-	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# Left-aligned in a wide box: the box's empty right part keeps the scrollbar off the number.
+	MenuStyle.min_width(v, 9.0)
 	box.add_child(v)
 	sliders[key] = s
 	value_labels[key] = v
