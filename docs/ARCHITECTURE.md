@@ -282,9 +282,28 @@ android/              debug.keystore (shared debug key only)
 - `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap 60/120, LOD). Applied
   at boot by a small `GraphicsSettings` helper; the profile stores the chosen preset.
 
-### 4.19 Audio (later)
-- `audio.json` maps event ids (announcer lines, music states) to streams. Shibi's Latin announcer
+### 4.19 Audio
+- Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.
+  `audio.json` maps event ids (announcer lines, music states) to streams. Shibi's Latin announcer
   lines fill placeholder slots by id.
+- `scripts/audio/sfx.gd` (autoload `Sfx`) owns the buses, a fixed pool of positional voices, the UI
+  voices and the loop count. `pawn_audio.gd` (a child of each pawn) and `match_audio.gd` (beside the
+  match look) only listen to signals and read public state; gameplay never calls the audio layer.
+- `data/audio.json` "sounds": an id either lists `"files"` (full `res://` paths of recorded takes,
+  any AudioStream type; one take is picked per play, streams are cached per path) or plays its
+  generated WAV from `dir`. Loops are a duplicate of the loaded stream with looping switched on;
+  `.import` loop flags are never used.
+- Real recordings are CC0 only and never enter the repo raw: `tools/import_audio.gd` (headless,
+  calls an ffmpeg binary given on the command line) cuts, fades, levels and encodes each take named in
+  `tools/audio_import.json` to OGG Vorbis under `assets/third_party/audio/<pack>/` and writes its row
+  in `data/asset_catalog.json`; `--check` re-encodes and compares hashes. The recipe lives under
+  `tools/` so it is not exported. `tools/gen_audio.gd` writes only ids without `"files"`.
+- Positional sounds (anything played at a world position, brazier fire included) are mono files; the
+  non-positional beds and thunder are stereo. Ambience is a list of loop layers per look:
+  `base_loop` + `by_weather[weather]` + `by_variant[look id]`. A far shot swaps to the weapon's own
+  far report (`hooks.shot_far_by_weapon`, fallback `shot_far`). The local player's sprint adds one
+  foley sound per step; other pawns stay one voice per step.
+- Part b (not built): reverb zones, impacts by material, distance filters.
 
 ## 5. Testing
 
