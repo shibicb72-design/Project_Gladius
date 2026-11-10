@@ -17,8 +17,15 @@ func _played(id: String) -> Array:
 
 
 func _stream_ok(entry: Dictionary) -> bool:
-	var stream := entry["stream"] as AudioStreamWAV
-	return stream != null and stream.data.size() > 64 and stream.get_length() > 0.03
+	var stream := entry["stream"] as AudioStream
+	return stream != null and stream.get_length() > 0.03
+
+
+## Whether a stream loops, per stream type: a WAV by its loop_mode, Ogg Vorbis / MP3 by their loop property.
+static func _loops(stream: AudioStream) -> bool:
+	if stream is AudioStreamWAV:
+		return (stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED
+	return "loop" in stream and bool(stream.get("loop"))
 
 
 func _pawn() -> Pawn:
@@ -34,15 +41,17 @@ func test_data_is_placeholder_and_every_sound_has_a_generated_file() -> void:
 	var sfx := _sfx()
 	assert_true(sfx != null, "the Sfx autoload exists")
 	for id: String in cfg["sounds"]:
-		var stream := sfx.stream(id) as AudioStreamWAV
-		# The import may compress the samples, so "non-empty" is some data and a real length.
-		assert_true(stream != null and stream.data.size() > 64 and stream.get_length() > 0.03, "sound %s has a non-empty generated stream" % id)
+		var stream := sfx.stream(id) as AudioStream
+		# Any stream type (WAV, Ogg Vorbis, MP3): "non-empty" is a real length.
+		assert_true(stream != null and stream.get_length() > 0.03, "sound %s has a non-empty stream" % id)
 		assert_true(String(cfg["dir"]).begins_with("res://assets/generated/audio"), "sounds are generated assets")
+		for path in sfx.paths(id):
+			assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(path), "sound %s: its file %s exists" % [id, path])
 		var settings: Dictionary = sfx.sound(id)
 		assert_true(AudioServer.get_bus_index(String(settings["bus"])) >= 0, "sound %s names an existing bus" % id)
-		if stream != null:
-			assert_eq(stream.loop_mode != AudioStreamWAV.LOOP_DISABLED, bool(settings["loop"]), "loop flag of " + id)
-	# Every hook names a known sound.
+		for take: AudioStream in sfx.streams(id):
+			assert_eq(_loops(take), bool(settings["loop"]), "loop flag of " + id)
+	# Every hook names a known sound. ui_back_names / ui_skip_under are Arrays of node names, not ids.
 	for key: String in cfg["hooks"]:
 		var value: Variant = cfg["hooks"][key]
 		var ids: Array = []
