@@ -48,6 +48,8 @@
 		"hit_marker_head": {"volume_db": -6.0, "max_polyphony": 2, "pitch_jitter": 0.0},
 		"kill_confirm": {"volume_db": -4.0, "max_polyphony": 1, "pitch_jitter": 0.0},
 		"impact_stone": {"volume_db": -5.0, "max_distance_m": 45.0, "max_polyphony": 4, "pitch_jitter": 0.12, "files": ["res://assets/third_party/audio/kenney_impact_sounds/impact_stone_1.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_2.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_3.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_4.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_stone_5.ogg"]},
+		"impact_wood": {"volume_db": -5.0, "max_distance_m": 45.0, "max_polyphony": 4, "pitch_jitter": 0.12, "files": ["res://assets/third_party/audio/kenney_impact_sounds/impact_wood_1.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_wood_2.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_wood_3.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_wood_4.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_wood_5.ogg"]},
+		"impact_metal": {"volume_db": -5.0, "max_distance_m": 45.0, "max_polyphony": 4, "pitch_jitter": 0.12, "files": ["res://assets/third_party/audio/kenney_impact_sounds/impact_metal_1.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_metal_2.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_metal_3.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_metal_4.ogg", "res://assets/third_party/audio/kenney_impact_sounds/impact_metal_5.ogg"]},
 		"whiz": {"volume_db": -6.0, "max_polyphony": 2, "min_interval_s": 0.15, "pitch_jitter": 0.15},
 		"step_earth_1": {"volume_db": -9.0, "max_distance_m": 22.0, "pitch_jitter": 0.08, "attenuation_filter_cutoff_hz": 8000.0, "attenuation_filter_db": -12.0, "files": ["res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_1.ogg"]},
 		"step_earth_2": {"volume_db": -9.0, "max_distance_m": 22.0, "pitch_jitter": 0.08, "attenuation_filter_cutoff_hz": 8000.0, "attenuation_filter_db": -12.0, "files": ["res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_2.ogg"]},
@@ -145,6 +147,17 @@
 		"ui_back_names": ["Back", "Close", "Cancel", "Resume"],
 		"ui_skip_under": ["TouchHud"],
 		"ui_back": "ui_back"
+	},
+	"impacts": {
+		"_note": "What a round that hits the world sounds like, by the body under the shot's end point (a short ray from probe_back_m before the end point to probe_ahead_m past it, pawns skipped): a structure piece by its structure_type (by_structure, an unlisted type gives default), a cover piece by its cover_palette (by_palette, an unlisted palette gives by_palette.default; camp is the panel-and-steel look of data/art_materials.json, so metal), rim decor (decor), the ground (ground), anything else or nothing found (default). by_material maps the material to a sound id; hooks.impact_world stays the fallback when this block or a sound is missing. The palette is a coarse stand-in for a per-piece material (a citadel crate and a citadel pillar sound the same). Placeholders for Shibi (OQ-AUDIO-SPACE).",
+		"probe_back_m": 0.05,
+		"probe_ahead_m": 0.1,
+		"by_structure": {"wall_walk": "stone", "wall_stair": "stone", "gate": "stone", "watchtower": "stone", "column": "stone", "colonnade": "stone", "pediment_front": "stone", "aqueduct_span": "stone", "aqueduct_ramp": "stone", "barracks": "stone", "tent": "wood", "stake_row": "wood", "eagle_standard": "metal", "ramp_block": "stone", "terrace_block": "stone"},
+		"by_palette": {"citadel": "stone", "camp": "metal", "inner_wall": "stone", "default": "wood"},
+		"decor": "stone",
+		"ground": "stone",
+		"by_material": {"stone": "impact_stone", "wood": "impact_wood", "metal": "impact_metal"},
+		"default": "stone"
 	},
 	"footsteps": {
 		"_note": "A step sounds every stride of ground covered. The surface is what the visual side shows under the pawn: the ground's paint map (earth, grass, paving) or the kind of piece stood on. Other pawns' steps are quieter than the listener's own. Each surface lists several ids of one recorded take each (a step never repeats the last id). Grass, wood and stone are Kenney footsteps (stone = footstep_concrete, the stone of walls and buildings); paving is Fantozzi Stone (left/right alternating); earth is Fantozzi Sand, sand standing in for dry earth is a guess. Placeholder choice (OQ-AUDIO-MIX).",

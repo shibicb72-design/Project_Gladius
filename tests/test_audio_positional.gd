@@ -88,6 +88,32 @@ func _drive_pawn(found: Dictionary) -> void:
 	pawn.shot_fx.show_shot(Vector3(0, 1.4, -20), Vector3(0, 1.4, 20))
 	pawn.shot_resolved.emit(Vector3(0, 1.4, 0), Vector3(0, 1.4, -20), {"position": Vector3(0, 1.4, -20), "target": null, "is_headshot": false})
 	_harvest(found, REAL)
+	# One world impact per material through the real probe: a 2 m piece of a structure type of that material.
+	var impacts: Dictionary = sfx.cfg["impacts"]
+	var pieces: Array[StaticBody3D] = []
+	for material: String in impacts["by_material"]:
+		var key: Variant = (impacts["by_structure"] as Dictionary).find_key(material)
+		assert_true(key != null, "some structure type is %s" % material)
+		var type := String(key) if key != null else ""
+		var piece := StaticBody3D.new()
+		piece.collision_layer = 1
+		piece.set_meta(&"structure_type", type)
+		var shape := CollisionShape3D.new()
+		shape.shape = BoxShape3D.new()
+		(shape.shape as BoxShape3D).size = Vector3(2, 2, 2)
+		piece.add_child(shape)
+		_tree().root.add_child(piece)
+		piece.global_position = Vector3(200 + 10 * pieces.size(), 50, 0)
+		pieces.append(piece)
+	await _tree().physics_frame
+	await _tree().physics_frame
+	await _tree().process_frame
+	for piece in pieces:
+		var face := piece.global_position + Vector3(0, 0, 1)
+		pawn.shot_resolved.emit(face + Vector3(0, 0, 10), face, {"position": face, "target": null, "is_headshot": false})
+	_harvest(found, REAL)
+	for piece in pieces:
+		piece.free()
 	for i in pawn.loadout.slots.size():
 		if pawn.loadout.get_active() != null and pawn.loadout.get_active().def.is_melee():
 			break
@@ -236,6 +262,7 @@ func test_every_positionally_played_sound_has_only_mono_takes() -> void:
 			hooks["near_miss"], hooks["zone_wall_loop"], hooks["carrier_loop"], hooks["reviving_loop"],
 			amb["brazier_loop"], amb["banner"]]
 	want.append_array((hooks["shot_far_by_weapon"] as Dictionary).values())
+	want.append_array((sfx.cfg["impacts"]["by_material"] as Dictionary).values())
 	for id: Variant in want:
 		assert_true(found.has(String(id)), "%s was played positionally" % id)
 	for surface: String in sfx.cfg["footsteps"]["surfaces"]:
