@@ -2,7 +2,7 @@
 	"version": 1,
 	"_placeholder": true,
 	"_todo": "OQ-GFX-CARRIER: the drop carrier's look (the Aquila: a winged lifter with four engines; players ride in a cradle under its belly) is a presentation trial in Fable's own design. Its path, height, speed and who is aboard are the match director's; this only draws a model at director.carrier_position() while the drop is active and lets it fly on and away afterwards.",
-	"offset_m": [0, 4.6, -3.0],
+	"offset_m": [0, 9.5, -5.0],
 	"_offset_note": "Where the model's origin sits relative to the carrier position (the pawns' position while aboard), in the carrier's own frame (front is -Z): the hull rides above and ahead of the riders, so the third-person camera looks out from under it.",
 	"leave": {
 		"_note": "After the last rider has jumped the carrier keeps flying: it speeds up and climbs for leave_s seconds, then it is hidden.",

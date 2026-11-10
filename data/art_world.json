@@ -5,7 +5,7 @@
 	"_s7_note": "S7: banners carry a weave and a gold trim and stand at the landmarks too; grass is tufts of blades on the grass of the outer ring (one batch, no shadows); braziers are bronze bowls with a flame and stand at the landmarks too, their lights without shadows; the four boxes of sphere dust are gone (the dust that follows the camera, data/art_look.json weather, replaces them).",
 	"cloth": {"amplitude_m": 0.16, "speed": 1.4, "frequency": 3.2, "color": [0.5, 0.1, 0.08, 1], "trim_color": [0.86, 0.64, 0.22, 1], "roughness": 0.9, "subdivisions": 12},
 	"foliage": {
-		"count": 1600, "seed": 29, "radius_min_m": 31, "radius_max_m": 78,
+		"count": 2400, "seed": 29, "radius_min_m": 31, "radius_max_m": 78,
 		"size": [0.04, 0.36, 0.14], "blades": 6, "scale_min": 0.7, "scale_max": 1.4,
 		"amplitude_m": 0.07, "speed": 1.3, "frequency": 0.9,
 		"color": [0.62, 0.66, 0.3, 1], "roughness": 0.95,

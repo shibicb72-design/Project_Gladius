@@ -145,7 +145,7 @@
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 236844,
-			"sha256": "6f0c85d7c978a24879264ef72f3d6a14d1b5315a92002126054bbd0efa8b128a"
+			"sha256": "990f910fa5a77f07732348f3024115985b83de3fb37ad1c7b29b9ba499118fde"
 		},
 		{
 			"path": "res://assets/generated/audio/pickup_ammo.wav",
@@ -236,105 +236,105 @@
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "297a4b22fe6e2dd3243556495f8da05571a082920168fca2b841aa5dec87cd8d"
+			"sha256": "635aba8587f960fbfff9bf7690a551a31f3be112176983a347697b4ef48436e3"
 		},
 		{
 			"path": "res://assets/generated/audio/step_earth_2.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "358eff3db9f1630d2782484f5e9eb719d11d132f9c45069a2ca24be5d2e7ae32"
+			"sha256": "c0888852c6b047334c67bab19449471810fed5d263e26c82a488adb928951b7a"
 		},
 		{
 			"path": "res://assets/generated/audio/step_earth_3.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "235b1ed2969c588a32eceef2f62c0177f7aad0a687d3836ba8e778f183261b74"
+			"sha256": "952943b29c31215a5d1d26feeb4f6651961255f5e5269d7a20e19ec1ee48b4d2"
 		},
 		{
 			"path": "res://assets/generated/audio/step_grass_1.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "8d1af2b33dcf3509d09437f9ddc15ac33b7d00132fcda6c80f3dadbce6c660b3"
+			"sha256": "d9352a3d789f239917db04ec150b91f516c5136c7c3faf9a320378d2afc74d8b"
 		},
 		{
 			"path": "res://assets/generated/audio/step_grass_2.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "7e0e37345b1debd5ad692d94878d79facebc38265ecf13a408d68349e9e3ac75"
+			"sha256": "0be608145b175bad78a87672bfdfe9843a515d713a0ce691718de19ba9064a15"
 		},
 		{
 			"path": "res://assets/generated/audio/step_grass_3.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "cc52155ce94e6196509ea195d2b9341fca0bf29e7fa0bd5a62e7e131aae23856"
+			"sha256": "2b0fa460dee04620202bc9361cead5acf77d1c1022aa22313544b5779fd1b39c"
 		},
 		{
 			"path": "res://assets/generated/audio/step_paving_1.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "8da212a4972bab735d8c9449fd7c3f9d03d1ec2bab707a0faadd92b7f7d80632"
+			"sha256": "cbc3c511c8a71047a46d6d8fd22390936e97cde9d7ab5d88e44224b04015b9e6"
 		},
 		{
 			"path": "res://assets/generated/audio/step_paving_2.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "d423276f5c364ea9f2c2442701d195fe20080750941cd55a62e826d8865d0dde"
+			"sha256": "b324f37aa284b231fd924aab845d8db14381ad190f96badfbae7d3907f2d5fde"
 		},
 		{
 			"path": "res://assets/generated/audio/step_paving_3.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "142f0fd94a295bbfc45683645a80f0b7d4d1fb67eeba892c2353f01349fe7726"
+			"sha256": "1e109f040a5493f00349b4f4b2ed62683af3aed710b8ef9d517036ea4eca1274"
 		},
 		{
 			"path": "res://assets/generated/audio/step_stone_1.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "2e93db82f2e65a53ad53c559847306510a14ee5c83d226eb7817a7b8fde99959"
+			"sha256": "73d762d75765d831b248b8e8db0ca1d4da2d8bf61227a2de615054ff0f989bb6"
 		},
 		{
 			"path": "res://assets/generated/audio/step_stone_2.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "6558dcd4314a82a5d6d8b28c872365854a454f739a3ab127e85d7d4af82a7dfa"
+			"sha256": "1159e48a904d9f17b1fb50f3f6e0a33712b2389e8ebbbe150f3348d3e8b3ba6c"
 		},
 		{
 			"path": "res://assets/generated/audio/step_stone_3.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "ae58202f918fe6266c4bbdf67ebf725534b783d20a882a5ca5f816ec4c3f01ec"
+			"sha256": "ebea255ac818088fc5fefd64dcd496b6b0185e7046a0081b1277732d04c34585"
 		},
 		{
 			"path": "res://assets/generated/audio/step_wood_1.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "d89a3cb6dacda9bed6a7bf0729d33db63accdfb3b2b00d2231e837925ace0bc7"
+			"sha256": "9a9440566b847f373a8e0d21138b7fa6336bc3ec354b9800004e4ab6eb10cab6"
 		},
 		{
 			"path": "res://assets/generated/audio/step_wood_2.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "957c33edfbd818c7a0e54e93e0820e415cf4e7e25e8e9e802c8ce133da73ee4c"
+			"sha256": "3b459945fc6ac6f436ade4d4be401d9c3af054b64fba5b561f83c289dbe13c8e"
 		},
 		{
 			"path": "res://assets/generated/audio/step_wood_3.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
-			"sha256": "b1d486695abda89309d2d84d019612cf851b29c9c9c49443298f45d5ecbd316b"
+			"sha256": "f0247a7419d6d8968f9934ff1a455d97eb6bdfe0ec6dba91564e4ee66a772ec5"
 		},
 		{
 			"path": "res://assets/generated/audio/thunder_1.wav",

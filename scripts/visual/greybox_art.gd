@@ -129,6 +129,7 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 		env.volumetric_fog_length = float(plus["volumetric_length_m"])
 		env.volumetric_fog_anisotropy = float(plus["volumetric_anisotropy"])
 		env.volumetric_fog_ambient_inject = float(plus["volumetric_ambient_inject"])
+		env.volumetric_fog_sky_affect = float(plus["volumetric_sky_affect"])
 	world.environment = env
 	var sun := world.get_parent().get_node("Light") as DirectionalLight3D
 	sun.light_color = color_value(cfg["sun_color"])

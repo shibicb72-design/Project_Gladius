@@ -277,7 +277,7 @@ func _process(delta: float) -> void:
 		var sun := _sun()
 		var world := get_parent() as WorldEnvironment
 		var k := clampf(_flash_left / float(w["lightning_s"]), 0.0, 1.0)
-		var flicker := k * (0.6 + 0.4 * sin(_flash_left * 90.0))
+		var flicker := k * (0.6 + 0.4 * sin(_flash_left * 90.0)) if _flash_left > 0.0 else 0.0  # the last step puts the light back exactly
 		if sun != null:
 			sun.light_energy = float(look["light"]["sun_energy"]) + float(w["lightning_energy"]) * flicker
 			sun.light_color = GreyboxArt.color_value(look["light"]["sun_color"]).lerp(GreyboxArt.color_value(w["lightning_color"]), flicker)

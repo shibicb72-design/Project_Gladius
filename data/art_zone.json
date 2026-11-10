@@ -20,7 +20,7 @@
 	},
 	"target_ring": {
 		"tint": [1.0, 0.78, 0.36, 1.0],
-		"strength": 1.3,
+		"strength": 0.9,
 		"dash_m": 3.0,
 		"run_mps": 1.5
 	},

@@ -53,6 +53,13 @@ func _ready() -> void:
 			_scene_shot_name = a.substr(13)
 		elif a.begins_with("--variant="):  # S1: force a look variant (dusk | night | storm) for the 3D shots
 			MatchLook.variant_override = a.substr(10)
+		elif a.begins_with("--on=") or a.begins_with("--off="):  # S9: preset switches for this run, e.g. --on=fx_ssr_enabled,fx_ssao_enabled
+			for key in a.get_slice("=", 1).split(","):
+				GraphicsPresets.overrides[key] = a.begins_with("--on=")
+		elif a.begins_with("--set="):  # S9: preset values for this run, e.g. --set=shadow_mode:pssm4,sun_angular_distance:0.6
+			for pair in a.substr(6).split(","):
+				var value := pair.get_slice(":", 1)
+				GraphicsPresets.overrides[pair.get_slice(":", 0)] = float(value) if value.is_valid_float() else value
 		elif a == "--left-fire":  # G3e: shot with the optional left Fire button on (profile flag), e.g. --tag=left_fire_on --layout-shot=cover_landscape
 			_left_fire = true
 		elif a.begins_with("--menu-shot="):  # in-match menu: saves <tag>_closed_<value>_landscape.png and <tag>_open_...; use --tag=menu

@@ -304,9 +304,12 @@ func _hits() -> void:
 
 func _step(salt: int, hz: float, q: float, decay: float, click: float, low: float) -> PackedFloat32Array:
 	var out := _buf(0.3)
+	# A step is mostly a short knock in the body band; the low thud under it stays quiet so eighteen
+	# soldiers walking do not rumble.
 	_mix(out, _env(_bp(_noise(0.25, salt), hz, q), 0.004, decay), 1.0)
+	_mix(out, _env(_bp(_noise(0.25, salt + 3), hz * 2.3, q * 0.8), 0.002, decay * 0.6), 0.5)
 	_mix(out, _env(_hp(_noise(0.03, salt + 1), 2800.0), 0.0005, 0.004), click)
-	_mix(out, _env(_tone(0.12, 110.0, 55.0), 0.002, 0.03), low)
+	_mix(out, _env(_tone(0.1, 150.0, 85.0), 0.002, 0.022), low * 0.35)
 	# Armour moving with the step.
 	_mix(out, _env(_bp(_noise(0.1, salt + 2), 5200.0, 6.0), 0.01, 0.02), 0.07, 0.03)
 	return out
@@ -475,14 +478,14 @@ func _ambience() -> void:
 			thunder[k] *= 0.7 + 0.3 * rumble[k]
 		_save("thunder_%d" % (i + 1), _fade(_space(_drive(thunder, 2.0), 0.7, 0.8), 0.0, 1.0), 0.85)
 	# Night insects: thin pulsed tones over quiet air. Loops.
-	var night := _lp(_noise(4.0, 840), 300.0)
-	_gain(night, 0.3)
+	var night := _lp(_lp(_noise(4.0, 840), 260.0), 400.0)
+	_gain(night, 0.12)
 	for voice: Array in [[4300.0, 17.0, 0.0], [5100.0, 23.0, 1.3], [3700.0, 13.0, 2.2]]:
 		var chirp := _tone(4.0, float(voice[0]), float(voice[0]))
 		var pulse := _tone(4.0, float(voice[1]), float(voice[1]), 2)
 		for k in chirp.size():
 			chirp[k] *= maxf(pulse[k], 0.0) * maxf(sin(TAU * 0.25 * k / RATE + float(voice[2])), 0.0)
-		_mix(night, chirp, 0.07)
+		_mix(night, chirp, 0.1)
 	_save("night_loop", _loop(night, 0.3), 0.4)
 	# A banner snapping in the wind (one shot, played at random near flags).
 	var flap := _env(_bp(_noise(0.25, 850), 500.0, 0.7, 1400.0), 0.01, 0.05)

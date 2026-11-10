@@ -119,6 +119,23 @@
 			"splash_amount": 140, "splash_lifetime_s": 0.32, "splash_size_m": 0.28, "splash_box_m": 16,
 			"lightning_every_s": [7.0, 19.0], "lightning_s": 0.22, "lightning_energy": 2.6, "lightning_color": [0.8, 0.86, 1.0, 1.0]}
 	},
+	"forward_plus": {
+		"_note": "OQ-GFX-RENDERER: numbers for the effects only the Forward+ renderer draws (screen-space reflections, ambient occlusion and indirect light, volumetric fog). They do nothing on the Mobile renderer; the preset's fx_* switches turn each on.",
+		"ssr_max_steps": 48,
+		"ssr_fade_in": 0.15,
+		"ssr_fade_out": 2.0,
+		"ssao_radius_m": 1.4,
+		"ssao_intensity": 1.6,
+		"ssil_radius_m": 4.0,
+		"ssil_intensity": 0.8,
+		"volumetric_density": 0.0035,
+		"volumetric_albedo": [1.0, 0.9, 0.8, 1.0],
+		"volumetric_length_m": 96.0,
+		"volumetric_anisotropy": 0.75,
+		"volumetric_ambient_inject": 0.0,
+		"volumetric_sky_affect": 0.0,
+		"volumetric_sun_energy": 2.2
+	},
 	"shafts": {
 		"_note": "Sun shafts are a few see-through quads that hang in the air along the sun's direction at the places listed (additive, no depth read). Drawn only with art_shafts_enabled and when the variant's sun is strong enough (min_sun_energy).",
 		"min_sun_energy": 1.5,
