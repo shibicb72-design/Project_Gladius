@@ -55,8 +55,12 @@ func test_rim_arches_have_piers_and_a_lintel_and_the_way_under_is_open() -> void
 		assert_true(inner >= 2.0 and lintel_bottom >= 2.5, "%s: the way under is %.2f m wide and %.2f m high" % [id, inner, lintel_bottom])
 		# S7 (lead's review): look and collider agree. The arch's legs reach the ground like its piers do
 		# (they used to stop 0.625 m above it), and a pier ends where a leg ends: at the lintel's underside.
-		var look := map.get_node("Decor").get_node(id) as MeshInstance3D
-		var look_bottom := (look.global_transform * look.mesh.get_aabb()).position.y
+		var builder := map.get_node("ArtBuilder")
+		var look: MultiMeshInstance3D = builder.chunks.batch_of("decor", builder.decor_types[id], body.transform)
+		assert_true(look != null, id + ": the arch's look is an instance of its chunk's decor batch at the body's transform")
+		if look == null:
+			continue
+		var look_bottom := (look.global_transform * body.transform * look.multimesh.mesh.get_aabb()).position.y
 		assert_true(look_bottom <= 0.001, "%s: the arch's legs reach the ground (lowest point of the look %.3f m)" % [id, look_bottom])
 		var left_pier := body.get_node("PierLeft") as CollisionShape3D
 		var pier_top := body.position.y + left_pier.position.y + (left_pier.shape as BoxShape3D).size.y * 0.5
@@ -110,8 +114,12 @@ func test_rim_rocks_are_solid_hulls_and_paving_is_not() -> void:
 			assert_true(body != null and body.get_child_count() == 1 and (body.get_child(0) as CollisionShape3D).shape is ConvexPolygonShape3D, id + ": one convex hull")
 			if body == null:
 				continue
-			var look := map.get_node("Decor/" + id) as MeshInstance3D
-			var bounds := look.mesh.get_aabb().grow(0.001)
+			var builder := map.get_node("ArtBuilder")
+			var look: MultiMeshInstance3D = builder.chunks.batch_of("decor", builder.decor_types[id], body.transform)
+			assert_true(look != null, id + ": the rock's look is an instance of its chunk's decor batch at the body's transform")
+			if look == null:
+				continue
+			var bounds := look.multimesh.mesh.get_aabb().grow(0.001)
 			var points := ((body.get_child(0) as CollisionShape3D).shape as ConvexPolygonShape3D).points
 			assert_true(points.size() >= 8, id + ": hull has points")
 			for p in points:

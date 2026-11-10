@@ -10,25 +10,28 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 	_tree().root.add_child(map)
 	var cfg := GreyboxArt.config()
 	assert_true(bool(cfg["_placeholder"]), "art values remain placeholders")
+	var builder := map.get_node("ArtBuilder")
 	for body in map.get_node("Nav").get_children():
-		if body.is_in_group(WorldKit.GROUP) or body.is_in_group(&"ring_cover"):
-			continue  # W1, W3: kit pieces and ring cover hold colliders only; their look is the batches checked below
+		if body.is_in_group(WorldKit.GROUP) or body.is_in_group(&"ring_cover") or body in builder.cover_bodies:
+			continue  # W1, W3, M2P1A: kit pieces, ring and inner cover hold colliders only; their look is the chunk batches checked below
 		# S2: the world's material is the textured surface shader (or a per-pixel StandardMaterial3D); either
 		# way it must take light (WorldSurface.is_lit), which is what this check has always been about.
 		var mesh := body.get_node_or_null("Mesh") as MeshInstance3D
 		assert_true(mesh != null and mesh.material_override != null, "material on " + String(body.name))
 		if mesh != null and mesh.material_override != null:
 			assert_true(WorldSurface.is_lit(mesh.material_override), "world is lit: " + String(body.name))
-	var batches := map.get_node("ArtBuilder/Structures").get_children()
+	var chunks := builder.get_node("Chunks") as MapChunks
+	var batches := chunks.batches("structure")
 	assert_true(not batches.is_empty(), "world kit batches present")
 	for batch: MultiMeshInstance3D in batches:
 		var material := batch.multimesh.mesh.surface_get_material(0)
 		assert_true(material != null and batch.material_override == null, "material on " + String(batch.name))
 		assert_true(WorldSurface.is_lit(material), "world kit is lit")
-	var ring_batches := map.get_node("ArtBuilder/RingCover").get_children()
-	assert_true(not ring_batches.is_empty(), "ring cover batches present")
-	for batch: MultiMeshInstance3D in ring_batches:
-		assert_true(WorldSurface.is_lit(batch.material_override), "lit material on " + String(batch.name))
+	for source: String in ["cover", "ring"]:
+		var cover_batches := chunks.batches(source)
+		assert_true(not cover_batches.is_empty(), source + " cover batches present")
+		for batch: MultiMeshInstance3D in cover_batches:
+			assert_true(WorldSurface.is_lit(batch.material_override), "lit material on " + String(batch.name))
 	var unlit := StandardMaterial3D.new()
 	unlit.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	assert_true(not WorldSurface.is_lit(unlit) and not WorldSurface.is_lit(null), "the lit check tells an unshaded material apart")

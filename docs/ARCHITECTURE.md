@@ -305,6 +305,49 @@ android/              debug.keystore (shared debug key only)
   foley sound per step; other pawns stay one voice per step.
 - Part b (not built): reverb zones, impacts by material, distance filters.
 
+### 4.20 Maps and the chunked map builder
+- Status (M2 P1a, Nov 10 2026): the first of three pipeline slices towards the 1 km map. Built: map
+  selection, per-map piece files, looks batched per chunk, a 300 m test map, tree-count proxies.
+  Not built: height-field terrain and saved navigation (P1b); visibility ranges, culling, near and far
+  meshes, fog and far plane, loot grid, bot think rate (P1c).
+- **Which map a match loads.** `data/map_select.json` `"map"` names a map json.
+  `MatchRoot.select_map()` returns `{path, error}`; a missing or invalid map gives
+  `alesia_section` and a non-empty error, and only `MatchRoot.begin()` reports it. The file
+  `user://map_select_override` (one `res://data/maps/<file>.json` path on its first line) wins when
+  it exists: a measurement tool for a debug build on the phone, like the perf logger's flag file.
+  `MatchRoot.map_path` holds the loaded map; tests set `map_path_override`.
+- **A map** is `data/maps/<id>.json` (scene, spawns, landmarks) plus a scene with `Nav/Ground`,
+  `ArtBuilder`, `Decor` and `SquadSpawns` markers named like the json spawns. Two optional keys name
+  the map's own piece files: `"cover_data"` (`pieces`, `ring_pieces`, `decor`) and
+  `"structure_data"` (`pieces`). Without them the alesia files are used. Piece types and decor
+  colliders always come from `data/maps/alesia_cover.json`, structure types from
+  `data/maps/alesia_structures.json`. `DataRegistry.validate_map()` checks all of this.
+- **The builder** (`scripts/visual/astra_map.gd`, node `ArtBuilder`) builds the map named by its
+  exported `map_json` (default `alesia_section`; `MatchRoot` sets it before the scene enters the
+  tree). Physics and cover stay per piece: every piece is its own `StaticBody3D` under `Nav`, and a
+  coverable piece keeps the cover contract of `scripts/systems/cover_probe.gd` (group `cover_wall`,
+  a `Shape` child holding a box, collision layer 1).
+- **Looks are batched per chunk** (`scripts/visual/map_chunks.gd`, `MapChunks`):
+  `ArtBuilder/Chunks/Chunk_<ix>_<iz>/Batch_<source>_<type>`, one `MultiMeshInstance3D` per chunk,
+  source (`cover`, `ring`, `structure`, `decor`) and type, with that type's material and its source's
+  shadow setting (decor casts none). A decor type is `<kind>_<n>`, one per kind and size
+  (`ArtBuilder.decor_types` maps a decor id to it), because Godot strips "." from node names. The grid starts at the map centre: index = floor((x + half) / size) on each axis, clamped
+  to the grid; the piece's body origin decides. Chunk nodes stay at the origin, so an instance
+  transform equals its body's transform; each batch keeps it in the `transforms` meta.
+  `data/map_build.json` `chunk_size_m` is a placeholder (OQ-MAP-CHUNK).
+- **Not batched:** alesia's eight scene-authored walls, which retire with the M1 map. The scene's
+  `Decor` node stays in the layout but holds nothing since the decor looks moved into the chunks.
+- **The test map** `data/maps/test_300.json` is test-only, for performance measurement: a 300 m
+  ground with alesia's types at alesia's density. `tools/gen_test_map.gd` writes its two piece files
+  from the `"generator"` block with a fixed seed; a test checks that the committed files equal the
+  generator's output. Zone, loot and drop data are unchanged, so a match plays only its centre.
+- **Proxies.** A headless run has no draw counts, so `MapChunks.proxies()` counts nodes per map and
+  per chunk (`MultiMeshInstance3D`, `MeshInstance3D`, unique materials, bodies);
+  `tests/test_map_proxy.gd` checks them against `data/map_build.json` `proxy_limits` (placeholders,
+  OQ-MAP-PROXY) and prints one `MAP_PROXY` line per map. `tests/test_astra_perf.gd` reports its
+  draw proxy on the test map too. `tools/nav_bake_time.gd -- --map=<json>` times the bake of a map.
+  None of these is a frame time: the Fold measurement decides.
+
 ## 5. Testing
 
 - `tests/run_tests.gd` (`extends SceneTree`) finds `tests/test_*.gd` and runs every `test_*` method
@@ -330,7 +373,7 @@ android/              debug.keystore (shared debug key only)
 | Mode variant | `modes.json` with existing `rules` | No |
 | New mode | `modes.json` + rules script + registry line | Yes, isolated |
 | Bot profile | `bots.json` `profiles` | No |
-| Map | `maps/<id>.json` + scene with matching markers | No |
+| Map | `maps/<id>.json` + scene with matching markers (+ its own piece files); pick it in `map_select.json` | No |
 | Cosmetic / medal / rank | `cosmetics.json` / `medals.json` / `progression.json` | No |
 | Graphics preset | `graphics_presets.json` | No |
 

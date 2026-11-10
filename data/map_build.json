@@ -1,0 +1,12 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-MAP-CHUNK: chunk_size_m is a first guess for Shibi, not a design value; a Fold measurement decides it.",
+	"chunk_size_m": 50,
+	"proxy_limits": {
+		"_placeholder": true,
+		"_todo": "OQ-MAP-PROXY: placeholder limits on tree counts (MapChunks.proxies), not measured frame cost; a Fold measurement decides them.",
+		"_note": "Each limit is the larger of the two maps' measured values (alesia_section, test_300; measured after stop 6, the decor looks batched per chunk, chunk_size_m 50) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
+		"per_chunk": {"multimesh": 30, "mesh_instances": 9, "materials": 2, "bodies": 95},
+		"per_map": {"multimesh": 700, "mesh_instances": 150, "materials": 30, "bodies": 850}
+	}
+}

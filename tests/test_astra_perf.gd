@@ -36,11 +36,14 @@ func _count(node: Node, splits: int) -> Vector2i:
 		result += _count(child, splits)
 	return result
 
-func test_whole_match_geometry_proxy_budget() -> void:
+## A full 18-player match on `map_override` ("" = the map selection), every pawn frozen mid-shot:
+## [match, shadow splits to count with].
+func _full_match(map_override: String) -> Array:
 	var tree: SceneTree = Engine.get_main_loop()
 	var match_scene: MatchRoot = load("res://scenes/match/match.tscn").instantiate()
 	match_scene.auto_start = false
 	match_scene.bake_navmesh = false
+	match_scene.map_path_override = map_override
 	tree.root.add_child(match_scene)
 	await tree.physics_frame
 	match_scene.director.load_config()
@@ -51,6 +54,13 @@ func test_whole_match_geometry_proxy_budget() -> void:
 	for pawn: Pawn in match_scene.director.all_players().values():
 		pawn.set_physics_process(false)
 		pawn.shot_fx.show_shot(pawn.get_muzzle_position(), pawn.global_position + Vector3(0, 1, -10))
+	return [match_scene, splits]
+
+func test_whole_match_geometry_proxy_budget() -> void:
+	var setup: Array = await _full_match("")
+	var match_scene: MatchRoot = setup[0]
+	var splits: int = setup[1]
+	var cfg: Dictionary = LowpolyKit.config()["performance"]
 	var counts := _count(match_scene, splits)
 	assert_true(counts.x > 0 and counts.y > 0, "nonvacuous proxy")
 	assert_true(counts.x <= int(cfg["draw_budget"]), "draw proxy within placeholder budget")
@@ -64,4 +74,14 @@ func test_whole_match_geometry_proxy_budget() -> void:
 	var with_corpses := _count(match_scene, splits)
 	assert_true(with_corpses.x <= int(cfg["draw_budget"]) and with_corpses.y <= int(cfg["triangle_budget"]), "lingering corpse envelope within budget")
 	print("ASTRA_PERF with six corpses, proxy, not measured: draw=", with_corpses.x, " triangles=", with_corpses.y)
+	match_scene.free()
+
+## Report only: the same proxy on the TEST-ONLY 300 m map (data/maps/test_300.json); no budget applies to it.
+func test_whole_match_geometry_proxy_on_test_300_report_only() -> void:
+	var setup: Array = await _full_match("res://data/maps/test_300.json")
+	var match_scene: MatchRoot = setup[0]
+	assert_eq(match_scene.map_path, "res://data/maps/test_300.json", "the match loaded the test map")
+	var counts := _count(match_scene, setup[1])
+	assert_true(counts.x > 0 and counts.y > 0, "nonvacuous proxy")
+	print("ASTRA_PERF map=test_300 proxy, not measured, report only: draw=", counts.x, " triangles=", counts.y)
 	match_scene.free()

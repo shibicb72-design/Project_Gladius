@@ -56,27 +56,39 @@ func test_cover_footprints_colliders_and_literal_baseline() -> void:
 				continue
 			var old_size := LowpolyKit.vec(BASELINE[key][0])
 			assert_true(not bounds.intersects(AABB(LowpolyKit.vec(BASELINE[key][1]) - old_size * 0.5, old_size)), "no overlap with " + key)
-		var mesh: Mesh = body.get_node("Mesh").mesh
+		# M2P1A: the look is the cover batch of the piece's type in the piece's chunk.
+		var index: Vector2i = map.get_node("ArtBuilder/Chunks").index_of(body.position)
+		var batch := map.get_node_or_null("ArtBuilder/Chunks/Chunk_%d_%d/Batch_cover_%s" % [index.x, index.y, entry["type"]]) as MultiMeshInstance3D
+		assert_true(batch != null, "cover batch in the piece's chunk: " + String(body.name))
+		var mesh: Mesh = batch.multimesh.mesh if batch != null else null
 		assert_true(mesh is ArrayMesh and mesh.get_surface_count() > 0, "real kit mesh")
 		if cache.has(entry["type"]):
 			assert_true(mesh == cache[entry["type"]], "repeated cover shares mesh")
 		cache[entry["type"]] = mesh
-	# Was: "decor collider free" for every decor node. W2: a decor mesh still holds no collider itself; the kinds
+	# Was: "decor collider free" for every decor node. W2: a decor look still holds no collider itself; the kinds
 	# listed in "decor_colliders" (the twelve rim arches and rocks) each have a solid body under Nav on the same
 	# spot, and the eight flat paving slabs stay collider free (tests/test_world_rim.gd checks the shapes).
-	for node in map.get_node("Decor").get_children():
-		assert_true(node is MeshInstance3D and node.get_child_count() == 0, "a decor mesh holds no collider itself")
+	# M2P1A: the decor looks are instances of the "decor" chunk batches; the scene's Decor node stays empty.
+	var builder := map.get_node("ArtBuilder")
+	var chunks: MapChunks = builder.chunks
+	assert_eq(map.get_node("Decor").get_child_count(), 0, "the scene's Decor node holds no looks")
+	assert_true(not chunks.batches("decor").is_empty(), "nonvacuous: there are decor batches")
+	for node in chunks.batches("decor"):
+		assert_true(node.get_child_count() == 0, "a decor batch holds no collider itself")
 	var solid := {}
-	for body: StaticBody3D in map.get_node("ArtBuilder").decor_bodies:
+	for body: StaticBody3D in builder.decor_bodies:
 		solid[String(body.get_meta(&"decor_id"))] = body
 	var rim := 0
 	var paving := 0
 	for entry: Dictionary in cfg["decor"]:
-		var look := map.get_node("Decor/" + String(entry["id"])) as MeshInstance3D
+		var id := String(entry["id"])
+		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), LowpolyKit.vec(entry["at"]))
+		var look := chunks.batch_of("decor", String(builder.decor_types.get(id, "")), xform)
+		assert_true(look != null, id + ": the decor look is an instance of its chunk's decor batch at the entry's transform")
 		if (cfg["decor_colliders"] as Dictionary).has(entry["kind"]):
 			rim += 1
 			var body: StaticBody3D = solid.get(entry["id"])
-			assert_true(body != null and body.get_parent() == nav and body.transform.is_equal_approx(look.transform), String(entry["id"]) + ": a solid body under Nav on its decor mesh")
+			assert_true(body != null and body.get_parent() == nav and body.transform.is_equal_approx(xform) and look != null and chunks.batch_of("decor", String(builder.decor_types[id]), body.transform) == look, id + ": a solid body under Nav on its decor look's instance transform")
 		else:
 			paving += 1
 			assert_true(not solid.has(entry["id"]) and String(entry["id"]).begins_with("Paving_"), String(entry["id"]) + ": paving stays collider free")

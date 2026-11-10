@@ -4,15 +4,44 @@ var cover_bodies: Array[StaticBody3D] = []
 var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
 var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
 var ring_bodies: Array[StaticBody3D] = []  # W3 cover of the outer ring (groups "ring_cover" and "cover_wall")
+var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and decor, batched per chunk (node "Chunks")
+## M2P1A: decor id -> its batch type in source "decor" ("<kind>_<n>", n = the index of the entry's size among
+## its kind's distinct sizes, first seen first). A decor look is chunks.batch_of("decor", decor_types[id], xform).
+var decor_types := {}
+## The map json this scene builds. MatchRoot sets it before the map enters the tree; scenes built
+## directly keep the default.
+@export var map_json: String = "res://data/maps/alesia_section.json"
+
+const COVER_PATH := "res://data/maps/alesia_cover.json"
 
 func _ready() -> void:
 	var map := get_parent()
 	var nav := map.get_node("Nav")
-	var cfg := DataRegistry.new().load_file("res://data/maps/alesia_cover.json")
+	var reg := DataRegistry.new()
+	var map_def := reg.load_file(map_json)
+	# Cover types and decor colliders always come from the alesia cover file; the pieces, ring pieces and
+	# decor come from the map's "cover_data" file (default: the same alesia file).
+	var base := reg.load_file(COVER_PATH)
+	var placed := reg.load_file(String(map_def.get("cover_data", COVER_PATH)))
+	var cfg := {
+		"types": base["types"],
+		"decor_colliders": base.get("decor_colliders", {}),
+		"pieces": placed["pieces"],
+		"ring_pieces": placed.get("ring_pieces", []),
+		"decor": placed["decor"],
+	}
 	var meshes := {}
 	for type: String in cfg["types"]:
 		var definition: Dictionary = cfg["types"][type]
 		meshes[type] = LowpolyKit.build_cover(definition)
+	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
+	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
+	# runs once, after the decor loop.
+	chunks = MapChunks.new()
+	chunks.name = "Chunks"
+	add_child(chunks)
+	var ground := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
+	chunks.setup(ground.get_aabb().size.x if ground != null else 0.0)
 	for entry: Dictionary in cfg["pieces"]:
 		var definition: Dictionary = cfg["types"][entry["type"]]
 		var body := StaticBody3D.new()
@@ -23,11 +52,7 @@ func _ready() -> void:
 		if bool(definition.get("coverable", false)):
 			body.add_to_group(&"cover_wall")
 		body.position = LowpolyKit.vec(entry["at"])
-		var mesh := MeshInstance3D.new()
-		mesh.name = "Mesh"
-		mesh.mesh = meshes[entry["type"]]
-		mesh.material_override = WorldSurface.palette_material(String(definition.get("palette", "citadel")))
-		body.add_child(mesh)
+		chunks.add("cover", String(entry["type"]), meshes[entry["type"]], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
 		var box := BoxShape3D.new()
@@ -52,30 +77,32 @@ func _ready() -> void:
 		if size.z > size.x:
 			mesh.rotation.y = PI * 0.5
 	# W1: world kit pieces come after the loop above, which takes every other Nav child for a one-box wall.
-	# They are bodies in group "structure" (never cover_wall); their look is one batch per type under this node.
-	var structure_batches := Node3D.new()
-	structure_batches.name = "Structures"
-	add_child(structure_batches)
-	structure_bodies = WorldKit.populate(nav, structure_batches, WorldKit.config()["pieces"])
+	# They are bodies in group "structure" (never cover_wall); their look is one batch per chunk and type.
+	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def))
 	_build_ring(nav, cfg, meshes)
-	var decor := map.get_node("Decor") as Node3D
 	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
+	# M2P1A: the decor looks draw as one batch per chunk, kind and size (source "decor", type "<kind>_<n>", see
+	# decor_types); the scene's Decor node stays empty. Solid decor bodies still go under Nav.
 	var decor_solid: Dictionary = cfg.get("decor_colliders", {})
+	var size_index := {}  # kind + str(size) -> index of that size among the kind's sizes, first seen first
+	var size_counts := {}  # kind -> distinct sizes seen so far
 	for entry: Dictionary in cfg["decor"]:
-		var mesh := MeshInstance3D.new()
-		mesh.name = entry["id"]
-		var key: String = entry["kind"] + str(entry["size"])
+		var kind := String(entry["kind"])
+		var key: String = kind + str(entry["size"])
 		if not meshes.has(key):
-			meshes[key] = LowpolyKit.build(entry["kind"], LowpolyKit.vec(entry["size"]))
-		mesh.mesh = meshes[key]
-		mesh.position = LowpolyKit.vec(entry["at"])
-		mesh.rotation.y = deg_to_rad(float(entry["yaw"]))
-		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		decor.add_child(mesh)
+			meshes[key] = LowpolyKit.build(kind, LowpolyKit.vec(entry["size"]))
+		if not size_index.has(key):
+			size_index[key] = int(size_counts.get(kind, 0))
+			size_counts[kind] = int(size_index[key]) + 1
+		var type := "%s_%d" % [kind, int(size_index[key])]
+		decor_types[String(entry["id"])] = type
+		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), LowpolyKit.vec(entry["at"]))
+		chunks.add("decor", type, meshes[key], null, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, xform)
 		if decor_solid.has(entry["kind"]):
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key])
 			nav.add_child(solid)
 			decor_bodies.append(solid)
+	chunks.build()
 	_paint_ground(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	if bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false)):
@@ -101,7 +128,7 @@ func _paint_ground(nav: Node) -> void:
 	if ground_mesh == null:
 		return
 	ground_size_m = ground_mesh.get_aabb().size.x
-	var map_def := DataRegistry.new().load_file(MatchRoot.MAP_PATH)
+	var map_def := DataRegistry.new().load_file(map_json)
 	var landmark_path := String(map_def.get("landmarks", ""))
 	var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
 	var trodden := PackedVector2Array()
@@ -109,18 +136,15 @@ func _paint_ground(nav: Node) -> void:
 		for body: StaticBody3D in group:
 			trodden.append(Vector2(body.position.x, body.position.z))
 	add_to_group(&"ground_paint")
-	ground_paint = GroundPaint.build(MatchRoot.MAP_PATH, ground_size_m, landmarks, trodden)
-	ground_mesh.material_override = WorldSurface.ground_material(GroundPaint.texture(MatchRoot.MAP_PATH), ground_size_m)
+	ground_paint = GroundPaint.build(map_json, ground_size_m, landmarks, trodden)
+	ground_mesh.material_override = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
 
 
 ## W3: the outer ring's cover (cfg "ring_pieces"): the same one-box cover types as the inner band, in their own
 ## list with their own rules ("ring_rules"). A ring body holds its Shape only (groups ring_cover and, when the
-## type is coverable, cover_wall); all pieces of a type draw as one batch with one material per palette.
+## type is coverable, cover_wall); the pieces of a type draw as one batch per chunk with the inner cover's
+## material per palette, casting shadows like the inner cover.
 func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
-	var batches := Node3D.new()
-	batches.name = "RingCover"
-	add_child(batches)
-	var by_type := {}
 	for entry: Dictionary in cfg.get("ring_pieces", []):
 		var type := String(entry["type"])
 		var definition: Dictionary = cfg["types"][type]
@@ -141,24 +165,4 @@ func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
 		body.add_child(shape)
 		nav.add_child(body)
 		ring_bodies.append(body)
-		if not by_type.has(type):
-			by_type[type] = []
-		(by_type[type] as Array).append(body.transform)
-	var materials := {}
-	for type: String in by_type:
-		var palette := String(cfg["types"][type].get("palette", "citadel"))
-		if not materials.has(palette):
-			materials[palette] = WorldSurface.palette_material(palette)  # the inner cover pieces' material
-		var transforms: Array = by_type[type]
-		var batch := MultiMesh.new()
-		batch.transform_format = MultiMesh.TRANSFORM_3D
-		batch.mesh = meshes[type]
-		batch.instance_count = transforms.size()
-		for i in transforms.size():
-			batch.set_instance_transform(i, transforms[i])
-		var node := MultiMeshInstance3D.new()
-		node.name = "Batch_" + type
-		node.multimesh = batch
-		node.material_override = materials[palette]
-		node.set_meta(&"transforms", transforms)  # a headless renderer keeps no instance data to read back
-		batches.add_child(node)  # casts shadows like the inner cover: one more shadow draw per type (performance risk)
+		chunks.add("ring", type, meshes[type], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
