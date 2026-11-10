@@ -19,7 +19,6 @@ var map: Node3D
 var router: InputRouter
 var local_player: Pawn
 var bots: Array[Pawn] = []
-var zone: HillZone
 var roster: MatchRoster
 ## Tests running two peers in one process inject these instead of the AppFlow globals.
 var session_override: NetSession
@@ -34,6 +33,16 @@ var _gyro: GyroProvider
 var _client_bridge: NetMatchBridge
 var _input_accum_s: float = 0.0
 var _spawn_synced: bool = false
+## Battle royale presentation: zone wall (built at start) and the follow camera after elimination.
+var zone_wall: ZoneWall
+var spectator: SpectatorCamera
+## Open the match with the drop from the sky (br.json drop.enabled must also be true). Set for real
+## matches (auto_start); tests that do not opt in start on the ground at the spawn spots.
+var drop_from_sky: bool = false
+## Ground loot and the battle royale starting kit (S4). Set for real matches; tests opt in, otherwise
+## pawns keep their class loadouts.
+var ground_loot: bool = false
+var loot: LootField
 
 @onready var director: MatchDirector = $Director
 @onready var hud: GameHud = $Hud/GameHud
@@ -50,6 +59,8 @@ func _ready() -> void:
 	router = InputRouter.new()
 	add_child(router)
 	router.action_triggered.connect(_on_action_triggered)
+	router.action_released.connect(_on_action_released)
+	router.action_look_changed.connect(_on_action_look_changed)
 	router.add_provider(KeyboardMouseProvider.new())
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
@@ -71,6 +82,8 @@ func _ready() -> void:
 	pause_menu.closed.connect(_on_menu_closed)
 	pause_menu.quit_confirmed.connect(quit_to_menu)
 	if auto_start:
+		drop_from_sky = true  # real matches (menu / lobby) open with the carrier; tests opt in
+		ground_loot = true
 		var started: bool = begin()
 		if not started:
 			push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
@@ -101,22 +114,19 @@ func begin() -> bool:
 	if bake_navmesh and nav != null:
 		nav.bake_navigation_mesh(false)
 
-	var hill: Dictionary = map_def.get("hill", {})
-	var center := _vec(hill.get("center", [0, 0, 0]))
-	zone = HillZone.new()
-	add_child(zone)
-	zone.configure(center, float(hill.get("radius_m", 8.0)), float(hill.get("height_m", 3.0)))
-
+	# Spawns face the zone start center (br.json zone.start_center, x/z).
+	var zc: Array = director.mode_cfg.get("zone", {}).get("start_center", [0, 0])
+	var center := Vector3(float(zc[0]), 0.0, float(zc[1]))
 	var xforms: Dictionary = {}
 	var spawns: Dictionary = map_def.get("spawns", {})
 	for spot_id in spawns:
 		var pos := _vec(spawns[spot_id])
-		var to_hill := center - pos
-		to_hill.y = 0.0
-		xforms[spot_id] = Transform3D(Basis.looking_at(to_hill.normalized()), pos)
+		var to_center := center - pos
+		to_center.y = 0.0
+		if to_center.length() < 0.01:
+			to_center = Vector3.FORWARD
+		xforms[spot_id] = Transform3D(Basis.looking_at(to_center.normalized()), pos)
 
-	var radius := float(hill.get("radius_m", 8.0))
-	var squads: Array = range(int(director.match_cfg.get("squads", 2)))
 	var session := session_override
 	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
 		session = AppFlow.session
@@ -126,11 +136,13 @@ func begin() -> bool:
 	networked_match = networked
 	director.authoritative = not networked or session.is_host
 	if lobby != null:
+		# The host's Solo / Squads choice (lobby) overrides br.json's default before squads are assigned.
+		var teams: Dictionary = director.mode_cfg.get("teams", {})
+		teams["mode"] = {"value": lobby.team_mode}
+		director.mode_cfg["teams"] = teams
 		var slots := lobby.assign()
-		squads = range(lobby.squad_count)
 		roster = MatchRoster.new()
-		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, center, radius,
-				networked)
+		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, networked)
 		local_player = roster.local_pawn
 		bots = roster.bots
 		if networked:
@@ -152,7 +164,7 @@ func begin() -> bool:
 		add_child(local_player)
 		director.add_player(0, local_player)
 		if fill_bots:
-			bots = BotSpawner.spawn_bots(self, director, {0: 1}, squads.size(), center, radius)
+			bots = BotSpawner.spawn_bots(self, director, {0: 1})
 	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
@@ -172,7 +184,52 @@ func begin() -> bool:
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
-	return director.start(squads, xforms, zone, seed_value)
+	if ground_loot:
+		loot = LootField.new()
+		loot.name = "Loot"
+		# W2: loot lands inside the zone's start circle; the circle is the one this match's mode config holds.
+		# W3: the map definition names its landmark file; loot clusters refer to those landmarks by id.
+		var landmark_path := str(map_def.get("landmarks", ""))
+		var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
+		loot.setup(DataRegistry.new().load_file("res://data/loot.json"), seed_value, director.mode_cfg.get("zone", {}), landmarks)
+		add_child(loot)
+		director.loot = loot
+	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))
+	var started := director.start(xforms, seed_value, use_drop)
+	if started:
+		director.player_eliminated.connect(_on_player_eliminated)
+		zone_wall = ZoneWall.new()
+		zone_wall.name = "ZoneWall"
+		zone_wall.bind(director, DataRegistry.new().load_file(UI_PATH).get("zone_wall", {}))
+		add_child(zone_wall)
+	return started
+
+
+func _local_id() -> int:
+	return roster.local_player_id if roster != null else 0
+
+
+## Elimination of the local player, or of the pawn being spectated: (re)pick who the camera follows.
+func _on_player_eliminated(player_id: int, killer_id: int, _cause: String) -> void:
+	var watching := spectator != null and spectator.target == director.player(player_id)
+	if player_id != _local_id() and not watching:
+		return
+	if director.rules == null:
+		return
+	var tid := SpectatorCamera.pick_target(_local_id(), killer_id, director.all_players().keys(),
+			func(i: int) -> int: return director.rules.squad_of(i),
+			func(i: int) -> bool:
+				var p := director.player(i)
+				return p != null and p.life != Pawn.Life.DEAD)
+	if tid < 0:
+		return
+	if spectator == null:
+		spectator = SpectatorCamera.new()
+		spectator.name = "SpectatorCamera"
+		spectator.configure(DataRegistry.new().load_file(UI_PATH).get("spectate", {}))
+		add_child(spectator)
+	spectator.follow(director.player(tid))
+	hud.spectate_text = "Spectating %s" % HudNumbers.squad_name(director.rules.squad_of(tid), hud.roman_numerals)
 
 
 ## Class for the offline / no-lobby player: data/match.json default_class, else the profile's
@@ -207,7 +264,30 @@ func _exit_tree() -> void:
 func _on_action_triggered(action: String) -> void:
 	if menu_open or local_player == null or not is_instance_valid(local_player):
 		return
+	if action == "interact":
+		# Interact: revive a DOWNED squad mate in range first, else pick up the nearest usable loot item.
+		if director.authoritative and not director.begin_revive(local_player.player_id):
+			director.try_pickup(local_player.player_id)
+		return
 	local_player.handle_action_press(action)
+
+
+## D2: the end of a held action (cover FIRE) reaches the current local pawn with no menu gate, because the UI
+## sends it exactly when the menu opens or the HUD hides. Pawn decides; null pawn is a no-op.
+func _on_action_released(action: String, cancel: bool) -> void:
+	if local_player == null or not is_instance_valid(local_player):
+		return
+	if action == "interact":
+		director.end_revive(local_player.player_id)
+		return
+	local_player.handle_action_release(action, cancel)
+
+
+## D2: per-refresh look state (cover FIRE look-hold), also ungated so false always lands.
+func _on_action_look_changed(action: String, active: bool) -> void:
+	if local_player == null or not is_instance_valid(local_player):
+		return
+	local_player.handle_action_look(action, active)
 
 
 func _on_menu_opened() -> void:
@@ -272,7 +352,6 @@ func _wire_client(bridge: NetMatchBridge) -> void:
 		local_player.reload_started.connect(bridge.send_reload)
 		local_player.weapon_switched.connect(bridge.send_weapon_slot)
 	bridge.snapshot_received.connect(_on_snapshot)
-	bridge.respawn_event.connect(_on_local_respawn_event)
 
 
 ## Host: reports every bot pawn's shot to the clients, the same way as the host player's own.
@@ -299,11 +378,6 @@ func _on_snapshot() -> void:
 	_client_bridge.apply_local_vitals(id)
 
 
-func _on_local_respawn_event(player_id: int) -> void:
-	if player_id == roster.local_player_id:
-		_client_bridge.snap_local_to_replica(player_id)
-
-
 static func _vec(a: Array) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
 
@@ -321,6 +395,11 @@ func _on_host_lost() -> void:
 
 ## Started from the menu flow: show the end screen after a short pause. Standalone runs stay put.
 func _on_match_over(result: Dictionary) -> void:
+	result = result.duplicate(true)
+	var me := _local_id()
+	result["local_player_id"] = me
+	result["local_squad_id"] = director.rules.squad_of(me) if director.rules != null and me >= 0 else -1
+	result["squad_count"] = (result.get("placements", {}) as Dictionary).size()
 	AppFlow.last_result = result
 	if AppFlow.lobby != null and lobby_override == null and is_inside_tree():
 		var delay_s := float(DataRegistry.new().load_file(UI_PATH).get("end_screen_delay_s", 3.0))

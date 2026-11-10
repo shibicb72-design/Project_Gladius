@@ -148,29 +148,38 @@ android/              debug.keystore (shared debug key only)
 - Add a faction: data entry + art; no code.
 
 ### 4.9 Game modes
-- Data: `modes.json`. Each mode has `rules` (behavior id) + params. `koth` has points_per_second 1,
-  score_to_win 100, time_limit_s 600, hill_modes fixed/moving, moving_warn_s 5. Later entries:
-  `slayer`, `capture_the_eagle`, `oddball`.
-- Code: `GameModeRules` base (`setup`, `tick(delta, world_facts) -> events`, `on_event`, `is_over`,
-  `result`). `KothRules` comes first. `ModeRegistry` maps `rules` id → script. Moving hill is a param
-  of KotH plus a hill-position provider, not a new mode.
-- Add a mode variant: data entry with existing `rules`. Add a new mode: one rules script + registry
-  line + optional objective scene (eagle, oddball).
+- Battle royale is the only mode (DESIGN.md, Nov 9 2026; King of the Hill was removed in M1 step S1b).
+- Data: `modes.json` maps a mode id to `rules` (behavior id) and an optional `data` path. `br` points at
+  `data/br.json` (zone phases, downed/revive, tie rule, teams, default seed; placeholders, OQ-BR-*).
+- Code: `GameModeRules` base (`setup`, `tick(delta, facts) -> events`, `is_over`, `result`). `ModeRegistry`
+  maps `rules` id → script. `ModeRegistry.create` loads a `data` file through `DataRegistry` (null if the file
+  is missing or not an object) and passes `setup` a deep copy of the entry with the file's keys merged in (the
+  file wins; the registry cache is never mutated).
+- `BrRules` (`scripts/systems/br_rules.gd`, pure RefCounted): `tick(delta, facts)` takes
+  `facts.positions {player_id: Vector2(x, z)}` and `facts.reviving {reviver_id: target_id}` and returns events
+  (`zone_phase`, `zone_damage`, `downed`, `revive_progress`, `revived`, `bled_out`, `dead`, `squad_eliminated`,
+  `match_over`); their keys and order are documented at the top of the file. Health comes in through
+  `report_zero_health(player_id, killer_id, cause)`.
+- Add a new mode: one rules script + registry line + data entry.
 
 ### 4.10 Match flow
-- `MatchDirector` (Node, authority only) owns the active GameModeRules, SpawnRules, StreakRules and
-  the match event log. Its states: `lobby → warmup (30 s max load, 30 s countdown, early start) →
-  playing → post_match`.
-- It feeds rules with world facts collected by presentation nodes. `HillZone` (Area3D) reports which
-  squads are inside; it decides nothing.
-- Spawns: `SpawnRules` gives each squad a random fixed spot for the whole match (seeded), a 5 s
-  respawn and 5 s spawn protection that ends on firing, not on pickup.
-- Killcam (later): after death the client shows 5 s on the killer, optionally up to 30 s; exit →
-  squad spot; timeout → random spot, still protected. Only the camera is client-side; respawn timing
-  stays with the authority.
-- Bots use exactly the same spawn/respawn path.
-- Join in progress, quitter→bot replacement and the host-drop 60 s pause (resettable up to 10×) are
-  MatchDirector/NetSession states, added later without changing the rules scripts.
+- `MatchDirector` (Node, authority only) owns `BrRules`. `load_config` keeps the merged `br` config in
+  `mode_cfg` (tests may edit it before `start`); `start` seeds the rules, sets the team mode and registers every
+  pawn. The roster fills to `match.json` `max_players` (18) on both the lobby and the standalone path: solo
+  = 18 squads of 1, squads = 6 squads of 3. In solo each pawn's squad id is its player id.
+- Each physics tick it sends positions and revive pairs to `BrRules` and acts on the events: zone damage
+  through `PawnRulesBridge.take_direct_damage`, pawn life state ALIVE / DOWNED / DEAD, deactivation on
+  `dead`, and the signals `zone_changed`, `alive_changed`, `player_downed`, `player_revived`,
+  `player_eliminated`, `match_over`. A hit that takes a pawn to zero health, or lands on a DOWNED pawn, is
+  reported once from `Pawn._notify_damage` as cause `hit` with the attacker's player id.
+- No respawn and no spawn protection. Until the drop from the sky (S3), squads start at the map's spawn
+  spots round-robin, offset on a ring when several squads share a spot.
+- Revive: the touch Interact button (a non-frame action through the input layer) asks the director to hold a
+  revive pair on the nearest DOWNED squad mate in range; release, menu, hidden HUD or leaving range ends it.
+- `MatchRoot` adds `local_player_id`, `local_squad_id` and `squad_count` to the result before the end screen.
+- Spectate and killcam (later, S2 / M4) are client-side cameras only.
+- Join in progress (OQ-BR-JOIN), quitter→bot replacement and the host-drop 60 s pause are
+  MatchDirector/NetSession states, added later without changing the rules scripts. LAN battle royale is M3.
 
 ### 4.11 Bots and commands
 - Data: `bots.json`. Profiles `tiro`, `miles`, `centurion`, `legatus` + custom slider fields
@@ -198,7 +207,17 @@ android/              debug.keystore (shared debug key only)
 - One-shot presses (D1): a provider's `trigger_action(action)` emits `action_triggered`; the router
   re-emits it at once and latches one pressed+just_pressed frame edge (even for a sub-tick tap).
   MatchRoot forwards it to the local pawn (`handle_action_press`), which toggles cover crouch. The
-  frame bit is transport only until D9/G3.2, so the pawn never toggles from it.
+  frame bit is transport only until the host-side cover slice, so the pawn never toggles from it.
+- Held press-time actions (D2): the in-cover FIRE control uses the action `cover_fire`, listed in
+  `InputRouter.NON_FRAME_ACTIONS` and not in `InputFrame.BUTTONS`/`LOCAL_BUTTONS` (no bit, no latch,
+  never sent). The provider's `trigger_action` / `release_action(action, cancel)` /
+  `set_action_look(action, active)` emit `action_triggered` / `action_released` / `action_look_changed`;
+  the router re-emits each at once, unfiltered, and MatchRoot forwards them to the local pawn
+  (`handle_action_press` / `handle_action_release` / `handle_action_look`), which calls
+  `cover.quick_draw(true)`, `cover.quick_draw(false, cancel)` and `cover.set_look_active(active)`. Only
+  the press is gated (menu in MatchRoot, death in Pawn, suspend in the UI); release and look go
+  through ungated so an interruption always lands. No file in scripts/ui calls a CoverController
+  mutator (tests/test_crouch_guard_d1.gd, no exceptions).
 - `InputRouter` merges the active providers into one `InputFrame` per physics tick. Providers:
   `KeyboardMouseProvider`, `GamepadProvider`, `TouchProvider`, `GyroProvider`. Each is swappable and
   can be enabled or disabled from settings.

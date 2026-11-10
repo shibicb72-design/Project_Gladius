@@ -19,7 +19,7 @@
   "pitch_max_deg": 70.0,
   "fov_table": [
     {"name": "phone_19_5_9", "min_aspect": 1.6, "fov_deg": 75.0},
-    {"name": "tablet_4_3", "min_aspect": 1.2, "fov_deg": 85.0},
+    {"name": "tablet_4_3", "min_aspect": 1.3, "fov_deg": 85.0, "_note": "Nov 9 2026: threshold 1.2 -> 1.3 so the Galaxy Z Fold 7 inner screen (2176x1812, 1.2009) gets the near-square row; screens between 1.2 and 1.3 (5:4) now also get it (OQ-37)."},
     {"name": "fold_inner_near_square", "min_aspect": 0.0, "fov_deg": 95.0}
   ]
 }

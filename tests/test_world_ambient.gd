@@ -68,6 +68,7 @@ func test_ambient_custom_configuration_is_not_a_baked_count() -> void:
 	cfg["foliage"]["count"] = 7
 	cfg["flags"]["positions"] = [[18, 0, 18]]
 	cfg["dust"]["amount"] = 17
+	cfg["dust"]["positions"] = [[12, 1.5, 12]]  # S7: the data ships no dust boxes any more; the emitter code still follows data
 	cfg["cloth"]["amplitude_m"] = 0.31
 	var ambient := WorldAmbient.new()
 	_tree().root.add_child(ambient)

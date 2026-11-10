@@ -9,7 +9,7 @@ func setup(p_cfg: Dictionary) -> void:
 	cfg = p_cfg
 
 
-## occupancy: {squad_id: players_on_hill}. Returns a list of event dictionaries.
+## facts: mode-specific world facts (BrRules: positions, reviving). Returns a list of event dictionaries.
 func tick(_delta: float, _occupancy: Dictionary) -> Array[Dictionary]:
 	return []
 

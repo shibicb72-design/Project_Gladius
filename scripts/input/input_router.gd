@@ -4,6 +4,13 @@ extends Node
 
 ## A provider's one-shot action press, re-emitted at press time (D1: gameplay toggles cover crouch on it).
 signal action_triggered(action: String)
+## A provider's held-action release and look state, re-emitted at once (D2: cover FIRE). NON_FRAME_ACTIONS only.
+signal action_released(action: String, cancel: bool)
+signal action_look_changed(action: String, active: bool)
+
+## Press-time actions that never enter the InputFrame (no bit, no latch, never sent): press, release and look
+## state are re-emitted as they arrive, unfiltered. Not in InputFrame.BUTTONS / LOCAL_BUTTONS.
+const NON_FRAME_ACTIONS: Array[String] = ["cover_fire", "interact"]
 
 var providers: Array[InputProvider] = []
 var _frame: InputFrame = InputFrame.new()
@@ -68,20 +75,46 @@ func add_provider(p: InputProvider) -> void:
 	providers.append(p)
 	if not p.action_triggered.is_connected(_on_provider_action):
 		p.action_triggered.connect(_on_provider_action)
+	if not p.action_released.is_connected(_on_provider_release):
+		p.action_released.connect(_on_provider_release)
+	if not p.action_look_changed.is_connected(_on_provider_look):
+		p.action_look_changed.connect(_on_provider_look)
 
 
 func remove_provider(p: InputProvider) -> void:
 	providers.erase(p)
-	if not providers.has(p) and p.action_triggered.is_connected(_on_provider_action):
+	if providers.has(p):
+		return
+	if p.action_triggered.is_connected(_on_provider_action):
 		p.action_triggered.disconnect(_on_provider_action)
+	if p.action_released.is_connected(_on_provider_release):
+		p.action_released.disconnect(_on_provider_release)
+	if p.action_look_changed.is_connected(_on_provider_look):
+		p.action_look_changed.disconnect(_on_provider_look)
 
 
-## Latches the edge for the next frame and re-emits at once. Unknown action names are ignored.
+## Latches the edge for the next frame and re-emits at once. NON_FRAME_ACTIONS are re-emitted without a latch.
+## Unknown action names are ignored.
 func _on_provider_action(action: String) -> void:
+	if NON_FRAME_ACTIONS.has(action):
+		action_triggered.emit(action)
+		return
 	if not (InputFrame.BUTTONS.has(action) or InputFrame.LOCAL_BUTTONS.has(action)):
 		return
 	_pending[action] = true
 	action_triggered.emit(action)
+
+
+## Release of a held non-frame action: re-emitted every time, no held-state tracking.
+func _on_provider_release(action: String, cancel: bool) -> void:
+	if NON_FRAME_ACTIONS.has(action):
+		action_released.emit(action, cancel)
+
+
+## Look state of a non-frame action: re-emitted every time, changed or not.
+func _on_provider_look(action: String, active: bool) -> void:
+	if NON_FRAME_ACTIONS.has(action):
+		action_look_changed.emit(action, active)
 
 
 func get_frame() -> InputFrame:

@@ -199,6 +199,17 @@
 		"ring_color": [1.0, 1.0, 1.0, 0.9],
 		"reserved_top_row": {"anchors": [[0.4, 0.04], [0.6, 0.04]], "margin_dp": [8.0, 20.0], "touch_dp": 48.0}
 	},
+	"interact_button": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-DOWNED: Interact (Revive) button placement, size, label and alpha are placeholders, not design values. Anchor = the touch HUD's data look-stick rest centre (input.json touch_layout.look_stick_rest); offset and size are in default touch button sides (touch_layout.button_size_frac_of_height, floor button_min_dp), the units the other touch buttons use. Centre-right, five button sides left of the look stick (step 3, Nov 9 2026: moved from [-1.65, 0.0] so it no longer covers the right Fire button). The middle of the band clear of every touch button, the Sprint lock and target, gear and fire-mode buttons on the Fold cover and inner sizes at 420, 373 and 0 dpi (probe).",
+		"anchor": "look_stick_rest",
+		"offset_buttons": [-5.0, -1.2],
+		"size_buttons": 1.0,
+		"font_dp": 12.0,
+		"label": "Revive",
+		"fill_alpha": 0.55,
+		"pressed_fill_alpha": 0.85
+	},
 	"pause_menu": {
 		"_placeholder": true,
 		"_todo": "OQ-PAUSE-MENU: layout of the in-match menu overlay. Sizes and tint are placeholders, not design values; every button is at least 48 dp.",
@@ -217,5 +228,19 @@
 		"_placeholder": true,
 		"_todo": "OQ-35: gameplay HUD stat block (bars, weapon, ammo) top-left corner as [x frac of width, y frac of height]; kept clear of the touch sticks and buttons. Not a design value.",
 		"stat_block_pos": [0.01, 0.08]
+	},
+	"zone_wall": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-ZONE: zone wall look (height, colours) is a placeholder; S6 restyles it.",
+		"wall_height_m": 40.0,
+		"wall_color": [0.35, 0.6, 1.0, 0.25],
+		"target_height_m": 0.6,
+		"target_color": [1.0, 1.0, 1.0, 0.45]
+	},
+	"spectate": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-SPECTATE: follow-camera offset after elimination is a placeholder.",
+		"offset_m": [0.6, 2.0, 4.0],
+		"look_height_m": 1.4
 	}
 }

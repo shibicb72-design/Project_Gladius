@@ -17,7 +17,11 @@ var ips_label: Label
 var status_label: Label
 var start_button: Button
 var class_button: Button
+## Host only: Solo / Squads (battle royale team mode). Clients see the mode in the status line.
+var mode_button: Button
 var is_host: bool = true
+var _br_cfg: Dictionary = {}
+var _match_cfg: Dictionary = {}
 ## HudNumbers.roman_enabled() read once in _ready, not on every refresh.
 var roman_numerals: bool = false
 
@@ -63,6 +67,11 @@ func _ready() -> void:
 	class_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	class_button.pressed.connect(toggle_class)
 	actions.add_child(class_button)
+	mode_button = Button.new()
+	mode_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mode_button.visible = is_host
+	mode_button.pressed.connect(toggle_team_mode)
+	actions.add_child(mode_button)
 	start_button = Button.new()
 	start_button.text = "Start"
 	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -80,7 +89,12 @@ func _ready() -> void:
 	net_lobby.match_starting.connect(_on_match_starting)
 	if is_host:
 		ips_label.text = "Your IP: " + ", ".join(local_ipv4())
-		net_lobby.host_open(int(cfg.get("squads", 2)),int(cfg.get("squad_size", 3)), my_name)
+		var reg := DataRegistry.new()
+		_br_cfg = ModeRegistry.merged_config(MatchDirector.MODE_ID, reg.load_file("res://data/modes.json"))
+		_match_cfg = cfg
+		var layout := MatchDirector.team_layout(_br_cfg, cfg)
+		net_lobby.host_open(int(layout["squad_count"]), int(layout["squad_size"]), my_name, [], int(cfg.get("max_humans", 8)))
+		set_team_mode(MatchDirector.team_mode_of(_br_cfg))
 	else:
 		status_label.text = "Connected. Waiting for the host to start."
 		net_lobby.submit_local(my_name, "hastati")
@@ -99,6 +113,24 @@ static func local_ipv4() -> Array[String]:
 		if a.count(".") == 3 and not a.begins_with("127.") and not a.begins_with("169.254."):
 			out.append(a)
 	return out
+
+
+## Host only: Solo <-> Squads.
+func toggle_team_mode() -> void:
+	set_team_mode("squads" if state.team_mode == "solo" else "solo")
+
+
+## Host only: applies a team mode and its layout (solo = 18 x 1, squads = 6 x 3). False if refused.
+func set_team_mode(mode: String) -> bool:
+	if not is_host:
+		return false
+	var cfg := _br_cfg.duplicate(true)
+	cfg["teams"] = (cfg.get("teams", {}) as Dictionary).duplicate(true)
+	cfg["teams"]["mode"] = {"value": mode}
+	var layout := MatchDirector.team_layout(cfg, _match_cfg)
+	var ok := net_lobby.host_set_team_mode(mode, int(layout["squad_count"]), int(layout["squad_size"]))
+	refresh()
+	return ok
 
 
 func toggle_class() -> void:
@@ -156,6 +188,10 @@ func refresh() -> void:
 	UiScale.apply_to(self)
 	var i := state.find_human(net_lobby.local_id())
 	class_button.text = "Class: %s" % (str(state.humans[i]["class_id"]) if i >= 0 else "-")
+	var mode_name := "Squads" if state.team_mode == "squads" else "Solo"
+	mode_button.text = "Mode: %s" % mode_name
+	if not is_host:
+		status_label.text = "Mode: %s. Waiting for the host to start." % mode_name
 
 
 func _on_state_changed() -> void:

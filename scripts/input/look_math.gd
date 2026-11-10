@@ -38,7 +38,11 @@ static func look_from_stick(v: Vector2, cfg: Dictionary, hz: float) -> Vector2:
 
 ## Camera-relative source: pixels dragged since the last tick, DPI-independent via viewport height.
 static func look_from_drag(relative: Vector2, viewport_h: float, cfg: Dictionary) -> Vector2:
+	return clamp_turn(drag_turn(relative, viewport_h, cfg), cfg, tick_hz())
+
+
+## The same drag turn without the per-tick rate cap (touch swipes: the view follows the finger 1:1).
+static func drag_turn(relative: Vector2, viewport_h: float, cfg: Dictionary) -> Vector2:
 	var look: Dictionary = cfg.get("look", {})
 	var k := float(look.get("drag_rad_per_screen_height", DEFAULT_DRAG_RAD_PER_HEIGHT))
-	var v := relative / maxf(1.0, viewport_h) * k
-	return clamp_turn(v, cfg, tick_hz())
+	return relative / maxf(1.0, viewport_h) * k

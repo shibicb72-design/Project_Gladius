@@ -10,9 +10,7 @@ signal shot_event(player_id: int, origin: Vector3, end: Vector3)
 ## Host: emitted for every shot it reports to the clients (ev_shot payload), whether or not a peer is connected.
 signal shot_announced(player_id: int, origin: Vector3, end: Vector3)
 signal kill_event(killer_id: int, victim_id: int)
-signal respawn_event(player_id: int)
 signal match_over_event(result: Dictionary)
-signal score_event(new_scores: Dictionary)
 
 var director: MatchDirector
 var validator: NetValidator
@@ -24,7 +22,6 @@ var input_interval_s: float = 1.0 / 15.0
 var peer_to_player: Dictionary = {}
 ## Client: player id -> {pos, yaw, shield, health, alive} from the latest host snapshot.
 var replica: Dictionary = {}
-var scores: Dictionary = {}
 var last_snapshot_tick: int = -1
 ## Client: player id of the locally driven pawn (set by MatchRoster).
 var local_player_id: int = -1
@@ -51,15 +48,13 @@ func setup(match_director: MatchDirector) -> void:
 	input_interval_s = 1.0 / maxf(float(cfg.get("input_rate_hz", cfg.get("snapshot_rate_hz", 15))), 1.0)
 	_rng.randomize()
 	director.match_over.connect(_host_match_over)
-	director.score_changed.connect(_host_score_changed)
-	director.player_respawned.connect(_host_respawned)
+	director.player_eliminated.connect(_host_eliminated)
 
 
 func detach() -> void:
 	if director != null:
 		director.match_over.disconnect(_host_match_over)
-		director.score_changed.disconnect(_host_score_changed)
-		director.player_respawned.disconnect(_host_respawned)
+		director.player_eliminated.disconnect(_host_eliminated)
 	director = null
 
 
@@ -287,15 +282,10 @@ func ev_shot(player_id: int, origin: Vector3, end: Vector3) -> void:
 func _host_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_headshot: bool) -> void:
 	var res: DamageRules.HitResult
 	if weapon_def.is_melee() and attacker is Pawn and target.has_method("receive_melee"):
-		res = target.receive_melee(attacker)
+		res = target.receive_melee(attacker, _player_id_of(attacker))
 	else:
-		res = target.receive_hit(weapon_def, is_headshot, attacker.squad_id)
-	if res.killed:
-		var killer := _player_id_of(attacker)
-		var victim := _player_id_of(target)
-		kill_event.emit(killer, victim)
-		if multiplayer.multiplayer_peer != null:
-			ev_kill.rpc(killer, victim)
+		res = target.receive_hit(weapon_def, is_headshot, attacker.squad_id, _player_id_of(attacker))
+	# The kill event now comes from the director's "dead" events (_host_eliminated), not from res.killed.
 
 
 func _player_id_of(pawn: Node) -> int:
@@ -377,15 +367,11 @@ func snap_local_to_replica(local_player_id: int) -> void:
 	pawn.velocity = Vector3.ZERO
 
 
-func _host_score_changed(new_scores: Dictionary) -> void:
-	if _is_host():
-		ev_score.rpc(new_scores)
-
-
-func _host_respawned(player_id: int) -> void:
-	if _is_host():
-		var pawn := director.player(player_id)
-		ev_respawn.rpc(player_id, pawn.global_position, pawn.rotation.y)
+func _host_eliminated(victim_id: int, killer_id: int, _cause: String) -> void:
+	if killer_id >= 0:
+		kill_event.emit(killer_id, victim_id)
+		if multiplayer.multiplayer_peer != null and _is_host():
+			ev_kill.rpc(killer_id, victim_id)
 
 
 func _host_match_over(result: Dictionary) -> void:
@@ -396,23 +382,6 @@ func _host_match_over(result: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func ev_kill(killer_id: int, victim_id: int) -> void:
 	kill_event.emit(killer_id, victim_id)
-
-
-@rpc("authority", "call_remote", "reliable")
-func ev_respawn(player_id: int, pos: Vector3 = Vector3.INF, yaw: float = 0.0) -> void:
-	if pos.is_finite():
-		# The spawn position rides on the event so the client can snap to it before the next snapshot.
-		var r: Dictionary = replica.get(player_id, {})
-		r["pos"] = pos
-		r["yaw"] = yaw
-		replica[player_id] = r
-	respawn_event.emit(player_id)
-
-
-@rpc("authority", "call_remote", "reliable")
-func ev_score(new_scores: Dictionary) -> void:
-	scores = new_scores
-	score_event.emit(new_scores)
 
 
 @rpc("authority", "call_remote", "reliable")

@@ -92,7 +92,6 @@ func test_local_death_clears_aim_latch() -> void:
 	tree.root.add_child(m)
 	await tree.physics_frame
 	m.director.load_config()
-	m.director.match_cfg["respawn_s"] = 0.2
 	assert_true(m.begin(), "match begins")
 	await _frames(3)
 	var pawn := m.local_player
@@ -110,8 +109,6 @@ func test_local_death_clears_aim_latch() -> void:
 	Input.action_release("aim")
 	await _frames(2)
 	assert_true(not m.router.aim_toggle.toggled_aim, "an Aim tap while dead is dropped")
-	await _frames(30)
-	assert_true(pawn.is_alive(), "respawned")
-	assert_true(not pawn.aiming and not m.router.get_frame().aim_pressed, "the respawned pawn is not aiming")
+	assert_true(not pawn.aiming and not m.router.get_frame().aim_pressed, "the dead pawn is not aiming")
 	m.queue_free()
 	await tree.process_frame

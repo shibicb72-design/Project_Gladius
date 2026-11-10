@@ -1,5 +1,5 @@
 extends "res://tests/test_case.gd"
-## D1 (spec G1.5): crouch input plumbing. InputMap crouch (prone/interact reserved), InputFrame bits 6-8 with
+## D1: crouch input plumbing. InputMap crouch (prone/interact reserved), InputFrame bits 6-8 with
 ## backward-compatible serialization, and the cover Crouch control routed through the input layer.
 
 const OLD_BUTTONS: Array[String] = ["fire", "aim", "reload", "swap_weapon", "jump", "pause"]

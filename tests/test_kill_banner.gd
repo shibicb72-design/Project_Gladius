@@ -87,7 +87,7 @@ func test_other_shooter_kill_and_local_death_have_no_banner() -> void:
 	var victim := await _aim_at_bot(m)
 	var other: Pawn
 	for p: Pawn in m.bots:
-		if p != victim and p.squad_id == m.local_player.squad_id:
+		if p != victim:
 			other = p
 	assert_true(other != null, "squad bot shooter")
 	other.position = m.local_player.position + Vector3(0, 0, -2)
@@ -103,7 +103,7 @@ func test_other_shooter_kill_and_local_death_have_no_banner() -> void:
 	assert_true(not m.hud.banner_label.visible, "no global kill feed")
 	m.local_player.bridge.state.shield = 0.0
 	m.local_player.bridge.state.health = 1.0
-	m.local_player.receive_hit(victim.loadout.get_active().def, false, victim.squad_id)
+	m.local_player.receive_hit(victim.loadout.get_active().def, false, victim.squad_id, victim.player_id)
 	assert_true(not m.local_player.is_alive(), "local death fixture")
 	assert_true(not m.hud.banner_label.visible, "own death is left to respawn UI")
 	m.free()
@@ -146,22 +146,3 @@ func test_late_roster_pawn_melee_kill_uses_existing_signals() -> void:
 	m.free()
 
 
-func test_objective_banner_only_on_state_change() -> void:
-	var m := await _match()
-	m.local_player.position = Vector3(0, 0.1, 0)
-	for i in 3:
-		await _tree().physics_frame
-	m.hud.refresh_pawn()
-	assert_eq(m.hud.banner_label.text, String(m.hud._banner_cfg["secured_text"]), "hill secured")
-	m.hud._tick_feedback(float(m.hud._banner_cfg["duration_s"]) + 0.1)
-	m.director.score_changed.emit({0: 2, 1: 0})
-	m.hud.refresh_pawn()
-	assert_true(not m.hud.banner_label.visible, "score tick never repeats banner")
-	var enemy := _enemy(m)
-	enemy.position = Vector3(1, 0.1, 0)
-	for i in 3:
-		await _tree().physics_frame
-	m.hud.refresh_pawn()
-	assert_eq(m.hud.banner_label.text, String(m.hud._banner_cfg["contested_text"]), "contested transition")
-	assert_true(m.hud.banner_label.visible, "contested banner visible")
-	m.free()

@@ -7,10 +7,21 @@
 			"scale_3d": 1.0,
 			"art_shadows_enabled": true,
 			"art_fog_enabled": true,
-			"art_glow_enabled": false,
-			"art_ambient_enabled": true
+			"art_glow_enabled": true,
+			"art_ambient_enabled": true,
+			"art_grade_enabled": true,
+			"art_weather_enabled": true,
+			"art_shafts_enabled": true,
+			"art_vignette_enabled": true,
+			"art_backdrop_enabled": true,
+			"art_debanding_enabled": true,
+			"fx_ssr_enabled": false,
+			"fx_ssao_enabled": false,
+			"fx_ssil_enabled": false,
+			"fx_volumetric_fog_enabled": false
 		}
 	},
+	"_keys_note": "OQ-GFX-PRESETS (placeholders): art_glow_enabled = bloom (a full-screen blur chain: the most expensive switch here on the Mobile renderer); art_grade_enabled = brightness / contrast / saturation in the tonemap pass; art_weather_enabled = dust motes or rain particles around the camera; art_shafts_enabled = additive sun shaft quads; art_vignette_enabled = one blended full-screen rectangle; art_backdrop_enabled = the outer wall ring, towers, spires, far aqueduct, hills and ground skirt beyond the playable square (five batches and two meshes, no shadows); art_debanding_enabled = dithering of smooth gradients in the tonemap pass (the match's viewport); fx_ssr_enabled, fx_ssao_enabled, fx_ssil_enabled and fx_volumetric_fog_enabled = effects only the Forward+ renderer draws (off for the Mobile renderer; OQ-GFX-RENDERER). Each may be turned off without touching code.",
 	"_note": "TODO OQ-40: one preset and a 60 fps cap are placeholders, not design values. The 120 fps option is not exposed.",
 	"_placeholder": true,
 	"_todo": "OQ-40; OQ-ART-ASTRA: hard sun shadows and depth fog trial on, glow off; art_astra.json contains placeholder proxy budgets and shadow settings."

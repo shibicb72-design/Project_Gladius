@@ -2,408 +2,54 @@
 	"version": 1,
 	"_placeholder": true,
 	"_todo": "OQ-WORLD-DENSE: every count, size, placement, color, rate and amplitude is a provisional art trial, not a design value. No content/performance caps; Fold measurement decides.",
-	"cloth": {
-		"amplitude_m": 0.16,
-		"speed": 1.4,
-		"frequency": 3.2,
-		"color": [
-			0.42,
-			0.13,
-			0.09,
-			1
-		],
-		"roughness": 0.9,
-		"subdivisions": 12
-	},
+	"_s7_note": "S7: banners carry a weave and a gold trim and stand at the landmarks too; grass is tufts of blades on the grass of the outer ring (one batch, no shadows); braziers are bronze bowls with a flame and stand at the landmarks too, their lights without shadows; the four boxes of sphere dust are gone (the dust that follows the camera, data/art_look.json weather, replaces them).",
+	"cloth": {"amplitude_m": 0.16, "speed": 1.4, "frequency": 3.2, "color": [0.5, 0.1, 0.08, 1], "trim_color": [0.86, 0.64, 0.22, 1], "roughness": 0.9, "subdivisions": 12},
 	"foliage": {
-		"count": 240,
-		"seed": 29,
-		"radius_min_m": 16,
-		"radius_max_m": 31,
-		"size": [
-			0.18,
-			0.55,
-			0.12
-		],
-		"amplitude_m": 0.12,
-		"speed": 1.1,
-		"frequency": 2.7,
-		"color": [
-			0.28,
-			0.33,
-			0.22,
-			1
-		],
-		"roughness": 0.95
+		"count": 2400, "seed": 29, "radius_min_m": 31, "radius_max_m": 78,
+		"size": [0.04, 0.36, 0.14], "blades": 6, "scale_min": 0.7, "scale_max": 1.4,
+		"amplitude_m": 0.07, "speed": 1.3, "frequency": 0.9,
+		"color": [0.62, 0.66, 0.3, 1], "roughness": 0.95,
+		"on_surface": "grass", "place_tries": 6
 	},
 	"flags": {
-		"size": [
-			1.5,
-			1
-		],
-		"pole_size": [
-			0.09,
-			3,
-			0.09
-		],
-		"cloth_y_m": 2.2,
-		"positions": [
-			[
-				9,
-				0,
-				12
-			],
-			[
-				-9,
-				0,
-				12
-			],
-			[
-				9,
-				0,
-				-12
-			],
-			[
-				-9,
-				0,
-				-12
-			],
-			[
-				26,
-				0,
-				10
-			],
-			[
-				-26,
-				0,
-				-10
-			]
-		]
+		"size": [1.5, 1], "pole_size": [0.09, 3, 0.09], "cloth_y_m": 2.2,
+		"positions": [[9, 0, 12], [-9, 0, 12], [9, 0, -12], [-9, 0, -12], [26, 0, 10], [-26, 0, -10],
+			[-36.5, 0, -37], [39.5, 0, -27.5], [36, 0, 38.5], [-37, 0, 45.5]]
 	},
-	"tents": {
-		"size": [
-			3.2,
-			2.1,
-			2.8
-		],
-		"positions": [
-			[
-				24,
-				0,
-				5
-			],
-			[
-				-24,
-				0,
-				5
-			],
-			[
-				24,
-				0,
-				-5
-			],
-			[
-				-24,
-				0,
-				-16
-			]
-		]
-	},
+	"tents": {"size": [3.2, 2.1, 2.8], "positions": [[24, 0, 5], [-24, 0, 5], [24, 0, -5], [-24, 0, -16]]},
 	"dust": {
-		"positions": [
-			[
-				12,
-				1.5,
-				12
-			],
-			[
-				-12,
-				1.5,
-				-12
-			],
-			[
-				24,
-				1.5,
-				12
-			],
-			[
-				-24,
-				1.5,
-				-12
-			]
-		],
-		"amount": 64,
-		"lifetime_s": 7,
-		"box_extents": [
-			5,
-			1.2,
-			5
-		],
-		"direction": [
-			1,
-			0.12,
-			0.2
-		],
-		"spread_deg": 20,
-		"velocity_min": 0.15,
-		"velocity_max": 0.4,
-		"gravity": [
-			0,
-			0,
-			0
-		],
-		"radius_m": 0.025,
-		"color": [
-			0.55,
-			0.49,
-			0.38,
-			0.3
-		],
-		"radial_segments": 8,
-		"rings": 4
+		"positions": [],
+		"amount": 64, "lifetime_s": 7, "box_extents": [5, 1.2, 5], "direction": [1, 0.12, 0.2], "spread_deg": 20,
+		"velocity_min": 0.15, "velocity_max": 0.4, "gravity": [0, 0, 0], "radius_m": 0.025, "color": [0.55, 0.49, 0.38, 0.3],
+		"radial_segments": 8, "rings": 4
 	},
 	"braziers": {
-		"positions": [
-			[
-				8,
-				0,
-				13
-			],
-			[
-				-8,
-				0,
-				13
-			],
-			[
-				8,
-				0,
-				-13
-			],
-			[
-				-8,
-				0,
-				-13
-			]
+		"positions": [[8, 0, 13], [-8, 0, 13], [8, 0, -13], [-8, 0, -13], [-43.5, 0, -40], [38, 0, -25.5], [41.5, 0, 36.5], [-43, 0, 45.5]],
+		"stand_size": [0.35, 1, 0.35], "bowl_size": [0.7, 0.2, 0.7],
+		"parts": [
+			{"shape": "lathe", "segments": 8, "profile": [[0, 0], [1, 0], [0.8, 1], [0, 1]], "size": [0.62, 0.1, 0.62], "at": [0, 0.05, 0], "color": "plate_dark"},
+			{"shape": "lathe", "segments": 6, "profile": [[0, 0], [1, 0], [0.55, 0.5], [1, 1], [0, 1]], "size": [0.2, 0.86, 0.2], "at": [0, 0.53, 0], "color": "bronze"},
+			{"shape": "lathe", "segments": 8, "profile": [[0, 0], [0.45, 0], [1, 0.75], [1, 1], [0, 1]], "size": [0.84, 0.3, 0.84], "at": [0, 1.1, 0], "color": "bronze"},
+			{"shape": "lathe", "segments": 8, "size": [0.7, 0.05, 0.7], "at": [0, 1.26, 0], "color": "ember"}
 		],
-		"stand_size": [
-			0.35,
-			1,
-			0.35
-		],
-		"bowl_size": [
-			0.7,
-			0.2,
-			0.7
-		],
-		"light_y_m": 1.3,
-		"range_m": 7,
-		"energy": 1.6,
-		"flicker_amplitude": 0.25,
-		"flicker_speed": 4.3,
-		"color": [
-			1,
-			0.42,
-			0.12,
-			1
-		],
-		"shadows": true,
-		"flicker_seed": 64
+		"flame_size": [0.8, 1.2], "flame_y_m": 1.22,
+		"light_y_m": 1.6, "range_m": 8, "energy": 2.2, "flicker_amplitude": 0.25, "flicker_speed": 4.3,
+		"color": [1, 0.45, 0.14, 1], "shadows": false, "flicker_seed": 64
 	},
-	"beacons": {
-		"positions": [
-			[
-				23,
-				3,
-				0
-			]
-		],
-		"range_m": 28,
-		"angle_deg": 25,
-		"energy": 3,
-		"sweep_rad": 0.9,
-		"sweep_speed": 0.2,
-		"pitch_deg": -35,
-		"color": [
-			0.55,
-			0.73,
-			0.85,
-			1
-		],
-		"shadows": true
-	},
+	"beacons": {"positions": [[23, 3, 0]], "range_m": 28, "angle_deg": 25, "energy": 3, "sweep_rad": 0.9, "sweep_speed": 0.2, "pitch_deg": -35, "color": [0.55, 0.73, 0.85, 1], "shadows": false},
 	"props": [
-		{
-			"kind": "pillar",
-			"size": [
-				0.55,
-				0.9,
-				0.55
-			],
-			"at": [
-				25,
-				0.45,
-				12
-			]
-		},
-		{
-			"kind": "pillar",
-			"size": [
-				0.55,
-				0.9,
-				0.55
-			],
-			"at": [
-				25,
-				0.45,
-				13
-			]
-		},
-		{
-			"kind": "pillar",
-			"size": [
-				0.55,
-				0.9,
-				0.55
-			],
-			"at": [
-				-25,
-				0.45,
-				-9
-			]
-		},
-		{
-			"kind": "pillar",
-			"size": [
-				0.55,
-				0.9,
-				0.55
-			],
-			"at": [
-				-25,
-				0.45,
-				-10
-			]
-		},
-		{
-			"kind": "rubble",
-			"size": [
-				0.8,
-				0.4,
-				0.7
-			],
-			"at": [
-				13,
-				0.2,
-				11
-			]
-		},
-		{
-			"kind": "rubble",
-			"size": [
-				0.8,
-				0.4,
-				0.7
-			],
-			"at": [
-				-13,
-				0.2,
-				-11
-			]
-		},
-		{
-			"kind": "rubble",
-			"size": [
-				0.8,
-				0.4,
-				0.7
-			],
-			"at": [
-				22,
-				0.2,
-				18
-			]
-		},
-		{
-			"kind": "rubble",
-			"size": [
-				0.8,
-				0.4,
-				0.7
-			],
-			"at": [
-				-22,
-				0.2,
-				18
-			]
-		},
-		{
-			"kind": "box",
-			"size": [
-				1.8,
-				0.18,
-				0.15
-			],
-			"at": [
-				20,
-				0.09,
-				12
-			]
-		},
-		{
-			"kind": "box",
-			"size": [
-				1.8,
-				0.18,
-				0.15
-			],
-			"at": [
-				-20,
-				0.09,
-				-12
-			]
-		},
-		{
-			"kind": "pillar",
-			"size": [
-				0.07,
-				2,
-				0.07
-			],
-			"at": [
-				24,
-				1,
-				14
-			]
-		},
-		{
-			"kind": "pillar",
-			"size": [
-				0.07,
-				2,
-				0.07
-			],
-			"at": [
-				27,
-				1,
-				14
-			]
-		}
+		{"kind": "pillar", "size": [0.55, 0.9, 0.55], "at": [25, 0.45, 12]},
+		{"kind": "pillar", "size": [0.55, 0.9, 0.55], "at": [25, 0.45, 13]},
+		{"kind": "pillar", "size": [0.55, 0.9, 0.55], "at": [-25, 0.45, -9]},
+		{"kind": "pillar", "size": [0.55, 0.9, 0.55], "at": [-25, 0.45, -10]},
+		{"kind": "rubble", "size": [0.8, 0.4, 0.7], "at": [13, 0.2, 11]},
+		{"kind": "rubble", "size": [0.8, 0.4, 0.7], "at": [-13, 0.2, -11]},
+		{"kind": "rubble", "size": [0.8, 0.4, 0.7], "at": [22, 0.2, 18]},
+		{"kind": "rubble", "size": [0.8, 0.4, 0.7], "at": [-22, 0.2, 18]},
+		{"kind": "box", "size": [1.8, 0.18, 0.15], "at": [20, 0.09, 12]},
+		{"kind": "box", "size": [1.8, 0.18, 0.15], "at": [-20, 0.09, -12]},
+		{"kind": "pillar", "size": [0.07, 2, 0.07], "at": [24, 1, 14]},
+		{"kind": "pillar", "size": [0.07, 2, 0.07], "at": [27, 1, 14]}
 	],
-	"cables": [
-		{
-			"from": [
-				24,
-				2,
-				14
-			],
-			"to": [
-				27,
-				2,
-				14
-			],
-			"thickness_m": 0.035,
-			"sag_m": 0.35,
-			"segments": 12
-		}
-	]
+	"cables": [{"from": [24, 2, 14], "to": [27, 2, 14], "thickness_m": 0.035, "sag_m": 0.35, "segments": 12}]
 }

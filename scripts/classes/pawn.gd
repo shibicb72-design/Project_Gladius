@@ -30,6 +30,38 @@ const MELEE_REQUIRED_KEYS: Array[String] = ["melee_back_angle_deg", "melee_front
 
 @export var class_id: String = "hastati"
 @export var squad_id: int = 0
+## Set by MatchDirector.add_player; -1 until registered.
+var player_id: int = -1
+## Life state, set only from BrRules events by MatchDirector.
+enum Life { ALIVE, DOWNED, DEAD }
+var life: Life = Life.ALIVE:
+	set(value):
+		life = value
+		if bridge != null:
+			bridge.downed = value == Life.DOWNED
+		if value == Life.DOWNED and cover != null:
+			_leave_cover()
+		_apply_life_shapes()
+## Step 3 G5 (Shibi, Nov 9 2026: "downed lowers the hitbox"): body capsule height and head-hitbox height while
+## DOWNED (br.json downed.downed_body_height_m / downed_head_y_m, set by MatchDirector.start). Negative = unset:
+## the standing shapes stay.
+var downed_body_height_m: float = -1.0
+var downed_head_y_m: float = -1.0
+## Move speed while DOWNED, percent of the normal speed (br.json downed.downed_move_speed_pct, set by
+## MatchDirector.start).
+var downed_move_speed_pct: float = 100.0
+## A hit took health to zero, or landed on a DOWNED pawn (attacker_id -1 if unknown); MatchDirector
+## reports it to BrRules, which decides downed, dead or finished.
+signal health_zeroed(attacker_id: int)
+## Drop from the sky (battle royale start). NONE: normal play. ABOARD: riding the carrier, placed by
+## MatchDirector; only look applies and Jump asks to drop. FALLING: gliding down, steered by the move
+## stick, no weapons; NONE again on touching the ground. Numbers: br.json "drop" (placeholders, OQ-BR-DROP).
+enum Drop { NONE, ABOARD, FALLING }
+var drop_state: Drop = Drop.NONE
+var drop_glide_mps: float = 8.0
+var drop_max_fall_mps: float = 15.0
+var _drop_requested: bool = false
+signal landed
 
 var registry: DataRegistry = DataRegistry.new()
 var bridge: PawnRulesBridge
@@ -84,16 +116,37 @@ func setup(new_class_id: String, new_squad_id: int) -> void:
 	_rng.randomize()
 
 
+## G0: MatchDirector.start seeds the shot-spread RNG from the match seed and the player id, so the same
+## match seed replays the same spread.
+func seed_rng(seed_value: int) -> void:
+	_rng.seed = seed_value
+
+
 func set_frame(frame: InputFrame) -> void:
 	_frame = frame
 
 
-## D1 (G1.5): press-time action from the input layer (InputRouter.action_triggered via MatchRoot).
-## One press is one toggle: the frame's crouch_just_pressed bit is transport only until D9/G3.2, so the
+## D1: press-time action from the input layer (InputRouter.action_triggered via MatchRoot).
+## One press is one toggle: the frame's crouch_just_pressed bit is transport only until the host-side cover slice, so the
 ## physics tick never toggles from it. Reads cover at call time (tests enable it after begin()).
 func handle_action_press(action: String) -> void:
 	if action == "crouch" and cover != null and is_alive():
 		cover.toggle_crouch()
+	elif action == "cover_fire" and cover != null and is_alive():
+		cover.quick_draw(true)
+
+
+## D2: end of the held cover FIRE press. No alive gate: the UI releases on death. cancel drops the
+## buffered round (hide, menu, suspend, death, exit). Stateless: sent even when no press was held.
+func handle_action_release(action: String, cancel: bool) -> void:
+	if action == "cover_fire" and cover != null:
+		cover.quick_draw(false, cancel)
+
+
+## D2: cover FIRE look-hold state, sent by the UI every refresh. No alive gate, so false always lands.
+func handle_action_look(action: String, active: bool) -> void:
+	if action == "cover_fire" and cover != null:
+		cover.set_look_active(active)
 
 
 ## Pawn simulation clock (s); the time base of Weapon reload progress.
@@ -101,16 +154,32 @@ func get_clock() -> float:
 	return _clock
 
 
+## ALIVE, or at 0 health between a hit and the next BrRules tick, counts as not alive (cannot fire or move).
 func is_alive() -> bool:
-	return bridge != null and not bridge.state.is_dead()
+	return life == Life.ALIVE and bridge != null and not bridge.state.is_dead()
+
+
+func is_downed() -> bool:
+	return life == Life.DOWNED
+
+
+## Squad id changes go through here so pawn and rules bridge never disagree.
+func set_squad(new_squad_id: int) -> void:
+	squad_id = new_squad_id
+	if bridge != null:
+		bridge.squad_id = new_squad_id
+
+
+func _leave_cover() -> void:
+	cover.reset()
+	_apply_cover_shapes()
+	_cover_probe.reset()
 
 
 ## Enables or disables the pawn (dead pawns are hidden and not hittable).
 func set_active(active: bool) -> void:
 	if not active and cover != null:
-		cover.reset()
-		_apply_cover_shapes()
-		_cover_probe.reset()
+		_leave_cover()
 	visible = active
 	collision_layer = 2 if active else 0
 	var head := get_node_or_null("Head")
@@ -126,6 +195,7 @@ func respawn_at(xform: Transform3D) -> void:
 		_apply_cover_shapes()
 		_cover_probe.reset()
 	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
+	life = Life.ALIVE
 	loadout = Loadout.from_class(class_id, registry)
 	global_transform = xform
 	velocity = Vector3.ZERO
@@ -139,13 +209,18 @@ func get_move_speed() -> float:
 	return float(_movement.get("base_speed_mps", 5.0)) * pct / 100.0
 
 
-func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int) -> DamageRules.HitResult:
-	return _notify_damage(bridge.take_hit(weapon_def, is_headshot, attacker_squad))
+func receive_hit(weapon_def: WeaponDef, is_headshot: bool, attacker_squad: int, attacker_id: int = -1) -> DamageRules.HitResult:
+	return _notify_damage(bridge.take_hit(weapon_def, is_headshot, attacker_squad), attacker_id)
 
 
-func _notify_damage(result: DamageRules.HitResult) -> DamageRules.HitResult:
-	if result.damage_dealt > 0.0:
+## The one place zero health is reported (item: BrRules decides downed, dead or finished).
+func _notify_damage(result: DamageRules.HitResult, attacker_id: int = -1) -> DamageRules.HitResult:
+	if result.hit_downed:
+		health_zeroed.emit(attacker_id)  # a hit on a DOWNED pawn deals no damage; the rules finish it
+	elif result.damage_dealt > 0.0:
 		damaged.emit(result)
+		if bridge.state.is_dead():
+			health_zeroed.emit(attacker_id)
 	return result
 
 
@@ -153,7 +228,9 @@ func _notify_damage(result: DamageRules.HitResult) -> DamageRules.HitResult:
 ## stats.json "melee". Called by the hit authority instead of receive_hit for melee weapons.
 ## A missing melee key is a data error: the first one missing (in MELEE_REQUIRED_KEYS order) is
 ## reported, and the hit is invalid (no damage, blocked_reason "invalid_melee_cfg"); there are no defaults.
-func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
+func receive_melee(attacker: Pawn, attacker_id: int = -1) -> DamageRules.HitResult:
+	if attacker_id < 0:
+		attacker_id = attacker.player_id
 	var cfg: Dictionary = melee_cfg_override if not melee_cfg_override.is_empty() else registry.get_melee_cfg()
 	for key in MELEE_REQUIRED_KEYS:
 		if not cfg.has(key):
@@ -161,7 +238,7 @@ func receive_melee(attacker: Pawn) -> DamageRules.HitResult:
 	var behind := Melee.is_from_behind(global_position, -global_transform.basis.z, attacker.global_position,
 			float(cfg["melee_back_angle_deg"]))
 	var breaks: bool = attacker.class_id in cfg["front_breaks_full_shield_classes"]
-	return _notify_damage(bridge.take_melee(attacker.squad_id, behind, breaks, cfg))
+	return _notify_damage(bridge.take_melee(attacker.squad_id, behind, breaks, cfg), attacker_id)
 
 
 func _invalid_melee(key: String) -> DamageRules.HitResult:
@@ -232,6 +309,36 @@ func _kick_camera() -> void:
 		rig.apply_knockback()
 
 
+## Step 3 (Shibi, Nov 9 2026: "real recoil you pull against"): each ranged shot moves this pawn's real aim, up by
+## recoil.pitch_deg and sideways by up to recoil.yaw_deg (seeded random sign), from data/stats.json weapons.<id>.recoil
+## (placeholders, OQ-RECOIL). No automatic return: the player pulls the aim back down; bots re-aim every tick.
+## Separate from the view-only camera knockback above, which stays as it was.
+var _recoil_cache: Dictionary = {}
+
+
+func _recoil_of(weapon_id: String) -> Dictionary:
+	if not _recoil_cache.has(weapon_id):
+		var stats := registry.load_file(DataRegistry.STATS_PATH)
+		_recoil_cache[weapon_id] = (stats.get("weapons", {}).get(weapon_id, {}) as Dictionary).get("recoil", {})
+	return _recoil_cache[weapon_id]
+
+
+func _apply_recoil(def: WeaponDef, shots: int) -> void:
+	var r := _recoil_of(def.id)
+	if r.is_empty() or shots <= 0:
+		return
+	var up := deg_to_rad(float(r.get("pitch_deg", 0.0))) * shots
+	var side := deg_to_rad(float(r.get("yaw_deg", 0.0)))
+	pitch = clampf(pitch + up, deg_to_rad(float(_camera.get("pitch_min_deg", -70.0))),
+			deg_to_rad(float(_camera.get("pitch_max_deg", 70.0))))
+	if side > 0.0:
+		for i in shots:  # one sideways draw per shot
+			rotate_y(_rng.randf_range(-side, side))
+	var rig := get_node_or_null("CameraRig")
+	if rig != null:
+		rig.set_pitch(pitch)
+
+
 ## One melee swing from `origin` along `direction`; shows the placeholder swing visual.
 func melee_swing(def: WeaponDef, origin: Vector3, direction: Vector3, authority: Callable) -> Dictionary:
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state if is_inside_tree() else null
@@ -255,7 +362,7 @@ func _local_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_he
 	if weapon_def.is_melee() and attacker is Pawn and target.has_method("receive_melee"):
 		target.receive_melee(attacker)
 	elif target.has_method("receive_hit"):
-		target.receive_hit(weapon_def, is_headshot, attacker.squad_id)
+		target.receive_hit(weapon_def, is_headshot, attacker.squad_id, attacker.player_id if attacker is Pawn else -1)
 
 
 func _physics_process(delta: float) -> void:
@@ -265,11 +372,192 @@ func _physics_process(delta: float) -> void:
 	bridge.tick(delta)
 	if net_mode == NetMode.HOST_REMOTE:
 		return
+	if drop_state == Drop.ABOARD:
+		_apply_look()
+		_drop_requested = _drop_requested or _frame.jump_just_pressed
+		return
 	_ensure_cover()
 	_apply_look()
 	_apply_aim(delta)
+	if drop_state == Drop.FALLING:
+		_apply_fall(delta)
+		return
 	_apply_movement(delta)
 	_apply_weapon()
+
+
+## Boards the carrier: hidden, no collision, placed by MatchDirector until it starts the fall.
+func board_carrier() -> void:
+	drop_state = Drop.ABOARD
+	_drop_requested = false
+	visible = false
+	collision_layer = 0
+	_set_head_layer(false)
+	velocity = Vector3.ZERO
+
+
+func _set_head_layer(on: bool) -> void:
+	var head := get_node_or_null("Head")
+	if head != null:
+		head.collision_layer = 4 if on else 0
+
+
+## True once since boarding when this pawn's own input pressed Jump (a human asking to drop).
+func take_drop_request() -> bool:
+	var r := _drop_requested
+	_drop_requested = false
+	return r
+
+
+## Leaves the carrier at `from` and glides down.
+func start_fall(from: Vector3) -> void:
+	drop_state = Drop.FALLING
+	global_position = from
+	velocity = Vector3.ZERO
+	visible = true
+	collision_layer = 2 if life != Life.DEAD else 0
+	_set_head_layer(life != Life.DEAD)
+
+
+func is_dropping() -> bool:
+	return drop_state != Drop.NONE
+
+
+## ---- Battle royale inventory (S4; data/loot.json, placeholders OQ-BR-LOOT / OQ-BR-ARMOR / OQ-BR-START) ----
+## Two gun slots (primary, sidearm) plus the blade in secondary. Armor raises the shield cap by its
+## shield_bonus_pct of the class shield; a higher tier replaces a lower one.
+var armor_tier: int = 0
+var _base_max_shield: float = -1.0
+
+
+func apply_start_kit(kit: Dictionary) -> void:
+	loadout = Loadout.new()
+	for i in Loadout.SLOT_NAMES.size():
+		var wid := str(kit.get(Loadout.SLOT_NAMES[i], ""))
+		var wd := registry.get_weapon_def(wid) if wid != "" else null
+		if wd != null:
+			loadout.slots[i] = Weapon.new(wd)
+	loadout.active = 0
+	for i in loadout.slots.size():
+		if loadout.slots[i] != null:
+			loadout.active = i
+			break
+	armor_tier = 0
+	_base_max_shield = bridge.state.max_shield
+	weapon_switched.emit(loadout.active)
+
+
+## Whether this pawn can use the loot `item_def` now; refused items stay on the ground.
+func can_take(item_def: Dictionary) -> bool:
+	if not is_alive() or is_dropping():
+		return false
+	match str(item_def.get("kind", "")):
+		"weapon":
+			return registry.get_weapon_def(str(item_def.get("weapon", ""))) != null
+		"ammo":
+			return _ranged_slot() >= 0
+		"armor":
+			return int(item_def.get("tier", 0)) > armor_tier
+		"heal":
+			return bridge.state.health < bridge.state.max_health
+	return false
+
+
+## Stricter than can_take, for bots (humans choose by tapping): a gun only into a free gun slot, ammo only
+## when the guns hold less than two magazines in reserve, armor only of a higher tier. Stops bots swapping
+## the same two guns back and forth.
+## ammo_low_mags: data/bots.json brain.ammo_low_magazines (placeholder, OQ-31). heal_below_pct: a Bandage only
+## below this health percent (bots.json brain.heal_below_health_pct, placeholder, OQ-HEAL-ITEM).
+func wants_item(item_def: Dictionary, ammo_low_mags: float = 2.0, heal_below_pct: float = 70.0) -> bool:
+	if not can_take(item_def):
+		return false
+	match str(item_def.get("kind", "")):
+		"weapon":
+			return loadout.slots[0] == null or loadout.slots[2] == null
+		"ammo":
+			var s := _ranged_slot()
+			return s >= 0 and float(loadout.slots[s].reserve) < float(loadout.slots[s].def.magazine) * ammo_low_mags
+		"heal":
+			return bridge.state.health < bridge.state.max_health * heal_below_pct / 100.0
+	return true
+
+
+## Applies a loot item (call can_take first). Returns the gun it replaced as a loot item to drop, or {}.
+func take_item(item: Dictionary, item_def: Dictionary) -> Dictionary:
+	var dropped := {}
+	match str(item_def.get("kind", "")):
+		"weapon":
+			var w := Weapon.new(registry.get_weapon_def(str(item_def["weapon"])))
+			if item.has("ammo_in_mag"):
+				w.ammo_in_mag = int(item["ammo_in_mag"])
+				w.reserve = int(item["reserve"])
+			var slot := 0
+			if loadout.slots[0] == null:
+				slot = 0
+			elif loadout.slots[2] == null:
+				slot = 2
+			elif loadout.active == 2:
+				slot = 2
+			if loadout.slots[slot] != null:
+				dropped = _weapon_item(loadout.slots[slot])
+			loadout.slots[slot] = w
+			loadout.active = slot
+			weapon_switched.emit(slot)
+		"ammo":
+			var s := _ranged_slot()
+			if s >= 0:
+				loadout.slots[s].reserve += int(item_def.get("rounds", 0))
+		"armor":
+			var st := bridge.state
+			if _base_max_shield < 0.0:
+				_base_max_shield = st.max_shield
+			armor_tier = int(item_def.get("tier", 0))
+			var new_max := _base_max_shield * (1.0 + float(item_def.get("shield_bonus_pct", 0.0)) / 100.0)
+			st.shield = clampf(st.shield + (new_max - st.max_shield), 0.0, new_max)
+			st.max_shield = new_max
+		"heal":
+			var hs := bridge.state
+			hs.health = minf(hs.max_health, hs.health + hs.max_health * float(item_def.get("health_pct", 0.0)) / 100.0)
+	return dropped
+
+
+## Active gun slot, else the first gun slot; -1 without a gun.
+func _ranged_slot() -> int:
+	var w := loadout.get_active()
+	if w != null and not w.def.is_melee():
+		return loadout.active
+	for i in loadout.slots.size():
+		if loadout.slots[i] != null and not loadout.slots[i].def.is_melee():
+			return i
+	return -1
+
+
+static func _weapon_item(w: Weapon) -> Dictionary:
+	return {"item_id": w.def.id, "ammo_in_mag": w.ammo_in_mag, "reserve": w.reserve}
+
+
+## Guns this pawn carries, as loot items (dropped on elimination). Clears them from the loadout.
+func surrender_guns() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in loadout.slots.size():
+		var w := loadout.slots[i]
+		if w != null and not w.def.is_melee():
+			out.append(_weapon_item(w))
+			loadout.slots[i] = null
+	return out
+
+
+func _apply_fall(delta: float) -> void:
+	var local := Vector3(_frame.move.x, 0.0, _frame.move.y)
+	var wish := global_transform.basis * local * drop_glide_mps
+	velocity.x = wish.x
+	velocity.z = wish.z
+	velocity.y = maxf(velocity.y - float(_movement.get("gravity", 20.0)) * delta, -drop_max_fall_mps)
+	move_and_slide()
+	if is_on_floor():
+		drop_state = Drop.NONE
+		velocity = Vector3.ZERO
+		landed.emit()
 
 
 func _apply_look() -> void:
@@ -283,7 +571,7 @@ func _apply_look() -> void:
 
 ## ADS on (InputFrame.aim_pressed): zooms the camera FOV and tightens spread; ADS off eases back.
 func _apply_aim(delta: float) -> void:
-	aiming = _frame.aim_pressed
+	aiming = _frame.aim_pressed and is_alive()  # DOWNED / 0 health: no aim
 	var zoom_s: float = _aim["aim_zoom_s"]
 	var target := 1.0 if aiming else 0.0
 	aim_blend = target if zoom_s <= 0.0 else move_toward(aim_blend, target, delta / zoom_s)
@@ -301,7 +589,7 @@ func get_max_move_speed() -> float:
 ## The sprint request comes from InputFrame.sprint (threshold / lock live in the input layer).
 func _update_sprint_factor(delta: float) -> void:
 	var mult: float = _movement["sprint_speed_multiplier"]["value"]
-	var target := mult if _frame.sprint and _frame.move.y < 0.0 else 1.0
+	var target := mult if _frame.sprint and _frame.move.y < 0.0 and is_alive() else 1.0
 	var ramp_s: float = _movement["sprint_ramp_s"]["value"]
 	sprint_factor = target if ramp_s <= 0.0 else move_toward(sprint_factor, target, (mult - 1.0) / ramp_s * delta)
 
@@ -314,11 +602,11 @@ func _apply_movement(delta: float) -> void:
 	_update_sprint_factor(delta)
 	var ratio: float = _movement["strafe_back_ratio"]["value"]
 	var local := Vector3(_frame.move.x * ratio, 0.0, _frame.move.y * (ratio if _frame.move.y > 0.0 else 1.0))
-	var wish := global_transform.basis * local * get_move_speed() * sprint_factor
+	var wish := global_transform.basis * local * get_move_speed() * sprint_factor * _life_speed_mult()
 	velocity.x = _ramp_axis(velocity.x, wish.x, delta)
 	velocity.z = _ramp_axis(velocity.z, wish.z, delta)
 	if is_on_floor():
-		if _frame.jump_just_pressed and bool(_movement.get("jump_enabled", false)):
+		if _frame.jump_just_pressed and is_alive() and bool(_movement.get("jump_enabled", false)):
 			velocity.y = float(_movement.get("jump_velocity", 0.0))
 	else:
 		velocity.y -= float(_movement.get("gravity", 20.0)) * delta
@@ -352,7 +640,16 @@ func _ramp_axis(cur: float, target: float, delta: float) -> float:
 	return move_toward(cur, target, float(_movement["base_speed_mps"]) / ramp_s * delta)
 
 
+## 1 when ALIVE, downed_move_speed_pct when DOWNED, 0 at 0 health before the rules decide (or DEAD).
+func _life_speed_mult() -> float:
+	if is_alive():
+		return 1.0
+	return downed_move_speed_pct / 100.0 if is_downed() else 0.0
+
+
 func _apply_weapon() -> void:
+	if not is_alive():
+		return  # DOWNED / 0 health: no fire, reload or swap
 	if _frame.swap_weapon_just_pressed and loadout.swap():
 		weapon_switched.emit(loadout.active)
 	var w := loadout.get_active()
@@ -383,6 +680,13 @@ func _apply_weapon() -> void:
 		cover.round_fired()
 	for i in shots:
 		fire_shot()
+	if shots > 0 and not w.def.is_melee():
+		_apply_recoil(w.def, shots)
+	# G1: a gun that just ran dry with reserve left reloads by itself (stats.json combat.auto_reload_on_empty).
+	if shots > 0 and not w.def.is_melee() and w.ammo_in_mag == 0 and w.reserve > 0 and not w.reloading \
+			and bool(bridge.combat_cfg.get("auto_reload_on_empty", false)):
+		if w.start_reload(_clock):
+			reload_started.emit()
 
 
 ## Explicit test seam; normal play uses the first-physics-tick CameraRig/no-Brain gate.
@@ -440,6 +744,19 @@ func _init_cover_shapes() -> void:
 	_cover_body.shape = _cover_body.shape.duplicate()
 	var head_shape := get_node("Head/CollisionShape3D") as CollisionShape3D
 	head_shape.shape = head_shape.shape.duplicate()
+
+## DOWNED: the low body and head from downed_body_height_m / downed_head_y_m. Back to ALIVE: the standing shapes
+## (cover, when on, re-applies its crouch on its next tick). Shares the standing sizes kept by _init_cover_shapes.
+func _apply_life_shapes() -> void:
+	if not is_inside_tree() or not has_node("CollisionShape3D") or not has_node("Head"):
+		return
+	_init_cover_shapes()
+	var capsule := _cover_body.shape as CapsuleShape3D
+	var down := life == Life.DOWNED and downed_body_height_m > 0.0
+	capsule.height = maxf(downed_body_height_m, capsule.radius * 2.0) if down else _cover_height
+	_cover_body.position.y = capsule.height * 0.5
+	_cover_head.position.y = downed_head_y_m if life == Life.DOWNED and downed_head_y_m > 0.0 else _cover_head_y
+
 
 func _apply_cover_shapes() -> void:
 	if _cover_body == null or cover == null:

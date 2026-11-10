@@ -1,4 +1,4 @@
-# Project Gladius - approved design (Shibi, Oct 21 2026)
+# Project Gladius - approved design (Shibi, Oct 21 2026; battle royale update Nov 9 2026)
 Rules: everything modular, data-driven, future-proof (additions must not mean rewrites). All numbers live in editable data files (res://data/*.json). Do NOT invent product decisions; where something is undecided, leave a clearly-marked TODO/placeholder.
 
 ## Platform/tech
@@ -7,12 +7,24 @@ Godot 4.7.2, GDScript, Android (Vulkan Mobile renderer). Phones: S24 Ultra, S25 
 ## Setting
 Futuristic Roman Republic (Rome never fell), Halo 2/3 feel. Map: futuristic Alesia (hilltop citadel = hill, inner wall, legion camp ring, outer wall with sniper towers, energy lily traps, stakes, jump pads, man cannons, aqueduct high routes, arches/eagles/columns/marble). Dusk/night/storm variants.
 
-## Match
-King of the Hill, fixed or moving (host picks); moving hill goes to random spots, flashes 5 s before moving. 1 pt/s uncontested, 100 to win or 10 min timer. 2-6 humans, squads of 3, up to 18 total; bot squads fill. Bots: Tiro, Miles, Centurion, Legatus + custom sliders (accuracy, health, spawns, AI smartness, damage, grenade frequency, reaction time). Join in progress. Host drop: 60 s reconnect pause, resettable up to 10x, else closes. Quitter replaced by bot, loses match Denarii. Host options simple + Advanced (score, time, difficulty, hill mode, series 3/5/7, power weapons, streaks...). Friends tap a lobby slot to join a squad; host can move/kick/lock. Scaffold modes later: Slayer, Capture the Eagle, Oddball. Factions provisioned (Romans now; Spartans etc later).
-Spawns: each squad gets a random fixed spot for the whole match, no advantage. Respawn 5 s, 5 s spawn protection (ends on firing, not on pickup). Killcam: 5 s on killer, optionally keep watching up to 30 s; exit -> squad spot; timeout -> random spot (anti-AFK), still protected. Bots respawn same rules.
+## Match: battle royale (decided by Shibi, Nov 9 2026)
+Battle royale is the only mode. King of the Hill is cut; Slayer, Capture the Eagle and Oddball are not planned. Offline only: local LAN (phone hotspot or Wi-Fi) plus bots; no online servers, accounts, matchmaking or analytics. Polish bar: PUBG / BGMI-level controls, feel, HUD, looting flow, bot quality and performance (not their art).
+- Players: up to 8 humans, up to 18 total; bots fill. Fully playable solo against bots.
+- Teams: solo and squads. Squad size up to 3, bot squads too.
+- Map: 1 km across (futuristic Alesia). No vehicles in v1.
+- Flow: everyone drops from the sky onto the map, loots weapons, ammo and armor from the ground, and fights while a shrinking zone forces them together. Outside the zone you take damage. Last squad or player standing wins.
+- Squads: a player at zero health is downed, not dead; a squad mate can revive them. Solo: no downed state. TODO: bleed-out time, revive time, what downed players can do (placeholders until decided).
+- No respawn. After elimination: spectate (squad mate or killer); killcam later.
+- Armor tiers are loot. TODO: tier count and effect values (placeholders until decided).
+- Match length: TODO, decided after measuring milestone 1 matches.
+- Bots: Tiro, Miles, Centurion, Legatus + custom sliders (accuracy, health, AI smartness, damage, grenade frequency, reaction time).
+- Host drop: 60 s reconnect pause, resettable up to 10x, else closes. Quitter replaced by bot, loses match Denarii. Join in progress: TODO (does not fit a no-respawn match; open question).
+- Host options simple + Advanced (difficulty, solo/squads, zone speed...; TODO list). Friends tap a lobby slot to join a squad; host can move/kick/lock. Factions provisioned (Romans now; Spartans etc later).
+- Superseded on Nov 9 2026: King of the Hill (fixed/moving hill, points, 10 min timer), the 2-6 human cap, fixed squad spawn spots, 5 s respawn, spawn protection and respawn after killcam.
 
 ## Combat
 Halo damage rules (shield then health), headshots extra on all weapons. Two weapons + swap + class sidearm. Crouch and prone (prone tightens spread, can shoot, hides on radar by class: lighter hides better, Velites best, Triarii worst). Sprint added by Shibi's decision, Oct 22 2026. No friendly fire. Melee every class: front = 70% of full shield; Gladiator front breaks full shield in one hit; from behind = instant kill (no animation). Grenades: spawn with 4 (1 Ignis sticky, 2 frag, 1 smoke), carry max 7, types data-driven. Smoke blocks bot sight and hides on radar (radar animation). Radar like Halo: 25 m, crouch/prone off radar, jammer blanks nearby enemies. Power weapons respawn every 2 min. Pick up weapons from fallen (keeps their ammo, crate refill, lost on death); off-class penalty (aim/recoil) by class; Hastati/Principes no penalty no bonus.
+Battle royale fit (Nov 9 2026, TODO for Shibi): power weapon respawns, scorestreaks, deployables and grenade spawn counts were written for King of the Hill; how each works in a battle royale (loot, drops, or cut) is undecided. Until decided they are not built.
 Scorestreaks (player kills only, reset on death, any class): ammo drop 3, support chariot 5, orbital bombardment 10; Sagittarii extra support streaks.
 Deployables (carry 5, spawn randomly on map over time): Testudo bubble (30 s, rallies squad bots, open to fire out), radar jammer, turret, healing station, grav lift, decoy, mine field, regen field (first to cut).
 Aim assist: Halo friction + light follow when aiming + small per-weapon magnetism, ADS snap off; controller strongest, touch lighter, none on gyro; angle zones shrink with zoom, distance falloff; all values low and in stats file.
@@ -26,16 +38,16 @@ Hastati 100/100/100%, Principes 110/110/100%, Triarii 140/130/85%, Velites 70/80
 
 ## Weapons
 Pilum BR, Gladius Lux, Scorpio Rail, Onager Launcher, Ignis sticky, Scutum field. Tiers standard/upgraded/legendary. Scopes red dot, 2x, 4x, 8x, 16x. Attachments change stats; stat chart per weapon.
-Vehicle: ground hover-chariot 2x run speed, driver + shooting passenger. Flying chariots later.
+Vehicle (not in v1, Nov 9 2026): ground hover-chariot 2x run speed, driver + shooting passenger. Flying chariots later.
 
 ## Bots/commands
-Page 1 quick-tap buttons above fire (right side): follow, attack, hold, rush hill. Page 2 (flip): guard, rush, attack marked target. Bots go prone and seek good spots.
+Page 1 quick-tap buttons above fire (right side): follow, attack, hold, rush hill ("rush hill" needs a battle royale replacement, TODO). Page 2 (flip): guard, rush, attack marked target. Bots go prone and seek good spots.
 
 ## Controls/HUD
-Left stick move; gyro aim (toggle, sensitivity, ADS-only, recenter, modes Off/ADS/Always); right-side backup aim stick where tap fires. Full Bluetooth controller. Full button remapping (only accessibility item at launch). Classic Halo HUD, red/gold, Roman numerals. No subtitles; no voice chat.
+Left stick move; gyro aim (toggle, sensitivity, ADS-only, recenter, modes Off/ADS/Always); right-side backup aim stick where tap fires (superseded Nov 9 2026 by Shibi's D3: swipe-look on the right side is the default, plus a right-side Fire button whose drag also aims; the stick stays as an option; see CONTROLS.md and OQ-53). Full Bluetooth controller. Full button remapping (only accessibility item at launch). Classic Halo HUD, red/gold, Roman numerals. No subtitles; no voice chat.
 
 ## Progression/economy
-12 post-Marian ranks Tiro..Consul (~50 matches). Currency Denarii (all-purpose). Start 500. Player kill 20, +10 headshot, +25 assassination, +15 class bonus, +5 deployable/AoE kill; bonuses stack. Squad-bot kills pay the human: 10, then x1.5 each kill, cap 100, reset on bot death. Win 100, 1/s on hill, 10/medal. Prices: common 100, rare 300, epic 700, super rare 1200, legendary 2000, class unlock 1500, series advantage 200-500. Shop shows full catalog (rotation provisioned later). 50 cosmetics (helmet, chest, gloves, legs, boots, shields, skins). Post-match loot by rarity. Latin medals. Series advantages bought in lobby: better starting weapons, extra deployables; currency carries over. Gamertag on phone. Player traits/banners (Roman virtues; bad ones like Deserter/Carthaginian fade with opposite behavior; show in lobby; only bad ones show in-game as small banner; cosmetic now, effects provisioned).
+12 post-Marian ranks Tiro..Consul (~50 matches). Currency Denarii (all-purpose). Start 500. Player kill 20, +10 headshot, +25 assassination, +15 class bonus, +5 deployable/AoE kill; bonuses stack. Squad-bot kills pay the human: 10, then x1.5 each kill, cap 100, reset on bot death. Win 100, 10/medal (the 1/s hill payout went with King of the Hill; battle royale placement payouts TODO). Prices: common 100, rare 300, epic 700, super rare 1200, legendary 2000, class unlock 1500, series advantage 200-500. Shop shows full catalog (rotation provisioned later). 50 cosmetics (helmet, chest, gloves, legs, boots, shields, skins). Post-match loot by rarity. Latin medals. Series advantages bought in lobby: better starting weapons, extra deployables; currency carries over. Gamertag on phone. Player traits/banners (Roman virtues; bad ones like Deserter/Carthaginian fade with opposite behavior; show in lobby; only bad ones show in-game as small banner; cosmetic now, effects provisioned).
 
 ## Audio
 Latin announcer recorded by Shibi later (placeholder slots). Orchestral + synth music.
@@ -47,4 +59,9 @@ Main menu: Host, Join (autodiscovery), Loadout, Profile, Shop, Tutorials, Settin
 5 missions on Alesia, 15 min each, historical order (build walls, hold inner line, beat relief army, take citadel, boss). Enemies: Spartans of a Hellenic League (original armor, not Halo's): phalanx (3 form it; flank; flickers at 1 down from side/rear, collapses at 2), hoplite spear-gunner, buffing officer, Toxotes marksman, Hypaspist medic. Gauls (ragtag): berserker mob rusher, slinger-raider, war-cry chieftain, naked swordsman (bare chest, war paint, glass cannon), Gallic hover-chariot (driver+gunner, rams, hijackable). Boss Vercingetorix: screech 25 m every 30 s (shake, blur, radar scramble, slow aim 3 s), blocked by Testudo, distance, or 5 ft wall; ~5 min fight, scales 1-3 players. Co-op one squad (bots or solo). 2 checkpoints/mission; fallen co-op player respawns at nearest. 4 difficulties + sliders. 500 Denarii per phase first clear only (reward type data-driven). Cutscenes in-engine, no voice, detailed on-screen narration text.
 
 ## Milestones
-1. FIRST PLAYABLE (approved, current target): rough Alesia section, fixed hill, Pilum BR + Gladius Lux, Hastati + Sagittarii, a few bots, touch + controller, hotspot. 2. Vertical slice. 3. Alpha. 4. Beta. 5. 1.0.
+Battle royale milestones (Shibi, Nov 9 2026; each ends with a debug APK that Shibi plays before the next starts):
+- M1 (current target): playable solo battle royale. Solo or squads of 3 vs bots to 18 total, drop from the sky, shrinking zone, ground loot and inventory, armor tiers, downed and revive, bots that loot, fight and move with the zone, last one standing, spectate and results. Temporary map; King of the Hill removed.
+- M2: Alesia at 1 km, bots that loot and rotate well, HUD and minimap pass, art.
+- M3: LAN for up to 8 humans plus bots to 18.
+- M4: polish (feel, crosshair, announcer, killcam, performance to 60 fps on a preset Shibi picks).
+Earlier plan (superseded): 1. First playable (King of the Hill, done Oct 24 2026). 2. Vertical slice. 3. Alpha. 4. Beta. 5. 1.0.

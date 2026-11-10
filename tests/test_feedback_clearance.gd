@@ -34,7 +34,7 @@ func _check(sz: Vector2, mode: String) -> void:
 	game.show_cue("No reserve")
 	game.show_toast("Gladius Rifle")
 	game.show_hit_marker()
-	game.show_banner("HILL CONTESTED")
+	game.show_banner("ZONE CLOSING")
 	game.own_death_label.visible = true
 	game.respawn_label.visible = true
 	game.respawn_label.text = "Respawn in 5"
@@ -75,7 +75,7 @@ func _check(sz: Vector2, mode: String) -> void:
 		reserved["action_" + key] = touch.get_element_rect(key)
 	for key in widgets:
 		reserved[key] = (widgets[key] as Control).get_global_rect()
-	for c: Control in [game.respawn_label, game.scores_label, game.timer_label, game.hill_label, game.shield_bar, game.health_bar, game.weapon_label, game.ammo_label]:
+	for c: Control in [game.respawn_label, game.alive_label, game.zone_label, game.downed_label, game.shield_bar, game.health_bar, game.weapon_label, game.ammo_label]:
 		reserved[str(c)] = c.get_global_rect()
 	for key in reserved:
 		assert_true(not mode_rect.intersects(reserved[key]), "mode button %s clear of %s %s at %s/%s" % [mode_rect, key, reserved[key], sz, mode])

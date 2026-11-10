@@ -48,6 +48,7 @@ func _touch_router() -> Array:
 	var r := InputRouter.new()
 	var t := TouchProvider.new()
 	t.configure(_cfg())
+	t.look_mode = "stick"  # a fixed deflection needs stick-look; swipe-look is the default since step 3
 	t.look_value = Vector2(0.5, 0.0)
 	r.add_provider(t)
 	return [r, t]

@@ -29,7 +29,7 @@ static func local_slot(slots: Array, peer_id: int) -> int:
 ## One pawn per slot under `parent`, registered with the director under the lobby's player id.
 ## Only the local pawn is left without a brain; bots get one when `bot_brains` (host / offline).
 func build(parent: Node, director: MatchDirector, slots: Array, local_peer: int, bot_brains: bool,
-		include_bots: bool, hill_center: Vector3, hill_radius: float, networked: bool = false) -> void:
+		include_bots: bool, networked: bool = false) -> void:
 	_director = director
 	var local_i := local_slot(slots, local_peer)
 	for i in slots.size():
@@ -46,7 +46,7 @@ func build(parent: Node, director: MatchDirector, slots: Array, local_peer: int,
 		if is_bot:
 			bots.append(pawn)
 			if bot_brains:
-				BotSpawner.attach_brain(pawn, director, hill_center, hill_radius)
+				BotSpawner.attach_brain(pawn, director)
 		elif i == local_i:
 			local_pawn = pawn
 			local_player_id = int(s["player_id"])
@@ -71,8 +71,6 @@ func attach_bridge(net_session: NetSession, slots: Array) -> void:
 				bridge.register_peer(int(s["peer_id"]), int(s["player_id"]))
 		session.peer_left.connect(_on_peer_left)
 	else:
-		bridge.score_event.connect(_director.apply_remote_score)
-		bridge.respawn_event.connect(_director.apply_remote_respawn)
 		bridge.match_over_event.connect(_director.apply_remote_match_over)
 
 
@@ -82,9 +80,7 @@ func detach_bridge() -> void:
 	bridge.detach()
 	if session.peer_left.is_connected(_on_peer_left):
 		session.peer_left.disconnect(_on_peer_left)
-	for pair in [[bridge.score_event, _director.apply_remote_score],
-			[bridge.respawn_event, _director.apply_remote_respawn],
-			[bridge.match_over_event, _director.apply_remote_match_over]]:
+	for pair in [[bridge.match_over_event, _director.apply_remote_match_over]]:
 		if pair[0].is_connected(pair[1]):
 			pair[0].disconnect(pair[1])
 	bridge = null

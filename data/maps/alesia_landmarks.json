@@ -1,0 +1,24 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-3D-LANDMARKS: landmark names and layout: needs Shibi's ok. OQ-WORLD-DENSE: every position, radius and rule number here is a placeholder.",
+	"_format": "The one place landmark ids, names and positions live. at = [x, z] centre of the place; radius_m = the area that counts as the place; anchor = [x, y, z] a point on open ground inside it (navigation tests path between anchors, and the ground views look from them). Loot clusters (data/loot.json) and later the bots refer to a landmark by id.",
+	"rules": {
+		"tall_height_m": 5.0,
+		"tall_minimum": 1,
+		"structures_minimum": 3,
+		"cover_minimum": 3,
+		"anchor_reach_m": 8.0,
+		"route_sample_step_m": 1.0,
+		"cover_min_height_m": 0.9,
+		"cover_reach_m": 6.0,
+		"max_open_stretch_m": 12.0,
+		"_route_note": "A route is the baked navmesh path between two landmarks' anchors, sampled every route_sample_step_m. A sample has cover when anything at least cover_min_height_m tall stands within cover_reach_m of it. max_open_stretch_m is the longest run of samples without cover that a route may have."
+	},
+	"landmarks": [
+		{"id": "porta_astra", "name": "Porta Astra", "kind": "gate", "at": [-40, -44], "radius_m": 16, "anchor": [-40, 0, -41.5]},
+		{"id": "aqua_alta", "name": "Aqua Alta", "kind": "aqueduct", "at": [44, -38], "radius_m": 16, "anchor": [42.5, 0, -29]},
+		{"id": "specula", "name": "Specula", "kind": "watchtower camp", "at": [42, 41], "radius_m": 16, "anchor": [39, 0, 39]},
+		{"id": "forum_aquilae", "name": "Forum Aquilae", "kind": "eagle forum", "at": [-41, 42], "radius_m": 16, "anchor": [-40, 0, 44]}
+	]
+}

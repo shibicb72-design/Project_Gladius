@@ -14,21 +14,17 @@ class HitResult extends RefCounted:
 	var killed: bool = false
 	## "", "friendly", "protected", "dead" or "invalid_melee_cfg" when no damage was applied.
 	var blocked_reason: String = ""
+	## True when an enemy hit landed on a DOWNED target (health already 0, no damage): BrRules finishes it.
+	var hit_downed: bool = false
 
 
 ## combat_cfg: data/stats.json "combat" (overflow_to_health). Placeholder semantics, see OQ-13/OQ-14.
+## target_downed: the target is DOWNED (battle royale); its 0-health state still accepts enemy hits.
 static func apply_hit(target_state: HealthState, weapon_def: WeaponDef, is_headshot: bool,
 		attacker_squad: int, target_squad: int, target_protected: bool,
-		combat_cfg: Dictionary = {}) -> HitResult:
+		combat_cfg: Dictionary = {}, target_downed: bool = false) -> HitResult:
 	var r := HitResult.new()
-	if target_state.is_dead():
-		r.blocked_reason = "dead"
-		return r
-	if attacker_squad == target_squad:
-		r.blocked_reason = "friendly"
-		return r
-	if target_protected:
-		r.blocked_reason = "protected"
+	if _blocked(r, target_state, attacker_squad, target_squad, target_protected, target_downed):
 		return r
 
 	var dmg: float = weapon_def.damage
@@ -44,16 +40,9 @@ static func apply_hit(target_state: HealthState, weapon_def: WeaponDef, is_heads
 ## takes that amount on health (PLACEHOLDER, OQ-56). Friendly/protected/dead guards match apply_hit.
 static func apply_melee(target_state: HealthState, attacker_squad: int, target_squad: int,
 		target_protected: bool, from_behind: bool, attacker_breaks_full_shield: bool,
-		melee_cfg: Dictionary, combat_cfg: Dictionary = {}) -> HitResult:
+		melee_cfg: Dictionary, combat_cfg: Dictionary = {}, target_downed: bool = false) -> HitResult:
 	var r := HitResult.new()
-	if target_state.is_dead():
-		r.blocked_reason = "dead"
-		return r
-	if attacker_squad == target_squad:
-		r.blocked_reason = "friendly"
-		return r
-	if target_protected:
-		r.blocked_reason = "protected"
+	if _blocked(r, target_state, attacker_squad, target_squad, target_protected, target_downed):
 		return r
 	if from_behind:
 		r.damage_dealt = target_state.shield + target_state.health
@@ -77,6 +66,25 @@ static func apply_melee(target_state: HealthState, attacker_squad: int, target_s
 	return r
 
 
+## Shared guards of apply_hit / apply_melee. Returns true when the hit does no damage: blocked
+## (blocked_reason set) or landed on a DOWNED target (hit_downed set).
+static func _blocked(r: HitResult, target_state: HealthState, attacker_squad: int, target_squad: int,
+		target_protected: bool, target_downed: bool) -> bool:
+	if target_state.is_dead() and not target_downed:
+		r.blocked_reason = "dead"
+		return true
+	if attacker_squad == target_squad:
+		r.blocked_reason = "friendly"
+		return true
+	if target_protected:
+		r.blocked_reason = "protected"
+		return true
+	if target_downed:
+		r.hit_downed = true
+		return true
+	return false
+
+
 static func _deal(target_state: HealthState, dmg: float, r: HitResult, combat_cfg: Dictionary) -> void:
 	r.damage_dealt = dmg
 	target_state.time_since_damage = 0.0
@@ -93,16 +101,19 @@ static func _deal(target_state: HealthState, dmg: float, r: HitResult, combat_cf
 	r.killed = target_state.health <= 0.0
 
 
-## Advances the regen timer; shield (not health) refills after the delay.
+## Advances the regen timer; shield refills after shield_regen_delay_s, and health slowly after
+## health_regen_delay_s (step 3 D6; no health regen when health_regen_rate_per_s is missing or 0).
 static func tick_regen(state: HealthState, delta: float, combat_cfg: Dictionary) -> void:
 	if state.is_dead():
 		return
-	var delay: float = float(combat_cfg.get("shield_regen_delay_s", 5.0))
-	var rate: float = float(combat_cfg.get("shield_regen_rate_per_s", 25.0))
 	var before: float = state.time_since_damage
 	state.time_since_damage += delta
-	if state.shield >= state.max_shield:
-		return
-	var regen_time: float = state.time_since_damage - maxf(before, delay)
-	if regen_time > 0.0:
-		state.shield = minf(state.max_shield, state.shield + regen_time * rate)
+	if state.shield < state.max_shield:
+		var regen_time: float = state.time_since_damage - maxf(before, float(combat_cfg.get("shield_regen_delay_s", 5.0)))
+		if regen_time > 0.0:
+			state.shield = minf(state.max_shield, state.shield + regen_time * float(combat_cfg.get("shield_regen_rate_per_s", 25.0)))
+	var health_rate: float = float(combat_cfg.get("health_regen_rate_per_s", 0.0))
+	if health_rate > 0.0 and state.health < state.max_health:
+		var heal_time: float = state.time_since_damage - maxf(before, float(combat_cfg.get("health_regen_delay_s", 0.0)))
+		if heal_time > 0.0:
+			state.health = minf(state.max_health, state.health + heal_time * health_rate)

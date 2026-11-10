@@ -1,12 +1,11 @@
 {
-	"respawn_s": 5,
-	"spawn_protection_s": 5,
-	"squad_size": 3,
 	"max_players": 18,
-	"min_humans": 2,
-	"max_humans": 6,
-	"squads": 2,
+	"min_humans": 1,
+	"max_humans": 8,
 	"default_class": "hastati",
 	"squad_spacing_m": 1.5,
-	"_note": "Design values from DESIGN.md. What spawn protection blocks is a placeholder (OQ-15). squads (the only source for the number of squads: lobby, match, bot fill; local player is squad 0) is 2, DECIDED (Shibi, 2026-10-22, OQ-30). default_class is the offline / no-lobby player's class (milestone 1 starts on Hastati); the profile's last_class is the fallback. TODO: squad_spacing_m (side-by-side spawn spacing of squad mates) is a placeholder (OQ-52)."
+	"spawn_share_offset_m": 4.0,
+	"_note": "max_players 18, min_humans 1 (fully playable solo) and max_humans 8 are design values (DESIGN.md); bots fill to max_players. Squad count and size come from br.json teams (solo: 18 squads of 1; squads: squad_size_max). default_class is the offline / no-lobby player's class (milestone 1 starts on Hastati); the profile's last_class is the fallback. TODO: squad_spacing_m (side-by-side spawn spacing of squad mates) is a placeholder (OQ-52).",
+	"_todo": "spawn_share_offset_m (ring radius when squads share a spawn spot until the drop, S3) is a placeholder: OQ-BR-DROP",
+	"_placeholder": true
 }

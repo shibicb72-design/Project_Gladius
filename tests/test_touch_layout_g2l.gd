@@ -49,7 +49,7 @@ func test_buttons_smaller_than_before_and_data_driven() -> void:
 	var frac: float = touch.cfg["touch_layout"]["button_size_frac_of_height"]
 	assert_true(frac < OLD_BUTTON_SIZE_FRAC, "button size frac %s < old %s" % [frac, OLD_BUTTON_SIZE_FRAC])
 	assert_true(touch.cfg["touch_layout"]["_placeholder"], "touch_layout is marked placeholder")
-	assert_eq(touch.get_button_actions().size(), 5, "five buttons after F1 main Fire removal")
+	assert_eq(touch.get_button_actions().size(), 6, "six buttons: the five after F1 plus the right Fire button (step 3, Shibi Nov 9 2026)")
 	touch.free()
 
 
@@ -77,9 +77,9 @@ func _check_pairwise(sz: Vector2) -> void:
 	_root().add_child(game)
 	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	game.size = sz
-	game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-	game.timer_label.text = "10:00"
-	game.hill_label.text = "Hill: contested"
+	game.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	game.zone_label.text = "10:00"
+	game.downed_label.text = "DOWNED 0:24"
 	game.weapon_label.text = "Gladius Rifle"
 	game.ammo_label.text = "120 / 360"
 	var pm: PauseMenu = _PauseScene.instantiate()
@@ -93,6 +93,13 @@ func _check_pairwise(sz: Vector2) -> void:
 		"gear": pm.get_gear_touch_rect()}
 	for action in touch.get_button_actions():
 		items["button_" + action] = touch.get_button_rect(action)
+	# Step 3 review (Nov 9 2026): the contextual Interact (Revive / Pick up) button takes touches before TouchHud, so it
+	# must not cover any control, the right Fire button above all.
+	var interact := InteractButton.new()
+	interact.cfg = DataRegistry.new().load_file("res://data/ui.json")["interact_button"]
+	interact.touch_hud = touch
+	items["interact"] = interact.get_touch_rect()
+	interact.free()
 	var names: Array = items.keys()
 	var view := Rect2(Vector2.ZERO, sz)
 	for i in names.size():

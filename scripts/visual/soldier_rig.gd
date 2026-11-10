@@ -4,6 +4,7 @@ extends RefCounted
 
 static var mesh: ArrayMesh
 static var skin: Skin
+static var _rest_bounds: Array[AABB] = []
 
 
 static func config() -> Dictionary:
@@ -44,15 +45,25 @@ static func build(parts: Array, head_at: Vector3) -> Skeleton3D:
 	return skeleton
 
 
+## Mesh-space bounds of every part in the bind pose, measured once: a box is its size box, a turned or
+## axis-centred shape is measured from its own corners (LowpolyShapes.bounds_of).
+static func rest_bounds(parts: Array) -> Array[AABB]:
+	if _rest_bounds.size() != parts.size():
+		_rest_bounds.clear()
+		var defaults: Dictionary = LowpolyKit.config()["kit"]["shapes"]
+		for part: Dictionary in parts:
+			_rest_bounds.append(LowpolyShapes.bounds_of(part, defaults))
+	return _rest_bounds
+
+
 ## CPU truth, including under the dummy renderer. Bounds are rigid bone-local AABBs.
 static func part_local_bounds(parts: Array, skeleton: Skeleton3D) -> Array[AABB]:
 	var result: Array[AABB] = []
 	var mapping: Dictionary = config()["part_bones"]
-	for part: Dictionary in parts:
-		var bone := skeleton.find_bone(mapping[part["name"]])
-		var size := LowpolyKit.vec(part["size"])
-		var bounds := AABB(LowpolyKit.vec(part["at"]) - size * 0.5, size)
-		result.append(skeleton.get_bone_global_rest(bone).affine_inverse() * bounds)
+	var rest := rest_bounds(parts)
+	for i in parts.size():
+		var bone := skeleton.find_bone(mapping[parts[i]["name"]])
+		result.append(skeleton.get_bone_global_rest(bone).affine_inverse() * rest[i])
 	return result
 
 

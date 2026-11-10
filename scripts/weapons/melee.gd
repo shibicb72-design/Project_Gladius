@@ -30,13 +30,13 @@ static func is_from_behind(target_pos: Vector3, target_forward: Vector3, attacke
 
 
 ## Pawns the swing reaches, skipping the attacker, dead pawns and targets behind world geometry
-## (space may be null in pure tests).
+## (space may be null in pure tests). A DOWNED pawn is a valid target (the finish).
 static func targets(space: PhysicsDirectSpaceState3D, attacker: Pawn, origin: Vector3, forward: Vector3,
 		def: WeaponDef, candidates: Array) -> Array[Pawn]:
 	var out: Array[Pawn] = []
 	for c in candidates:
 		var p := c as Pawn
-		if p == null or p == attacker or not p.is_alive():
+		if p == null or p == attacker or not (p.is_alive() or p.is_downed()):
 			continue
 		var point := p.get_muzzle_position()
 		if not in_swing(origin, forward, point, def):

@@ -73,7 +73,6 @@ func test_crosshair_shown_while_alive_and_hidden_while_dead() -> void:
 	assert_true(game.crosshair.is_visible_in_tree(), "shown while the local pawn is alive")
 	pawn.bridge.state.health = 0.0  # the kill of tests/test_match_scene.gd test_dead_pawn_respawns_at_squad_spot_protected
 	game.refresh_pawn()
-	assert_true(game.respawn_label.visible, "respawn countdown shows while dead")
 	assert_true(not game.crosshair.is_visible_in_tree(), "hidden while dead (no shot is possible)")
 	pawn.bridge.state.health = pawn.bridge.state.max_health
 	game.refresh_pawn()
@@ -117,8 +116,7 @@ func test_crosshair_hides_while_the_local_pawn_is_dead_in_the_match() -> void:
 	assert_true(pawn.is_alive() and hud.crosshair.is_visible_in_tree(), "shown while alive")
 	pawn.bridge.state.health = 0.0
 	await _Rig.frames(3)
-	assert_true(not pawn.is_alive(), "dead, waiting to respawn")
-	assert_true(hud.respawn_label.visible, "respawn countdown shows")
+	assert_true(not pawn.is_alive(), "zero health counts as not alive")
 	assert_true(not hud.crosshair.is_visible_in_tree(), "crosshair hidden while dead")
 	await _Rig.teardown(ctx)
 

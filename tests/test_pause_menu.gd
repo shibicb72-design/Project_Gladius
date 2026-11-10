@@ -192,10 +192,10 @@ func test_offline_pauses_tree_and_freezes_pawn() -> void:
 	assert_eq(m.pause_menu.process_mode, Node.PROCESS_MODE_ALWAYS, "menu keeps processing")
 	assert_eq(m.pause_menu.settings.process_mode, Node.PROCESS_MODE_ALWAYS, "settings panel keeps processing")
 	var before := m.local_player.global_position
-	var elapsed: float = m.director.rules.elapsed_s
+	var elapsed: int = m.director.tick_count
 	await _frames(30)
 	assert_eq(m.local_player.global_position, before, "pawn position unchanged over 30 physics frames")
-	assert_eq(m.director.rules.elapsed_s, elapsed, "match clock stopped")
+	assert_eq(m.director.tick_count, elapsed, "match clock stopped")
 	await _click_button(m.pause_menu.resume_button)
 	assert_true(not _tree().paused, "unpaused after Resume")
 	await _finish(ctx)
@@ -224,12 +224,12 @@ func test_online_overlay_keeps_sim_running_with_zero_input() -> void:
 	await _frames(10)
 	var settled := m.local_player.global_position
 	var ammo := weapon.ammo_in_mag
-	var elapsed: float = m.director.rules.elapsed_s
+	var elapsed: int = m.director.tick_count
 	await _frames(30)
 	var drift := (m.local_player.global_position - settled) * Vector3(1, 0, 1)
 	assert_true(drift.length() < 0.001, "open: no motion, drift %s" % drift.length())
 	assert_eq(weapon.ammo_in_mag, ammo, "open: ammo unchanged")
-	assert_true(m.director.rules.elapsed_s > elapsed, "sim tick still advances online")
+	assert_true(m.director.tick_count > elapsed, "sim tick still advances online")
 	Input.action_release("move_forward")
 	Input.action_release("fire")
 	m.pause_menu.close()
@@ -443,9 +443,9 @@ func _check_gear_clear(sz: Vector2) -> void:
 	_root().add_child(game)
 	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	game.size = sz
-	game.scores_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
-	game.timer_label.text = "10:00"
-	game.hill_label.text = "Hill: contested"
+	game.alive_label.text = "Squad VIII: XXXVIII   Squad II: XXIX"
+	game.zone_label.text = "10:00"
+	game.downed_label.text = "DOWNED 0:24"
 	game.weapon_label.text = "Gladius Rifle"
 	game.ammo_label.text = "120 / 360"
 	var pm: PauseMenu = _PauseScene.instantiate()
@@ -457,8 +457,8 @@ func _check_gear_clear(sz: Vector2) -> void:
 	var items := {
 		"shield_bar": game.shield_bar.get_global_rect(), "health_bar": game.health_bar.get_global_rect(),
 		"weapon_label": game.weapon_label.get_global_rect(), "ammo_label": game.ammo_label.get_global_rect(),
-		"scores_label": game.scores_label.get_global_rect(), "timer_label": game.timer_label.get_global_rect(),
-		"hill_label": game.hill_label.get_global_rect(), "move_stick": touch.move_stick.get_global_rect(),
+		"alive_label": game.alive_label.get_global_rect(), "zone_label": game.zone_label.get_global_rect(),
+		"downed_label": game.downed_label.get_global_rect(), "move_stick": touch.move_stick.get_global_rect(),
 		"look_stick": touch.look_stick.get_global_rect(), "lock_button": touch.get_lock_button_rect()}
 	for action in touch.get_button_actions():
 		items["button_" + action] = touch.get_button_rect(action)

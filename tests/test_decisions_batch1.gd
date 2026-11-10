@@ -54,7 +54,7 @@ func test_sagittarii_rifle_data() -> void:
 	var d := reg.get_weapon_def("sagittarii_rifle")
 	assert_true(d != null and d.kind == "hitscan" and d.burst_count == 1 and d.is_placeholder, "single-shot hitscan placeholder")
 	assert_true(bool(reg.get_movement_cfg().get("jump_enabled", false)), "jump stays in")
-	assert_eq(int(reg.load_file("res://data/match.json").get("squads", 0)), 2, "2 squads")
+	assert_eq(int(reg.load_file("res://data/match.json").get("max_players", 0)), 18, "18 players (battle royale)")
 
 
 ## Test double: pretends the device has a gyro and reports a fixed rate.

@@ -44,12 +44,72 @@
 		"_todo": "OQ-LIBS-RIG: sample_hz is a presentation bake sampling placeholder, not a design value; no UAL archive acquired yet. Hips XZ is stripped; no motion_scale or importer position normalization.",
 		"sample_hz": 30.0
 	},
+	"poses": {
+		"_placeholder": true,
+		"_todo": "OQ-ANIM (S4): poses laid over the animation graph by scripts/visual/soldier_pose.gd from read-only pawn state: falling from the carrier, the landing crouch, downed, reviving a squad mate, the blade stance and its swing, a lean into movement and breathing. Angles are degrees about the bone's own X, Y, Z from its rest (thigh or arm forward = +X, knee bend = -X on the lower leg, elbow bend = +X on the forearm, torso or head forward = -X, left arm out = -Z, right arm out = +Z); body_pitch_deg tips the whole body about the pelvis (forward = negative) and body_offset_m moves it. All of it is a presentation trial: no collider, hitbox or speed follows a pose.",
+		"blend_s": {"blade": 0.18, "revive": 0.25, "downed": 0.3, "land": 0.16, "fall": 0.3},
+		"land_hold_s": 0.14,
+		"lean": {"forward_deg": 7.0, "side_deg": 5.0, "smooth_s": 0.16},
+		"breath": {"deg": 0.6, "hz": 0.28},
+		"blade": {
+			"bones": {
+				"RightUpperArm": [30, 0, 12], "RightForeArm": [64, 0, 0], "RightHand": [0, 0, 0],
+				"LeftUpperArm": [16, 0, -14], "LeftForeArm": [44, 0, 0], "LeftHand": [0, 0, 0],
+				"Chest": [0, 10, 0]
+			}
+		},
+		"swing": {
+			"s": 0.34, "strike_from": 0.12, "strike_to": 0.5, "recover_from": 0.62,
+			"raised": {"RightUpperArm": [148, 0, 30], "RightForeArm": [72, 0, 0], "Chest": [4, 24, 0], "Spine": [2, 8, 0]},
+			"struck": {"RightUpperArm": [36, 0, -34], "RightForeArm": [14, 0, 0], "Chest": [-10, -26, 0], "Spine": [-6, -8, 0]}
+		},
+		"revive": {
+			"body_pitch_deg": -20, "body_offset_m": [0, -0.47, 0.05],
+			"bones": {
+				"Spine": [-8, 0, 0], "Head": [-12, 0, 0],
+				"RightUpperLeg": [22, 0, 0], "RightLowerLeg": [-96, 0, 0], "RightFoot": [40, 0, 0],
+				"LeftUpperLeg": [92, 0, -6], "LeftLowerLeg": [-100, 0, 0], "LeftFoot": [10, 0, 0],
+				"RightUpperArm": [68, 0, 6], "RightForeArm": [18, 0, 0],
+				"LeftUpperArm": [52, 0, -4], "LeftForeArm": [36, 0, 0]
+			}
+		},
+		"downed": {
+			"_low_note": "The lead's note (Nov 10 2026): a downed pawn's hitbox becomes low (a 0.9 m body, head centre about 1.0 m up). The pose aims to read that low: head_height_m is where the pose puts the head bone's centre, within head_tolerance_m (tests/test_soldier_pose.gd). The hitbox itself is gameplay's and is not set from here.",
+			"head_height_m": 1.0, "head_tolerance_m": 0.1,
+			"body_pitch_deg": -44, "body_offset_m": [0, -0.55, 0.1],
+			"bones": {
+				"Spine": [-10, 0, 0], "Chest": [-6, 0, 0], "Head": [-20, 0, 0],
+				"RightUpperLeg": [38, 0, 0], "RightLowerLeg": [-98, 0, 0], "RightFoot": [44, 0, 0],
+				"LeftUpperLeg": [108, 0, -8], "LeftLowerLeg": [-104, 0, 0], "LeftFoot": [14, 0, 0],
+				"RightUpperArm": [44, 0, 8], "RightForeArm": [12, 0, 0],
+				"LeftUpperArm": [34, 0, 12], "LeftForeArm": [112, 0, 0]
+			}
+		},
+		"land": {
+			"body_pitch_deg": -14, "body_offset_m": [0, -0.25, 0],
+			"bones": {
+				"Spine": [-8, 0, 0],
+				"RightUpperLeg": [64, 0, 3], "RightLowerLeg": [-104, 0, 0], "RightFoot": [38, 0, 0],
+				"LeftUpperLeg": [64, 0, -3], "LeftLowerLeg": [-104, 0, 0], "LeftFoot": [38, 0, 0]
+			}
+		},
+		"fall": {
+			"body_pitch_deg": -64, "body_offset_m": [0, 0.1, 0],
+			"bones": {
+				"Spine": [8, 0, 0], "Chest": [8, 0, 0], "Head": [34, 0, 0],
+				"RightUpperLeg": [-18, 0, 15], "RightLowerLeg": [-46, 0, 0], "RightFoot": [-20, 0, 0],
+				"LeftUpperLeg": [-18, 0, -15], "LeftLowerLeg": [-46, 0, 0], "LeftFoot": [-20, 0, 0],
+				"RightUpperArm": [28, 0, 78], "RightForeArm": [38, 0, 0],
+				"LeftUpperArm": [28, 0, -78], "LeftForeArm": [38, 0, 0]
+			}
+		}
+	},
 	"bones": [
 		{"name":"Hips", "parent":"", "part":"pelvis", "pivot":"center"},
 		{"name":"Spine", "parent":"Hips", "part":"torso", "pivot":"center"},
 		{"name":"Chest", "parent":"Spine", "part":"torso", "pivot":"top"},
 		{"name":"Neck", "parent":"", "part":"neck", "pivot":"center"},
-		{"name":"Head", "parent":"Neck", "part":"visor", "pivot":"head_shell"},
+		{"name":"Head", "parent":"Neck", "part":"helmet_bowl", "pivot":"head_shell"},
 		{"name":"LeftUpperArm", "parent":"Chest", "part":"upper_arm_l", "pivot":"top"},
 		{"name":"LeftForeArm", "parent":"LeftUpperArm", "part":"lower_arm_l", "pivot":"top"},
 		{"name":"LeftHand", "parent":"LeftForeArm", "part":"glove_l", "pivot":"center"},
@@ -69,6 +129,17 @@
 		"upper_arm_r":"RightUpperArm", "lower_arm_r":"RightForeArm", "glove_r":"RightHand",
 		"thigh_l":"LeftUpperLeg", "shin_l":"LeftLowerLeg", "boot_l":"LeftFoot",
 		"thigh_r":"RightUpperLeg", "shin_r":"RightLowerLeg", "boot_r":"RightFoot",
-		"visor":"Head", "visor_accent":"Head", "vest_stripe":"Spine", "neck":"Neck"
+		"visor":"Head", "visor_accent":"Head", "vest_stripe":"Spine", "neck":"Neck",
+		"_legionary_note": "C2: the Astra legionary's plates. Helmet parts ride the Head bone; cuirass top, gorget, back unit, cape and pauldrons ride the Chest so they stay off the head hitbox when the arms move. The vest, backpack and visor rows above serve soldier.parts_far.",
+		"helmet_bowl":"Head", "helmet_brow":"Head", "helmet_visor":"Head", "helmet_eye":"Head",
+		"helmet_cheek_l":"Head", "helmet_cheek_r":"Head", "helmet_neck":"Head", "helmet_crest":"Head",
+		"cuirass_upper":"Chest", "cuirass_mid":"Spine", "cuirass_low":"Spine", "chest_plate":"Chest",
+		"gorget":"Chest", "back_unit":"Chest", "back_core":"Chest", "cape":"Chest",
+		"pauldron_l":"Chest", "pauldron_r":"Chest", "pauldron_rim_l":"Chest", "pauldron_rim_r":"Chest",
+		"rerebrace_l":"LeftUpperArm", "rerebrace_r":"RightUpperArm", "vambrace_l":"LeftForeArm", "vambrace_r":"RightForeArm",
+		"belt":"Hips", "belt_buckle":"Hips", "strip_1":"Hips", "strip_2":"Hips", "strip_3":"Hips", "strip_4":"Hips",
+		"tasset_l":"Hips", "tasset_r":"Hips",
+		"cuisse_l":"LeftUpperLeg", "cuisse_r":"RightUpperLeg", "knee_l":"LeftLowerLeg", "knee_r":"RightLowerLeg",
+		"greave_l":"LeftLowerLeg", "greave_r":"RightLowerLeg"
 	}
 }

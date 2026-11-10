@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
-## D1 (spec G1.5) source guards. T7: scripts/ui may only READ a CoverController. T8: the host ignores the
-## crouch/prone/interact frame bits until D9/G3.2 (cover stays owner-only, OQ-COVER).
+## D1 source guards. T7: scripts/ui may only READ a CoverController. T8: the host ignores the
+## crouch/prone/interact frame bits until the host-side cover slice (cover stays owner-only, OQ-COVER).
 
 const UI_DIR := "res://scripts/ui"
 const NET_DIR := "res://scripts/net"
@@ -16,9 +16,8 @@ const MUTATORS: Array[String] = ["_init", "reset", "toggle_crouch", "set_look_ac
 ## Crouch mutators: forbidden anywhere in scripts/ui, with no exception.
 const CROUCH_METHODS: Array[String] = ["toggle_crouch", "_update_crouch"]
 const CROUCH_FIELDS: Array[String] = ["crouched", "crouch_amount"]
-## ONE exception list, keyed by file and method (not lines). TODO(D2): cover FIRE still drives the controller
-## from UI (look-hold and quick-draw); D2 owns "a path for cover FIRE" and should empty this list.
-const EXCEPTIONS := {"cover_fire_button.gd": ["quick_draw", "set_look_active"]}
+## Exception list, keyed by file and method (not lines). Empty since D2 routed cover FIRE through the input layer.
+const EXCEPTIONS := {}
 
 
 ## Removes `#` comments, keeping `#` inside string literals.
@@ -139,7 +138,7 @@ func test_t7_no_ui_script_mutates_cover_controller() -> void:
 				continue
 			failures.append("%s mutates CoverController from UI: %s" % [file, v])
 	assert_true(scanned >= 2, "UI scripts scanned")
-	# The D2 exception stays exact: every listed entry is still in use (remove it when D2 reroutes cover FIRE).
+	# Any exception stays exact: every listed entry is still in use.
 	for file in EXCEPTIONS:
 		for meth in EXCEPTIONS[file]:
 			assert_true(used.has(file + ":" + meth), "exception %s:%s still needed" % [file, meth])
@@ -196,5 +195,5 @@ func test_t8_net_scripts_never_read_the_new_bits() -> void:
 			continue
 		scanned += 1
 		var hit := re.search(strip_comments(FileAccess.get_file_as_string(NET_DIR + "/" + file)))
-		assert_true(hit == null, "%s reads %s (host must ignore it until D9/G3.2)" % [file, hit.get_string() if hit != null else ""])
+		assert_true(hit == null, "%s reads %s (host must ignore it until the host-side cover slice)" % [file, hit.get_string() if hit != null else ""])
 	assert_true(scanned > 0, "net scripts scanned")

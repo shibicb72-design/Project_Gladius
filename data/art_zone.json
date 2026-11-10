@@ -1,0 +1,38 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-BR-ZONE: the zone wall's look (an energy field with a climbing lattice and a hot foot line), the next circle's ground ring and the beacon at its centre are presentation trials. The wall's and the ring's heights stay in data/ui.json \"zone_wall\"; the circles themselves are the rules' and are not touched here.",
+	"wall": {
+		"field_color": [0.1, 0.35, 1.0, 1.0],
+		"line_color": [0.4, 0.85, 1.0, 1.0],
+		"foot_color": [0.7, 0.92, 1.0, 1.0],
+		"field_alpha": 0.1,
+		"line_alpha": 0.3,
+		"foot_alpha": 0.9,
+		"foot_height_m": 0.25,
+		"cell_m": 2.6,
+		"line_width_m": 0.05,
+		"climb_mps": 0.6,
+		"fade_height_m": 12.0,
+		"near_m": 45.0,
+		"far_alpha": 0.12,
+		"radial_segments": 96
+	},
+	"target_ring": {
+		"tint": [1.0, 0.78, 0.36, 1.0],
+		"strength": 0.9,
+		"dash_m": 3.0,
+		"run_mps": 1.5
+	},
+	"beacon": {
+		"_note": "A column of light at the centre of the next circle, so a player sees where to go from anywhere. Hidden in the final phase with the ring.",
+		"enabled": true,
+		"tint": [1.0, 0.78, 0.36, 1.0],
+		"strength": 0.9,
+		"radius_m": 0.9,
+		"height_m": 110.0,
+		"pulse_speed": 2.2,
+		"base_ring_radius_m": 3.0,
+		"base_ring_height_m": 0.5
+	}
+}

@@ -1,0 +1,148 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-GFX-LOOK: sky, light, fog, bloom, grading, weather and the three variants (dusk, night, storm; DESIGN.md:8) are presentation trials. Which variant a match shows (fixed, or rotated by the match seed) is Shibi's call; nothing here changes rules, sight ranges or bots.",
+	"_base_note": "The base look is dusk. Its sun, ambient light and exposure stay in data/art_greybox.json \"environment\" and its fog and shadow numbers in data/art_astra.json \"environment\" (the keys the lighting tests read); the sky, post and weather numbers are here. A variant overrides any of them: \"light\" = art_greybox environment keys, \"fog\" = art_astra environment keys, \"sky\", \"post\", \"wet\", \"weather\".",
+	"variant": "dusk",
+	"rotation": {
+		"_note": "enabled: the match seed picks the variant from by_seed (seed modulo the list length) when a match begins; off: every match shows \"variant\".",
+		"enabled": true,
+		"by_seed": ["dusk", "dusk", "storm", "dusk", "night"]
+	},
+	"sky": {
+		"zenith_color": [0.05, 0.1, 0.3, 1.0],
+		"horizon_color": [0.42, 0.42, 0.6, 1.0],
+		"horizon_sun_color": [1.0, 0.55, 0.26, 1.0],
+		"ground_color": [0.16, 0.13, 0.13, 1.0],
+		"horizon_power": 3.2,
+		"sun_spread": 4.0,
+		"sun_color": [1.0, 0.72, 0.45, 1.0],
+		"sun_energy": 26.0,
+		"sun_size_deg": 1.35,
+		"sun_halo": 0.5,
+		"cloud_cover": 0.46,
+		"cloud_soft": 0.16,
+		"cloud_scale": 0.3,
+		"cloud_offset": [0.13, 0.41],
+		"cloud_lit_color": [1.0, 0.6, 0.36, 1.0],
+		"cloud_dark_color": [0.16, 0.16, 0.27, 1.0],
+		"star_energy": 0.25,
+		"radiance_size": 128
+	},
+	"post": {
+		"glow_intensity": 0.75,
+		"glow_strength": 1.0,
+		"glow_bloom": 0.06,
+		"glow_hdr_threshold": 1.0,
+		"glow_blend": "screen",
+		"fog_sun_scatter": 0.45,
+		"fog_aerial_perspective": 0.35,
+		"adjust_brightness": 1.0,
+		"adjust_contrast": 1.08,
+		"adjust_saturation": 1.12,
+		"vignette": 0.38,
+		"vignette_color": [0.02, 0.02, 0.06, 1.0]
+	},
+	"wet": 0.25,
+	"weather": "motes",
+	"variants": {
+		"dusk": {},
+		"night": {
+			"light": {
+				"sun_color": [0.62, 0.74, 1.0, 1.0],
+				"sun_energy": 0.9,
+				"sun_rotation_degrees": [-38.0, 150.0, 0.0],
+				"ambient_color": [0.2, 0.28, 0.5, 1.0],
+				"ambient_energy": 0.9,
+				"tonemap_exposure": 1.1
+			},
+			"fog": {
+				"fog_color": [0.06, 0.09, 0.2, 1.0],
+				"fog_depth_begin_m": 14,
+				"fog_depth_end_m": 150
+			},
+			"sky": {
+				"zenith_color": [0.01, 0.02, 0.07, 1.0],
+				"horizon_color": [0.05, 0.09, 0.2, 1.0],
+				"horizon_sun_color": [0.1, 0.16, 0.3, 1.0],
+				"ground_color": [0.02, 0.03, 0.05, 1.0],
+				"sun_color": [0.8, 0.88, 1.0, 1.0],
+				"sun_energy": 5.0,
+				"sun_size_deg": 1.6,
+				"sun_halo": 0.25,
+				"cloud_cover": 0.38,
+				"cloud_lit_color": [0.3, 0.38, 0.55, 1.0],
+				"cloud_dark_color": [0.03, 0.04, 0.09, 1.0],
+				"star_energy": 2.2
+			},
+			"post": {"glow_intensity": 0.95, "adjust_saturation": 1.05, "vignette": 0.5},
+			"wet": 0.1,
+			"weather": "motes"
+		},
+		"storm": {
+			"light": {
+				"sun_color": [0.75, 0.82, 0.95, 1.0],
+				"sun_energy": 0.75,
+				"sun_rotation_degrees": [-34.0, 135.0, 0.0],
+				"ambient_color": [0.42, 0.5, 0.6, 1.0],
+				"ambient_energy": 1.0,
+				"tonemap_exposure": 1.0
+			},
+			"fog": {
+				"fog_color": [0.3, 0.36, 0.42, 1.0],
+				"fog_depth_begin_m": 6,
+				"fog_depth_end_m": 110
+			},
+			"sky": {
+				"zenith_color": [0.1, 0.13, 0.17, 1.0],
+				"horizon_color": [0.33, 0.38, 0.42, 1.0],
+				"horizon_sun_color": [0.75, 0.62, 0.45, 1.0],
+				"ground_color": [0.08, 0.09, 0.1, 1.0],
+				"sun_energy": 0.0,
+				"sun_halo": 0.12,
+				"cloud_cover": 0.86,
+				"cloud_soft": 0.26,
+				"cloud_lit_color": [0.5, 0.52, 0.55, 1.0],
+				"cloud_dark_color": [0.1, 0.12, 0.15, 1.0],
+				"star_energy": 0.0
+			},
+			"post": {"glow_intensity": 0.9, "adjust_saturation": 0.95, "adjust_contrast": 1.1, "fog_sun_scatter": 0.15, "vignette": 0.45},
+			"wet": 1.0,
+			"weather": "rain"
+		}
+	},
+	"weather_kinds": {
+		"none": {},
+		"_note": "Weather follows the camera and is drawn only when the graphics preset has art_weather_enabled. Counts are particles alive at once.",
+		"motes": {"amount": 90, "box_m": [18, 6, 18], "lifetime_s": 7.0, "size_m": 0.035, "speed_mps": 0.25, "color": [1.0, 0.82, 0.6, 0.55]},
+		"rain": {"amount": 900, "box_m": [22, 12, 22], "lifetime_s": 0.75, "length_m": 0.7, "width_m": 0.012, "speed_mps": 17.0, "slant": [0.18, 0.0, 0.08], "color": [0.75, 0.82, 0.9, 0.38],
+			"splash_amount": 140, "splash_lifetime_s": 0.32, "splash_size_m": 0.28, "splash_box_m": 16,
+			"lightning_every_s": [7.0, 19.0], "lightning_s": 0.22, "lightning_energy": 2.6, "lightning_color": [0.8, 0.86, 1.0, 1.0]}
+	},
+	"forward_plus": {
+		"_note": "OQ-GFX-RENDERER: numbers for the effects only the Forward+ renderer draws (screen-space reflections, ambient occlusion and indirect light, volumetric fog). They do nothing on the Mobile renderer; the preset's fx_* switches turn each on.",
+		"ssr_max_steps": 48,
+		"ssr_fade_in": 0.15,
+		"ssr_fade_out": 2.0,
+		"ssao_radius_m": 1.4,
+		"ssao_intensity": 1.6,
+		"ssil_radius_m": 4.0,
+		"ssil_intensity": 0.8,
+		"volumetric_density": 0.0035,
+		"volumetric_albedo": [1.0, 0.9, 0.8, 1.0],
+		"volumetric_length_m": 96.0,
+		"volumetric_anisotropy": 0.75,
+		"volumetric_ambient_inject": 0.0,
+		"volumetric_sky_affect": 0.0,
+		"volumetric_sun_energy": 2.2
+	},
+	"shafts": {
+		"_note": "Sun shafts are a few see-through quads that hang in the air along the sun's direction at the places listed (additive, no depth read). Drawn only with art_shafts_enabled and when the variant's sun is strong enough (min_sun_energy).",
+		"min_sun_energy": 1.5,
+		"color": [1.0, 0.66, 0.4, 1.0],
+		"strength": 0.09,
+		"length_m": 34,
+		"width_m": 4.0,
+		"at": [[40, 9, -36], [47, 9, -40], [33, 8, -30], [-36, 9, 40], [-44, 8, 46], [0, 9, -12], [6, 8, 14], [-40, 9, -42]]
+	}
+}

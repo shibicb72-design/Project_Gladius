@@ -3,6 +3,8 @@ extends InputProvider
 ## Values are pushed in by the touch HUD. Held buttons reach the game via Input.action_press
 ## (picked up by KeyboardMouseProvider), so only the sticks live here. One-shot press controls (the in-cover
 ## Crouch, D1) call trigger_action instead: the router acts on it at press time and latches the frame edge.
+## The held cover FIRE (D2) uses trigger_action / release_action / set_action_look on "cover_fire", which the
+## router re-emits without touching the frame.
 ## TODO(D2): keyboard/gamepad crouch must reach the same router action_triggered signal (one press, one toggle)
 ## without also toggling from the polled crouch_just_pressed bit.
 ## Look is radians per physics tick (see look_math.gd), in "stick" or "drag" mode.
@@ -105,6 +107,16 @@ func trigger_action(action: String) -> void:
 	action_triggered.emit(action)
 
 
+## A held touch control ended (D2: cover FIRE). Emitted synchronously, every call, with no held-state check.
+func release_action(action: String, cancel: bool = false) -> void:
+	action_released.emit(action, cancel)
+
+
+## The look state for a touch control (D2: cover FIRE). Emitted every call, changed or not.
+func set_action_look(action: String, active: bool) -> void:
+	action_look_changed.emit(action, active)
+
+
 ## Tap on the Sprint lock button: locks while moving forward, cancels while locked.
 func toggle_sprint_lock() -> void:
 	if sprint_locked:
@@ -125,14 +137,18 @@ func _report_missing_feel() -> void:
 		push_error(msg)
 
 
+## Step 3 (Shibi, Nov 9 2026: swipe-look default, a Fire button whose drag aims): the stick is a rate source
+## and stays capped at look.max_turn_rate_deg_s; dragged pixels (the look zone in drag mode, or a held Fire
+## button in either mode) turn the view 1:1 with the finger and are never capped, so a fast flick keeps its
+## full travel.
 func get_look() -> Vector2:
 	var v := Vector2.ZERO
-	if look_mode == "drag":
-		v = _LookMath.look_from_drag(_drag_accum, _viewport_h, _cfg)
+	if look_mode != "drag":
+		v = _LookMath.clamp_turn(_LookMath.look_from_stick(look_value, _cfg, _LookMath.tick_hz()) * sensitivity,
+				_cfg, _LookMath.tick_hz())
+	if _drag_accum != Vector2.ZERO:
+		v += _LookMath.drag_turn(_drag_accum, _viewport_h, _cfg) * sensitivity
 		_drag_accum = Vector2.ZERO
-	else:
-		v = _LookMath.look_from_stick(look_value, _cfg, _LookMath.tick_hz())
-	v *= sensitivity
 	if invert_y:
 		v.y = -v.y
-	return _LookMath.clamp_turn(v, _cfg, _LookMath.tick_hz())
+	return v

@@ -16,7 +16,7 @@ signal changed
 const _Theme := preload("res://scenes/ui/theme.tres")
 const _TouchScene := preload("res://scenes/ui/touch_hud.tscn")
 const _HudScene := preload("res://scenes/ui/hud.tscn")
-const _SAMPLE_TEXT := {"scores": "Squad VIII: XXXVIII   Squad II: XXIX", "timer": "10:00", "hill": "Hill: contested",
+const _SAMPLE_TEXT := {"alive": "Alive XVIII   Squads VI", "zone": "Zone closes in 1:00", "downed": "DOWNED 0:24",
 		"weapon": "Gladius Rifle", "ammo": "120 / 360"}
 const _TOLERANCE_PX := 0.5
 
@@ -285,9 +285,9 @@ func _checker(sz: Vector2i) -> Dictionary:
 	_check_view.add_child(hud)
 	hud.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	hud.size = fsz
-	hud.scores_label.text = _SAMPLE_TEXT["scores"]
-	hud.timer_label.text = _SAMPLE_TEXT["timer"]
-	hud.hill_label.text = _SAMPLE_TEXT["hill"]
+	hud.alive_label.text = _SAMPLE_TEXT["alive"]
+	hud.zone_label.text = _SAMPLE_TEXT["zone"]
+	hud.downed_label.text = _SAMPLE_TEXT["downed"]
 	hud.weapon_label.text = _SAMPLE_TEXT["weapon"]
 	hud.ammo_label.text = _SAMPLE_TEXT["ammo"]
 	touch.relayout()
@@ -309,7 +309,7 @@ func check_slot(slot_i: int, sz: Vector2i) -> Array:
 	var safe := _safe_rect(Vector2(sz)).grow(_TOLERANCE_PX)
 	var bars := {}
 	var hud: GameHud = c["hud"]
-	for n in ["shield_bar", "health_bar", "weapon_label", "ammo_label", "scores_label", "timer_label", "hill_label"]:
+	for n in ["shield_bar", "health_bar", "weapon_label", "ammo_label", "alive_label", "zone_label", "downed_label"]:
 		bars[n] = (hud.get(n) as Control).get_global_rect()
 	bars["gear"] = gear_rect(Vector2(sz))
 	for key in touch.get_element_keys():

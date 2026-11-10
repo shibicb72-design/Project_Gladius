@@ -1,0 +1,139 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-3D-CAPTURE: framing of the desktop capture tool's 3D shots (tools/touch_capture.gd --scene-shot): stage candidates, camera distances, heights, fields of view. Tool framing only; no gameplay or shipped-look effect.",
+	"stage_candidates_xz": [[-40, 0], [40, 0], [-20, 34.64], [20, -34.64], [20, 34.64], [-20, -34.64], [0, 55], [0, -55], [55, 0], [-55, 0]],
+	"lane_step_deg": 15,
+	"lane_clear_heights_m": [0.4, 1.0, 1.7],
+	"lane_max_ground_step_m": 0.5,
+	"ground_max_y_m": 1.5,
+	"ground_ray_top_m": 60,
+	"ground_ray_bottom_m": -5,
+	"ground_min_normal_y": 0.8,
+	"settle_frames": 30,
+	"match_seed": 20261109,
+	"soldier_turntable": {
+		"yaws_deg": [0, 90, 180],
+		"labels": "front / side / back",
+		"spacing_m": 1.5,
+		"frame_margin_m": 0.9,
+		"frame_height_m": 2.5,
+		"camera_height_m": 1.1,
+		"look_height_m": 1.0,
+		"fov_deg": 30
+	},
+	"soldier_50m": {
+		"distance_m": 50,
+		"count": 6,
+		"spacing_m": 1.6,
+		"eye_height_m": 1.6,
+		"look_height_m": 1.0,
+		"zoom_fov_deg": 8
+	},
+	"map_overview": {
+		"camera_at": [0, 150, 120],
+		"look_at": [0, 0, 0],
+		"fov_deg": 50,
+		"fog": false
+	},
+	"loot_lineup": {
+		"spacing_m": 1.3,
+		"frame_margin_m": 1.8,
+		"frame_height_m": 3.2,
+		"camera_height_m": 1.5,
+		"look_height_m": 0.8,
+		"fov_deg": 45
+	},
+	"kit_lineup": {
+		"stage_at": [0, 0, 400],
+		"rows": [
+			["wall_stair", "wall_walk", "gate", "watchtower"],
+			["aqueduct_ramp", "aqueduct_span", "colonnade", "pediment_front", "column"],
+			["barracks", "tent", "stake_row", "eagle_standard", "ramp_block", "terrace_block"]
+		],
+		"views": [{"name": "front", "yaw_deg": 25}, {"name": "back", "yaw_deg": 205}],
+		"gap_m": 3.0,
+		"ground_margin_m": 14,
+		"frame_margin_m": 7.0,
+		"frame_height_m": 12,
+		"camera_height_m": 7.0,
+		"look_height_m": 2.5,
+		"fov_deg": 40
+	},
+	"ground_views": {
+		"_note": "W3: views from a soldier's eye height. A view looks at a landmark (by id, from the map's landmark file) or at a fixed look_at point; from = [x, z] on open ground.",
+		"eye_height_m": 1.7,
+		"look_height_m": 3.0,
+		"fov_deg": 70,
+		"views": [
+			{"name": "porta_astra", "landmark": "porta_astra", "from": [-27, -27]},
+			{"name": "aqua_alta", "landmark": "aqua_alta", "from": [29, -23]},
+			{"name": "specula", "landmark": "specula", "from": [26, 28]},
+			{"name": "forum_aquilae", "landmark": "forum_aquilae", "from": [-25, 28]},
+			{"name": "west_route", "look_at": [-42, 1.5, 30], "from": [-39, -3]},
+			{"name": "rim_arch", "look_at": [67, 4, 0], "from": [52, -9]}
+		]
+	},
+	"in_match": {
+		"_note": "S0: the local pawn through the game's own third-person camera rig. at = [x, z] on open ground, look_at = [x, y, z]; others = [x, z, yaw_deg] inert soldiers (squads 1, 2, ...).",
+		"pitch_deg": -4,
+		"views": [
+			{"name": "forum", "at": [-27, 27], "look_at": [-41, 3, 42], "others": [[-33, 33, 0], [-36, 30, 40]]},
+			{"name": "citadel", "at": [-6, 36], "look_at": [0, 3, 0], "others": [[-3, 28, 0], [2, 30, 180]]},
+			{"name": "gate", "at": [-28, -28], "look_at": [-40, 3, -44], "others": [[-33, -34, 0]]}
+		]
+	},
+	"soldier_poses": {
+		"_note": "S4: a row of soldiers, each holding one pose (data/anim.json poses) at full weight, with the blade and an armor tier where asked.",
+		"spacing_m": 1.7,
+		"frame_margin_m": 1.0,
+		"frame_height_m": 2.6,
+		"camera_height_m": 1.2,
+		"look_height_m": 0.95,
+		"fov_deg": 32,
+		"views": [{"name": "front", "yaw_deg": 0}, {"name": "back", "yaw_deg": 180}],
+		"row": [
+			{"label": "rifle", "pose": "", "tier": 0},
+			{"label": "blade, tier I", "pose": "", "blade": true, "tier": 1},
+			{"label": "falling", "pose": "fall", "blade": true, "tier": 0},
+			{"label": "landing", "pose": "land", "blade": true, "tier": 2},
+			{"label": "downed", "pose": "downed", "tier": 0},
+			{"label": "reviving, tier III", "pose": "revive", "tier": 3}
+		]
+	},
+	"carrier": {
+		"_note": "S6: the carrier model on a made-up stretch of flight. camera_offset is from the carrier position.",
+		"at": [0, 60, 10],
+		"heading_deg": 35,
+		"look_offset": [0, 3, 0],
+		"fov_deg": 50,
+		"views": [
+			{"name": "side", "camera_offset": [-30, 6, -22]},
+			{"name": "below", "camera_offset": [8, -22, 26]},
+			{"name": "rider", "camera_offset": [1.2, 1.4, 5.5]}
+		]
+	},
+	"drop_capture": {
+		"_note": "S9: tools/drop_capture.gd, a real match opening. at_s = seconds after the match began (the carrier flies 20 s, br.json drop.carrier_s; an idle pawn is let go at the end of the line).",
+		"match_seed": 20261109,
+		"shots": [
+			{"name": "1_aboard", "at_s": 4.0},
+			{"name": "2_aboard_late", "at_s": 16.0},
+			{"name": "3_falling", "at_s": 23.0},
+			{"name": "4_falling_low", "at_s": 27.5},
+			{"name": "5_landed", "at_s": 33.0},
+			{"name": "6_on_the_ground", "at_s": 40.0}
+		]
+	},
+	"wall_closeup": {
+		"bearing_start_deg": 15,
+		"bearing_step_deg": 30,
+		"camera_from_wall_m": 7.0,
+		"camera_side_m": 2.5,
+		"camera_height_m": 1.6,
+		"look_height_m": 2.5,
+		"pawn_from_wall_m": 1.5,
+		"clear_half_width_m": 8.0,
+		"fov_deg": 75
+	}
+}
