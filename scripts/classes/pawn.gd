@@ -685,7 +685,8 @@ func _apply_weapon() -> void:
 		cover.round_fired()
 	for i in shots:
 		fire_shot()
-	if shots > 0 and not w.def.is_melee():
+	# Shibi, Nov 10 2026: no recoil on the quick shot from cover (every in-cover shot goes through the cover trigger).
+	if shots > 0 and not w.def.is_melee() and not in_cover:
 		_apply_recoil(w.def, shots)
 	# G1: a gun that just ran dry with reserve left reloads by itself (stats.json combat.auto_reload_on_empty).
 	if shots > 0 and not w.def.is_melee() and w.ammo_in_mag == 0 and w.reserve > 0 and not w.reloading \

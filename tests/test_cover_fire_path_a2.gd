@@ -288,8 +288,8 @@ func test_cover_slots_do_not_jump_lock_or_swap_and_ten_reliable_taps() -> void:
 			assert_true(not touch.provider.sprint_locked, "hidden lock cannot toggle")
 			assert_eq(rig.shoulder_side, shoulder, "hidden Shoulder cannot swap")
 	await frames(65)
-	# Step 3 D4 (real recoil): every round climbs and drifts the real aim, and unchecked it ends up on the cover wall,
-	# which blocks cover FIRE (shot_clear). A player pulls back between taps; the test does the same.
+	# Shibi, Nov 10 2026: no recoil on the quick shot from cover, so ten cover FIRE taps leave the real aim where it was
+	# (with recoil it drifted into the wall and cover FIRE refused the shot).
 	var aim_yaw := pawn.rotation.y
 	var aim_pitch := pawn.pitch
 	for i in 10:
@@ -297,9 +297,7 @@ func test_cover_slots_do_not_jump_lock_or_swap_and_ten_reliable_taps() -> void:
 		await tap(fire.label.get_global_rect().get_center())
 		await frames(65)
 		assert_eq(shots - before, 1, "green FIRE tap %d/10" % (i + 1))
-		pawn.rotation.y = aim_yaw
-		pawn.pitch = aim_pitch
-		rig.set_pitch(aim_pitch)
+		assert_true(absf(pawn.pitch - aim_pitch) < 1e-6 and absf(pawn.rotation.y - aim_yaw) < 1e-6, "no recoil from cover (tap %d)" % (i + 1))
 		assert_true(not pawn.cover._draw_active, "quick draw auto-returns before next tap")
 		var stance := pawn.cover.crouched
 		await tap(crouch.label.get_global_rect().get_center())
