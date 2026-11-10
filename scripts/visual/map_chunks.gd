@@ -2,7 +2,8 @@ class_name MapChunks
 extends Node3D
 ## M2P1A: the map's looks batched per chunk, so a later step can cull a chunk by distance on a 1 km map.
 ## The grid is square with its origin at the map centre; a piece's body origin decides its chunk. A chunk holds
-## one MultiMesh batch per source ("cover", "ring", "structure") and type. Bodies and colliders stay per piece
+## one MultiMesh batch per source ("cover", "ring", "structure", "decor") and type; a decor type is
+## "<kind>_<n>", one per kind and size (the builder's decor_types). Bodies and colliders stay per piece
 ## under Nav; this node draws only. This node and its chunk nodes keep identity transforms, so an instance
 ## transform equals its body's transform. Data: data/map_build.json (placeholder, OQ-MAP-CHUNK).
 
@@ -126,8 +127,9 @@ func instance_total(source: String, type: String = "") -> int:
 ## Tree counts of a built map scene (the root that holds Nav, ArtBuilder and Decor); a proxy, not measured
 ## frame cost. "per_map": the whole scene tree (multimesh, mesh_instances, materials, bodies, chunks, batches,
 ## batch_instances). "per_chunk": the largest count of any chunk index, and "per_chunk_at" where it occurs
-## (first in index order). A chunk holds its batches, plus the unbatched looks under Nav (not Nav/Ground) and
-## Decor and the bodies under Nav (not Ground) whose origin maps to it. The map must be in the tree.
+## (first in index order). A chunk holds its batches, plus any unbatched looks under Nav (not Nav/Ground) and
+## Decor (the decor looks are batched, so Decor holds none) and the bodies under Nav (not Ground) whose origin
+## maps to it. The map must be in the tree.
 static func proxies(map: Node) -> Dictionary:
 	var chunks := map.get_node("ArtBuilder/Chunks") as MapChunks
 	var nav := map.get_node("Nav")

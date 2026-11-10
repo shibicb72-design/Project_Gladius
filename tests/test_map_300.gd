@@ -5,6 +5,7 @@ extends "res://tests/test_case.gd"
 
 const _Gen := preload("res://tools/gen_test_map.gd")
 const _MatchScene := preload("res://scenes/match/match.tscn")
+const _Chunks := preload("res://tests/test_map_chunks.gd")
 const MAP := "res://data/maps/test_300.json"
 const ALESIA := "res://data/maps/alesia_section.json"
 const COVER_TYPES := "res://data/maps/alesia_cover.json"
@@ -123,8 +124,12 @@ func test_every_piece_on_the_ground_with_gaps_and_clearances() -> void:
 			worst = minf(worst, gap)
 			if gap + 0.00001 < gap_min:
 				assert_true(false, "%s/%s keep the minimum gap (%.2f m)" % [bodies[i].name, bodies[j].name, gap])
-	for look: Node3D in map.get_node("Decor").get_children():
-		assert_true(ground.has_point(Vector2(look.position.x, look.position.z)), String(look.name) + ": decor look on the ground")
+	var decor_looks := 0
+	for batch: MultiMeshInstance3D in (map.get_node("ArtBuilder/Chunks") as MapChunks).batches("decor"):
+		for xform: Transform3D in batch.get_meta(&"transforms"):
+			decor_looks += 1
+			assert_true(ground.has_point(Vector2(xform.origin.x, xform.origin.z)), String(batch.name) + ": decor look on the ground " + str(xform.origin))
+	assert_true(decor_looks > 0, "nonvacuous: decor looks")
 	print("MAP_300_GAPS bodies=", bodies.size(), " smallest_gap_m=", worst)
 	map.free()
 
@@ -156,7 +161,8 @@ func test_scene_layout_and_body_counts() -> void:
 	assert_eq(builder.cover_bodies.size(), (cover["pieces"] as Array).size(), "one cover body per piece")
 	assert_eq(builder.ring_bodies.size(), (cover["ring_pieces"] as Array).size(), "one ring body per piece")
 	assert_eq(builder.structure_bodies.size(), (structures["pieces"] as Array).size(), "one structure body per piece")
-	assert_eq(map.get_node("Decor").get_child_count(), (cover["decor"] as Array).size(), "one decor look per entry")
+	assert_eq((map.get_node("ArtBuilder/Chunks") as MapChunks).instance_total("decor"), (cover["decor"] as Array).size(), "one decor look per entry")
+	assert_eq(map.get_node("Decor").get_child_count(), 0, "the scene's Decor node stays empty")
 	var solid: Dictionary = _cover_cfg()["decor_colliders"]
 	var solid_count := 0
 	for entry: Dictionary in cover["decor"]:
@@ -196,8 +202,17 @@ func test_chunks_on_test_300() -> void:
 				assert_eq(MapChunks.index_for(xform.origin.x, xform.origin.z, chunks.half_m, chunks.chunk_size_m, chunks.per_side), index, String(batch.name) + ": instance in its chunk")
 			batch_count += 1
 			instances += batch.multimesh.instance_count
-	var expected: int = builder.cover_bodies.size() + builder.ring_bodies.size() + builder.structure_bodies.size()
-	assert_eq(instances, expected, "every cover, ring and structure body drawn once")
+	# Decor: one instance per entry, totals per kind and size by the name rule (tests/test_map_chunks.gd).
+	var decor: Array = cover["decor"]
+	var decor_expected: Dictionary = _Chunks.decor_expected(decor)
+	var decor_counts: Dictionary = decor_expected["counts"]
+	assert_true(not decor_counts.is_empty(), "nonvacuous decor")
+	for type: String in decor_counts:
+		assert_eq(chunks.instance_total("decor", type), int(decor_counts[type]), "decor " + type + ": one instance per entry of that kind and size")
+	assert_eq(chunks.instance_total("decor"), decor.size(), "decor: no stray type")
+	assert_eq(builder.decor_types, decor_expected["types"], "decor_types follows the name rule")
+	var expected: int = builder.cover_bodies.size() + builder.ring_bodies.size() + builder.structure_bodies.size() + decor.size()
+	assert_eq(instances, expected, "every cover, ring and structure body and every decor entry drawn once")
 	print("MAP_CHUNKS map=test_300 chunk_size_m=", chunks.chunk_size_m, " per_side=", chunks.per_side, " chunks=", chunks.get_child_count(), " batches=", batch_count, " instances=", instances)
 	map.free()
 

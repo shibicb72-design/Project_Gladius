@@ -174,7 +174,8 @@ static func display(type: String) -> MeshInstance3D:
 
 
 ## W2: colliders for one rim decor entry of data/maps/alesia_cover.json ({id, kind, size, at, yaw}); its look
-## stays the MeshInstance3D under Decor. `mode` comes from that file's "decor_colliders":
+## is an instance of a "decor" chunk batch (MapChunks) at the body's transform. `mode` comes from that file's
+## "decor_colliders":
 ## "hull" = the convex hull of the entry's own mesh (rocks); "piers_and_lintel" = two pier boxes and a lintel
 ## box from the kit's arch proportions, so the way under the arch stays open. The piers are solid down to the
 ## ground under the piece. The body goes under Nav in group "structure" (solid, not cover).

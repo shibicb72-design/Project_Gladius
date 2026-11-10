@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
-## M2P1A: the map's looks (inner cover, ring cover, world kit structures) drawn as one batch per chunk, source
-## and type (MapChunks); bodies, colliders and the cover contract stay per piece.
+## M2P1A: the map's looks (inner cover, ring cover, world kit structures, rim decor) drawn as one batch per chunk,
+## source and type (MapChunks); bodies, colliders and the cover contract stay per piece.
 
 const SCENE_WALLS := ["CitadelWallN", "CitadelWallS", "CitadelWallE", "CitadelWallW", "InnerWall", "CampBlockA", "CampBlockB", "CampBlockC"]
 
@@ -22,6 +22,49 @@ func _pieces(map: Node) -> Dictionary:
 	var map_def := reg.load_file(String(map.get_node("ArtBuilder").get("map_json")))
 	var placed := reg.load_file(String(map_def.get("cover_data", "res://data/maps/alesia_cover.json")))
 	return {"cover": placed["pieces"], "ring": placed.get("ring_pieces", []), "structure": WorldKit.pieces_for(map_def)}
+
+
+## The decor batch types the name rule gives a decor list, worked out here from the data alone:
+## {"types": {id: "<kind>_<n>"}, "counts": {type: entries}}, n = the size's index among its kind's distinct
+## sizes, first seen first. tests/test_map_300.gd uses it too.
+static func decor_expected(decor: Array) -> Dictionary:
+	var sizes := {}  # kind -> [size, ...] in first-seen order
+	var types := {}
+	var counts := {}
+	for entry: Dictionary in decor:
+		var kind := String(entry["kind"])
+		if not sizes.has(kind):
+			sizes[kind] = []
+		var seen: Array = sizes[kind]
+		var size := LowpolyKit.vec(entry["size"])
+		var n := seen.find(size)
+		if n < 0:
+			n = seen.size()
+			seen.append(size)
+		var type := "%s_%d" % [kind, n]
+		types[String(entry["id"])] = type
+		counts[type] = int(counts.get(type, 0)) + 1
+	return {"types": types, "counts": counts}
+
+
+## Checks the decor batches of a built map against its decor list: totals per kind and size, the builder's
+## decor_types, and one instance per entry at the entry's transform.
+func check_decor_totals(map: Node, decor: Array, label: String) -> void:
+	var chunks := map.get_node("ArtBuilder/Chunks") as MapChunks
+	var builder := map.get_node("ArtBuilder")
+	var expected := decor_expected(decor)
+	var counts: Dictionary = expected["counts"]
+	assert_true(not counts.is_empty(), label + ": nonvacuous decor")
+	var total := 0
+	for type: String in counts:
+		assert_eq(chunks.instance_total("decor", type), int(counts[type]), label + " decor " + type + ": one instance per entry of that kind and size")
+		total += int(counts[type])
+	assert_eq(chunks.instance_total("decor"), total, label + ": no stray decor type")
+	assert_eq(total, decor.size(), label + ": one decor instance per entry")
+	assert_eq(builder.decor_types, expected["types"], label + ": decor_types follows the name rule")
+	for entry: Dictionary in decor:
+		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), LowpolyKit.vec(entry["at"]))
+		assert_true(chunks.batch_of("decor", String(expected["types"][entry["id"]]), xform) != null, label + " " + String(entry["id"]) + ": drawn in its chunk's decor batch")
 
 
 func test_chunk_index_follows_the_formula() -> void:
@@ -130,13 +173,16 @@ func test_shadows_and_materials_per_source() -> void:
 	var chunks := _chunks(map)
 	var structure_shadows := bool(WorldKit.config()["batches"]["cast_shadows"])
 	var cover_types: Dictionary = DataRegistry.new().load_file("res://data/maps/alesia_cover.json")["types"]
-	for source: String in ["cover", "ring", "structure"]:
+	for source: String in ["cover", "ring", "structure", "decor"]:
 		assert_true(not chunks.batches(source).is_empty(), source + ": batches present")
 	for batch: MultiMeshInstance3D in chunks.batches():
 		var source := String(batch.get_meta(&"source"))
 		var type := String(batch.get_meta(&"type"))
 		var casts := batch.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if source == "structure":
+		if source == "decor":
+			assert_true(not casts, String(batch.name) + ": decor casts no shadow")
+			assert_true(batch.material_override == null and batch.multimesh.mesh is ArrayMesh, String(batch.name) + ": kit mesh with its own material")
+		elif source == "structure":
 			assert_eq(casts, structure_shadows, String(batch.name) + ": shadows from the world kit data")
 			assert_true(batch.material_override == null and batch.multimesh.mesh == WorldKit.mesh_for(type), String(batch.name) + ": kit mesh with its own material")
 		else:
@@ -161,4 +207,32 @@ func test_no_whole_map_batches_and_no_cover_meshes_under_nav() -> void:
 		expected.append(wall)
 	expected.sort()
 	assert_eq(with_mesh, expected, "only the ground and the scene-authored walls keep a Mesh child")
+	map.free()
+
+
+func test_decor_batches_on_alesia() -> void:
+	var map := _map()
+	var chunks := _chunks(map)
+	var builder := map.get_node("ArtBuilder")
+	var decor: Array = DataRegistry.new().load_file("res://data/maps/alesia_cover.json")["decor"]
+	check_decor_totals(map, decor, "alesia")
+	var kinds := {}
+	for entry: Dictionary in decor:
+		kinds[String(entry["kind"])] = true
+	var rule := RegEx.create_from_string("^Batch_decor_(.+)_(\\d+)$")
+	for batch: MultiMeshInstance3D in chunks.batches("decor"):
+		var batch_name := String(batch.name)
+		var found := rule.search(batch_name)
+		assert_true(found != null and kinds.has(found.get_string(1)) and batch_name == "Batch_decor_" + String(batch.get_meta(&"type")), batch_name + ": Batch_decor_<kind>_<n>")
+		assert_true(not batch_name.contains("."), batch_name + ": no '.' in the name")
+		assert_true(batch.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and batch.material_override == null, batch_name + ": no shadow, no material_override")
+	assert_eq(map.get_node("Decor").get_child_count(), 0, "the scene's Decor node stays empty")
+	assert_true(not builder.decor_bodies.is_empty(), "nonvacuous solid decor")
+	for body: StaticBody3D in builder.decor_bodies:
+		var matches := 0
+		for batch: MultiMeshInstance3D in chunks.batches("decor"):
+			for xform: Transform3D in batch.get_meta(&"transforms"):
+				if xform.is_equal_approx(body.transform):
+					matches += 1
+		assert_eq(matches, 1, String(body.name) + ": its transform is the transform of exactly one decor instance")
 	map.free()

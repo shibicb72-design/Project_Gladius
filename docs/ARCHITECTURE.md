@@ -329,14 +329,14 @@ android/              debug.keystore (shared debug key only)
   a `Shape` child holding a box, collision layer 1).
 - **Looks are batched per chunk** (`scripts/visual/map_chunks.gd`, `MapChunks`):
   `ArtBuilder/Chunks/Chunk_<ix>_<iz>/Batch_<source>_<type>`, one `MultiMeshInstance3D` per chunk,
-  source (`cover`, `ring`, `structure`) and type, with that type's material and its source's shadow
-  setting. The grid starts at the map centre: index = floor((x + half) / size) on each axis, clamped
+  source (`cover`, `ring`, `structure`, `decor`) and type, with that type's material and its source's
+  shadow setting (decor casts none). A decor type is `<kind>_<n>`, one per kind and size
+  (`ArtBuilder.decor_types` maps a decor id to it), because Godot strips "." from node names. The grid starts at the map centre: index = floor((x + half) / size) on each axis, clamped
   to the grid; the piece's body origin decides. Chunk nodes stay at the origin, so an instance
   transform equals its body's transform; each batch keeps it in the `transforms` meta.
   `data/map_build.json` `chunk_size_m` is a placeholder (OQ-MAP-CHUNK).
-- **Not batched yet:** the decor looks (one `MeshInstance3D` each under `Decor`) and alesia's eight
-  scene-authored walls. Decor waits on a decision about `tests/test_world_rim.gd`; the walls retire
-  with the M1 map.
+- **Not batched:** alesia's eight scene-authored walls, which retire with the M1 map. The scene's
+  `Decor` node stays in the layout but holds nothing since the decor looks moved into the chunks.
 - **The test map** `data/maps/test_300.json` is test-only, for performance measurement: a 300 m
   ground with alesia's types at alesia's density. `tools/gen_test_map.gd` writes its two piece files
   from the `"generator"` block with a fixed seed; a test checks that the committed files equal the

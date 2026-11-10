@@ -45,7 +45,11 @@ func test_counts_within_limits_on_both_maps() -> void:
 		var at: Dictionary = counts["per_chunk_at"]
 		for key: String in KEYS:
 			assert_true(int(per_map[key]) > 0, "%s: nonvacuous per-map %s" % [id, key])
-			assert_true(int(per_chunk[key]) > 0, "%s: nonvacuous per-chunk %s" % [id, key])
+			if key == "mesh_instances" and id == "test_300":
+				# Stop 6: test_300 has no scene walls and its decor is batched, so no chunk holds an unbatched look.
+				assert_eq(int(per_chunk[key]), 0, "%s: no unbatched look in any chunk" % id)
+			else:
+				assert_true(int(per_chunk[key]) > 0, "%s: nonvacuous per-chunk %s" % [id, key])
 			assert_true(int(per_chunk[key]) <= int(per_map[key]), "%s: a chunk holds no more %s than the map" % [id, key])
 		assert_true(int(per_map["chunks"]) > 1 and int(per_map["batches"]) > 0 and int(per_map["batch_instances"]) > 0, id + ": chunks and batches built")
 		var problems := MapChunks.proxy_problems(counts, limits)

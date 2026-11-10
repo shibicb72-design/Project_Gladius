@@ -4,7 +4,10 @@ var cover_bodies: Array[StaticBody3D] = []
 var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
 var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
 var ring_bodies: Array[StaticBody3D] = []  # W3 cover of the outer ring (groups "ring_cover" and "cover_wall")
-var chunks: MapChunks  # M2P1A: the looks of cover, ring cover and structures, batched per chunk (node "Chunks")
+var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and decor, batched per chunk (node "Chunks")
+## M2P1A: decor id -> its batch type in source "decor" ("<kind>_<n>", n = the index of the entry's size among
+## its kind's distinct sizes, first seen first). A decor look is chunks.batch_of("decor", decor_types[id], xform).
+var decor_types := {}
 ## The map json this scene builds. MatchRoot sets it before the map enters the tree; scenes built
 ## directly keep the default.
 @export var map_json: String = "res://data/maps/alesia_section.json"
@@ -31,8 +34,9 @@ func _ready() -> void:
 	for type: String in cfg["types"]:
 		var definition: Dictionary = cfg["types"][type]
 		meshes[type] = LowpolyKit.build_cover(definition)
-	# M2P1A: cover, ring cover and structure looks draw as one batch per chunk, source and type (MapChunks);
-	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk).
+	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
+	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
+	# runs once, after the decor loop.
 	chunks = MapChunks.new()
 	chunks.name = "Chunks"
 	add_child(chunks)
@@ -76,25 +80,29 @@ func _ready() -> void:
 	# They are bodies in group "structure" (never cover_wall); their look is one batch per chunk and type.
 	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def))
 	_build_ring(nav, cfg, meshes)
-	chunks.build()
-	var decor := map.get_node("Decor") as Node3D
 	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
+	# M2P1A: the decor looks draw as one batch per chunk, kind and size (source "decor", type "<kind>_<n>", see
+	# decor_types); the scene's Decor node stays empty. Solid decor bodies still go under Nav.
 	var decor_solid: Dictionary = cfg.get("decor_colliders", {})
+	var size_index := {}  # kind + str(size) -> index of that size among the kind's sizes, first seen first
+	var size_counts := {}  # kind -> distinct sizes seen so far
 	for entry: Dictionary in cfg["decor"]:
-		var mesh := MeshInstance3D.new()
-		mesh.name = entry["id"]
-		var key: String = entry["kind"] + str(entry["size"])
+		var kind := String(entry["kind"])
+		var key: String = kind + str(entry["size"])
 		if not meshes.has(key):
-			meshes[key] = LowpolyKit.build(entry["kind"], LowpolyKit.vec(entry["size"]))
-		mesh.mesh = meshes[key]
-		mesh.position = LowpolyKit.vec(entry["at"])
-		mesh.rotation.y = deg_to_rad(float(entry["yaw"]))
-		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		decor.add_child(mesh)
+			meshes[key] = LowpolyKit.build(kind, LowpolyKit.vec(entry["size"]))
+		if not size_index.has(key):
+			size_index[key] = int(size_counts.get(kind, 0))
+			size_counts[kind] = int(size_index[key]) + 1
+		var type := "%s_%d" % [kind, int(size_index[key])]
+		decor_types[String(entry["id"])] = type
+		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), LowpolyKit.vec(entry["at"]))
+		chunks.add("decor", type, meshes[key], null, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, xform)
 		if decor_solid.has(entry["kind"]):
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key])
 			nav.add_child(solid)
 			decor_bodies.append(solid)
+	chunks.build()
 	_paint_ground(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	if bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false)):
