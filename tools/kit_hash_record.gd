@@ -4,6 +4,8 @@ extends SceneTree
 ## Every run: rewrites the hashes of the meshes LowpolyKit builds from that frozen copy (tests/kit_hash.gd).
 ## Run it ONLY when the old geometry is meant to change; tests/test_kit_baseline.gd compares the kit against
 ## this file on every suite run. "source_commit" is the commit the part data was copied at and never changes.
+## "exact_source_commit" is the commit whose kit code the exact hashes were last recorded from (45b76aa, the F1
+## winding fix): after a deliberate re-record, set it by hand to the commit that carries the kit change.
 
 const _KitHash := preload("res://tests/kit_hash.gd")
 const KINDS: Array[String] = ["pillar", "rock", "rubble", "arch", "sandbags", "wall", "low_wall", "barrier", "crate", "camp", "box"]

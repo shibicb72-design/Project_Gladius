@@ -46,6 +46,8 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 			model.animation_tree.advance(float(SoldierRig.config()["locomotion"]["walk_s"]) / int(SoldierRig.config()["locomotion"]["samples"]))
 			await tree.process_frame
 			await tree.process_frame  # callback caches bounds only after a skeleton update; unchanged idle needs none
+			# A proxy, not a containment proof: the merged box of the helmet parts' boxes encloses the hitbox's
+			# box. The geometric check (every bowl face outside the hitbox sphere) is tests/test_soldier_helmet.gd.
 			var helmet := AABB()
 			var helmet_parts := 0
 			for i in posed.size():
@@ -54,7 +56,7 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 					helmet_parts += 1
 				else:
 					assert_true(not (pawn.global_transform * head_bounds.grow(clearance)).intersects(posed[i]), "CPU head hitbox clearance across clip samples: " + String(model.get_meta("parts")[i]))
-			assert_true(helmet_parts > 0 and helmet.grow(0.00001).encloses(pawn.global_transform * head_bounds), "the helmet still contains the head hitbox in every clip sample")
+			assert_true(helmet_parts > 0 and helmet.grow(0.00001).encloses(pawn.global_transform * head_bounds), "proxy (box of the helmet parts' boxes): it still encloses the head hitbox's box in every clip sample")
 	await tree.process_frame  # leave the skeleton_updated emission before later freeing the pawn
 	model.transform = Transform3D.IDENTITY
 	var rifle := model.hand_attachment.get_node("RifleModel") as MeshInstance3D

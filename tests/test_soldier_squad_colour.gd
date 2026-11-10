@@ -45,9 +45,10 @@ func test_two_squads_differ_per_instance_and_share_one_material() -> void:
 
 func test_colour_follows_a_squad_change_that_has_no_signal() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
-	var pawn := _spawn(tree, 0)
+	var pawn := _spawn(tree, 3)  # not 0: shown_squad's own initial value is 0, which would pass without a read
 	var model := pawn.get_node("SoldierModel") as SoldierModel
-	assert_eq(model.shown_squad, 0, "starts on the pawn's squad")
+	assert_eq(model.shown_squad, 3, "starts on the pawn's squad")
+	assert_eq(SoldierSquadColour.shown(model.armor), _as_vector(SoldierSquadColour.paint(3)), "armor starts in that squad's colour")
 	pawn.set_squad(4)  # what MatchDirector.start does
 	await tree.process_frame
 	await tree.process_frame

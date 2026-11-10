@@ -606,6 +606,7 @@
 			]
 		}
 	},
+	"exact_source_commit": "45b76aa",
 	"hashes": {
 		"build/arch/2.0x1.0x1.0": "3f8d2f9e5a814fca829128e5cf337548bd0db13c667b6bdc65d37151e3998a2a",
 		"build/arch/3.0x2.5x0.6": "5a82a861890fde600ff62eb4acf527d131aa88dc5f6bffc874b5de18987067a1",

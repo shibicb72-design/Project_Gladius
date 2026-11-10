@@ -26,13 +26,35 @@ func test_helmet_shell_encloses_the_head_hitbox_sphere() -> void:
 	var xf := LowpolyShapes.transform_of(shell)
 	# The shell is a closed solid (tests/test_kit_shapes.gd). If the hitbox centre is at least one radius inside
 	# every face plane, the whole sphere is inside the shell: no part of the hitbox can be hit through thin air.
+	# That argument holds only for a convex shell, so convexity is asserted too: the profile in data is a convex
+	# polygon that starts and ends on the axis, the turn is a full one, and no corner of the built shell lies
+	# outside any of its face planes.
+	var profile: Array = shell["profile"]
+	var turn := 0.0
+	var convex_profile := profile.size() >= 3
+	for i in profile.size():
+		var p := Vector2(float(profile[i][0]), float(profile[i][1]))
+		var q := Vector2(float(profile[(i + 1) % profile.size()][0]), float(profile[(i + 1) % profile.size()][1]))
+		var r := Vector2(float(profile[(i + 2) % profile.size()][0]), float(profile[(i + 2) % profile.size()][1]))
+		var cross := (q - p).cross(r - q)
+		if absf(cross) > TOLERANCE:
+			if turn != 0.0 and signf(cross) != turn:
+				convex_profile = false
+			turn = signf(cross)
+	assert_true(convex_profile and turn != 0.0, "the bowl profile is a convex polygon")
+	assert_true(float(profile[0][0]) == 0.0 and float(profile[-1][0]) == 0.0 and float(shell.get("sweep_deg", 360.0)) >= 360.0,
+			"the bowl profile starts and ends on the axis and turns a full circle")
 	var nearest := INF
+	var outside := 0.0
 	for i in range(0, points.size(), 3):
 		var a := xf * points[i]
 		var normal := (xf * points[i + 1] - a).cross(xf * points[i + 2] - a).normalized()
 		nearest = minf(nearest, normal.dot(a - centre))
+		for p in points:
+			outside = maxf(outside, normal.dot(xf * p - a))
+	assert_true(outside <= TOLERANCE, "the built shell is convex: no corner outside a face plane (worst %s m)" % outside)
 	assert_true(points.size() >= 12 and nearest >= radius, "every face of the helmet shell is outside the hitbox sphere: nearest %s, radius %s" % [nearest, radius])
-	print("ASTRA_HELMET shell_faces=", points.size() / 3, " nearest_face_m=", nearest, " hitbox_radius_m=", radius, " margin_m=", Checks.helmet_margin())
+	print("ASTRA_HELMET shell_faces=", points.size() / 3, " nearest_face_m=", nearest, " hitbox_radius_m=", radius, " margin_m=", Checks.helmet_margin(), " convex=", outside <= TOLERANCE)
 	pawn.free()
 
 

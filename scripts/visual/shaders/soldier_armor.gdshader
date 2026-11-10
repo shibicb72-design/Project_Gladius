@@ -4,8 +4,10 @@ shader_type spatial;
 // without a second material. Alpha 1 keeps the vertex colour.
 // squad_paint is plain sRGB numbers (a vec3 without a colour hint), so nothing converts it on the way in
 // and the one conversion below treats both paints the same.
-instance uniform vec3 squad_paint = vec3(0.66, 0.1, 0.09);
-uniform float roughness = 0.95;
+// The defaults below are never meant to be seen: SoldierSquadColour sets both from data. Pure green marks an
+// instance nobody painted (not magenta: that is the Fold diagnostic clear colour the device harness counts).
+instance uniform vec3 squad_paint = vec3(0.0, 1.0, 0.0);
+uniform float roughness = 0.5;
 
 // The sRGB to linear step StandardMaterial3D applies with vertex_color_is_srgb.
 vec3 to_linear(vec3 c) {

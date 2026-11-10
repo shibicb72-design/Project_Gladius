@@ -32,8 +32,9 @@ for 1.5 s before the capture. 0.8 is below the default sprint threshold of 0.84.
 `tools/fold_prove/measure_move.py` recomputes the center deltas and knob positions from a run's PNGs.
 
 Yellow head sphere is now a debug overlay (D1, Shibi, Nov 9 2026): the soldier wears a helmet and the yellow
-unshaded sphere on the head is hidden by default. The yellow-pixel detector
-(`tools/fold_prove/fold_prove_detect.py:123-130`) therefore finds no yellow pawn pixels on a normal build. Until a
+unshaded sphere on the head is hidden by default. The yellow-pixel counts come from the untracked device harness
+`build/fold_prove_0070099.py` (see "Device harness ops" below), not from `tools/fold_prove/fold_prove_detect.py`;
+that harness therefore finds no yellow pawn pixels on a normal build. Until a
 new detector exists, set `soldier.debug_head_sphere.visible` to `true` in `data/art_astra.json` and rebuild the
 APK before running the harness; set it back to `false` afterwards. The flag shows the sphere on pawns and on
 corpses, with the exact colour (1, 0.9, 0.2) the detector expects. The head hitbox is unchanged either way.

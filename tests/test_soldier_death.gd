@@ -1,6 +1,19 @@
 extends "res://tests/test_case.gd"
 const Checks := preload("res://tests/soldier_checks.gd")
 
+
+## Bounds of every part skinned to `bone`, from the corpse rig's current pose.
+func _bone_bounds(rig: Skeleton3D, model: SoldierModel, bone: int) -> AABB:
+	var out := AABB()
+	var first := true
+	for i in model.part_bones.size():
+		if model.part_bones[i] == bone:
+			var part := rig.get_bone_global_pose(bone) * model.local_part_bounds[i]
+			out = part if first else out.merge(part)
+			first = false
+	return out
+
+
 func test_corpse_snapshots_rig_and_collapses_without_scripts_or_colliders() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
@@ -32,7 +45,24 @@ func test_corpse_snapshots_rig_and_collapses_without_scripts_or_colliders() -> v
 	for i in model.part_bones.size():
 		if Checks.is_helmet(model, i):
 			helmet_parts += 1
-	assert_true(helmet_parts > 0 and head_bone == Checks.head_bone(model), "corpse helmet follows the Head bone")
+	assert_true(helmet_parts > 0 and head_bone == Checks.head_bone(model), "the corpse rig has the Head bone the helmet parts are skinned to")
+	# Pose the corpse's own Head bone: the helmet bounds must move with it and a hip part must stay.
+	var hips_bone := rig.find_bone("Hips")
+	var helmet_before := _bone_bounds(rig, model, head_bone)
+	var hips_before := _bone_bounds(rig, model, hips_bone)
+	var head_rest := rig.get_bone_pose_rotation(head_bone)
+	rig.set_bone_pose_rotation(head_bone, head_rest * Quaternion(Vector3.RIGHT, deg_to_rad(40.0)))
+	var helmet_after := _bone_bounds(rig, model, head_bone)
+	assert_true(helmet_before.has_volume() and not helmet_after.is_equal_approx(helmet_before), "posing the corpse's Head bone moves its helmet bounds: %s -> %s" % [helmet_before, helmet_after])
+	assert_true(hips_before.has_volume() and _bone_bounds(rig, model, hips_bone).is_equal_approx(hips_before), "a hip part does not move with the Head bone")
+	rig.set_bone_pose_rotation(head_bone, head_rest)
+	assert_true(_bone_bounds(rig, model, head_bone).is_equal_approx(helmet_before), "helmet bounds back after the pose is restored")
+	var skin_bones: PackedInt32Array = armor.mesh.surface_get_arrays(0)[Mesh.ARRAY_BONES]
+	var head_vertices := 0
+	for v in range(0, skin_bones.size(), 4):  # four bone slots per vertex; the kit fills the first
+		if skin_bones[v] == head_bone:
+			head_vertices += 1
+	assert_true(head_vertices > 0, "the shared armor mesh has vertices skinned to the Head bone")
 	assert_eq(player.get_animation(&"collapse").length, float(LowpolyKit.config()["death"]["topple_s"]), "existing topple duration")
 	assert_true(player.is_playing(), "native collapse autoplay")
 	var snapshots: Array[Transform3D] = []

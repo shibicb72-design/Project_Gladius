@@ -21,9 +21,11 @@ func test_frozen_part_data_builds_byte_identical_meshes() -> void:
 	assert_true(recorded.size() >= 60, "nonvacuous baseline: every soldier, rifle, cover and kind mesh recorded")
 	assert_eq(now.size(), recorded.size(), "same mesh list as recorded")
 	var changed := _changed(recorded, now)
-	assert_true(changed.is_empty(), "kit meshes changed against the %s baseline: %s" % [fixture["source_commit"], ", ".join(changed)])
+	# The exact hashes were re-recorded at F1 (winding fix), so they name their own commit; the part data and the
+	# canonical hashes are still the d74333e copy.
+	assert_true(changed.is_empty(), "kit meshes changed against the exact hashes recorded at %s: %s" % [fixture["exact_source_commit"], ", ".join(changed)])
 	var canonical: Dictionary = fixture["canonical_hashes"]
 	var canonical_changed := _changed(canonical, KitHash.compute(fixture, true))
 	assert_eq(canonical.size(), recorded.size(), "a canonical hash for every mesh")
 	assert_true(canonical_changed.is_empty(), "triangle sets changed against the %s baseline: %s" % [fixture["source_commit"], ", ".join(canonical_changed)])
-	print("KIT_BASELINE meshes=", recorded.size(), " changed=", changed.size(), " canonical_changed=", canonical_changed.size(), " source_commit=", fixture["source_commit"])
+	print("KIT_BASELINE meshes=", recorded.size(), " changed=", changed.size(), " canonical_changed=", canonical_changed.size(), " source_commit=", fixture["source_commit"], " exact_source_commit=", fixture["exact_source_commit"])
