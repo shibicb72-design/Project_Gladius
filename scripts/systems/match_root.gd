@@ -100,6 +100,8 @@ func apply_sensitivity() -> void:
 func begin() -> bool:
 	# P0c: temporary Fold presentation diagnostic. Magenta clear splits "world not drawing" from the engine default gray.
 	RenderingServer.set_default_clear_color(Color(1, 0, 1))
+	if get_node_or_null("PerfLog") == null and PerfLog.wanted():  # M2 P0: phone frame-time log, off by default
+		add_child(PerfLog.new())
 	if director.mode_cfg.is_empty():
 		director.load_config()
 	map_def = DataRegistry.new().load_file(MAP_PATH)

@@ -1,0 +1,6 @@
+{
+	"_note": "M2 P0 (Nov 10 2026): frame-time logger for phone measurements (scripts/platform/perf_log.gd). Off by default; on when enabled is true or the flag file user://perf_log_on exists. Not a gameplay value.",
+	"enabled": false,
+	"interval_s": 1.0,
+	"path": "user://perf_log.csv"
+}
