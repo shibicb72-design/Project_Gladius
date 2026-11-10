@@ -13,6 +13,8 @@ const KEYS := ["multimesh", "mesh_instances", "materials", "bodies"]
 func _build(scene_path: String) -> Node3D:
 	var tree: SceneTree = Engine.get_main_loop()
 	var map: Node3D = load(scene_path).instantiate()
+	if scene_path.ends_with("test_300.tscn"):  # the scene names no map; the loader sets it, as MatchRoot does
+		map.get_node("ArtBuilder").set("map_json", "res://data/maps/test_300.json")
 	tree.root.add_child(map)
 	return map
 

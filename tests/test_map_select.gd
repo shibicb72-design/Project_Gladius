@@ -52,9 +52,10 @@ func test_override_wins_over_map_select() -> void:
 	var alone := MatchRoot.select_map(select, NO_FILE)
 	assert_eq(alone["path"], MatchRoot.MAP_PATH, "select alone falls back")
 	assert_true(String(alone["error"]) != "", "select alone reports an error")
-	var override := _write("override", MatchRoot.MAP_PATH + "\n")
+	# Review S1: the override names the test map, not alesia (which is also the fallback), so a win is distinguishable.
+	var override := _write("override", "res://data/maps/test_300.json\n")
 	var chosen := MatchRoot.select_map(select, override)
-	assert_eq(chosen["path"], MatchRoot.MAP_PATH, "override path")
+	assert_eq(chosen["path"], "res://data/maps/test_300.json", "override path wins")
 	assert_eq(chosen["error"], "", "override is clean")
 	_clean()
 

@@ -22,9 +22,13 @@ func _gen() -> Dictionary:
 	return _def()["generator"]
 
 
+## The test map's scene names no map of its own (MatchRoot, or a loader like this one, sets ArtBuilder.map_json
+## before add_child), so a missing hand-off shows up as alesia pieces.
 func _build(scene_path: String) -> Node3D:
 	var tree: SceneTree = Engine.get_main_loop()
 	var map: Node3D = load(scene_path).instantiate()
+	if scene_path.ends_with("test_300.tscn"):
+		map.get_node("ArtBuilder").set("map_json", MAP)
 	tree.root.add_child(map)
 	return map
 
@@ -145,7 +149,7 @@ func test_scene_layout_and_body_counts() -> void:
 	for id: String in spawns:
 		var p: Array = spawns[id]
 		assert_true(markers.has(id) and markers[id].position.distance_to(Vector3(p[0], p[1], p[2])) < 0.05, "marker and position of " + id)
-	assert_eq(scene.get_node("ArtBuilder").get("map_json"), MAP, "the scene builds the test map")
+	assert_eq(scene.get_node("ArtBuilder").get("map_json"), MatchRoot.MAP_PATH, "the scene names no map of its own: whoever loads it sets map_json (review B1)")
 	var ground := scene.get_node("Nav/Ground") as StaticBody3D
 	var mesh_size := ((ground.get_node("Mesh") as MeshInstance3D).mesh as BoxMesh).size
 	var shape_size := ((ground.get_node("Shape") as CollisionShape3D).shape as BoxShape3D).size
@@ -390,6 +394,15 @@ func test_short_bot_match_on_test_300() -> void:
 	assert_true(m.begin(), "begin succeeds on the test map")
 	var bake_ms := Time.get_ticks_msec() - bake_from
 	assert_eq(m.map_path, MAP, "the match loaded the test map")
+	# Review B1: MatchRoot hands its map to ArtBuilder (match_root.gd:144-145). The scene names no map, so without the
+	# hand-off the builder would build alesia's 75 cover pieces on the 300 m ground.
+	assert_eq(m.map.get_node("ArtBuilder").get("map_json"), MAP, "MatchRoot handed the test map to ArtBuilder")
+	var cover_pieces: int = (DataRegistry.new().load_file(String(_def()["cover_data"]))["pieces"] as Array).size()
+	var cover_bodies := 0
+	for node in tree.get_nodes_in_group(&"cover_wall"):
+		if m.map.is_ancestor_of(node) and not node.is_in_group(&"ring_cover"):
+			cover_bodies += 1
+	assert_true(cover_bodies >= cover_pieces, "the test map's own cover was built (%d bodies, %d pieces)" % [cover_bodies, cover_pieces])
 	var players := m.director.all_players().size()
 	assert_eq(players, int(m.director.match_cfg["max_players"]), "a full lobby with bots")
 	var frames := 240

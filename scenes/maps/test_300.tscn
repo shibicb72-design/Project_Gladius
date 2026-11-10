@@ -29,7 +29,6 @@ shape = SubResource("s_ground")
 
 [node name="ArtBuilder" type="Node3D" parent="."]
 script = ExtResource("astra")
-map_json = "res://data/maps/test_300.json"
 
 [node name="Decor" type="Node3D" parent="."]
 
