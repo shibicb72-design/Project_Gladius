@@ -37,7 +37,8 @@ static func _triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, color
 		st.set_tangent(Plane(tangent, side))
 		st.set_color(color)
 		st.set_uv(Vector2(v.dot(u_axis), v.dot(v_axis)))
-		st.set_uv2(uv2)
+		# S4: a swaying part (a cape) stores how far each vertex hangs below its top edge instead of the shade.
+		st.set_uv2(uv2 if _sway.y <= 0.0 else Vector2(uv2.x, clampf((_sway.x - v.y) / _sway.y, 0.0, 1.0)))
 		st.add_vertex(v)
 
 ## S2 surface bookkeeping for _triangle: _surface >= 0 names the surface outright (a data part), otherwise the
@@ -45,6 +46,7 @@ static func _triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, color
 static var _surface := -1
 static var _surface_of_color := {}
 static var _shade := 0.5
+static var _sway := Vector2.ZERO  # (top edge y, hanging length) of a part with "sway": true; zero = no sway
 
 static func _shade_at(at: Vector3) -> float:
 	return fposmod(sin(at.dot(Vector3(12.9898, 78.233, 37.719))) * 43758.5453, 1.0)
@@ -135,8 +137,11 @@ static func build(kind: String, size: Vector3) -> ArrayMesh:
 			_rock(st, size, dark, k)
 		"arch":
 			var leg: Vector3 = size * vec(k["arch_leg_fraction"])
+			# S7 (lead's review): arch_leg_y lowers the legs so they stand on the piece's bottom and end under
+			# the lintel (they used to be centred, floating above the ground). 0 = the old centred legs.
+			var leg_y := size.y * float(k.get("arch_leg_y", 0.0))
 			for sign_x in [-1, 1]:
-				_box(st, leg, Vector3(sign_x * (size.x - leg.x) * 0.5, 0, 0), stone, bevel)
+				_box(st, leg, Vector3(sign_x * (size.x - leg.x) * 0.5, leg_y, 0), stone, bevel)
 			_box(st, size * vec(k["arch_lintel_fraction"]), Vector3(0, size.y * float(k["arch_lintel_y"]), 0), trim, bevel)
 		"sandbags":
 			var count := int(k["bag_columns"])
@@ -193,12 +198,14 @@ static func build_cover(definition: Dictionary) -> ArrayMesh:
 static func _part(st: SurfaceTool, part: Dictionary) -> void:
 	var color := GreyboxArt.color_value(config()["colors"][part["color"]])
 	_surface = WorldSurface.surface_id(String(part["surface"])) if part.has("surface") else WorldSurface.id_for_paint(String(part["color"]))
+	_sway = Vector2(float(part["at"][1]) + float(part["size"][1]) * 0.5, float(part["size"][1])) if bool(part.get("sway", false)) else Vector2.ZERO
 	if LowpolyShapes.is_custom(part):
 		_shade = _shade_at(vec(part["at"]) + vec(part["size"]))
 		LowpolyShapes.add(st, part, color, config()["kit"]["shapes"])
 	else:
 		_box(st, vec(part["size"]), vec(part["at"]), color, float(config()["kit"]["bevel_fraction"]))
 	_surface = -1
+	_sway = Vector2.ZERO
 
 ## Soldier-only variant. Keep merge() below unchanged: map geometry has no bone streams.
 static func merge_skinned(parts: Array, bones: PackedInt32Array) -> ArrayMesh:

@@ -132,3 +132,11 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 		match_audio.name = "MatchAudio"
 		world.add_child(match_audio)
 	match_audio.show_look(look, match_look)
+	# S6: the loot models and the carrier model follow the match from here too (looks only).
+	if world.get_node_or_null("LootLook") == null:
+		var loot_look := LootLook.new()
+		loot_look.name = "LootLook"
+		world.add_child(loot_look)
+		var carrier := CarrierLook.new()
+		carrier.name = "CarrierLook"
+		world.add_child(carrier)

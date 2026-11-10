@@ -4,7 +4,7 @@ extends RefCounted
 ## Framing numbers: data/capture_shots.json (placeholders, OQ-3D-CAPTURE). Presentation only: nothing here feeds
 ## back into the match. World colliders pick a stage with a clear lane, so cover never hides the subject.
 
-const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup", "ground_views", "in_match"]
+const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup", "ground_views", "in_match", "soldier_poses", "carrier"]
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -73,6 +73,10 @@ func run(tool: Node, which: String) -> bool:
 				await _ground_views()
 			"in_match":
 				await _in_match()
+			"soldier_poses":
+				await _soldier_poses()
+			"carrier":
+				await _carrier()
 	return true
 
 
@@ -218,6 +222,10 @@ func _loot_lineup() -> void:
 	ids.sort()
 	for i in ids.size():
 		loot.drop({"item_id": ids[i]}, _stage + _right() * float(c["spacing_m"]) * (i - ids.size() * 0.5))
+	var look := LootLook.new()  # S6: the same look a match gives its loot field
+	_match.add_child(look)
+	look.bind(loot)
+	_props.append(look)
 	_pawn(_stage + _right() * float(c["spacing_m"]) * (ids.size() * 0.5), _lane, 0.0, 0)
 	_aim(_stage + _lane * _fit_distance(c, float(c["spacing_m"]) * ids.size()) + Vector3.UP * float(c["camera_height_m"]),
 			_stage + Vector3.UP * float(c["look_height_m"]), float(c["fov_deg"]))
@@ -339,6 +347,49 @@ func _in_match() -> void:
 		await _finish("in_match_" + String(view["name"]), "third-person rig at (%s, %s)" % [view["at"][0], view["at"][1]])
 		pawn.visible = false
 	_camera.make_current()
+
+
+## S4: one soldier per entry of "soldier_poses.row": a pose held at full weight (SoldierPose.force), the blade
+## in hand where asked, and an armor tier. Front and back views. Saves <tag>_soldier_poses_<view>.png.
+func _soldier_poses() -> void:
+	var c: Dictionary = _cfg["soldier_poses"]
+	var row: Array = c["row"]
+	for view: Dictionary in c["views"]:
+		var labels := PackedStringArray()
+		for i in row.size():
+			var entry: Dictionary = row[i]
+			var pawn := _pawn(_stage + _right() * float(c["spacing_m"]) * (i - (row.size() - 1) * 0.5), _lane, float(view["yaw_deg"]), i)
+			pawn.armor_tier = int(entry.get("tier", 0))
+			if bool(entry.get("blade", false)):
+				for attempt in 3:
+					var weapon := pawn.loadout.get_active()
+					if weapon != null and weapon.def.is_melee():
+						break
+					pawn.loadout.swap()
+			var model := pawn.get_node("SoldierModel") as SoldierModel
+			if String(entry.get("pose", "")) != "":
+				model.pose.force = {String(entry["pose"]): 1.0}
+			labels.append(String(entry["label"]))
+		_aim(_stage + _lane * _fit_distance(c, float(c["spacing_m"]) * (row.size() - 1)) + Vector3.UP * float(c["camera_height_m"]),
+				_stage + Vector3.UP * float(c["look_height_m"]), float(c["fov_deg"]))
+		await _finish("soldier_poses_" + String(view["name"]), " / ".join(labels))
+
+
+## S6: the drop carrier's model, placed by the capture tool on a made-up stretch of flight (no drop runs in a
+## capture match). Saves <tag>_carrier_<view>.png.
+func _carrier() -> void:
+	var c: Dictionary = _cfg["carrier"]
+	var look := _match.get_node_or_null("WorldEnvironment/CarrierLook") as CarrierLook
+	if look == null:
+		_tool._log("RESULT scene_carrier=false (the match has no CarrierLook)")
+		return
+	var at := LowpolyKit.vec(c["at"])
+	var heading := Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(float(c["heading_deg"])))
+	for view: Dictionary in c["views"]:
+		look.show_at(at, heading)
+		_aim(at + LowpolyKit.vec(view["camera_offset"]), at + LowpolyKit.vec(c["look_offset"]), float(c["fov_deg"]))
+		await _finish("carrier_" + String(view["name"]), "carrier at %s, heading %s deg" % [str(c["at"]), c["heading_deg"]])
+	look.model.visible = false
 
 
 ## From inside the zone, looking out at the wall with a soldier standing in front of it.

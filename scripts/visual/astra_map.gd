@@ -77,6 +77,13 @@ func _ready() -> void:
 			nav.add_child(solid)
 			decor_bodies.append(solid)
 	_paint_ground(nav)
+	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
+	if bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false)):
+		var backdrop := Backdrop.new()
+		backdrop.name = "Backdrop"
+		add_child(backdrop)
+		var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
+		backdrop.build(ground_mesh.material_override if ground_mesh != null else null)
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"

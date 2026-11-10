@@ -2,7 +2,7 @@ shader_type spatial;
 // The map's ground: trodden earth, dry grass and Roman paving blended by a small paint map (GroundPaint,
 // R = paving, G = grass, the rest earth) with noisy edges, a large-scale shade so the tiling does not show,
 // and puddles where the wet amount reaches. World-space mapping, so it needs no UVs.
-// Cost: five texture fetches per pixel (paint map, noise, three surface tiles); flagged in the report.
+// Cost: six texture fetches per pixel (paint map, two noise scales, three surface tiles); flagged in the report.
 uniform sampler2DArray surfaces : filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D paint_map : filter_linear, repeat_disable;
 uniform sampler2D noise_pack : filter_linear_mipmap, repeat_enable;
@@ -32,6 +32,8 @@ void fragment() {
 	vec2 p = v_world.xz;
 	vec4 paint = texture(paint_map, p / map_size_m + 0.5);
 	vec4 nz = texture(noise_pack, p * macro_per_m);
+	// A second, much larger sample for the broad patches, so the first one's tiling does not show from the air.
+	vec4 wide = texture(noise_pack, p * macro_per_m * 0.27 + vec2(0.37, 0.11));
 	float paving = smoothstep(0.42, 0.58, paint.r + (nz.b - 0.5) * edge_noise * 0.6);
 	float grass = smoothstep(0.38, 0.62, paint.g + (nz.r - 0.5) * edge_noise) * (1.0 - paving);
 	vec4 te = texture(surfaces, vec3(p * tiles_per_m.x, layer_ids.x));
@@ -39,11 +41,11 @@ void fragment() {
 	vec4 tp = texture(surfaces, vec3(p * tiles_per_m.z, layer_ids.z));
 	vec3 earth = earth_color * (0.2 + 1.6 * te.r);
 	// Two tones of grass in broad patches, with the blades' own light and dark on top.
-	vec3 green = mix(grass_color, grass_dry_color, smoothstep(0.35, 0.7, nz.g + (nz.b - 0.5) * 0.3)) * (0.05 + 1.9 * tg.r);
+	vec3 green = mix(grass_color, grass_dry_color, smoothstep(0.3, 0.75, wide.r * 0.7 + nz.g * 0.3)) * (0.05 + 1.9 * tg.r);
 	vec3 stone = paving_color * (0.3 + 1.4 * tp.r);
 	vec3 albedo = mix(mix(earth, green, grass), stone, paving);
 	vec4 t = mix(mix(te, tg, grass), tp, paving);
-	albedo *= 1.0 + (nz.g - 0.5) * 2.0 * macro_strength;
+	albedo *= 1.0 + (wide.g * 0.6 + nz.g * 0.4 - 0.5) * 2.0 * macro_strength;
 	// Water gathers in the low noise first; paving joints hold it, grass hides it.
 	float low = 1.0 - nz.r * 0.6 - t.r * 0.25 - nz.g * 0.15;
 	float puddle = smoothstep(puddle_level, puddle_level + puddle_soft, low + wet * 0.5 - 0.5) * (1.0 - grass * 0.8) * step(0.001, wet);

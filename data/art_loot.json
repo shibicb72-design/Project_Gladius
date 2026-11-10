@@ -1,0 +1,98 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-GFX-LOOT: how ground loot looks (a small model per item, a glow ring and a light beam coloured by kind so loot reads from a distance) is a presentation trial in Fable's own design. Which items exist, where they lie and who may take them stay in data/loot.json and the loot field; nothing here is read by gameplay.",
+	"_models_note": "One model per item id of data/loot.json \"items\" (kit parts, metres, y up from the ground under the item). scale, lift_m and tilt_deg place it; an item without a model keeps the loot field's own box.",
+	"models": {
+		"pilum_br": {
+			"scale": 1.9, "lift_m": 0.16, "tilt_deg": [0, 0, 82],
+			"parts": [
+				{"size": [0.09, 0.12, 0.26], "at": [0, 0, 0.02], "color": "plate_dark"},
+				{"size": [0.05, 0.05, 0.2], "at": [0, 0.02, -0.22], "color": "plate_dark"},
+				{"size": [0.08, 0.08, 0.14], "at": [0, 0, -0.13], "color": "plate"},
+				{"shape": "taper", "top": [1, 0.7], "bevel": 0.1, "size": [0.08, 0.1, 0.16], "at": [0, -0.02, 0.22], "color": "plate"},
+				{"size": [0.055, 0.16, 0.07], "at": [0, -0.12, 0.03], "color": "plate_dark"},
+				{"size": [0.05, 0.1, 0.06], "at": [0, -0.09, 0.12], "color": "leather"},
+				{"size": [0.045, 0.04, 0.1], "at": [0, 0.085, 0.02], "color": "bronze"},
+				{"size": [0.02, 0.02, 0.06], "at": [0, 0.085, -0.04], "color": "accent"},
+				{"size": [0.095, 0.02, 0.2], "at": [0, 0.035, 0.02], "color": "bronze"}
+			]
+		},
+		"sagittarii_rifle": {
+			"scale": 1.9, "lift_m": 0.16, "tilt_deg": [0, 0, 82],
+			"parts": [
+				{"size": [0.08, 0.11, 0.3], "at": [0, 0, 0.04], "color": "plate_dark"},
+				{"size": [0.04, 0.04, 0.42], "at": [0, 0.02, -0.32], "color": "plate_dark"},
+				{"size": [0.06, 0.06, 0.08], "at": [0, 0.02, -0.5], "color": "bronze"},
+				{"size": [0.07, 0.07, 0.18], "at": [0, 0, -0.16], "color": "plate"},
+				{"shape": "taper", "top": [1, 0.6], "bevel": 0.1, "size": [0.07, 0.12, 0.22], "at": [0, -0.02, 0.29], "color": "leather"},
+				{"size": [0.05, 0.1, 0.06], "at": [0, -0.09, 0.14], "color": "leather"},
+				{"size": [0.05, 0.13, 0.06], "at": [0, -0.1, 0.03], "color": "plate_dark"},
+				{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [0.07, 0.24, 0.07], "at": [0, 0.1, 0.0], "color": "plate"},
+				{"size": [0.03, 0.03, 0.02], "at": [0, 0.1, -0.125], "color": "accent"},
+				{"size": [0.02, 0.05, 0.02], "at": [0, -0.06, -0.3], "color": "plate"}
+			]
+		},
+		"ammo": {
+			"scale": 1.0, "lift_m": 0.0, "tilt_deg": [0, 0, 0],
+			"parts": [
+				{"size": [0.5, 0.26, 0.34], "at": [0, 0.13, 0], "color": "plate_dark"},
+				{"size": [0.54, 0.05, 0.38], "at": [0, 0.285, 0], "color": "bronze"},
+				{"size": [0.06, 0.28, 0.36], "at": [-0.16, 0.14, 0], "color": "bronze"},
+				{"size": [0.06, 0.28, 0.36], "at": [0.16, 0.14, 0], "color": "bronze"},
+				{"size": [0.2, 0.05, 0.02], "at": [0, 0.16, -0.175], "color": "accent"},
+				{"size": [0.14, 0.03, 0.14], "at": [0, 0.325, 0], "color": "plate"}
+			]
+		},
+		"armor_1": {
+			"scale": 1.0, "lift_m": 0.0, "tilt_deg": [0, 0, 0],
+			"parts": [
+				{"shape": "taper", "top": [0.7, 0.7], "bevel": 0.1, "size": [0.36, 0.1, 0.3], "at": [0, 0.05, 0], "color": "timber"},
+				{"size": [0.05, 0.5, 0.05], "at": [0, 0.33, 0], "color": "timber"},
+				{"shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.86, 0], [1, 0.45], [0.92, 1], [0, 1]], "size": [0.5, 0.36, 0.32], "at": [0, 0.62, 0], "color": "bronze"},
+				{"shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [1, 0], [0.8, 1], [0, 1]], "size": [0.28, 0.06, 0.28], "at": [0, 0.83, 0], "color": "leather"},
+				{"shape": "taper", "top": [1, 1], "bottom": [0.45, 1], "bevel": 0, "size": [0.22, 0.09, 0.03], "at": [0, 0.7, -0.165], "color": "leather"}
+			]
+		},
+		"armor_2": {
+			"scale": 1.0, "lift_m": 0.0, "tilt_deg": [0, 0, 0],
+			"parts": [
+				{"shape": "taper", "top": [0.7, 0.7], "bevel": 0.1, "size": [0.36, 0.1, 0.3], "at": [0, 0.05, 0], "color": "plate_dark"},
+				{"size": [0.05, 0.5, 0.05], "at": [0, 0.33, 0], "color": "plate_dark"},
+				{"shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.86, 0], [1, 0.45], [0.92, 1], [0, 1]], "size": [0.52, 0.38, 0.33], "at": [0, 0.63, 0], "color": "plate"},
+				{"shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [1, 0], [0.8, 1], [0, 1]], "size": [0.3, 0.06, 0.3], "at": [0, 0.85, 0], "color": "plate_dark"},
+				{"shape": "taper", "top": [1, 1], "bottom": [0.45, 1], "bevel": 0, "size": [0.24, 0.1, 0.03], "at": [0, 0.71, -0.17], "color": "accent"},
+				{"shape": "lathe", "axis": true, "sweep_deg": 200, "segments": 5, "rot": [0, 90, 0], "profile": [[0, 0], [1, 0], [0.9, 0.6], [0.5, 1], [0, 1]], "size": [0.26, 0.14, 0.28], "at": [-0.27, 0.78, 0], "color": "plate"},
+				{"shape": "lathe", "axis": true, "sweep_deg": 200, "segments": 5, "rot": [0, -90, 0], "profile": [[0, 0], [1, 0], [0.9, 0.6], [0.5, 1], [0, 1]], "size": [0.26, 0.14, 0.28], "at": [0.27, 0.78, 0], "color": "plate"}
+			]
+		},
+		"armor_3": {
+			"scale": 1.0, "lift_m": 0.0, "tilt_deg": [0, 0, 0],
+			"parts": [
+				{"shape": "taper", "top": [0.7, 0.7], "bevel": 0.1, "size": [0.38, 0.1, 0.32], "at": [0, 0.05, 0], "color": "marble"},
+				{"size": [0.05, 0.5, 0.05], "at": [0, 0.33, 0], "color": "bronze"},
+				{"shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [0.86, 0], [1, 0.45], [0.92, 1], [0, 1]], "size": [0.54, 0.4, 0.34], "at": [0, 0.64, 0], "color": "gold"},
+				{"shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [1, 0], [0.8, 1], [0, 1]], "size": [0.32, 0.07, 0.32], "at": [0, 0.87, 0], "color": "plate"},
+				{"shape": "taper", "top": [1, 1], "bottom": [0.45, 1], "bevel": 0, "size": [0.26, 0.11, 0.03], "at": [0, 0.72, -0.175], "color": "lit_accent"},
+				{"shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, 90, 0], "profile": [[0, 0], [1, 0], [0.9, 0.6], [0.5, 1], [0, 1]], "size": [0.3, 0.16, 0.3], "at": [-0.29, 0.8, 0], "color": "gold"},
+				{"shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, -90, 0], "profile": [[0, 0], [1, 0], [0.9, 0.6], [0.5, 1], [0, 1]], "size": [0.3, 0.16, 0.3], "at": [0.29, 0.8, 0], "color": "gold"},
+				{"shape": "taper", "top": [1, 0.7], "top_shift": [0, 0.15], "bevel": 0, "size": [0.05, 0.14, 0.26], "at": [0, 0.97, 0.02], "color": "legion_red"}
+			]
+		}
+	},
+	"glow": {
+		"_note": "A ring on the ground and a thin beam above every item, one batch for all of them (additive). Colour by the item's kind.",
+		"enabled": true,
+		"ring_radius_m": 0.62,
+		"beam_height_m": 2.4,
+		"beam_width_m": 0.16,
+		"strength": 0.9,
+		"pulse_speed": 2.4,
+		"by_kind": {
+			"weapon": [1.0, 0.72, 0.25, 1.0],
+			"ammo": [0.82, 0.86, 0.92, 1.0],
+			"armor": [0.3, 0.72, 1.0, 1.0]
+		}
+	},
+	"cast_shadows": false
+}

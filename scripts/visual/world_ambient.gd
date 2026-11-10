@@ -47,7 +47,58 @@ func _sway_material(path: String, cfg: Dictionary) -> ShaderMaterial:
 	mat.set_shader_parameter("frequency", float(cfg["frequency"]))
 	mat.set_shader_parameter("roughness", float(cfg["roughness"]))
 	mat.set_shader_parameter("base_color", GreyboxArt.color_value(cfg["color"]))
+	if path.ends_with("world_cloth.gdshader"):
+		# S7: the cloth shows the shared weave tile and a gold trim.
+		var surfaces := WorldSurface.config()
+		mat.set_shader_parameter("surfaces", load(String(surfaces["texture"])))
+		mat.set_shader_parameter("cloth_layer", float((surfaces["layers"] as Array).find("cloth")))
+		if cfg.has("trim_color"):
+			mat.set_shader_parameter("trim_color", GreyboxArt.color_value(cfg["trim_color"]))
 	return mat
+
+
+static var _tuft: ArrayMesh
+static var _flame: ArrayMesh
+static var _brazier := {}
+
+## S7: a grass tuft: `blades` thin triangles leaning out from one root, dark at the root and light at the tip.
+static func _tuft_mesh(size: Vector3, blades: int) -> ArrayMesh:
+	if _tuft != null:
+		return _tuft
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in blades:
+		var angle := TAU * float(i) / blades + float(i) * 0.7
+		var out := Vector3(cos(angle), 0.0, sin(angle))
+		var side := Vector3(-out.z, 0.0, out.x) * size.x * 0.5
+		var root := out * size.z * 0.3
+		var tip := out * size.z * (1.0 + 0.4 * sin(float(i) * 2.1)) + Vector3.UP * size.y * (0.7 + 0.3 * cos(float(i) * 1.3))
+		for corner: Array in [[root - side, 0.35], [root + side, 0.35], [tip, 1.0]]:
+			st.set_normal(Vector3.UP)
+			st.set_color(Color(float(corner[1]), float(corner[1]), float(corner[1]), 1.0))
+			st.add_vertex(corner[0])
+	_tuft = st.commit()
+	return _tuft
+
+
+## S7: a flame: two crossed upright quads (UV.y 1 at the root, 0 at the tip) with the fire shader.
+static func _flame_mesh(size: Vector2) -> ArrayMesh:
+	if _flame != null:
+		return _flame
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var half := size.x * 0.5
+	for across: Vector3 in [Vector3.RIGHT, Vector3.BACK]:
+		var corners: Array = [[-across * half, Vector2(0, 1)], [across * half, Vector2(1, 1)], [across * half + Vector3.UP * size.y, Vector2(1, 0)], [-across * half + Vector3.UP * size.y, Vector2(0, 0)]]
+		for index: int in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(corners[index][1])
+			st.add_vertex(corners[index][0])
+	_flame = st.commit()
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://scripts/visual/shaders/fire.gdshader")
+	mat.set_shader_parameter("noise_pack", load(String(WorldSurface.config()["noise"])))
+	_flame.surface_set_material(0, mat)
+	return _flame
 
 func _mesh(mesh: Mesh, at: Vector3, parent: Node3D = null) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
@@ -99,17 +150,19 @@ func _build_foliage() -> void:
 	batch.name = "Foliage"
 	var multi := MultiMesh.new()
 	multi.transform_format = MultiMesh.TRANSFORM_3D
-	multi.mesh = LowpolyKit.build("rubble", LowpolyKit.vec(cfg["size"]))
+	multi.mesh = _tuft_mesh(LowpolyKit.vec(cfg["size"]), int(cfg.get("blades", 5)))
 	multi.instance_count = int(cfg["count"])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(cfg["seed"])
 	for i in multi.instance_count:
 		var angle := rng.randf_range(0, TAU)
 		var radius := rng.randf_range(float(cfg["radius_min_m"]), float(cfg["radius_max_m"]))
-		var at := Vector3(cos(angle) * radius, float(cfg["size"][1]) * 0.5, sin(angle) * radius)
-		multi.set_instance_transform(i, Transform3D(Basis(Vector3.UP, angle), at))
+		var at := Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+		var grow := rng.randf_range(float(cfg.get("scale_min", 1.0)), float(cfg.get("scale_max", 1.0)))
+		multi.set_instance_transform(i, Transform3D(Basis(Vector3.UP, rng.randf_range(0, TAU)).scaled(Vector3.ONE * grow), at))
 	batch.multimesh = multi
 	batch.material_override = foliage_material
+	batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # S7: many small blades; no shadow draw for them
 	add_child(batch)
 
 func _build_dust() -> void:
@@ -151,8 +204,20 @@ func _build_braziers() -> void:
 		add_child(base)
 		var stand := LowpolyKit.vec(cfg["stand_size"])
 		var bowl := LowpolyKit.vec(cfg["bowl_size"])
-		_mesh(LowpolyKit.build("pillar", stand), Vector3(0, stand.y * 0.5, 0), base)
-		_mesh(LowpolyKit.build("barrier", bowl), Vector3(0, stand.y, 0), base)
+		if cfg.has("parts"):
+			# S7: a bronze bowl on a tripod (kit parts from data) with a flame standing in it.
+			if not _brazier.has("mesh"):
+				var parts: Array = []
+				for part: Dictionary in cfg["parts"]:
+					parts.append(WorldKit._kit_part(part))
+				_brazier["mesh"] = LowpolyKit.merge(parts)
+			_mesh(_brazier["mesh"], Vector3.ZERO, base)
+			var flame := _mesh(_flame_mesh(Vector2(float(cfg["flame_size"][0]), float(cfg["flame_size"][1]))), Vector3(0, float(cfg["flame_y_m"]), 0), base)
+			flame.name = "Flame"
+			flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		else:
+			_mesh(LowpolyKit.build("pillar", stand), Vector3(0, stand.y * 0.5, 0), base)
+			_mesh(LowpolyKit.build("barrier", bowl), Vector3(0, stand.y, 0), base)
 		var light := OmniLight3D.new()
 		light.position.y = float(cfg["light_y_m"])
 		light.omni_range = float(cfg["range_m"])

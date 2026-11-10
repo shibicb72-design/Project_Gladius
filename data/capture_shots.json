@@ -83,6 +83,36 @@
 			{"name": "gate", "at": [-28, -28], "look_at": [-40, 3, -44], "others": [[-33, -34, 0]]}
 		]
 	},
+	"soldier_poses": {
+		"_note": "S4: a row of soldiers, each holding one pose (data/anim.json poses) at full weight, with the blade and an armor tier where asked.",
+		"spacing_m": 1.7,
+		"frame_margin_m": 1.0,
+		"frame_height_m": 2.6,
+		"camera_height_m": 1.2,
+		"look_height_m": 0.95,
+		"fov_deg": 32,
+		"views": [{"name": "front", "yaw_deg": 0}, {"name": "back", "yaw_deg": 180}],
+		"row": [
+			{"label": "rifle", "pose": "", "tier": 0},
+			{"label": "blade, tier I", "pose": "", "blade": true, "tier": 1},
+			{"label": "falling", "pose": "fall", "blade": true, "tier": 0},
+			{"label": "landing", "pose": "land", "blade": true, "tier": 2},
+			{"label": "downed", "pose": "downed", "tier": 0},
+			{"label": "reviving, tier III", "pose": "revive", "tier": 3}
+		]
+	},
+	"carrier": {
+		"_note": "S6: the carrier model on a made-up stretch of flight. camera_offset is from the carrier position.",
+		"at": [0, 60, 10],
+		"heading_deg": 35,
+		"look_offset": [0, 3, 0],
+		"fov_deg": 50,
+		"views": [
+			{"name": "side", "camera_offset": [-30, 6, -22]},
+			{"name": "below", "camera_offset": [8, -22, 26]},
+			{"name": "rider", "camera_offset": [1.2, 1.4, 5.5]}
+		]
+	},
 	"wall_closeup": {
 		"bearing_start_deg": 15,
 		"bearing_step_deg": 30,

@@ -13,7 +13,9 @@ class ToolStub extends Node:
 func test_every_shot_has_framing_data_marked_placeholder() -> void:
 	var cfg: Dictionary = DataRegistry.new().load_file("res://data/capture_shots.json")
 	assert_true(bool(cfg["_placeholder"]) and String(cfg["_todo"]).contains("OQ-3D-CAPTURE"), "framing numbers are placeholders with an OQ id")
-	assert_eq(SceneShots.SHOTS.size(), 9, "turntable, 50 m, 50 m magnifier, overview, loot line-up, wall close-up, kit line-up (W1), ground views (W3), in-match third person (S0)")
+	assert_eq(SceneShots.SHOTS.size(), 11, "turntable, 50 m, 50 m magnifier, overview, loot line-up, wall close-up, kit line-up (W1), ground views (W3), in-match third person (S0), soldier poses (S4), carrier (S6)")
+	for entry: Dictionary in cfg["soldier_poses"]["row"]:
+		assert_true(String(entry["pose"]) == "" or SoldierPose.STATES.has(String(entry["pose"])), "a pose shot names a known pose")
 	for view: Dictionary in cfg["in_match"]["views"]:
 		assert_true(view.has("name") and view.has("at") and view.has("look_at"), "an in-match view has a name, a place to stand and something to look at")
 	for view: Dictionary in cfg["ground_views"]["views"]:

@@ -340,11 +340,11 @@ func _drop_and_zone() -> void:
 	_mix(carrier, _bp(_noise(3.3, 500), 1500.0, 0.6), 0.18)
 	_mix(carrier, _tone(3.3, 1240.0, 1240.0, 0, 5.0, 0.004), 0.05)
 	_save("carrier_loop", _loop(carrier, 0.3), 0.7)
-	var wind := _bp(_noise(3.3, 510), 700.0, 0.5)
+	var wind := _hp(_lp(_lp(_noise(3.3, 510), 1100.0), 1500.0), 150.0)
 	var gust := _tone(3.3, 0.61, 0.61)
 	for i in wind.size():
 		wind[i] *= 0.7 + 0.3 * gust[i]
-	_mix(wind, _bp(_noise(3.3, 511), 2400.0, 1.0), 0.25)
+	_mix(wind, _bp(_noise(3.3, 511), 2400.0, 3.0), 0.12)
 	_save("drop_wind_loop", _loop(wind, 0.3), 0.75)
 	# The zone wall: a low field hum with a slow beat and a faint high shimmer. Loops.
 	var hum := _buf(3.3)
@@ -429,12 +429,16 @@ func _pickups_and_ui() -> void:
 
 func _ambience() -> void:
 	# Wind over the hill: slow gusts. Loops.
-	var wind := _bp(_noise(6.4, 800), 420.0, 0.45)
+	# Two low-pass stages keep it a low rush instead of a hiss; a thin band above gives the whistle.
+	var wind := _hp(_lp(_lp(_noise(6.4, 800), 520.0), 700.0), 90.0)
 	var gust := _tone(6.4, 0.3125, 0.3125)
 	var gust2 := _tone(6.4, 0.78125, 0.78125)
 	for i in wind.size():
 		wind[i] *= 0.55 + 0.3 * gust[i] + 0.15 * gust2[i]
-	_mix(wind, _bp(_noise(6.4, 801), 1500.0, 0.8), 0.12)
+	var whistle := _bp(_noise(6.4, 801), 1300.0, 6.0)
+	for i in whistle.size():
+		whistle[i] *= maxf(gust[i], 0.0) * maxf(gust2[i], 0.0)
+	_mix(wind, whistle, 0.08)
 	_save("wind_loop", _loop(wind, 0.4), 0.6)
 	# A brazier: a low roar with crackles. Loops.
 	var fire := _lp(_noise(3.2, 810), 420.0)
@@ -450,8 +454,8 @@ func _ambience() -> void:
 	_mix(fire, crackle, 0.5)
 	_save("fire_loop", _loop(fire, 0.3), 0.6)
 	# Rain on stone. Loops.
-	var rain := _hp(_lp(_noise(3.2, 820), 7000.0), 900.0)
-	_mix(rain, _bp(_noise(3.2, 821), 2600.0, 0.7), 0.6)
+	var rain := _hp(_hp(_lp(_lp(_noise(3.2, 820), 6000.0), 8000.0), 700.0), 500.0)
+	_mix(rain, _bp(_noise(3.2, 821), 2600.0, 1.4), 0.4)
 	var drops := _hp(_noise(3.2, 822), 3500.0)
 	_rng.seed = SEED + 823
 	level = 0.0

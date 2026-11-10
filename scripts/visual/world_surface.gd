@@ -88,6 +88,13 @@ static func material(tint: Color = Color.WHITE, paint_mix: float = 1.0) -> Shade
 	return _materials[key]
 
 
+## Gives another shader material (the soldier's) the same surface arrays and wet look, and keeps it in step
+## with set_wet(). The shader declares the uniforms it wants; the others are ignored.
+static func adopt(other: ShaderMaterial) -> void:
+	_apply_shared(other)
+	_materials["adopted/%d" % other.get_instance_id()] = other
+
+
 ## The world material tinted for a map palette key ("citadel", "camp", "inner_wall"): data "tints", white if absent.
 static func palette_material(key: String) -> ShaderMaterial:
 	var tints: Dictionary = config().get("tints", {})

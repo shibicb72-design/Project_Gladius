@@ -144,6 +144,60 @@ func test_open_volumes_stay_free_of_colliders() -> void:
 	assert_true(checked >= 8, "gate, colonnade bays, aqueduct arch, barracks doors, window and room checked (%d)" % checked)
 
 
+## S7: decoration must not stand where shots pass. Rays are cast through every open volume, along each of
+## its three axes, against the piece's own look (the mesh triangles, not the colliders): none may hit.
+func test_the_look_leaves_the_open_volumes_clear() -> void:
+	var inset := 0.08  # paint on the frame (a glow strip, a floor slab) may touch the volume's skin
+	var grid := 5
+	var rays := 0
+	for type: String in _types():
+		var open: Array = _types()[type].get("open", [])
+		if open.is_empty():
+			continue
+		var faces := WorldKit.mesh_for(type).get_faces()
+		for volume: Dictionary in open:
+			var half := LowpolyKit.vec(volume["size"]) * 0.5 - Vector3.ONE * inset
+			var centre := LowpolyKit.vec(volume["at"])
+			var near: Array[int] = []  # triangles whose bounds reach into the volume
+			for i in range(0, faces.size(), 3):
+				var low := faces[i].min(faces[i + 1]).min(faces[i + 2])
+				var high := faces[i].max(faces[i + 1]).max(faces[i + 2])
+				if low.x <= centre.x + half.x and high.x >= centre.x - half.x and low.y <= centre.y + half.y and high.y >= centre.y - half.y \
+						and low.z <= centre.z + half.z and high.z >= centre.z - half.z:
+					near.append(i)
+			var hits := 0
+			for axis in 3:
+				var u := (axis + 1) % 3
+				var v := (axis + 2) % 3
+				for iu in grid:
+					for iv in grid:
+						var from := centre
+						var to := centre
+						from[axis] -= half[axis]
+						to[axis] += half[axis]
+						var offset_u := lerpf(-half[u], half[u], float(iu) / (grid - 1))
+						var offset_v := lerpf(-half[v], half[v], float(iv) / (grid - 1))
+						from[u] += offset_u
+						to[u] += offset_u
+						from[v] += offset_v
+						to[v] += offset_v
+						rays += 1
+						for i in near:
+							if Geometry3D.segment_intersects_triangle(from, to, faces[i], faces[i + 1], faces[i + 2]) != null:
+								hits += 1
+								break
+			assert_eq(hits, 0, "%s: no part of the look crosses the open volume at %s" % [type, volume["at"]])
+	assert_true(rays >= 8 * 3 * grid * grid, "every open volume was crossed by rays on three axes (%d rays)" % rays)
+	# Nonvacuous: a ray through a column of the colonnade does hit the look.
+	var probe := WorldKit.mesh_for("colonnade").get_faces()
+	var struck := false
+	for i in range(0, probe.size(), 3):
+		if Geometry3D.segment_intersects_triangle(Vector3(-4.5, 2.0, -3.0), Vector3(-4.5, 2.0, 3.0), probe[i], probe[i + 1], probe[i + 2]) != null:
+			struck = true
+			break
+	assert_true(struck, "the same ray test hits a column")
+
+
 func test_raised_surfaces_are_reachable_on_a_baked_navmesh() -> void:
 	var tolerance := float(_rules()["reach_tolerance_m"])
 	var reached := {}
