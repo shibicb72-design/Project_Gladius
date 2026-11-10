@@ -24,8 +24,10 @@ func test_dense_cover_structure_spacing_and_clusters() -> void:
 		var size := (shape.shape as BoxShape3D).size
 		assert_eq(body.basis, Basis.IDENTITY, "axis aligned body " + String(body.name))
 		assert_eq(shape.transform, Transform3D.IDENTITY, "axis aligned centered shape")
-		assert_eq(body.get_child_count(), 2, "one Mesh and one Shape only")
-		assert_true(body.get_node("Mesh") is MeshInstance3D, "direct Mesh child")
+		# M2P1A: the body holds its Shape only; its look is one instance in its chunk's cover batch of its type.
+		assert_eq(body.get_child_count(), 1, "one Shape only")
+		var look := (map.get_node("ArtBuilder/Chunks") as MapChunks).batch_of("cover", String(cfg["pieces"][i]["type"]), body.transform)
+		assert_true(look != null and look.multimesh.mesh is ArrayMesh, "drawn by its chunk's cover batch: " + String(body.name))
 		var definition: Dictionary = cfg["types"][cfg["pieces"][i]["type"]]
 		if bool(definition["coverable"]):
 			assert_true(body.is_in_group(&"cover_wall") and size.y + 0.000001 >= 0.9, "coverable registration and height")
@@ -161,9 +163,9 @@ func test_outer_ring_band_gaps_and_clearances() -> void:
 		for s in spots.size():
 			assert_true(WorldRing.rect_distance(spots[s], rect) + 0.00001 >= float(rules["spawn_clear_m"]), "%s keeps clear of %s" % [id, spot_ids[s]])
 			assert_true(WorldRing.rect_segment_distance(rect, spots[s], spots[(s + 1) % spots.size()]) + 0.00001 >= float(rules["lane_clear_m"]), "%s keeps clear of the lane from %s" % [id, spot_ids[s]])
-	# One batch per ring cover type draws the pieces.
+	# One batch per ring cover type and chunk (M2P1A: under ArtBuilder/Chunks) draws the pieces.
 	var drawn := 0
-	for batch: MultiMeshInstance3D in builder.get_node("RingCover").get_children():
+	for batch: MultiMeshInstance3D in (builder.get_node("Chunks") as MapChunks).batches("ring"):
 		# S2: the cover material is the shared textured world material (was a StandardMaterial3D per palette).
 		assert_true(batch.multimesh.mesh is ArrayMesh and WorldSurface.is_lit(batch.material_override), String(batch.name) + ": kit mesh with the cover material")
 		drawn += batch.multimesh.instance_count

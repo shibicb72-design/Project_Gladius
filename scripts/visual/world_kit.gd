@@ -3,8 +3,8 @@ extends RefCounted
 ## W1: world kit pieces (wall with walkway and stair, gate, watchtower, columns, aqueduct, barracks, tent, stakes,
 ## eagle standard, ramp and terrace blocks). Data: data/maps/alesia_structures.json (placeholders,
 ## OQ-WORLD-DENSE / OQ-ART-ASTRA). A piece is one StaticBody3D in group "structure" under the map's Nav node, so
-## the navmesh bake parses it; the body holds colliders only. All pieces of one type draw as one MultiMesh with
-## one material shared by every type. Pieces are never in group cover_wall: the cover system reads
+## the navmesh bake parses it; the body holds colliders only. The pieces of one type draw as one MultiMesh per
+## map chunk (MapChunks, source "structure") with one material shared by every type. Pieces are never in group cover_wall: the cover system reads
 ## single-box bodies (scripts/systems/cover_probe.gd).
 ## A type lists "parts" (the look, LowpolyKit parts; y is metres above the ground under the piece), "colliders"
 ## (boxes and wedges with the same size / at / rot keys as a part), "walk" (the surfaces meant to be walked on)
@@ -226,33 +226,17 @@ static func decor_body(entry: Dictionary, mode: String, mesh: Mesh) -> StaticBod
 	return body
 
 
-## Adds every piece of `pieces` to `nav` as bodies and one MultiMesh batch per type to `visuals`.
-static func populate(nav: Node, visuals: Node3D, pieces: Array) -> Array[StaticBody3D]:
+## Adds every piece of `pieces` to `nav` as bodies and hands each look to `chunks` (source "structure"); the
+## caller builds the chunks. The mesh carries material(), so the batch gets no material_override.
+static func populate(nav: Node, chunks: MapChunks, pieces: Array) -> Array[StaticBody3D]:
 	var cfg := config()
 	var types: Dictionary = cfg["types"]
 	var bodies: Array[StaticBody3D] = []
-	var by_type := {}
+	var shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg["batches"]["cast_shadows"]) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for entry: Dictionary in pieces:
 		var type := String(entry["type"])
 		var body := build_body(String(entry["id"]), type, types[type], LowpolyKit.vec(entry["at"]), float(entry.get("yaw", 0.0)))
 		nav.add_child(body)
 		bodies.append(body)
-		if not by_type.has(type):
-			by_type[type] = []
-		(by_type[type] as Array).append(body.transform)
-	var shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg["batches"]["cast_shadows"]) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	for type: String in by_type:
-		var transforms: Array = by_type[type]
-		var batch := MultiMesh.new()
-		batch.transform_format = MultiMesh.TRANSFORM_3D
-		batch.mesh = mesh_for(type)
-		batch.instance_count = transforms.size()
-		for i in transforms.size():
-			batch.set_instance_transform(i, transforms[i])
-		var node := MultiMeshInstance3D.new()
-		node.name = "Batch_" + type
-		node.multimesh = batch
-		node.set_meta(&"transforms", transforms)  # a headless renderer keeps no instance data to read back
-		node.cast_shadow = shadows  # performance risk when on: one more shadow draw per type and split
-		visuals.add_child(node)
+		chunks.add("structure", type, mesh_for(type), null, shadows, body.transform)
 	return bodies

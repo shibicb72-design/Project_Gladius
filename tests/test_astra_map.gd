@@ -56,7 +56,11 @@ func test_cover_footprints_colliders_and_literal_baseline() -> void:
 				continue
 			var old_size := LowpolyKit.vec(BASELINE[key][0])
 			assert_true(not bounds.intersects(AABB(LowpolyKit.vec(BASELINE[key][1]) - old_size * 0.5, old_size)), "no overlap with " + key)
-		var mesh: Mesh = body.get_node("Mesh").mesh
+		# M2P1A: the look is the cover batch of the piece's type in the piece's chunk.
+		var index: Vector2i = map.get_node("ArtBuilder/Chunks").index_of(body.position)
+		var batch := map.get_node_or_null("ArtBuilder/Chunks/Chunk_%d_%d/Batch_cover_%s" % [index.x, index.y, entry["type"]]) as MultiMeshInstance3D
+		assert_true(batch != null, "cover batch in the piece's chunk: " + String(body.name))
+		var mesh: Mesh = batch.multimesh.mesh if batch != null else null
 		assert_true(mesh is ArrayMesh and mesh.get_surface_count() > 0, "real kit mesh")
 		if cache.has(entry["type"]):
 			assert_true(mesh == cache[entry["type"]], "repeated cover shares mesh")

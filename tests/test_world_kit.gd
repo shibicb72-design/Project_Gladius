@@ -300,23 +300,36 @@ func test_placed_pieces_are_structure_bodies_under_nav_drawn_as_one_batch_per_ty
 		assert_true(body.get_node_or_null("Mesh") == null and body.get_node_or_null("Shape") == null, String(body.name) + ": colliders only, not a one-box cover body")
 		assert_eq(body.get_child_count(), (cfg["types"][entry["type"]]["colliders"] as Array).size(), String(body.name) + ": one shape per collider entry")
 		per_type[entry["type"]] = int(per_type.get(entry["type"], 0)) + 1
-	var batches := builder.get_node("Structures").get_children()
-	assert_eq(batches.size(), per_type.size(), "one batch per placed type")
+	# M2P1A: one batch per type in each map chunk (MapChunks); across chunks a type draws one instance per piece.
+	var chunks := builder.get_node("Chunks") as MapChunks
+	var batches := chunks.batches("structure")
+	for type: String in per_type:
+		assert_eq(chunks.instance_total("structure", type), int(per_type[type]), type + ": one instance per piece")
+	var matched := {}  # body index -> times an instance sat on it
 	var triangles := 0
 	for node: MultiMeshInstance3D in batches:
-		var type := String(node.name).trim_prefix("Batch_")
-		assert_eq(node.multimesh.instance_count, int(per_type.get(type, 0)), type + ": one instance per piece")
+		var type := String(node.get_meta(&"type"))
+		assert_true(per_type.has(type), type + ": a placed type")
+		var same_type := 0
+		for sibling in node.get_parent().get_children():
+			if String(sibling.get_meta(&"source", "")) == "structure" and String(sibling.get_meta(&"type", "")) == type:
+				same_type += 1
+		assert_eq(same_type, 1, type + ": one batch per type in " + String(node.get_parent().name))
 		assert_true(node.multimesh.mesh == WorldKit.mesh_for(type) and node.multimesh.mesh.surface_get_material(0) == WorldKit.material(), type + ": shared mesh and material")
 		assert_true(node.material_override == null, type + ": no per-batch material")
 		triangles += Perf.triangles(node.multimesh.mesh) * node.multimesh.instance_count
 		# The instance transforms as the builder set them (a headless renderer keeps none to read back; the
 		# line-up and overview shots show the batches drawn).
 		var placed: Array = node.get_meta(&"transforms")
-		var seen := 0
-		for i in bodies.size():
-			if pieces[i]["type"] == type:
-				assert_true((placed[seen] as Transform3D).is_equal_approx((bodies[i] as StaticBody3D).transform), type + ": batch instance sits on its body")
-				seen += 1
-		assert_eq(seen, placed.size(), type + ": no stray instance")
+		assert_eq(placed.size(), node.multimesh.instance_count, type + ": one transform per instance")
+		for xform: Transform3D in placed:
+			var hits := 0
+			for i in bodies.size():
+				if pieces[i]["type"] == type and xform.is_equal_approx((bodies[i] as StaticBody3D).transform):
+					hits += 1
+					matched[i] = int(matched.get(i, 0)) + 1
+			assert_eq(hits, 1, type + ": batch instance sits on exactly one body")
+	for i in bodies.size():
+		assert_eq(int(matched.get(i, 0)), 1, String((bodies[i] as StaticBody3D).name) + ": drawn exactly once, no stray instance")
 	print("WORLD_KIT placed=", bodies.size(), " batches=", batches.size(), " triangles=", triangles)
 	map.free()

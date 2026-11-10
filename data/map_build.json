@@ -1,0 +1,5 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-MAP-CHUNK: chunk_size_m is a first guess for Shibi, not a design value; a Fold measurement decides it.",
+	"chunk_size_m": 50
+}
