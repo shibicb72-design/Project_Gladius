@@ -13,7 +13,13 @@ class ToolStub extends Node:
 func test_every_shot_has_framing_data_marked_placeholder() -> void:
 	var cfg: Dictionary = DataRegistry.new().load_file("res://data/capture_shots.json")
 	assert_true(bool(cfg["_placeholder"]) and String(cfg["_todo"]).contains("OQ-3D-CAPTURE"), "framing numbers are placeholders with an OQ id")
-	assert_eq(SceneShots.SHOTS.size(), 6, "turntable, 50 m, 50 m magnifier, overview, loot line-up, wall close-up")
+	assert_eq(SceneShots.SHOTS.size(), 7, "turntable, 50 m, 50 m magnifier, overview, loot line-up, wall close-up, kit line-up (W1)")
+	var lined_up := {}
+	for row: Array in cfg["kit_lineup"]["rows"]:
+		for type: String in row:
+			lined_up[type] = true
+	for type: String in WorldKit.config()["types"]:
+		assert_true(lined_up.has(type), "the kit line-up shows " + type)
 	for shot in SceneShots.SHOTS:
 		var data_key := shot.trim_suffix("_zoom")  # the magnifier reuses the 50 m scene
 		assert_true(cfg.has(data_key) and cfg[data_key] is Dictionary, "framing data for " + shot)

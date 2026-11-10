@@ -1,6 +1,7 @@
 extends Node3D
 ## Synchronous map construction: ready before MatchRoot bakes parsed static colliders.
 var cover_bodies: Array[StaticBody3D] = []
+var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
 
 func _ready() -> void:
 	var map := get_parent()
@@ -48,6 +49,12 @@ func _ready() -> void:
 		mesh.mesh = meshes[key]
 		if size.z > size.x:
 			mesh.rotation.y = PI * 0.5
+	# W1: world kit pieces come after the loop above, which takes every other Nav child for a one-box wall.
+	# They are bodies in group "structure" (never cover_wall); their look is one batch per type under this node.
+	var structure_batches := Node3D.new()
+	structure_batches.name = "Structures"
+	add_child(structure_batches)
+	structure_bodies = WorldKit.populate(nav, structure_batches, WorldKit.config()["pieces"])
 	var decor := map.get_node("Decor") as Node3D
 	for entry: Dictionary in cfg["decor"]:
 		var mesh := MeshInstance3D.new()

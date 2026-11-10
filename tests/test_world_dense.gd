@@ -60,9 +60,17 @@ func test_dense_cover_structure_spacing_and_clusters() -> void:
 				count += 1
 		assert_true(count >= int(rules["spawn_cluster_minimum"]), String(spot.name) + " approach cluster")
 		print("WORLD_CLUSTER ", spot.name, " pieces=", count)
+	# Was "every Nav child except Ground is cover_wall". W1: a Nav child is either cover (one box, cover_wall) or
+	# a world kit piece (group "structure", several colliders, never cover_wall); never both, never neither.
+	var structures := 0
 	for body in map.get_node("Nav").get_children():
 		if body.name != &"Ground":
-			assert_true(body.is_in_group(&"cover_wall"), "original blocks also coverable")
+			var is_structure: bool = body.is_in_group(WorldKit.GROUP)
+			assert_true(body.is_in_group(&"cover_wall") != is_structure, String(body.name) + " is cover or a structure, exactly one")
+			if is_structure:
+				structures += 1
+				assert_true(not body in bodies, String(body.name) + ": a structure is not in the cover list")
+	assert_eq(structures, (map.get_node("ArtBuilder").structure_bodies as Array).size(), "every structure under Nav is one the builder placed")
 	map.free()
 
 func test_new_composite_meshes_share_data_and_are_deterministic() -> void:

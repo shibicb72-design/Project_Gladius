@@ -5,7 +5,7 @@ extends Node
 ## events, saves PNGs with a "desktop render" overlay and writes <out>/<tag>_report.txt. Optional: --dpi=N (default: the desktop's reported DPI).
 ## Optional for --sprint-shot: --offscreen=WxH renders into an offscreen SubViewport of exactly WxH px (same canvas_items
 ## expand stretch as the window), for sizes taller than the desktop screen, where the OS clamps the window.
-## 3D shots (C0): --scene-shot=<soldier_turntable|soldier_50m|soldier_50m_zoom|map_overview|loot_lineup|wall_closeup|all> saves
+## 3D shots (C0): --scene-shot=<soldier_turntable|soldier_50m|soldier_50m_zoom|map_overview|loot_lineup|wall_closeup|kit_lineup|all> saves
 ## <out>/<tag>_<shot>.png with the HUD hidden; --offscreen=WxH gives the exact pixel size. Framing: data/capture_shots.json.
 ##   godot --path . res://tools/touch_capture.tscn -- --out=<dir> --tag=c0_2520x1080 --scene-shot=all --offscreen=2520x1080
 

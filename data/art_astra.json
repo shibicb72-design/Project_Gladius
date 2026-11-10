@@ -48,7 +48,16 @@
 		"leather": [0.36, 0.22, 0.13, 1],
 		"visor": [0.04, 0.05, 0.07, 1],
 		"_squad_note": "C3: alpha 0 marks a squad colour field. On the soldier the shared shader paints those faces with the instance's squad colour (soldier.squad_colour); the rgb here is what a material without that shader shows.",
-		"squad": [0.66, 0.1, 0.09, 0]
+		"squad": [0.66, 0.1, 0.09, 0],
+		"_world_kit_note": "OQ-ART-ASTRA: the colours below belong to the world kit (W1, data/maps/alesia_structures.json), written as sRGB. Trial palette: travertine and marble for structures, legion red and bronze for cloth and trim, one bright accent for the future lines. lit_accent is paint in the lit material, not glow.",
+		"travertine": [0.8, 0.75, 0.65, 1],
+		"travertine_shade": [0.66, 0.61, 0.52, 1],
+		"marble": [0.9, 0.89, 0.86, 1],
+		"roof_tile": [0.55, 0.27, 0.18, 1],
+		"legion_red": [0.62, 0.1, 0.09, 1],
+		"timber": [0.38, 0.26, 0.16, 1],
+		"canvas": [0.72, 0.66, 0.52, 1],
+		"lit_accent": [0.35, 0.9, 0.95, 1]
 	},
 	"kit": {
 		"rock_radius_fractions": [0.72, 1.0, 0.38],

@@ -11,10 +11,19 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 	var cfg := GreyboxArt.config()
 	assert_true(bool(cfg["_placeholder"]), "art values remain placeholders")
 	for body in map.get_node("Nav").get_children():
+		if body.is_in_group(WorldKit.GROUP):
+			continue  # W1: world kit pieces hold colliders only; their look is the batches checked below
 		var mesh := body.get_node_or_null("Mesh") as MeshInstance3D
 		assert_true(mesh != null and mesh.material_override is StandardMaterial3D, "material on " + String(body.name))
 		if mesh != null and mesh.material_override != null:
 			assert_eq((mesh.material_override as StandardMaterial3D).shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL, "world is lit")
+	var batches := map.get_node("ArtBuilder/Structures").get_children()
+	assert_true(not batches.is_empty(), "world kit batches present")
+	for batch: MultiMeshInstance3D in batches:
+		var material := batch.multimesh.mesh.surface_get_material(0) as StandardMaterial3D
+		assert_true(material != null and batch.material_override == null, "material on " + String(batch.name))
+		if material != null:
+			assert_eq(material.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL, "world kit is lit")
 	map.free()
 	var match_scene: MatchRoot = load("res://scenes/match/match.tscn").instantiate()
 	match_scene.auto_start = false

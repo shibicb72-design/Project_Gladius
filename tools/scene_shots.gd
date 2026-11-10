@@ -4,7 +4,7 @@ extends RefCounted
 ## Framing numbers: data/capture_shots.json (placeholders, OQ-3D-CAPTURE). Presentation only: nothing here feeds
 ## back into the match. World colliders pick a stage with a clear lane, so cover never hides the subject.
 
-const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup"]
+const SHOTS: Array[String] = ["soldier_turntable", "soldier_50m", "soldier_50m_zoom", "map_overview", "loot_lineup", "wall_closeup", "kit_lineup"]
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -65,6 +65,8 @@ func run(tool: Node, which: String) -> bool:
 				await _loot_lineup()
 			"wall_closeup":
 				await _wall_closeup()
+			"kit_lineup":
+				await _kit_lineup()
 	return true
 
 
@@ -209,6 +211,53 @@ func _loot_lineup() -> void:
 	_aim(_stage + _lane * _fit_distance(c, float(c["spacing_m"]) * ids.size()) + Vector3.UP * float(c["camera_height_m"]),
 			_stage + Vector3.UP * float(c["look_height_m"]), float(c["fov_deg"]))
 	await _finish("loot_lineup", ", ".join(PackedStringArray(ids)) + ", soldier")
+
+
+## W1: the world kit, one row of piece types per image, each row from the front and from the back, on a bare
+## stage beside the map. A soldier stands in front of every piece, and on its first walk surface if it has one.
+## Saves <tag>_kit_lineup_<row>_<view>.png. The stage has no colliders: the pawns are inert props.
+func _kit_lineup() -> void:
+	var c: Dictionary = _cfg["kit_lineup"]
+	var stage := LowpolyKit.vec(c["stage_at"])
+	var types: Dictionary = WorldKit.config()["types"]
+	var gap := float(c["gap_m"])
+	var rows: Array = c["rows"]
+	var views: Array = c["views"]
+	for r in rows.size():
+		var width := -gap
+		var depth := 0.0
+		for type: String in rows[r]:
+			var rect := WorldKit.footprint(types[type], Vector3.ZERO, 0.0)
+			width += rect.size.x + gap
+			depth = maxf(depth, maxf(absf(rect.position.y), absf(rect.end.y)))
+		for view: Dictionary in views:
+			var yaw := deg_to_rad(float(view["yaw_deg"]))
+			var to_camera := Vector3(sin(yaw), 0.0, -cos(yaw))  # yaw 0 looks at the fronts (-Z side)
+			var ground := MeshInstance3D.new()
+			var plane := PlaneMesh.new()
+			plane.size = Vector2(width, depth * 2.0) + Vector2.ONE * float(c["ground_margin_m"]) * 2.0
+			plane.material = GreyboxArt.material_for("ground")
+			ground.mesh = plane
+			_match.add_child(ground)
+			ground.global_position = stage
+			_props.append(ground)
+			var cursor := -width * 0.5
+			for type: String in rows[r]:
+				var rect := WorldKit.footprint(types[type], Vector3.ZERO, 0.0)
+				var origin := stage + Vector3(cursor - rect.position.x, 0.0, 0.0)
+				cursor += rect.size.x + gap
+				var piece := WorldKit.display(type)
+				_match.add_child(piece)
+				piece.global_position = origin
+				_props.append(piece)
+				var side := 1.0 if to_camera.z > 0.0 else -1.0
+				_pawn(origin + Vector3(rect.position.x + 0.5, 0.0, (rect.end.y if side > 0.0 else rect.position.y) + side), to_camera, 0.0, 0)
+				var walk: Array = types[type].get("walk", [])
+				if not walk.is_empty():
+					_pawn(origin + LowpolyKit.vec(walk[0]["at"]), to_camera, 0.0, 1)
+			var target := stage + Vector3.UP * float(c["look_height_m"])
+			_aim(target + to_camera * _fit_distance(c, width) + Vector3.UP * float(c["camera_height_m"]), target, float(c["fov_deg"]))
+			await _finish("kit_lineup_%d_%s" % [r + 1, view["name"]], ", ".join(PackedStringArray(rows[r])))
 
 
 ## From inside the zone, looking out at the wall with a soldier standing in front of it.

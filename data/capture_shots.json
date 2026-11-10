@@ -43,6 +43,22 @@
 		"look_height_m": 0.8,
 		"fov_deg": 45
 	},
+	"kit_lineup": {
+		"stage_at": [0, 0, 400],
+		"rows": [
+			["wall_stair", "wall_walk", "gate", "watchtower"],
+			["aqueduct_ramp", "aqueduct_span", "colonnade", "pediment_front", "column"],
+			["barracks", "tent", "stake_row", "eagle_standard", "ramp_block", "terrace_block"]
+		],
+		"views": [{"name": "front", "yaw_deg": 25}, {"name": "back", "yaw_deg": 205}],
+		"gap_m": 3.0,
+		"ground_margin_m": 14,
+		"frame_margin_m": 7.0,
+		"frame_height_m": 12,
+		"camera_height_m": 7.0,
+		"look_height_m": 2.5,
+		"fov_deg": 40
+	},
 	"wall_closeup": {
 		"bearing_start_deg": 15,
 		"bearing_step_deg": 30,
