@@ -99,6 +99,7 @@ func test_every_third_party_audio_file_is_catalogued_cc0() -> void:
 
 func test_loops_loop_on_every_take_and_one_shots_never_do() -> void:
 	var sfx := _sfx()
+	var ogg_loops := 0
 	for id: String in sfx.cfg["sounds"]:
 		var loop := bool(sfx.sound(id)["loop"])
 		for path in sfx.paths(id):
@@ -108,8 +109,63 @@ func test_loops_loop_on_every_take_and_one_shots_never_do() -> void:
 			assert_eq(_loops(take), loop, "%s: the take %s loops = %s" % [id, path, loop])
 			if loop and not (take is AudioStreamWAV):
 				assert_true(not _loops(load(path) as AudioStream), "%s: the cached resource of %s is left a one-shot" % [id, path])
+			if loop and path.ends_with(".ogg"):
+				ogg_loops += 1
+				var cached := load(path) as AudioStream
+				assert_true(take is AudioStreamOggVorbis and bool(take.get("loop")), "%s: the Ogg take %s is a looping AudioStreamOggVorbis" % [id, path])
+				assert_true(take != cached, "%s: the looping take is a copy, not the cached resource" % id)
+				assert_true(cached is AudioStreamOggVorbis and not (cached as AudioStreamOggVorbis).loop, "%s: load(%s).loop stays false" % [id, path])
 		for take: AudioStream in sfx.streams(id):
 			assert_eq(_loops(take), loop, "%s: every take from streams() loops = %s" % [id, loop])
+	print("AUDIO_OGG_LOOPS checked=%d" % ogg_loops)
+	assert_true(ogg_loops >= 7, "the real ambience loops are checked (%d Ogg loop takes)" % ogg_loops)
+
+
+func test_thunder_takes_are_short_ambience_one_shots() -> void:
+	var sfx := _sfx()
+	var thunder: Array = sfx.cfg["ambience"]["thunder"]
+	assert_true(thunder.size() >= 2, "there are two thunder ids")
+	for id: Variant in thunder:
+		var s: Dictionary = sfx.sound(String(id))
+		assert_eq(String(s.get("bus", "")), "Ambience", "%s plays on the Ambience bus" % id)
+		assert_true(not bool(s.get("loop", true)), "%s is not a loop" % id)
+		var takes: Array = sfx.streams(String(id))
+		assert_true(not takes.is_empty(), "%s has a take" % id)
+		for take: AudioStream in takes:
+			assert_true(take is AudioStreamOggVorbis and not _loops(take), "%s: the take is a one-shot Ogg" % id)
+			assert_true(take.get_length() < 8.0, "%s: the take is shorter than 8 s (%.2f s)" % [id, take.get_length()])
+
+
+## Channels of an Ogg Vorbis stream from its Vorbis identification header (first packet: 0x01, "vorbis",
+## a u32 version, then the channel count byte at offset 11). -1 when the header is not where the spec puts it.
+static func _ogg_channels(stream: AudioStreamOggVorbis) -> int:
+	var seq := stream.packet_sequence
+	if seq == null or seq.packet_data.is_empty() or (seq.packet_data[0] as Array).is_empty():
+		return -1
+	var header: PackedByteArray = seq.packet_data[0][0]
+	if header.size() < 12 or header[0] != 1 or header.slice(1, 7).get_string_from_ascii() != "vorbis":
+		return -1
+	return header[11]
+
+
+func test_the_brazier_loop_is_mono_and_beds_may_be_stereo() -> void:
+	var sfx := _sfx()
+	var amb: Dictionary = sfx.cfg["ambience"]
+	var report: Array[String] = []
+	for id: String in sfx.cfg["sounds"]:
+		for path in sfx.paths(id):
+			var cached := load(path) as AudioStreamOggVorbis if path.ends_with(".ogg") else null
+			if cached != null and bool(sfx.sound(id)["loop"]):
+				report.append("%s=%d" % [id, _ogg_channels(cached)])
+	print("AUDIO_OGG_CHANNELS " + " ".join(report))
+	var brazier := String(amb["brazier_loop"])
+	for path in sfx.paths(brazier):
+		var take := load(path) as AudioStreamOggVorbis
+		assert_true(take != null, "the brazier loop %s is an Ogg take" % brazier)
+		if take != null:
+			var channels := _ogg_channels(take)
+			assert_true(channels > 0, "the Vorbis header of %s is readable" % path)
+			assert_eq(channels, 1, "the brazier loop (positional) is mono: %s" % path)
 
 
 func test_every_surface_the_game_reports_has_known_step_sounds() -> void:
@@ -165,6 +221,13 @@ func test_each_look_starts_exactly_its_data_layers() -> void:
 	var audio := pair[1] as MatchAudio
 	var amb: Dictionary = sfx.cfg["ambience"]
 	var started := {}
+	# The shipped beds, literally, so a wrong data edit is caught as well as a wrong code path.
+	var literal := {
+		"dusk": ["wind_loop", "birds_loop", "crowd_loop"],
+		"night": ["wind_loop", "night_loop"],
+		"storm": ["wind_loop", "rain_loop", "wind_strong_loop"],
+	}
+	assert_eq(String(MatchLook.resolved("storm")["weather"]), "rain", "the storm look's weather is rain")
 	for look_id in ["dusk", "night", "storm"]:
 		var look := MatchLook.resolved(look_id)
 		assert_eq(String(look["id"]), look_id, "the resolver builds the %s look" % look_id)
@@ -179,6 +242,7 @@ func test_each_look_starts_exactly_its_data_layers() -> void:
 			assert_eq(String(entry["bus"]), String(sfx.sound(String(entry["id"]))["bus"]), "%s: %s on its data bus" % [look_id, entry["id"]])
 			assert_true(entry["stream"] != null and _loops(entry["stream"]), "%s: %s has a looping stream" % [look_id, entry["id"]])
 		assert_eq(got, want, "%s starts exactly its data layers, once each" % look_id)
+		assert_eq(got, Array(literal[look_id], TYPE_STRING, &"", null), "%s starts exactly the shipped bed" % look_id)
 		assert_eq(audio._ambient_loops.size(), want.size(), "%s holds one loop per layer" % look_id)
 		started[look_id] = got
 	# Night carries every night layer and no dusk-only layer (vacuous while dusk lists none of its own).
@@ -188,6 +252,8 @@ func test_each_look_starts_exactly_its_data_layers() -> void:
 	for id: Variant in _ids((amb["by_variant"] as Dictionary).get("dusk", [])):
 		if not night_wants.has(String(id)):
 			assert_true(not (started["night"] as Array).has(String(id)), "night does not start the dusk layer %s" % id)
+	for id in ["birds_loop", "crowd_loop"]:
+		assert_true(not (started["night"] as Array).has(id), "night has no %s" % id)
 	(pair[0] as Node).queue_free()
 	await _tree().process_frame
 
@@ -232,7 +298,7 @@ func test_the_loop_budget_holds_through_a_look_switch() -> void:
 	for other: Array in others:
 		var loop: Node = sfx.make_loop(String(hooks[other[0]]), holder, bool(other[1]))
 		assert_true(loop != null, "the %s loop is made inside the budget" % other[0])
-	var total := _valid_loops()
+	var total := _valid_loops()  # shipped data: 3 (dusk) + 3 (storm) + 8 braziers + 8 others = 22
 	assert_true(total <= cap, "valid loops stay within voices.max_loops (%d of %d)" % [total, cap])
 	print("AUDIO_LOOPS look_switch=%d storm=%d braziers=%d other=%d total=%d cap=%d" % [look_switch, storm, braziers, others.size(), total, cap])
 	root.queue_free()

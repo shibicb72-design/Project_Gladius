@@ -629,6 +629,28 @@
 			"sha256": "ecc611cfcc1bcfa7de6defd8ac2dc65df3e7b47cde701f589a47bdcef7ac8885"
 		},
 		{
+			"id": "audio_night_loop",
+			"path": "res://assets/third_party/audio/oga_crickets/night_loop.ogg",
+			"source": "OpenGameArt Crickets Ambient Noise (Wolfgang_)",
+			"source_url": "https://opengameart.org/content/crickets-ambient-noise-loopable",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "e1d109c974660d47672ec9c28c24fdc30d71cf61728b2a82ed0eb3dcc8c18e77"
+		},
+		{
+			"id": "audio_crowd_loop",
+			"path": "res://assets/third_party/audio/oga_crowd_ambience/crowd_loop.ogg",
+			"source": "OpenGameArt Crowd Shouting Speaking Ambience (StarNinjas)",
+			"source_url": "https://opengameart.org/content/crowd-shoutingspeaking-ambience",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "1f03c14efc9714f05517ebdfae9a3bab1ba33081da14b3b77358e5f79d707dad"
+		},
+		{
 			"id": "audio_step_earth_1",
 			"path": "res://assets/third_party/audio/oga_fantozzi_footsteps/step_earth_1.ogg",
 			"source": "OpenGameArt Fantozzi's Footsteps (Fantozzi)",
@@ -759,6 +781,17 @@
 			"redistribution_quote": "",
 			"download_date": "2026-11-10",
 			"sha256": "9ef4a717198e6251992326d1ef9b4bdee69faa125b1cee59d52dfee294b0e982"
+		},
+		{
+			"id": "audio_fire_loop",
+			"path": "res://assets/third_party/audio/oga_fireplace/fire_loop.ogg",
+			"source": "OpenGameArt Fireplace Sound Loop (PagDev)",
+			"source_url": "https://opengameart.org/content/fireplace-sound-loop",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "27985bf4dcfcb1d7c0e75541094d9081d79f41a142300851030d784fc111fc82"
 		},
 		{
 			"id": "audio_foley_armour_1",
@@ -893,6 +926,72 @@
 			"sha256": "caa54923094c9cc0735ef0aa77485693deb7d7aa18a3d98f5eeec46d7c0a0df6"
 		},
 		{
+			"id": "audio_wind_loop",
+			"path": "res://assets/third_party/audio/oga_mild_wind/wind_loop.ogg",
+			"source": "OpenGameArt Mild Wind Background Noise (Bashar3A)",
+			"source_url": "https://opengameart.org/content/mild-wind-background-noise",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "30b9eab9f65036768c95689962286dd3c6b06a0f40f07e2fba4afe5c2a687cb9"
+		},
+		{
+			"id": "audio_birds_loop",
+			"path": "res://assets/third_party/audio/oga_park_ambiences/birds_loop.ogg",
+			"source": "OpenGameArt Park Ambiences (Thimras)",
+			"source_url": "https://opengameart.org/content/park-ambiences",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "b69b63bc54f6a86eb306820864938c1287d58a9c47fd215566c83d3fa2e55fbf"
+		},
+		{
+			"id": "audio_wind_strong_loop",
+			"path": "res://assets/third_party/audio/oga_park_ambiences/wind_strong_loop.ogg",
+			"source": "OpenGameArt Park Ambiences (Thimras)",
+			"source_url": "https://opengameart.org/content/park-ambiences",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "2d1dfb2a2ec6b338bd6f1678d0569e5f086895700101300a5fb794e8ec732b49"
+		},
+		{
+			"id": "audio_thunder_1",
+			"path": "res://assets/third_party/audio/oga_rain_long_thunder/thunder_1.ogg",
+			"source": "OpenGameArt Rain Long Thunder (WuxiaScrub)",
+			"source_url": "https://opengameart.org/content/rain-long-thunder",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "e5211fa1ede624bad47275f9373f2ee90d66f90dd4af16cefabba077350f6a55"
+		},
+		{
+			"id": "audio_thunder_2",
+			"path": "res://assets/third_party/audio/oga_rain_long_thunder/thunder_2.ogg",
+			"source": "OpenGameArt Rain Long Thunder (WuxiaScrub)",
+			"source_url": "https://opengameart.org/content/rain-long-thunder",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "25ab49cf15ecc11bcb2d2ccc970c7ae1bdf432ee32acd7f04d9eb7a2a6598435"
+		},
+		{
+			"id": "audio_rain_loop",
+			"path": "res://assets/third_party/audio/oga_rain_loopable/rain_loop.ogg",
+			"source": "OpenGameArt Rain Loopable (Ylmir)",
+			"source_url": "https://opengameart.org/content/rain-loopable",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "c1ff5d28b22d77da6fe61ab076333ff30e5a8b24cbc3a1c1afd8468bd424595b"
+		},
+		{
 			"id": "audio_blade_hit_1",
 			"path": "res://assets/third_party/audio/oga_sword_clashes/blade_hit_1.ogg",
 			"source": "OpenGameArt 20 Sword Sound Effects (StarNinjas)",
@@ -996,13 +1095,6 @@
 			"sha256": "84c07df0b283c025ee4225ce10ef7409b18c586a528901232af0235d02b63cdb"
 		},
 		{
-			"path": "res://assets/generated/audio/fire_loop.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 185644,
-			"sha256": "10ab816e78bdbbb05e2cf23f821a880a46a8ee78a332c772ddceeef6f5018bd8"
-		},
-		{
 			"path": "res://assets/generated/audio/hit_marker.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
@@ -1038,13 +1130,6 @@
 			"sha256": "0b7ae28010c41657f25e235306c0ab9aaeb982ca0b9d987a32854eabfb1ec2b7"
 		},
 		{
-			"path": "res://assets/generated/audio/night_loop.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 236844,
-			"sha256": "990f910fa5a77f07732348f3024115985b83de3fb37ad1c7b29b9ba499118fde"
-		},
-		{
 			"path": "res://assets/generated/audio/pickup_ammo.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
@@ -1064,13 +1149,6 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 22444,
 			"sha256": "a8e351afd2711a5292d7a37e6dc6dfbffb417b89cd9eedf4bf131a15e3a51a85"
-		},
-		{
-			"path": "res://assets/generated/audio/rain_loop.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 185644,
-			"sha256": "bbb52531bba6cdff4f8a1a7d7d32dcfcd4d8fde21d3364d57fa331a6a466042e"
 		},
 		{
 			"path": "res://assets/generated/audio/revive_loop.wav",
@@ -1101,20 +1179,6 @@
 			"sha256": "7a82e0ada379c12eb28ec91a4b586beeb3974e1467172e67ca00e1dec05ffdc1"
 		},
 		{
-			"path": "res://assets/generated/audio/thunder_1.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 275244,
-			"sha256": "e2a49749ac2aa93bcab542eca14d18394bd6839f0b752a420fd04c726c574d5d"
-		},
-		{
-			"path": "res://assets/generated/audio/thunder_2.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 275244,
-			"sha256": "5c0fefcdef5f6367d08e8dbbbaf3a0c555e358926cc2e2ae6cd3f72434ba328a"
-		},
-		{
 			"path": "res://assets/generated/audio/ui_back.wav",
 			"made_by": "tools/gen_audio.gd",
 			"licence": "generated in this project (no source material)",
@@ -1141,13 +1205,6 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 19244,
 			"sha256": "b27bbaee0891a0dcd59942b296c8125f0ab009360e7fd3c5c3f91d17108be2e5"
-		},
-		{
-			"path": "res://assets/generated/audio/wind_loop.wav",
-			"made_by": "tools/gen_audio.gd",
-			"licence": "generated in this project (no source material)",
-			"bytes": 384044,
-			"sha256": "8272232aa8363ca6fc6bf2346da08f5fcc836848dc50c1674b5251db8e7a3c65"
 		},
 		{
 			"path": "res://assets/generated/audio/zone_burn_loop.wav",
