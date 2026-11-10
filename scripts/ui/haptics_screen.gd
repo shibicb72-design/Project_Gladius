@@ -9,7 +9,7 @@ signal closed
 ## Emitted after every change was saved to the profile.
 signal changed
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const CATEGORY_TITLES := {"weapons": "Weapons (fire, reload, melee hit)",
 		"status": "Status (damage, shield break, death)", "sound_cues": "Sound cues"}
 const QUALITY_TITLES := {"high": "High", "low": "Low"}

@@ -2,7 +2,7 @@ class_name EndScreen
 extends Control
 ## Victory / Draw / "Placed N of M" and the local player's kills, then back to the main menu.
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 
 var result: Dictionary = {}
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.

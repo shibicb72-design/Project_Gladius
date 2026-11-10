@@ -1,6 +1,7 @@
 class_name UiScale
 extends RefCounted
-## Touch-sized menus: sizes every Button under a root (and the theme font) from the viewport height.
+## Touch-sized menus: sizes every Button and LineEdit under a root (and the theme font) from the viewport height,
+## then lets MenuStyle.apply_scale size the style kit (type roles, gaps, safe margins, icons, slider knobs).
 ## Fractions come from data/ui.json (OQ-54 placeholders). Re-applied on viewport size_changed.
 
 
@@ -16,7 +17,8 @@ static func bind(root: Control) -> void:
 				vp.size_changed.disconnect(apply))
 
 
-## Sets the minimum height of every Button below `root` and the font size of the root's theme.
+## Sets the minimum height of every Button and LineEdit below `root`, the font size of the root's theme (when it
+## has one) and the MenuStyle sizes.
 static func apply_to(root: Control, viewport_height: float = -1.0) -> void:
 	var cfg := DataRegistry.new().load_file("res://data/ui.json")
 	var h := viewport_height if viewport_height > 0.0 else _viewport_height(root)
@@ -26,6 +28,7 @@ static func apply_to(root: Control, viewport_height: float = -1.0) -> void:
 		root.theme = root.theme.duplicate()
 		root.theme.default_font_size = font
 	_apply_buttons(root, min_h)
+	MenuStyle.apply_scale(root, font, h)
 
 
 ## Minimum canvas-unit button height: the larger of the height fraction and the dp floor.
@@ -52,5 +55,8 @@ static func _viewport_height(root: Control) -> float:
 static func _apply_buttons(node: Node, min_h: float) -> void:
 	for c in node.get_children():
 		if c is Button:
-			(c as Button).custom_minimum_size.y = min_h
+			var mult := maxf(float(c.get_meta(MenuStyle.META_MIN_H_MULT, 1.0)), 1.0)
+			(c as Button).custom_minimum_size.y = min_h * mult
+		elif c is LineEdit:
+			(c as LineEdit).custom_minimum_size.y = min_h
 		_apply_buttons(c, min_h)

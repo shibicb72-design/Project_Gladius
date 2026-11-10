@@ -2,7 +2,7 @@ class_name MainMenu
 extends Control
 ## Main menu: Host, Join (manual IP, OQ-41), gamertag (OQ-39). Later-milestone entries are shown disabled.
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const LATER_ENTRIES: Array[String] = ["Loadout", "Profile", "Shop", "Tutorials"]
 
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")

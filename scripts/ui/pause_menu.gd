@@ -8,7 +8,7 @@ signal opened
 signal closed
 signal quit_confirmed
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")
 
 var is_open: bool = false

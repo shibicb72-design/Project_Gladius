@@ -13,7 +13,7 @@ signal closed
 ## Emitted after Save wrote the profile (the host re-reads it).
 signal changed
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const _TouchScene := preload("res://scenes/ui/touch_hud.tscn")
 const _HudScene := preload("res://scenes/ui/hud.tscn")
 const _SAMPLE_TEXT := {"alive": "Alive XVIII   Squads VI", "zone": "Zone closes in 1:00", "downed": "DOWNED 0:24",
@@ -68,6 +68,7 @@ func build() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	preview = _TouchScene.instantiate()
+	preview.theme = preload("res://scenes/ui/theme.tres")  # editor chrome uses the menu theme; the HUD keeps its own until H1
 	add_child(preview)
 	preview.cfg["force_touch_hud"] = true
 	preview.use_profile_lock_fallback = false  # the slots own the Sprint lock position while editing

@@ -8,7 +8,7 @@ signal closed
 ## Emitted after every change was saved to the profile (the host panel forwards it).
 signal changed
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const TITLES := {"camera": "Camera", "ads": "ADS", "gyro": "Gyro", "ads_gyro": "ADS Gyro", "free_look": "Free Look"}
 const ROW_TITLES := {"tpp_fpp_no_scope": "TPP / FPP, no scope", "red_dot": "Red dot", "2x": "2x", "4x": "4x", "8x": "8x",
 		"16x": "16x", "tpp_character": "TPP character", "fpp_character": "FPP character"}

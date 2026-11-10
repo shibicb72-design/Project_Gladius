@@ -5,7 +5,7 @@ extends Control
 ## to the host and applies its snapshots (see MatchRoot, NetMatchBridge, tests/test_net_match.gd).
 ## All networking goes through NetLobby (session.lobby); this UI only calls it and listens to its signals.
 
-const _Theme := preload("res://scenes/ui/theme.tres")
+const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
 var net_lobby: NetLobby

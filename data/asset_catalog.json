@@ -1056,6 +1056,28 @@
 			"redistribution_quote": "",
 			"download_date": "2026-11-10",
 			"sha256": "7de45577b092db7f42b2fde64f722c05ff57df5edef9bfb5b77fe2cecceb09b1"
+		},
+		{
+			"id": "kenney_fonts_future",
+			"path": "res://assets/third_party/kenney_fonts/kenney_future.ttf",
+			"source": "Kenney Fonts",
+			"source_url": "https://kenney.nl/assets/kenney-fonts",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "bd36e536cc26672bdba652547494a4877f2a446329bb7141840d9cd73bceffc2"
+		},
+		{
+			"id": "kenney_fonts_future_narrow",
+			"path": "res://assets/third_party/kenney_fonts/kenney_future_narrow.ttf",
+			"source": "Kenney Fonts",
+			"source_url": "https://kenney.nl/assets/kenney-fonts",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "",
+			"download_date": "2026-11-10",
+			"sha256": "572a3fc36adedf951365f77fa37011115363c7e8a537a308e563abdb299d7477"
 		}
 	],
 	"generated": [
