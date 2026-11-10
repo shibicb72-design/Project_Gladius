@@ -81,9 +81,9 @@ corner_detail = 1
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="ibtn_normal"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 8.0
 bg_color = Color(0.133, 0.086, 0.102, 0.92)
 border_width_left = 1
@@ -97,9 +97,9 @@ corner_detail = 1
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="ibtn_hover"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 8.0
 bg_color = Color(0.18, 0.118, 0.137, 0.95)
 border_width_left = 1
@@ -113,9 +113,9 @@ corner_detail = 1
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="ibtn_pressed"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 8.0
 bg_color = Color(0.851, 0.663, 0.227, 1)
 border_width_left = 2
@@ -129,9 +129,9 @@ corner_detail = 1
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="ibtn_disabled"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 8.0
 bg_color = Color(0.078, 0.051, 0.059, 0.55)
 border_width_left = 1
@@ -145,9 +145,9 @@ corner_detail = 1
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="ibtn_focus"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 8.0
 draw_center = false
 border_width_left = 2
@@ -247,9 +247,9 @@ corner_detail = 1
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="iprim_normal"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 10.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 10.0
 bg_color = Color(0.702, 0.129, 0.122, 1)
 border_width_left = 2
@@ -265,9 +265,9 @@ shadow_size = 8
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="iprim_hover"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 10.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 10.0
 bg_color = Color(0.824, 0.188, 0.169, 1)
 border_width_left = 2
@@ -283,9 +283,9 @@ shadow_size = 8
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="iprim_pressed"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 10.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 10.0
 bg_color = Color(0.851, 0.663, 0.227, 1)
 border_width_left = 2
@@ -301,9 +301,9 @@ shadow_size = 8
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="iprim_disabled"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 10.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 10.0
 bg_color = Color(0.431, 0.071, 0.078, 0.5)
 border_width_left = 2
@@ -317,9 +317,9 @@ corner_detail = 1
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="iprim_focus"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 10.0
-content_margin_right = 60.0
+content_margin_right = 66.0
 content_margin_bottom = 10.0
 draw_center = false
 border_width_left = 2
@@ -406,7 +406,7 @@ corner_radius_bottom_left = 4
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="irow_normal"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
 content_margin_right = 14.0
 content_margin_bottom = 8.0
@@ -420,7 +420,7 @@ corner_radius_bottom_left = 4
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="irow_hover"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
 content_margin_right = 14.0
 content_margin_bottom = 8.0
@@ -434,7 +434,7 @@ corner_radius_bottom_left = 4
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="irow_pressed"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
 content_margin_right = 14.0
 content_margin_bottom = 8.0
@@ -448,7 +448,7 @@ corner_radius_bottom_left = 4
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="irow_disabled"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
 content_margin_right = 14.0
 content_margin_bottom = 8.0
@@ -462,7 +462,7 @@ corner_radius_bottom_left = 4
 anti_aliasing = true
 
 [sub_resource type="StyleBoxFlat" id="irow_focus"]
-content_margin_left = 60.0
+content_margin_left = 66.0
 content_margin_top = 8.0
 content_margin_right = 14.0
 content_margin_bottom = 8.0

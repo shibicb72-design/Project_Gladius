@@ -12,7 +12,7 @@
 	"menu_type_scale": {
 		"_placeholder": true,
 		"_todo": "OQ-UI-TYPE: front-end type scale as multipliers of the UiScale font size (font_size_frac_of_height x canvas height). Placeholders by the M2U1 art pass, not design values. See docs/UI_STYLE.md.",
-		"logo": 3.4, "hero": 2.4, "headline": 1.5, "title": 1.2, "body": 1.0, "caption": 0.78
+		"logo": 3.4, "result": 3.0, "hero": 2.4, "headline": 1.5, "title": 1.2, "body": 1.0, "caption": 0.78
 	},
 	"menu_style": {
 		"_placeholder": true,

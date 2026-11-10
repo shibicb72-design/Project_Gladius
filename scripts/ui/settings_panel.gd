@@ -36,32 +36,40 @@ func _ready() -> void:
 	var profile := save.load_profile()
 	gyro_mode = SensitivitySettings.from_profile(profile).gyro_mode
 	gyro_enabled = gyro_mode != "off"
+	MenuStyle.gap(self, 1.25)
 	# G2d: the Sensitivity screen owns the gyro mode, tables and inversion; this quick toggle (Off <-> Always)
 	# is kept because tests/test_decisions_batch1.gd and tests/test_pause_menu.gd still pin it.
-	sensitivity_button = _button("Sensitivity", open_sensitivity)
-	gyro_button = _button("", toggle_gyro)
+	add_child(MenuStyle.caption("AIM"))
+	sensitivity_button = _button("Sensitivity", open_sensitivity, "crosshair")
+	gyro_button = _button("", toggle_gyro, "gyro")
 	_refresh_gyro_text()
+	add_child(MenuStyle.caption("MOVEMENT"))
 	var input_cfg: Dictionary = DataRegistry.new().load_file("res://data/input.json")["touch_layout"]
 	move_stick_mode = str(profile["move_stick"]) if str(profile["move_stick"]) != "" else str(input_cfg["move_stick"])
 	vjoy_layout = str(profile["vjoy_layout"]) if str(profile["vjoy_layout"]) != "" else str(input_cfg["vjoy_layout"])
-	move_stick_button = _button("", toggle_move_stick)  # Settings: Virtual / Custom move stick
-	stick_layout_button = _button("", toggle_stick_layout)  # Settings: Floating / Fixed (virtual stick)
+	move_stick_button = _button("", toggle_move_stick, "stick")  # Settings: Virtual / Custom move stick
+	stick_layout_button = _button("", toggle_stick_layout, "stick")  # Settings: Floating / Fixed (virtual stick)
 	_refresh_stick_text()
 	sprint_lock_pos = profile["sprint_lock_pos"]
 	_build_sprint_slider(float(profile["sprint_sensitivity"]))
+	add_child(MenuStyle.caption("LAYOUT"))
 	left_fire_enabled = bool(profile["left_fire_enabled"])
-	left_fire_button = _button("", toggle_left_fire)  # G3e
+	left_fire_button = _button("", toggle_left_fire, "target")  # G3e
 	_refresh_left_fire_text()
-	layout_button = _button("HUD layout", open_layout_editor)  # G2e
-	haptics_button = _button("Haptics", open_haptics)  # G2f
+	layout_button = _button("HUD layout", open_layout_editor, "layout")  # G2e
+	add_child(MenuStyle.caption("VIBRATION"))
+	haptics_button = _button("Haptics", open_haptics, "vibrate")  # G2f
 	UiScale.apply_to(self)
 
 
-func _button(text: String, handler: Callable) -> Button:
+## A list row with its icon (docs/UI_STYLE.md 8).
+func _button(text: String, handler: Callable, icon: String) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.mouse_filter = Control.MOUSE_FILTER_PASS  # both host menus scroll this panel: STOP would swallow touch drags
 	b.pressed.connect(handler)
+	MenuStyle.row(b)
+	MenuStyle.add_icon(b, icon)
 	add_child(b)
 	return b
 

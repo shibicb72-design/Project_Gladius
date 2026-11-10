@@ -15,10 +15,14 @@ const META_SEP_UNITS := &"ui_sep_units"
 const META_MIN_W_UNITS := &"ui_min_w_units"
 const META_SAFE_MARGIN := &"ui_safe_margin_units"
 const META_PRESS_WIRED := &"ui_press_wired"
+const META_PAD_UNITS := &"ui_pad_units"
 
 ## Canvas units on the left of an Icon button variation reserved for its MenuIcon (matches menu_theme.tres).
-const ICON_AREA := 60.0
-const DISPLAY_ROLES: Array[String] = ["logo", "hero", "headline", "title"]
+const ICON_AREA := 66.0
+const DISPLAY_ROLES: Array[String] = ["logo", "result", "hero", "headline", "title"]
+
+## Tool/test hook: true gives a still UI (no fades, no press tweens). Never set in shipping code.
+static var motion_disabled: bool = false
 
 static var _ui: Dictionary = {}
 static var _grabbers: Dictionary = {}
@@ -69,7 +73,7 @@ static func set_role(c: Control, role: String) -> void:
 	c.set_meta(META_ROLE, role)
 	if c is Label:
 		match role:
-			"logo", "hero", "headline":
+			"logo", "result", "hero", "headline":
 				c.theme_type_variation = &"HeadlineLabel"
 			"caption":
 				c.theme_type_variation = &"CaptionLabel"
@@ -178,6 +182,11 @@ static func min_width(c: Control, units: float) -> void:
 	c.set_meta(META_MIN_W_UNITS, units)
 
 
+## Sets a MarginContainer's four margins in spacing units (applied by apply_scale).
+static func pad(c: MarginContainer, left: float, top: float, right: float, bottom: float) -> void:
+	c.set_meta(META_PAD_UNITS, Vector4(left, top, right, bottom))
+
+
 ## A sub-page header: Back (with chevron) at the left, then the title. Returns {"row", "back", "title"}.
 static func page_header(title_text: String, on_back: Callable) -> Dictionary:
 	var row_box := HBoxContainer.new()
@@ -207,6 +216,8 @@ static func _motion() -> Dictionary:
 
 
 static func _motion_on() -> bool:
+	if motion_disabled:
+		return false
 	return bool(_motion().get("enabled", false)) and DisplayServer.get_name() != "headless"
 
 
@@ -254,8 +265,14 @@ static func _apply_node(n: Node, font_px: int, u: float, scales: Dictionary, vp_
 			c.add_theme_constant_override(&"margin_top", roundi(base + insets.y * vp_size.y))
 			c.add_theme_constant_override(&"margin_right", roundi(base + insets.z * vp_size.x))
 			c.add_theme_constant_override(&"margin_bottom", roundi(base + insets.w * vp_size.y))
+		if c.has_meta(META_PAD_UNITS):
+			var p: Vector4 = c.get_meta(META_PAD_UNITS)
+			c.add_theme_constant_override(&"margin_left", roundi(p.x * u))
+			c.add_theme_constant_override(&"margin_top", roundi(p.y * u))
+			c.add_theme_constant_override(&"margin_right", roundi(p.z * u))
+			c.add_theme_constant_override(&"margin_bottom", roundi(p.w * u))
 		if c is MenuIcon and c.get_parent() is Button:
-			_place_icon(c as MenuIcon, float(roundi(font_px * 1.15)))
+			_place_icon(c as MenuIcon, float(mini(roundi(font_px * 1.15), roundi(ICON_AREA * 0.56))))
 		if c is HSlider:
 			var knob := slider_grabber(roundi(font_px * 1.3))
 			for icon_name in [&"grabber", &"grabber_highlight", &"grabber_disabled"]:

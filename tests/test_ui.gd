@@ -295,15 +295,54 @@ func _entry_menu() -> MainMenu:
 	return menu
 
 
-## Every control of the entry column that must be reachable: text fields, Host/Join, the whole settings panel
-## (Left Fire included) and the later entries.
+## Every control of the HOME page that must be reachable: text fields, Host/Join, Settings and the later entries.
 func _entry_controls(menu: MainMenu) -> Array:
-	var s := menu.settings
-	var out: Array = [menu.name_edit, menu.host_button, menu.ip_edit, menu.join_button, s.sensitivity_button,
-			s.gyro_button, s.move_stick_button, s.stick_layout_button, s.sprint_slider, s.left_fire_button,
-			s.layout_button, s.haptics_button]
+	var out: Array = [menu.name_edit, menu.host_button, menu.ip_edit, menu.join_button, menu.settings_button]
 	out.append_array(menu.later_buttons)
 	return out
+
+
+## Every control of the SETTINGS page that must be reachable: the whole settings panel (Left Fire included) and the
+## page's Back button (the last entry; it sits in the header above the scroll).
+func _settings_controls(menu: MainMenu) -> Array:
+	var s := menu.settings
+	return [s.sensitivity_button, s.gyro_button, s.move_stick_button, s.stick_layout_button, s.sprint_slider,
+			s.left_fire_button, s.layout_button, s.haptics_button, menu.settings_back_button]
+
+
+## Shared shape check of the menu's two scrolls: vertical only, no CenterContainer at or above.
+func _assert_menu_scroll(scroll: ScrollContainer, what: String) -> void:
+	assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "%s: no sideways scroll" % what)
+	assert_eq(scroll.vertical_scroll_mode, ScrollContainer.SCROLL_MODE_AUTO, "%s: vertical scroll when needed" % what)
+	var n: Node = scroll
+	while n != null:
+		assert_true(not (n is CenterContainer), "%s: no CenterContainer at or above the scroll: %s" % [what, n])
+		n = n.get_parent()
+	for b: Button in scroll.find_children("*", "Button", true, false):
+		assert_eq(b.mouse_filter, Control.MOUSE_FILTER_PASS, "%s passes touch drags to the %s scroll" % [_what(b), what])
+
+
+## Fully inside the scroll and the viewport after scrolling it into view; Buttons, LineEdits and the slider >= 48 dp.
+## Returns the controls checked.
+func _check_scroll_reach(scroll: ScrollContainer, at: String) -> Dictionary:
+	var tree: SceneTree = Engine.get_main_loop()
+	var vp := _root().get_visible_rect()
+	var px_scale := _root().get_screen_transform().get_scale().y
+	var dp_scale := PlatformServices.new().get_dp_scale()
+	var checked := {}
+	for c: Control in scroll.find_children("*", "Control", true, false):
+		if not (c is Button or c is LineEdit or c is HSlider) or not c.is_visible_in_tree():
+			continue
+		scroll.ensure_control_visible(c)
+		await tree.process_frame  # containers sort on the idle frame
+		await tree.process_frame
+		var r := c.get_global_rect()
+		var what := "%s at %s" % [_what(c), at]
+		assert_true(scroll.get_global_rect().encloses(r), "%s fully inside the scroll: %s in %s" % [what, r, scroll.get_global_rect()])
+		assert_true(vp.encloses(r), "%s fully inside the viewport: %s in %s" % [what, r, vp])
+		assert_true(r.size.y * px_scale / dp_scale >= 48.0 - 0.5, "%s >= 48 dp" % what)
+		checked[c] = true
+	return checked
 
 
 func _what(c: Control) -> String:
@@ -314,37 +353,40 @@ func _what(c: Control) -> String:
 	return c.get_class()
 
 
-## The entry stack (Host/Join/settings) lives in one full-screen ScrollContainer with the settings panel and its Left
-## Fire button inside, and no CenterContainer at or above it (that would shrink the scroll to its own minimum size).
-## Buttons pass touch drags on to the scroll; the slider and the text fields keep theirs.
+## The home controls live in the action card's ScrollContainer; the settings panel (Left Fire included) lives in the
+## settings page's ScrollContainer, under a Back header that stays above it. Neither scroll has a CenterContainer at
+## or above it (that would shrink the scroll to its own minimum size). Buttons pass touch drags on to the scroll; the
+## slider and the text fields keep theirs.
 func test_main_menu_column_is_inside_a_scroll() -> void:
 	_remove_tmp()
 	var menu := _entry_menu()
 	var scroll := menu.scroll
-	assert_true(scroll != null and scroll.is_ancestor_of(menu.settings), "settings panel inside the menu's scroll")
-	assert_true(scroll != null and scroll.is_ancestor_of(menu.settings.left_fire_button), "Left Fire button inside the scroll")
-	if scroll == null:
+	var sscroll := menu.settings_scroll
+	assert_true(scroll != null, "the home page has a scroll")
+	assert_true(sscroll != null and sscroll.is_ancestor_of(menu.settings), "settings panel inside the settings scroll")
+	assert_true(sscroll != null and sscroll.is_ancestor_of(menu.settings.left_fire_button), "Left Fire button inside the settings scroll")
+	if scroll == null or sscroll == null:
 		menu.free()
 		return
-	assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "no sideways scroll")
-	assert_eq(scroll.vertical_scroll_mode, ScrollContainer.SCROLL_MODE_AUTO, "vertical scroll when needed")
-	var n: Node = scroll
-	while n != null:
-		assert_true(not (n is CenterContainer), "no CenterContainer at or above the scroll: %s" % n)
-		n = n.get_parent()
+	_assert_menu_scroll(scroll, "home")
+	_assert_menu_scroll(sscroll, "settings")
 	for c: Control in _entry_controls(menu):
-		assert_true(scroll.is_ancestor_of(c), "%s inside the scroll" % _what(c))
-	for b: Button in scroll.find_children("*", "Button", true, false):
-		assert_eq(b.mouse_filter, Control.MOUSE_FILTER_PASS, "%s passes touch drags to the scroll" % _what(b))
+		assert_true(scroll.is_ancestor_of(c), "%s inside the home scroll" % _what(c))
+	var settings_controls := _settings_controls(menu)
+	var back: Button = settings_controls.pop_back()
+	for c: Control in settings_controls:
+		assert_true(sscroll.is_ancestor_of(c), "%s inside the settings scroll" % _what(c))
+	assert_true(back != null and not sscroll.is_ancestor_of(back), "Back sits in the header, not in the settings scroll")
+	assert_true(back is Button and back.text == "Back", "the settings page's Back button reads Back")
 	for c: Control in [menu.sprint_slider, menu.name_edit, menu.ip_edit]:
 		assert_eq(c.mouse_filter, Control.MOUSE_FILTER_STOP, "%s keeps its own drags and taps" % _what(c))
 	menu.free()
 	_remove_tmp()
 
 
-## Fold 7 sizes (as the lobby test above): the entry column overflows the folded cover and starts at the top; every
-## button, text field and the sprint slider (Left Fire included) scrolls fully inside the scroll AND the viewport
-## (enclosed, not "visible enough to tap"), and buttons stay >= 48 dp.
+## Fold 7 sizes (as the lobby test above): on both pages every button, text field and the sprint slider (Left Fire
+## included) scrolls fully inside its scroll AND the viewport (enclosed, not "visible enough to tap") and stays
+## >= 48 dp; both scrolls start at the top. The settings list overflows the folded cover, so it can scroll.
 func test_main_menu_scrolls_every_control_into_view_at_both_fold_sizes() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var prev := _root().size
@@ -353,36 +395,37 @@ func test_main_menu_scrolls_every_control_into_view_at_both_fold_sizes() -> void
 	for case in [[Vector2i(2520, 1080), 420.0], [Vector2i(2176, 1812), 373.0]]:
 		var size: Vector2i = case[0]
 		var dpi: float = case[1]
+		var at := "%s/%d dpi" % [size, int(dpi)]
 		PlatformServices.dpi_override = dpi
 		_root().size = size
 		var menu := _entry_menu()
 		for i in 4:
 			await tree.process_frame
+		# (a) home
 		var scroll := menu.scroll
-		var bar := scroll.get_v_scroll_bar()
-		if size == Vector2i(2520, 1080):
-			var max_scroll := int(bar.max_value - bar.page)
-			assert_true(max_scroll > 0, "folded cover: the entry column overflows so it can scroll (max %d)" % max_scroll)
-		assert_eq(scroll.scroll_vertical, 0, "starts at the top at %s" % size)
-		var vp := _root().get_visible_rect()
-		var px_scale := _root().get_screen_transform().get_scale().y
-		var dp_scale := PlatformServices.new().get_dp_scale()
-		var checked := {}
-		for c: Control in scroll.find_children("*", "Control", true, false):
-			if not (c is Button or c is LineEdit or c is HSlider) or not c.is_visible_in_tree():
-				continue
-			scroll.ensure_control_visible(c)
-			await tree.process_frame  # containers sort on the idle frame
-			await tree.process_frame
-			var r := c.get_global_rect()
-			var what := "%s at %s/%d dpi" % [_what(c), size, int(dpi)]
-			assert_true(scroll.get_global_rect().encloses(r), "%s fully inside the scroll: %s in %s" % [what, r, scroll.get_global_rect()])
-			assert_true(vp.encloses(r), "%s fully inside the viewport: %s in %s" % [what, r, vp])
-			if c is Button:
-				assert_true(r.size.y * px_scale / dp_scale >= 48.0 - 0.5, "%s >= 48 dp" % what)
-			checked[c] = true
+		assert_eq(scroll.scroll_vertical, 0, "home starts at the top at %s" % size)
+		var checked: Dictionary = await _check_scroll_reach(scroll, "home " + at)
 		for c: Control in _entry_controls(menu):
 			assert_true(checked.has(c), "%s scrolled into view and checked at %s" % [_what(c), size])
+		# (b) settings
+		menu.open_settings()
+		for i in 4:
+			await tree.process_frame
+		var sscroll := menu.settings_scroll
+		var bar := sscroll.get_v_scroll_bar()
+		if size == Vector2i(2520, 1080):
+			var max_scroll := int(bar.max_value - bar.page)
+			assert_true(max_scroll > 0, "folded cover: the settings list overflows so it can scroll (max %d)" % max_scroll)
+		assert_eq(sscroll.scroll_vertical, 0, "settings start at the top at %s" % size)
+		checked = await _check_scroll_reach(sscroll, "settings " + at)
+		var settings_controls := _settings_controls(menu)
+		var back: Button = settings_controls.pop_back()
+		for c: Control in settings_controls:
+			assert_true(checked.has(c), "%s scrolled into view and checked at %s" % [_what(c), size])
+		var br := back.get_global_rect()
+		assert_true(_root().get_visible_rect().encloses(br), "Back fully inside the viewport at %s: %s" % [at, br])
+		var px_scale := _root().get_screen_transform().get_scale().y
+		assert_true(br.size.y * px_scale / PlatformServices.new().get_dp_scale() >= 48.0 - 0.5, "Back >= 48 dp at %s" % at)
 		menu.free()
 	PlatformServices.dpi_override = 0.0
 	_root().size = prev
@@ -391,8 +434,9 @@ func test_main_menu_scrolls_every_control_into_view_at_both_fold_sizes() -> void
 	await tree.process_frame
 
 
-## Folded cover: a touch drag that starts ON a settings button must reach the entry menu's ScrollContainer (the button
-## must not swallow it), as the lobby roster test above. The release lands 240 units up, off the button: nothing opens.
+## Folded cover: a touch drag that starts ON a settings button must reach the settings page's ScrollContainer (the
+## button must not swallow it), as the lobby roster test above. The release lands 240 units up, off the button:
+## nothing opens.
 func test_main_menu_scrolls_by_touch_drag_from_a_settings_button() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var prev := _root().size
@@ -403,9 +447,12 @@ func test_main_menu_scrolls_by_touch_drag_from_a_settings_button() -> void:
 	var menu := _entry_menu()
 	for i in 4:
 		await tree.process_frame
-	var scroll := menu.scroll
+	menu.open_settings()
+	for i in 4:
+		await tree.process_frame
+	var scroll := menu.settings_scroll
 	var max_scroll := int(scroll.get_v_scroll_bar().max_value - scroll.get_v_scroll_bar().page)
-	assert_true(max_scroll > 0, "folded entry menu overflows so it can scroll (max %d)" % max_scroll)
+	assert_true(max_scroll > 0, "folded settings page overflows so it can scroll (max %d)" % max_scroll)
 	assert_eq(scroll.scroll_vertical, 0, "starts at the top")
 	var button: Button = menu.settings.sensitivity_button
 	var start := button.get_global_rect()
@@ -453,6 +500,55 @@ func test_main_menu_scrolls_by_touch_drag_from_a_settings_button() -> void:
 	AppFlow.profile = old_profile
 	_remove_tmp()
 	await tree.process_frame
+
+
+## A session whose host and join fail at once: the menu's error branch runs without touching the network.
+class _FailSession extends NetSession:
+	func host_game(_port: int = -1) -> int:
+		return FAILED
+
+	func join_game(_address: String, _port: int = -1) -> int:
+		return FAILED
+
+	## Nothing was opened; leaving the shared SceneMultiplayer's peer alone keeps later tests unaffected.
+	func leave() -> void:
+		pass
+
+
+func _fail_session() -> _FailSession:
+	var s := _FailSession.new()
+	s.name = "FailSession"
+	_root().add_child(s)
+	AppFlow.session = s  # AppFlow.ensure_session returns it
+	return s
+
+
+## Host and Join save the gamertag and IP through the settings panel even when Settings was never opened (the panel
+## is built with the menu, not lazily).
+func test_host_and_join_save_gamertag_and_ip_without_opening_settings() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var old_profile: Dictionary = AppFlow.profile
+	_remove_tmp()
+	var menu := _entry_menu()
+	await tree.process_frame
+	_fail_session()
+	menu.name_edit.text = "Marcus"
+	menu.host_button.pressed.emit()
+	assert_eq(SaveService.new(_TMP).load_profile()["gamertag"], "Marcus", "Host saved the gamertag")
+	assert_true(menu.status_label.text.begins_with("Could not host"), "host failure shown: '%s'" % menu.status_label.text)
+	menu.ip_edit.text = "192.168.43.7"
+	_fail_session()
+	menu.join_button.pressed.emit()
+	assert_eq(SaveService.new(_TMP).load_profile()["last_ip"], "192.168.43.7", "Join saved the host IP")
+	assert_eq(AppFlow.profile["last_ip"], "192.168.43.7", "AppFlow profile has the host IP")
+	assert_true(menu.status_label.text.begins_with("Could not connect"), "join failure shown: '%s'" % menu.status_label.text)
+	assert_true(not menu.settings_page.visible, "Settings was never opened")
+	menu.free()
+	await tree.process_frame  # the failed sessions were queue_freed by AppFlow.end_session
+	AppFlow.session = null
+	AppFlow.lobby = null
+	AppFlow.profile = old_profile
+	_remove_tmp()
 
 
 func test_touch_hud_hidden_when_not_touch() -> void:

@@ -2,7 +2,7 @@ extends "res://tests/test_case.gd"
 ## M2U1 stop 1: the front-end theme mirrors the data palette, type roles scale from the UiScale font size, the
 ## display face only sets safe words, safe margins add the platform inset, and every MenuIcon kind draws.
 
-const ROLES: Array[String] = ["logo", "hero", "headline", "title", "body", "caption"]
+const ROLES: Array[String] = ["logo", "result", "hero","headline", "title", "body", "caption"]
 
 
 func _tree() -> SceneTree:
@@ -108,6 +108,18 @@ func test_safe_margin_adds_the_platform_inset() -> void:
 		assert_true(absf(m.get_theme_constant(side) - 3.0 * u) <= 1.0, "%s without insets is 3 units" % side)
 	PlatformServices.safe_insets_override = null
 	holder.free()
+
+
+func test_pad_sets_margins_in_spacing_units() -> void:
+	var root := _themed_root()
+	var m := MarginContainer.new()
+	MenuStyle.pad(m, 0.0, 0.0, 1.5, 0.0)
+	root.add_child(m)
+	UiScale.apply_to(root, 800.0)
+	assert_eq(m.get_theme_constant("margin_right"), roundi(1.5 * MenuStyle.unit(800.0)), "right is 1.5 units")
+	for side in ["margin_left", "margin_top", "margin_bottom"]:
+		assert_eq(m.get_theme_constant(side), 0, "%s is 0" % side)
+	root.free()
 
 
 func test_text_fields_and_primary_buttons_get_touch_heights() -> void:

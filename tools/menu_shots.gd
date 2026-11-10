@@ -35,7 +35,7 @@ const SIZES: Array = [
 ]
 
 const SCREENS: Array[String] = [
-	"boot", "main_menu", "main_menu_settings", "lobby", "end_victory", "end_placed",
+	"boot", "main_menu", "main_menu_settings", "lobby", "lobby_squads", "end_victory", "end_placed",
 	"pause", "pause_confirm", "pause_settings", "sensitivity", "haptics", "layout_editor",
 ]
 
@@ -72,6 +72,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	var failed := 0
+	MenuStyle.motion_disabled = true  # still screens: no mid-fade captures
 	var saved_profile: Dictionary = AppFlow.profile
 	AppFlow.profile = {}
 	PlatformServices.safe_insets_override = _safe
@@ -88,6 +89,7 @@ func _run() -> void:
 	PlatformServices.dpi_override = 0.0
 	PlatformServices.safe_insets_override = null
 	AppFlow.profile = saved_profile
+	MenuStyle.motion_disabled = false
 	if FileAccess.file_exists(TMP_PROFILE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PROFILE))
 	get_tree().quit(1 if failed > 0 else 0)
@@ -138,7 +140,7 @@ func _one(screen: String, px: Vector2i, dpi: float) -> bool:
 					menu.call("open_settings")
 				else:  # old UI: settings are inline in the scrolling column
 					menu.scroll.ensure_control_visible(menu.settings.haptics_button)
-		"lobby":
+		"lobby", "lobby_squads":
 			var s := NetSession.new()
 			s.name = "MenuShotsSession"
 			s.isolated = true
@@ -148,6 +150,8 @@ func _one(screen: String, px: Vector2i, dpi: float) -> bool:
 			lobby = _Lobby.instantiate()
 			svp.add_child(lobby)
 			lobby.ips_label.text = "Your IP: 192.168.43.1"  # fixed sample: shots never carry this machine's addresses
+			if screen == "lobby_squads":
+				lobby.set_team_mode("squads")
 		"end_victory", "end_placed":
 			var end: EndScreen = _End.instantiate()
 			var r: Dictionary = END_RESULT.duplicate(true)

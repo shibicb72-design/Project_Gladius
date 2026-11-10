@@ -52,11 +52,18 @@ static func _viewport_height(root: Control) -> float:
 	return vp.get_visible_rect().size.y if vp != null else 0.0
 
 
+## Heights are rounded UP to whole canvas units: FlowContainer lays its children out in integer sizes, so a
+## fractional minimum would make a wrapped row stick out of its container (and of a scroll's content) by a sliver.
+## The base is rounded first (with a float-noise allowance) so a multiplied height stays >= mult x the base.
 static func _apply_buttons(node: Node, min_h: float) -> void:
+	_apply_whole_heights(node, ceilf(min_h - 0.001))
+
+
+static func _apply_whole_heights(node: Node, base_h: float) -> void:
 	for c in node.get_children():
 		if c is Button:
 			var mult := maxf(float(c.get_meta(MenuStyle.META_MIN_H_MULT, 1.0)), 1.0)
-			(c as Button).custom_minimum_size.y = min_h * mult
+			(c as Button).custom_minimum_size.y = ceilf(base_h * mult)
 		elif c is LineEdit:
-			(c as LineEdit).custom_minimum_size.y = min_h
-		_apply_buttons(c, min_h)
+			(c as LineEdit).custom_minimum_size.y = base_h
+		_apply_whole_heights(c, base_h)
