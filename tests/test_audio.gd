@@ -136,7 +136,88 @@ func test_each_hooked_pawn_signal_starts_a_player_on_the_sfx_bus() -> void:
 	if blade != null and blade.def.is_melee():
 		pawn.shot.emit(Vector3.ZERO, Vector3.FORWARD, blade.def.id)
 		assert_eq(_played(String(hooks["melee_swing"])).size(), 1, "a blade swing plays the swing sound")
+	else:
+		assert_true(false, "the loadout holds the blade, so the swing case ran")
 	pawn.free()
+
+
+## Saltline review B1: every MatchDirector hook in MatchAudio starts one sound with a real stream on its data bus.
+func _check_one(id: String, positional: bool, what: String) -> void:
+	var plays := _played(id)
+	assert_eq(plays.size(), 1, "%s starts one %s" % [what, id])
+	if plays.size() == 1:
+		assert_true(_stream_ok(plays[0]), "%s: the stream is not empty" % what)
+		assert_eq(String(plays[0]["bus"]), String(_sfx().sound(id)["bus"]), "%s: on its data bus" % what)
+		assert_eq(bool(plays[0]["positional"]), positional, "%s: positional is %s" % [what, positional])
+
+
+func test_each_match_hook_starts_one_sound_and_leaving_plays_no_pickups() -> void:
+	var sfx := _sfx()
+	var hooks: Dictionary = sfx.cfg["hooks"]
+	var m: MatchRoot = load("res://scenes/match/match.tscn").instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.seed_override = 4242
+	m.ground_loot = true  # tests opt in to loot
+	_tree().root.add_child(m)
+	await _tree().process_frame
+	m.director.load_config()
+	assert_true(m.begin(), "match begins")
+	for b in m.bots:
+		var brain := b.get_node_or_null("Brain")
+		if brain != null:
+			brain.set_physics_process(false)
+	for i in 4:
+		await _tree().physics_frame
+		await _tree().process_frame
+	var audio := m.find_child("MatchAudio", true, false) as MatchAudio
+	assert_true(audio != null, "the match carries its MatchAudio")
+	if audio == null:
+		m.free()
+		return
+	var victim: Pawn = m.bots[0]
+	var me := m.local_player
+	sfx.clear_log()
+	m.director.player_revived.emit(victim.player_id)
+	_check_one(String(hooks["revived"]), true, "player_revived")
+	sfx.clear_log()
+	m.director.player_eliminated.emit(victim.player_id, me.player_id, "hit")
+	_check_one(String(hooks["eliminated"]), true, "player_eliminated")
+	_check_one(String(hooks["local_kill"]), false, "a kill by the local player")
+	sfx.clear_log()
+	m.director.player_eliminated.emit(victim.player_id, m.bots[1].player_id, "hit")
+	assert_eq(_played(String(hooks["local_kill"])).size(), 0, "a bot's kill plays no kill confirm")
+	sfx.clear_log()
+	m.director.match_over.emit({})
+	_check_one(String(hooks["match_over"]), false, "match_over")
+	sfx.clear_log()
+	audio._on_lightning()
+	audio._thunder_in = 0.0001
+	await _tree().process_frame
+	await _tree().process_frame
+	var thunder := 0
+	for id: String in sfx.cfg["ambience"]["thunder"]:
+		thunder += _played(id).size()
+	assert_eq(thunder, 1, "thunder follows lightning once")
+	# A pickup: a loot item's node leaving the field while the match runs.
+	assert_true(m.director.running, "the match is running")
+	var field := m.director.loot
+	assert_true(field != null and not field.items.is_empty(), "there is ground loot")
+	if field != null and not field.items.is_empty():
+		var loot_id: int = field.items.keys()[0]
+		var kind := String(field.def(String(field.items[loot_id]["item_id"])).get("kind", ""))
+		sfx.clear_log()
+		field.take(loot_id)  # the pickup path: LootField.take frees the item's node (deferred)
+		await _tree().process_frame
+		_check_one(String(hooks["pickup_by_kind"][kind]), true, "picking up a %s" % kind)
+	# Leaving the match frees every remaining loot node: no pickup sound for them (review S4).
+	sfx.clear_log()
+	m.queue_free()
+	await _tree().process_frame
+	var pickups := 0
+	for kind_id: String in hooks["pickup_by_kind"]:
+		pickups += _played(String(hooks["pickup_by_kind"][kind_id])).size()
+	assert_eq(pickups, 0, "leaving the match plays no pickup sounds")
 
 
 func test_voice_caps_hold_when_eighteen_pawns_fire_at_once() -> void:
@@ -147,9 +228,10 @@ func test_voice_caps_hold_when_eighteen_pawns_fire_at_once() -> void:
 	sfx._last_play.clear()
 	var shot := sfx.sound("shot_pilum_br") as Dictionary
 	for round in 3:
-		for i in 18:
-			sfx._last_play.clear()  # eighteen different pawns: the retrigger guard is per sound, lift it for the burst
-			sfx.play_at("shot_pilum_br", Vector3(i * 3.0, 1.0, round))
+		for i in 18:  # eighteen different pawns in one frame: the guard is per source, so it never silences them (review B2)
+			sfx.play_at("shot_pilum_br", Vector3(i * 3.0, 1.0, round * 3.0))
+		if round == 0:
+			assert_eq(sfx.busy_voices().count("shot_pilum_br"), mini(int(shot["max_polyphony"]), cap), "18 sources in one frame fill the sound's polyphony; the retrigger guard drops none of them")
 	var pool := 0
 	for child in sfx.get_children():
 		if child is AudioStreamPlayer3D and String(child.name).begins_with("Voice3D"):

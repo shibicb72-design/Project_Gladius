@@ -116,7 +116,7 @@
 		"zone_outside_loop": "zone_burn_loop",
 		"carrier_loop": "carrier_loop",
 		"falling_loop": "drop_wind_loop",
-		"pickup_by_kind": {"weapon": "pickup_weapon", "ammo": "pickup_ammo", "armor": "pickup_armor"},
+		"pickup_by_kind": {"weapon": "pickup_weapon", "ammo": "pickup_ammo", "armor": "pickup_armor", "heal": "pickup_armor"},
 		"ui_pressed": "ui_click",
 		"ui_toggled": "ui_toggle",
 		"ui_back_names": ["Back", "Close", "Cancel", "Resume"],

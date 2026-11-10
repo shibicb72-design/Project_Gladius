@@ -78,6 +78,15 @@
 				{"shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, -90, 0], "profile": [[0, 0], [1, 0], [0.9, 0.6], [0.5, 1], [0, 1]], "size": [0.3, 0.16, 0.3], "at": [0.29, 0.8, 0], "color": "gold"},
 				{"shape": "taper", "top": [1, 0.7], "top_shift": [0, 0.15], "bevel": 0, "size": [0.05, 0.14, 0.26], "at": [0, 0.97, 0.02], "color": "legion_red"}
 			]
+		},
+		"bandage": {
+			"_note": "Merge of step 3 (Lanista, Nov 10 2026): the Bandage heal item. A linen roll in a leather band with a red tag; placeholder, OQ-GFX-LOOT.",
+			"scale": 1.0, "lift_m": 0.0, "tilt_deg": [0, 0, 0],
+			"parts": [
+				{"shape": "lathe", "segments": 10, "rot": [0, 0, 90], "size": [0.22, 0.34, 0.22], "at": [0, 0.11, 0], "color": "marble"},
+				{"size": [0.06, 0.235, 0.235], "at": [0, 0.11, 0], "color": "leather"},
+				{"size": [0.1, 0.03, 0.1], "at": [0, 0.235, 0], "color": "legion_red"}
+			]
 		}
 	},
 	"glow": {
@@ -91,7 +100,8 @@
 		"by_kind": {
 			"weapon": [1.0, 0.72, 0.25, 1.0],
 			"ammo": [0.82, 0.86, 0.92, 1.0],
-			"armor": [0.3, 0.72, 1.0, 1.0]
+			"armor": [0.3, 0.72, 1.0, 1.0],
+			"heal": [0.95, 0.3, 0.28, 1.0]
 		}
 	},
 	"cast_shadows": false

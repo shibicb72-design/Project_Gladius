@@ -130,14 +130,31 @@ func busy_voices() -> Array[String]:
 	return out
 
 
-func _allowed(id: String, s: Dictionary) -> bool:
+## The retrigger guard: the same sound from the same source within min_interval_s plays once. key is the sound id
+## for UI sounds, and id plus the 1 m cell of the position for positional ones, so different pawns firing in one
+## frame are separate sources (Saltline review B2). It only reads; _mark records a sound that actually started.
+func _allowed(key: String, s: Dictionary) -> bool:
 	if not enabled or s.is_empty():
 		return false
-	var now := Time.get_ticks_msec()
-	if _last_play.has(id) and now - int(_last_play[id]) < int(float(s["min_interval_s"]) * 1000.0):
-		return false
-	_last_play[id] = now
-	return true
+	return not (_last_play.has(key) and Time.get_ticks_msec() - int(_last_play[key]) < int(float(s["min_interval_s"]) * 1000.0))
+
+
+func _mark(key: String) -> void:
+	_last_play[key] = Time.get_ticks_msec()
+
+
+static func _source_key(id: String, at: Vector3) -> String:
+	return "%s@%d,%d,%d" % [id, floori(at.x), floori(at.y), floori(at.z)]
+
+
+## Keeps the test log bounded in a long match (review S1): only the newest MAX_LOG sounds are kept.
+const MAX_LOG := 256
+
+
+func _log(entry: Dictionary) -> void:
+	played.append(entry)
+	if played.size() > MAX_LOG:
+		played.pop_front()
 
 
 func _listener_position() -> Vector3:
@@ -155,7 +172,8 @@ func _pitch(s: Dictionary) -> float:
 ## (unknown id, retriggered too soon, polyphony cap reached, or every voice busy with nearer sounds).
 func play_at(id: String, at: Vector3, volume_offset_db: float = 0.0) -> AudioStreamPlayer3D:
 	var s := sound(id)
-	if not _allowed(id, s):
+	var key := _source_key(id, at)
+	if not _allowed(key, s):
 		return null
 	var audio := stream(id)
 	if audio == null:
@@ -195,7 +213,8 @@ func play_at(id: String, at: Vector3, volume_offset_db: float = 0.0) -> AudioStr
 		voice.play()
 	_pool_id[pick] = id
 	_pool_until[pick] = now + int(audio.get_length() / voice.pitch_scale * 1000.0)
-	played.append({"id": id, "bus": String(voice.bus), "positional": true, "at": at, "stream": audio})
+	_mark(key)
+	_log({"id": id, "bus": String(voice.bus), "positional": true, "at": at, "stream": audio})
 	return voice
 
 
@@ -221,7 +240,8 @@ func play_ui(id: String, volume_offset_db: float = 0.0) -> AudioStreamPlayer:
 	if not silent:
 		pick.play()
 	_ui_until[index] = now + int(audio.get_length() / pick.pitch_scale * 1000.0)
-	played.append({"id": id, "bus": String(pick.bus), "positional": false, "at": Vector3.ZERO, "stream": audio})
+	_mark(id)
+	_log({"id": id, "bus": String(pick.bus), "positional": false, "at": Vector3.ZERO, "stream": audio})
 	return pick
 
 
@@ -260,7 +280,7 @@ func make_loop(id: String, parent: Node, positional: bool = true, autoplay: bool
 	_loops.append(node)
 	if autoplay and enabled and not silent:
 		node.call("play")
-	played.append({"id": id, "bus": String(s["bus"]), "positional": positional, "at": Vector3.ZERO, "stream": audio})
+	_log({"id": id, "bus": String(s["bus"]), "positional": positional, "at": Vector3.ZERO, "stream": audio})
 	return node
 
 
