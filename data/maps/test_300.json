@@ -3,6 +3,7 @@
 	"name": "Test 300 m (performance only)",
 	"scene": "res://scenes/maps/test_300.tscn",
 	"modes": ["br"],
+	"ground_size_m": 300,
 	"landmarks": "res://data/maps/alesia_landmarks.json",
 	"spawns": {
 		"spot_0": [40.0, 0.1, 0.0],

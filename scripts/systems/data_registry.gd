@@ -154,6 +154,11 @@ static func validate_map_def(def: Dictionary) -> PackedStringArray:
 	var spawns: Variant = def.get("spawns", {})
 	if typeof(spawns) != TYPE_DICTIONARY or (spawns as Dictionary).is_empty():
 		problems.append("map has no spawn spots")
+	# The map builder sizes the chunk grid and the ground paint from it (astra_map.gd ground_size_of).
+	if def.has("ground_size_m"):
+		var size: Variant = def["ground_size_m"]
+		if (typeof(size) != TYPE_FLOAT and typeof(size) != TYPE_INT) or float(size) <= 0.0:
+			problems.append("map ground_size_m must be a number greater than 0 (got %s)" % str(size))
 	for key in ["cover_data", "structure_data"]:
 		if not def.has(key):
 			continue

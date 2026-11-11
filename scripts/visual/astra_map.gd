@@ -37,11 +37,11 @@ func _ready() -> void:
 	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
 	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
 	# runs once, after the decor loop.
+	ground_size_m = ground_size_of(map_def, nav)
 	chunks = MapChunks.new()
 	chunks.name = "Chunks"
 	add_child(chunks)
-	var ground := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
-	chunks.setup(ground.get_aabb().size.x if ground != null else 0.0)
+	chunks.setup(ground_size_m)
 	for entry: Dictionary in cfg["pieces"]:
 		var definition: Dictionary = cfg["types"][entry["type"]]
 		var body := StaticBody3D.new()
@@ -123,11 +123,24 @@ func _ready() -> void:
 var ground_paint: Image
 var ground_size_m := 0.0
 
+
+## M2P1B: the square ground's width in metres, one value for the chunk grid, the paint and the footsteps.
+## Data first ("terrain"."size_m", then "ground_size_m"); a map json without either (alesia, read-only) keeps
+## the old source, the AABB of Nav/Ground/Mesh; no ground at all is 0.
+static func ground_size_of(map_def: Dictionary, nav: Node) -> float:
+	var terrain: Variant = map_def.get("terrain")
+	if typeof(terrain) == TYPE_DICTIONARY and (terrain as Dictionary).has("size_m"):
+		return float(terrain["size_m"])
+	if map_def.has("ground_size_m"):
+		return float(map_def["ground_size_m"])
+	var ground := (nav.get_node_or_null("Ground/Mesh") as MeshInstance3D) if nav != null else null
+	return ground.get_aabb().size.x if ground != null else 0.0
+
+
 func _paint_ground(nav: Node) -> void:
 	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
 	if ground_mesh == null:
 		return
-	ground_size_m = ground_mesh.get_aabb().size.x
 	var map_def := DataRegistry.new().load_file(map_json)
 	var landmark_path := String(map_def.get("landmarks", ""))
 	var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
