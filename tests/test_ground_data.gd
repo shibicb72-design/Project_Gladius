@@ -74,8 +74,8 @@ func test_test_300_size_from_data() -> void:
 	assert_eq(float(builder.ground_size_m), 300.0, "test_300 ground size")
 	var image: Image = builder.ground_paint
 	assert_true(image != null and image.get_width() == 480, "test_300 paint is 480 px wide")
-	var material := (map.get_node("Nav/Ground/Mesh") as MeshInstance3D).material_override as ShaderMaterial
-	assert_true(material != null, "test_300 ground has the shader material")
+	var material := (map.get_node("ArtBuilder/Terrain/Chunk_0_0/Mesh") as MeshInstance3D).material_override as ShaderMaterial
+	assert_true(material != null and material == builder.ground_material, "test_300 terrain has the shader material")
 	if material != null:
 		assert_eq(float(material.get_shader_parameter("map_size_m")), 300.0, "ground material map_size_m")
 	map.free()
@@ -88,7 +88,7 @@ func test_data_wins_over_the_mesh() -> void:
 	var path := _write("ground_200.json", JSON.stringify(def))
 	var map := _build(path, TEST_SCENE)
 	var builder := map.get_node("ArtBuilder")
-	assert_eq(float(builder.ground_size_m), 200.0, "the json's ground_size_m beats the 300 m mesh")
+	assert_eq(float(builder.ground_size_m), 200.0, "the json's ground_size_m sets the size (the scene has no ground mesh to measure)")
 	var chunk_m := float(MapChunks.config()["chunk_size_m"])
 	assert_eq(builder.chunks.per_side, ceili(200.0 / chunk_m), "the chunk grid uses the same size")
 	map.free()

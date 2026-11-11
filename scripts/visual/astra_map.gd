@@ -162,14 +162,12 @@ func _paint_ground(nav: Node) -> void:
 
 
 ## M2P1B: the terrain look, node "Terrain" with one Chunk_<ix>_<iz>/Mesh per cell of the chunk grid (every cell,
-## identity transforms). Kept apart from Chunks, which holds only MultiMesh batches. Until the scene loses its
-## flat box ground (step 3) that mesh keeps the material but is hidden, so it does not z-fight the terrain.
+## identity transforms). Kept apart from Chunks, which holds only MultiMesh batches. The collider is
+## _build_terrain_collider's.
 func _build_terrain(nav: Node) -> void:
 	if terrain == null:
 		return
-	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
-	if ground_mesh != null:
-		ground_mesh.visible = false
+	_build_terrain_collider(nav)
 	var cfg: Dictionary = MapChunks.config().get("terrain", {})
 	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var root := Node3D.new()
@@ -186,6 +184,32 @@ func _build_terrain(nav: Node) -> void:
 			mesh.material_override = ground_material
 			mesh.cast_shadow = shadow
 			chunk.add_child(mesh)
+
+
+## M2P1B: the terrain collider, ONE HeightMapShape3D under Nav/Ground (one height field has no seams between
+## chunk colliders for pawns or rays to catch on). The name stays "Ground": the audio code and the wall loop in
+## _ready tell the ground apart by it. Leftover children (an old box) are freed so no second walkable layer
+## can stay at y = 0. The shape is centred on its origin with samples 1 m apart, so with an odd sample count
+## they land on the terrain's grid; resolution_m scales x and z (DataRegistry.validate_terrain).
+func _build_terrain_collider(nav: Node) -> void:
+	var ground := nav.get_node_or_null("Ground") as StaticBody3D
+	if ground == null:
+		ground = StaticBody3D.new()
+		ground.name = "Ground"
+		nav.add_child(ground)
+	for child in ground.get_children():
+		ground.remove_child(child)
+		child.free()
+	ground.transform = Transform3D.IDENTITY
+	var height_map := HeightMapShape3D.new()
+	height_map.map_width = terrain.samples
+	height_map.map_depth = terrain.samples
+	height_map.map_data = terrain.heights
+	var shape := CollisionShape3D.new()
+	shape.name = "Shape"
+	shape.shape = height_map
+	shape.scale = Vector3(terrain.resolution_m, 1.0, terrain.resolution_m)
+	ground.add_child(shape)
 
 
 ## W3: the outer ring's cover (cfg "ring_pieces"): the same one-box cover types as the inner band, in their own

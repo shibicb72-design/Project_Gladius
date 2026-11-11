@@ -230,8 +230,7 @@ func test_look_on_test_300() -> void:
 		assert_true(chunk.has_meta(&"index"), "ArtBuilder/Chunks holds only its own chunk nodes (%s)" % chunk.name)
 		for node in chunk.get_children():
 			assert_true(node is MultiMeshInstance3D, "ArtBuilder/Chunks holds only batches (%s)" % node.name)
-	var flat := map.get_node("Nav/Ground/Mesh") as MeshInstance3D
-	assert_true(not flat.visible and flat.material_override == material, "the old box ground is hidden but keeps the material")
+	assert_true(map.get_node_or_null("Nav/Ground/Mesh") == null, "no old box ground mesh: the terrain chunks are the ground's only look")
 	map.free()
 
 

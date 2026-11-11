@@ -1,13 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/visual/greybox_art.gd" id="art"]
 [ext_resource type="Script" path="res://scripts/visual/astra_map.gd" id="astra"]
-
-[sub_resource type="BoxMesh" id="m_ground"]
-size = Vector3(300, 1, 300)
-
-[sub_resource type="BoxShape3D" id="s_ground"]
-size = Vector3(300, 1, 300)
 
 [sub_resource type="NavigationMesh" id="navmesh"]
 geometry_parsed_geometry_type = 1
@@ -19,13 +13,6 @@ script = ExtResource("art")
 navigation_mesh = SubResource("navmesh")
 
 [node name="Ground" type="StaticBody3D" parent="Nav"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
-
-[node name="Mesh" type="MeshInstance3D" parent="Nav/Ground"]
-mesh = SubResource("m_ground")
-
-[node name="Shape" type="CollisionShape3D" parent="Nav/Ground"]
-shape = SubResource("s_ground")
 
 [node name="ArtBuilder" type="Node3D" parent="."]
 script = ExtResource("astra")

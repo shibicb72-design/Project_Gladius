@@ -7,7 +7,8 @@ extends RefCounted
 ## trig, no FastNoiseLite), so a phone and the desktop that bakes the navigation mesh get the same heights.
 
 ## true: each quad splits along (ix+1, iz)-(ix, iz+1), how Godot triangulates a HeightMapShape3D for
-## navigation parsing (step 3 checks it against Jolt ray casts); false: along (ix, iz)-(ix+1, iz+1).
+## navigation parsing and how Jolt collides with it (tests/test_terrain_physics.gd: rays land within 0.00001 m,
+## the other split is about 3 mm off on the hill); false: along (ix, iz)-(ix+1, iz+1).
 const SPLIT_ANTI_DIAGONAL := true
 ## Hill falloff names (u = distance / radius, 1 at the centre to 0 at u >= 1).
 const FALLOFFS := ["linear", "smoothstep", "smootherstep"]
