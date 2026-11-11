@@ -103,14 +103,15 @@ func _ready() -> void:
 			nav.add_child(solid)
 			decor_bodies.append(solid)
 	chunks.build()
+	terrain = MapTerrain.for_map(map_def)
 	_paint_ground(nav)
+	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	if bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false)):
 		var backdrop := Backdrop.new()
 		backdrop.name = "Backdrop"
 		add_child(backdrop)
-		var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
-		backdrop.build(ground_mesh.material_override if ground_mesh != null else null)
+		backdrop.build(ground_material)
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
@@ -122,6 +123,10 @@ func _ready() -> void:
 ## positions); `ground_paint` and `ground_size_m` stay readable for the footstep sounds (GroundPaint.surface_at).
 var ground_paint: Image
 var ground_size_m := 0.0
+## M2P1B: the ground's material (flat ground mesh, terrain chunks and the backdrop's skirt); null without a ground.
+var ground_material: ShaderMaterial
+## M2P1B: the map's height field (map json "terrain"); null on a flat map (alesia).
+var terrain: MapTerrain
 
 
 ## M2P1B: the square ground's width in metres, one value for the chunk grid, the paint and the footsteps.
@@ -137,9 +142,9 @@ static func ground_size_of(map_def: Dictionary, nav: Node) -> float:
 	return ground.get_aabb().size.x if ground != null else 0.0
 
 
+## Paints from the data size (no ground mesh needed); the material goes on Nav/Ground/Mesh when it exists.
 func _paint_ground(nav: Node) -> void:
-	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
-	if ground_mesh == null:
+	if ground_size_m <= 0.0:
 		return
 	var map_def := DataRegistry.new().load_file(map_json)
 	var landmark_path := String(map_def.get("landmarks", ""))
@@ -150,7 +155,37 @@ func _paint_ground(nav: Node) -> void:
 			trodden.append(Vector2(body.position.x, body.position.z))
 	add_to_group(&"ground_paint")
 	ground_paint = GroundPaint.build(map_json, ground_size_m, landmarks, trodden)
-	ground_mesh.material_override = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
+	ground_material = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
+	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
+	if ground_mesh != null:
+		ground_mesh.material_override = ground_material
+
+
+## M2P1B: the terrain look, node "Terrain" with one Chunk_<ix>_<iz>/Mesh per cell of the chunk grid (every cell,
+## identity transforms). Kept apart from Chunks, which holds only MultiMesh batches. Until the scene loses its
+## flat box ground (step 3) that mesh keeps the material but is hidden, so it does not z-fight the terrain.
+func _build_terrain(nav: Node) -> void:
+	if terrain == null:
+		return
+	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
+	if ground_mesh != null:
+		ground_mesh.visible = false
+	var cfg: Dictionary = MapChunks.config().get("terrain", {})
+	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var root := Node3D.new()
+	root.name = "Terrain"
+	add_child(root)
+	for iz in chunks.per_side:
+		for ix in chunks.per_side:
+			var chunk := Node3D.new()
+			chunk.name = "Chunk_%d_%d" % [ix, iz]
+			root.add_child(chunk)
+			var mesh := MeshInstance3D.new()
+			mesh.name = "Mesh"
+			mesh.mesh = terrain.chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side)
+			mesh.material_override = ground_material
+			mesh.cast_shadow = shadow
+			chunk.add_child(mesh)
 
 
 ## W3: the outer ring's cover (cfg "ring_pieces"): the same one-box cover types as the inner band, in their own

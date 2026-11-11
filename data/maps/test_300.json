@@ -3,7 +3,23 @@
 	"name": "Test 300 m (performance only)",
 	"scene": "res://scenes/maps/test_300.tscn",
 	"modes": ["br"],
-	"ground_size_m": 300,
+	"terrain": {
+		"_placeholder": true,
+		"_todo": "OQ-MAP-TERRAIN: every number here is a first guess to prove the height-field pipeline on the test map, not a design value. size_m is the ground's side (it replaces the top-level ground_size_m; generator.ground_size_m must match it). The flat centre keeps alesia's six spawns and the inner band level; the one hill sits more than 80 m out with a gentle side facing the centre (radius_m) and a steeper outer side (outer_radius_m). max_piece_slope_deg is the steepest ground a piece may stand on (step 4).",
+		"size_m": 300,
+		"resolution_m": 1,
+		"max_piece_slope_deg": 15,
+		"height_source": {
+			"type": "generated",
+			"seed": 300301,
+			"noise": {"amplitude_m": 0.3, "wavelength_m": 50},
+			"flat_centre": {"radius_m": 80, "blend_m": 20},
+			"edge_blend_m": 10,
+			"hills": [
+				{"id": "test_hill", "centre": [90, 90], "height_m": 12.5, "radius_m": 45, "outer_radius_m": 30, "falloff": "smoothstep"}
+			]
+		}
+	},
 	"landmarks": "res://data/maps/alesia_landmarks.json",
 	"spawns": {
 		"spot_0": [40.0, 0.1, 0.0],

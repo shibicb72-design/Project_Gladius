@@ -83,6 +83,7 @@ func test_test_300_size_from_data() -> void:
 
 func test_data_wins_over_the_mesh() -> void:
 	var def := DataRegistry.parse_quiet(MAP)
+	def.erase("terrain")  # M2P1B: terrain.size_m would win; this checks the flat-map key
 	def["ground_size_m"] = 200
 	var path := _write("ground_200.json", JSON.stringify(def))
 	var map := _build(path, TEST_SCENE)

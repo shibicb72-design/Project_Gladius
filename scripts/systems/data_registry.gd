@@ -159,6 +159,8 @@ static func validate_map_def(def: Dictionary) -> PackedStringArray:
 		var size: Variant = def["ground_size_m"]
 		if (typeof(size) != TYPE_FLOAT and typeof(size) != TYPE_INT) or float(size) <= 0.0:
 			problems.append("map ground_size_m must be a number greater than 0 (got %s)" % str(size))
+	if def.has("terrain"):
+		problems.append_array(validate_terrain(def["terrain"], def))
 	for key in ["cover_data", "structure_data"]:
 		if not def.has(key):
 			continue
@@ -172,6 +174,88 @@ static func validate_map_def(def: Dictionary) -> PackedStringArray:
 		for list: String in lists:
 			if typeof(pieces.get(list)) != TYPE_ARRAY:
 				problems.append("map %s '%s' has no '%s' array" % [key, piece_path, list])
+	return problems
+
+
+static func _is_num(value: Variant) -> bool:
+	return typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT
+
+
+## M2P1B: the rules of a map's "terrain" block (MapTerrain reads it; for_map returns null on any problem).
+## `def` is the whole map definition, for the ground_size_m cross-check.
+static func validate_terrain(terrain: Variant, def: Dictionary = {}) -> PackedStringArray:
+	var problems := PackedStringArray()
+	if typeof(terrain) != TYPE_DICTIONARY:
+		problems.append("map terrain must be a dictionary")
+		return problems
+	var size: Variant = terrain.get("size_m")
+	var res: Variant = terrain.get("resolution_m")
+	if not _is_num(size) or float(size) <= 0.0 or not _is_num(res) or float(res) <= 0.0:
+		problems.append("terrain size_m and resolution_m must be numbers greater than 0")
+	else:
+		var cells := float(size) / float(res)
+		if absf(cells - roundf(cells)) > 1e-6 or roundi(cells) < 2:
+			problems.append("terrain size_m %s must be a whole multiple (at least 2) of resolution_m %s" % [str(size), str(res)])
+		if def.has("ground_size_m") and (not _is_num(def["ground_size_m"]) or not is_equal_approx(float(def["ground_size_m"]), float(size))):
+			problems.append("map ground_size_m %s differs from terrain size_m %s" % [str(def["ground_size_m"]), str(size)])
+	if terrain.has("max_piece_slope_deg"):
+		var slope: Variant = terrain["max_piece_slope_deg"]
+		if not _is_num(slope) or float(slope) <= 0.0 or float(slope) >= 90.0:
+			problems.append("terrain max_piece_slope_deg must be a number in (0, 90)")
+	var source: Variant = terrain.get("height_source")
+	if typeof(source) != TYPE_DICTIONARY:
+		problems.append("terrain height_source must be a dictionary")
+		return problems
+	match str(source.get("type", "")):
+		"file":
+			var path: Variant = source.get("path")
+			if typeof(path) != TYPE_STRING or not (String(path).ends_with(".json") or String(path).ends_with(".res")):
+				problems.append("terrain heights file path must be a .json or .res string")
+			elif not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
+				problems.append("terrain heights file '%s' does not exist" % path)
+		"generated":
+			if not _is_num(source.get("seed")):
+				problems.append("terrain generated source needs a numeric seed")
+			var noise: Variant = source.get("noise", {})
+			if typeof(noise) != TYPE_DICTIONARY or not _is_num(noise.get("amplitude_m", 0)) or float(noise.get("amplitude_m", 0)) < 0.0 \
+					or not _is_num(noise.get("wavelength_m", 1)) or float(noise.get("wavelength_m", 1)) <= 0.0:
+				problems.append("terrain noise needs amplitude_m >= 0 and wavelength_m > 0")
+			var flat: Variant = source.get("flat_centre", {})
+			if typeof(flat) != TYPE_DICTIONARY:
+				problems.append("terrain flat_centre must be a dictionary")
+			else:
+				for value: Variant in [flat.get("radius_m", 0), flat.get("blend_m", 0), source.get("edge_blend_m", 0)]:
+					if not _is_num(value) or float(value) < 0.0:
+						problems.append("terrain flat_centre radius_m, blend_m and edge_blend_m must be numbers >= 0")
+						break
+			var hills: Variant = source.get("hills", [])
+			if typeof(hills) != TYPE_ARRAY:
+				problems.append("terrain hills must be an array")
+				hills = []
+			for hill: Variant in hills:
+				problems.append_array(_hill_problems(hill))
+		var other:
+			problems.append("terrain height_source type '%s' is not 'generated' or 'file'" % str(other))
+	return problems
+
+
+static func _hill_problems(hill: Variant) -> PackedStringArray:
+	var problems := PackedStringArray()
+	if typeof(hill) != TYPE_DICTIONARY:
+		problems.append("terrain hill must be a dictionary")
+		return problems
+	var id := str(hill.get("id", "?"))
+	var centre: Variant = hill.get("centre")
+	if typeof(centre) != TYPE_ARRAY or (centre as Array).size() != 2 or not _is_num(centre[0]) or not _is_num(centre[1]):
+		problems.append("terrain hill %s centre must be [x, z] numbers" % id)
+	if not _is_num(hill.get("height_m")):
+		problems.append("terrain hill %s height_m must be a number" % id)
+	if not _is_num(hill.get("radius_m")) or float(hill["radius_m"]) <= 0.0:
+		problems.append("terrain hill %s radius_m must be a number greater than 0" % id)
+	if hill.has("outer_radius_m") and (not _is_num(hill["outer_radius_m"]) or float(hill["outer_radius_m"]) <= 0.0):
+		problems.append("terrain hill %s outer_radius_m must be a number greater than 0" % id)
+	if not MapTerrain.FALLOFFS.has(str(hill.get("falloff", "smoothstep"))):
+		problems.append("terrain hill %s falloff '%s' is unknown (known: %s)" % [id, str(hill.get("falloff")), ", ".join(MapTerrain.FALLOFFS)])
 	return problems
 
 

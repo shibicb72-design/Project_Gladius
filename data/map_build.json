@@ -2,6 +2,11 @@
 	"_placeholder": true,
 	"_todo": "OQ-MAP-CHUNK: chunk_size_m is a first guess for Shibi, not a design value; a Fold measurement decides it.",
 	"chunk_size_m": 50,
+	"terrain": {
+		"_placeholder": true,
+		"_todo": "OQ-MAP-TERRAIN: off is a first guess, not measured; each casting terrain chunk costs a shadow draw per split on the phone, so a Fold measurement decides it.",
+		"cast_shadows": false
+	},
 	"proxy_limits": {
 		"_placeholder": true,
 		"_todo": "OQ-MAP-PROXY: placeholder limits on tree counts (MapChunks.proxies), not measured frame cost; a Fold measurement decides them.",
