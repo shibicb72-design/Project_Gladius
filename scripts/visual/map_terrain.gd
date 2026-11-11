@@ -20,6 +20,9 @@ var resolution_m := 1.0
 var samples := 0  # per side
 var heights := PackedFloat32Array()  # row-major, index = iz * samples + ix
 var max_piece_slope_deg := 0.0
+## How far a piece's footprint corner may lie above or below the ground at its origin (map json "terrain"
+## "max_piece_float_m"; no limit when absent).
+var max_piece_float_m := INF
 var _positions := PackedVector3Array()  # per sample, built on the first mesh request
 var _normals := PackedVector3Array()  # per sample, from the whole grid so chunk edges share them
 var _meshes := {}  # chunk key -> ArrayMesh
@@ -51,6 +54,7 @@ static func from_block(block: Variant, map_def: Dictionary = {}) -> MapTerrain:
 	t.resolution_m = float(block["resolution_m"])
 	t.samples = roundi(t.size_m / t.resolution_m) + 1
 	t.max_piece_slope_deg = float(block.get("max_piece_slope_deg", 90.0))
+	t.max_piece_float_m = float(block.get("max_piece_float_m", INF))
 	var source: Dictionary = block["height_source"]
 	if String(source["type"]) == "file":
 		t.heights = _load_heights(String(source["path"]), t)

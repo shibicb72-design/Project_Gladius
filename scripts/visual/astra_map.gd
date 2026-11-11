@@ -42,6 +42,8 @@ func _ready() -> void:
 	chunks.name = "Chunks"
 	add_child(chunks)
 	chunks.setup(ground_size_m)
+	# M2P1B: resolved before the pieces so each stands on the ground under its origin (lifted()).
+	terrain = MapTerrain.for_map(map_def)
 	for entry: Dictionary in cfg["pieces"]:
 		var definition: Dictionary = cfg["types"][entry["type"]]
 		var body := StaticBody3D.new()
@@ -51,7 +53,7 @@ func _ready() -> void:
 		body.collision_mask = 0
 		if bool(definition.get("coverable", false)):
 			body.add_to_group(&"cover_wall")
-		body.position = LowpolyKit.vec(entry["at"])
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
 		chunks.add("cover", String(entry["type"]), meshes[entry["type"]], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
@@ -78,7 +80,7 @@ func _ready() -> void:
 			mesh.rotation.y = PI * 0.5
 	# W1: world kit pieces come after the loop above, which takes every other Nav child for a one-box wall.
 	# They are bodies in group "structure" (never cover_wall); their look is one batch per chunk and type.
-	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def))
+	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def), terrain)
 	_build_ring(nav, cfg, meshes)
 	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
 	# M2P1A: the decor looks draw as one batch per chunk, kind and size (source "decor", type "<kind>_<n>", see
@@ -96,14 +98,15 @@ func _ready() -> void:
 			size_counts[kind] = int(size_index[key]) + 1
 		var type := "%s_%d" % [kind, int(size_index[key])]
 		decor_types[String(entry["id"])] = type
-		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), LowpolyKit.vec(entry["at"]))
+		var at := LowpolyKit.vec(entry["at"])
+		var lift := lifted(at).y - at.y
+		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), lifted(at))
 		chunks.add("decor", type, meshes[key], null, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, xform)
 		if decor_solid.has(entry["kind"]):
-			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key])
+			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
 			decor_bodies.append(solid)
 	chunks.build()
-	terrain = MapTerrain.for_map(map_def)
 	_paint_ground(nav)
 	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
@@ -127,6 +130,12 @@ var ground_size_m := 0.0
 var ground_material: ShaderMaterial
 ## M2P1B: the map's height field (map json "terrain"); null on a flat map (alesia).
 var terrain: MapTerrain
+
+
+## M2P1B: a piece's file position raised by the terrain height under its origin (x, z); the piece files keep
+## their y (half the height, or the template y, over flat ground). Unchanged on a flat map.
+func lifted(at: Vector3) -> Vector3:
+	return at if terrain == null else at + Vector3(0.0, terrain.height_at(at.x, at.z), 0.0)
 
 
 ## M2P1B: the square ground's width in metres, one value for the chunk grid, the paint and the footsteps.
@@ -228,7 +237,7 @@ func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
 		body.add_to_group(&"ring_cover")
 		if bool(definition.get("coverable", false)):
 			body.add_to_group(&"cover_wall")
-		body.position = LowpolyKit.vec(entry["at"])
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
 		var box := BoxShape3D.new()

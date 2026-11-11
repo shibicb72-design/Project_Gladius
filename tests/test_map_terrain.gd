@@ -285,6 +285,8 @@ func test_validator_terrain_rules() -> void:
 		"image heights file": func(d: Dictionary) -> void: d["terrain"]["height_source"] = {"type": "file", "path": "res://icon.png"},
 		"ground size disagrees": func(d: Dictionary) -> void: d["ground_size_m"] = 200,
 		"slope limit 0": func(d: Dictionary) -> void: d["terrain"]["max_piece_slope_deg"] = 0,
+		"float limit 0": func(d: Dictionary) -> void: d["terrain"]["max_piece_float_m"] = 0,
+		"float limit text": func(d: Dictionary) -> void: d["terrain"]["max_piece_float_m"] = "0.3",
 		"no seed": func(d: Dictionary) -> void: d["terrain"]["height_source"].erase("seed"),
 		"wavelength 0": func(d: Dictionary) -> void: d["terrain"]["height_source"]["noise"]["wavelength_m"] = 0,
 		"negative blend": func(d: Dictionary) -> void: d["terrain"]["height_source"]["edge_blend_m"] = -1,

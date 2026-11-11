@@ -179,14 +179,16 @@ static func display(type: String) -> MeshInstance3D:
 ## "hull" = the convex hull of the entry's own mesh (rocks); "piers_and_lintel" = two pier boxes and a lintel
 ## box from the kit's arch proportions, so the way under the arch stays open. The piers are solid down to the
 ## ground under the piece. The body goes under Nav in group "structure" (solid, not cover).
-static func decor_body(entry: Dictionary, mode: String, mesh: Mesh) -> StaticBody3D:
+## M2P1B: `lift` is the terrain height under the entry's origin; it raises the body and the piers then end at
+## that lifted ground instead of world y = 0 (lift 0 keeps the flat-map result exactly).
+static func decor_body(entry: Dictionary, mode: String, mesh: Mesh, lift: float = 0.0) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = String(entry["id"]) + "_Solid"
 	body.add_to_group(GROUP)
 	body.set_meta(&"decor_id", String(entry["id"]))
 	body.collision_layer = 1
 	body.collision_mask = 0
-	body.position = LowpolyKit.vec(entry["at"])
+	body.position = LowpolyKit.vec(entry["at"]) + Vector3(0.0, lift, 0.0)
 	body.rotation.y = deg_to_rad(float(entry["yaw"]))
 	var size := LowpolyKit.vec(entry["size"])
 	var boxes: Array = []  # [size, centre] pairs
@@ -207,7 +209,7 @@ static func decor_body(entry: Dictionary, mode: String, mesh: Mesh) -> StaticBod
 		"piers_and_lintel":
 			var k: Dictionary = LowpolyKit.config()["kit"]
 			var leg: Vector3 = size * LowpolyKit.vec(k["arch_leg_fraction"])
-			var bottom := -body.position.y
+			var bottom := -(body.position.y - lift)
 			# S7: the piers end where the kit's arch legs end (LowpolyKit "arch": leg centre + half its height),
 			# which is the lintel's underside; they used to run on up into the lintel's own box.
 			var top := size.y * float(k.get("arch_leg_y", 0.0)) + leg.y * 0.5
@@ -229,14 +231,18 @@ static func decor_body(entry: Dictionary, mode: String, mesh: Mesh) -> StaticBod
 
 ## Adds every piece of `pieces` to `nav` as bodies and hands each look to `chunks` (source "structure"); the
 ## caller builds the chunks. The mesh carries material(), so the batch gets no material_override.
-static func populate(nav: Node, chunks: MapChunks, pieces: Array) -> Array[StaticBody3D]:
+## M2P1B: with a `terrain` each piece is raised by the height under its origin (body and look together).
+static func populate(nav: Node, chunks: MapChunks, pieces: Array, terrain: MapTerrain = null) -> Array[StaticBody3D]:
 	var cfg := config()
 	var types: Dictionary = cfg["types"]
 	var bodies: Array[StaticBody3D] = []
 	var shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg["batches"]["cast_shadows"]) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for entry: Dictionary in pieces:
 		var type := String(entry["type"])
-		var body := build_body(String(entry["id"]), type, types[type], LowpolyKit.vec(entry["at"]), float(entry.get("yaw", 0.0)))
+		var at := LowpolyKit.vec(entry["at"])
+		if terrain != null:
+			at.y += terrain.height_at(at.x, at.z)
+		var body := build_body(String(entry["id"]), type, types[type], at, float(entry.get("yaw", 0.0)))
 		nav.add_child(body)
 		bodies.append(body)
 		chunks.add("structure", type, mesh_for(type), null, shadows, body.transform)

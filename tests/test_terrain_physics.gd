@@ -106,8 +106,7 @@ func _down_hit(map: Node3D, x: float, z: float) -> Dictionary:
 	return _ground_hit(map, Vector3(x, 100.0, z), Vector3(x, -100.0, z))
 
 
-## Every Nav body but the ground off layer 1, so a pawn meets only the terrain (pieces on the hill are buried
-## until step 4).
+## Every Nav body but the ground off layer 1, so a pawn or a ray meets only the terrain, never a piece.
 func _terrain_only(map: Node3D) -> void:
 	for body in map.get_node("Nav").get_children():
 		if body is CollisionObject3D and body.name != &"Ground":
@@ -488,24 +487,15 @@ func test_navigation_bakes_on_the_terrain() -> void:
 	var peak := _peak(t)
 	var near_peak := 0
 	var low_under_hill := 0
-	var on_buried_piece := 0
 	for v in verts:
 		if Vector2(v.x, v.z).distance_to(Vector2(peak.x, peak.z)) < 6.0 and absf(v.y - peak.y) < 1.5:
 			near_peak += 1
-		if Vector2(v.x, v.z).distance_to(centre) >= 15.0 or v.y >= 2.0:
-			continue
-		# Pieces stay at y = 0 until step 4 lifts them, so a buried piece's top is a small island inside the
-		# hill. Those are allowed here; anything else below 2 m (the old y = 0 ground) is not.
-		var buried := false
-		for body in nav.get_children():
-			if body is StaticBody3D and body.name != &"Ground" and v.y > 0.5 and Vector2(body.position.x, body.position.z).distance_to(Vector2(v.x, v.z)) < 3.0:
-				buried = true
-		if buried:
-			on_buried_piece += 1
-		else:
+		# Step 4 lifts the pieces onto the terrain, so nothing walkable is left below 2 m near the hill centre
+		# (no old y = 0 ground, no tops of buried pieces).
+		if Vector2(v.x, v.z).distance_to(centre) < 15.0 and v.y < 2.0:
 			low_under_hill += 1
 	assert_true(mesh.get_polygon_count() > 0, "the bake makes polygons")
 	assert_true(near_peak > 0, "the navigation mesh climbs the hill (vertices near the %.2f m peak)" % peak.y)
-	assert_eq(low_under_hill, 0, "no walkable layer at y = 0 under the hill")
-	print("NAV_TERRAIN polygons=%d vertices=%d bake_ms=%d near_peak=%d buried_piece_island_vertices=%d" % [mesh.get_polygon_count(), verts.size(), bake_ms, near_peak, on_buried_piece])
+	assert_eq(low_under_hill, 0, "no walkable vertex below 2 m within 15 m of the hill centre")
+	print("NAV_TERRAIN polygons=%d vertices=%d bake_ms=%d near_peak=%d low_under_hill=%d" % [mesh.get_polygon_count(), verts.size(), bake_ms, near_peak, low_under_hill])
 	map.free()

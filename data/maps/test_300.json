@@ -5,10 +5,11 @@
 	"modes": ["br"],
 	"terrain": {
 		"_placeholder": true,
-		"_todo": "OQ-MAP-TERRAIN: every number here is a first guess to prove the height-field pipeline on the test map, not a design value. size_m is the ground's side (it replaces the top-level ground_size_m; generator.ground_size_m must match it). The flat centre keeps alesia's six spawns and the inner band level; the one hill sits more than 80 m out with a gentle side facing the centre (radius_m) and a steeper outer side (outer_radius_m). max_piece_slope_deg is the steepest ground a piece may stand on (step 4).",
+		"_todo": "OQ-MAP-TERRAIN: every number here is a first guess to prove the height-field pipeline on the test map, not a design value. size_m is the ground's side (it replaces the top-level ground_size_m; generator.ground_size_m must match it). The flat centre keeps alesia's six spawns and the inner band level; the one hill sits more than 80 m out with a gentle side facing the centre (radius_m) and a steeper outer side (outer_radius_m). max_piece_slope_deg is the steepest ground a piece may stand on (step 4); max_piece_float_m is how far a piece's footprint corner may lie above or below the ground at its origin (step 4).",
 		"size_m": 300,
 		"resolution_m": 1,
 		"max_piece_slope_deg": 15,
+		"max_piece_float_m": 0.3,
 		"height_source": {
 			"type": "generated",
 			"seed": 300301,

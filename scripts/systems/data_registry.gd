@@ -202,6 +202,10 @@ static func validate_terrain(terrain: Variant, def: Dictionary = {}) -> PackedSt
 		var slope: Variant = terrain["max_piece_slope_deg"]
 		if not _is_num(slope) or float(slope) <= 0.0 or float(slope) >= 90.0:
 			problems.append("terrain max_piece_slope_deg must be a number in (0, 90)")
+	if terrain.has("max_piece_float_m"):
+		var float_m: Variant = terrain["max_piece_float_m"]
+		if not _is_num(float_m) or float(float_m) <= 0.0:
+			problems.append("terrain max_piece_float_m must be a number greater than 0")
 	var source: Variant = terrain.get("height_source")
 	if typeof(source) != TYPE_DICTIONARY:
 		problems.append("terrain height_source must be a dictionary")
