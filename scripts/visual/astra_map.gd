@@ -111,7 +111,8 @@ func _ready() -> void:
 	_paint_ground(nav)
 	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
-	if bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false)):
+	# M2L1 (binding fix 5): a map json may switch it off ("backdrop": false; default true).
+	if backdrop_wanted(map_def, bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false))):
 		var backdrop := Backdrop.new()
 		backdrop.name = "Backdrop"
 		add_child(backdrop)
@@ -137,6 +138,12 @@ var ground_size_m := 0.0
 var ground_material: ShaderMaterial
 ## M2P1B: the map's height field (map json "terrain"); null on a flat map (alesia).
 var terrain: MapTerrain
+
+
+## M2L1 (binding fix 5): true when the map gets the S6 backdrop: the graphics preset enables it and the map json
+## does not switch it off ("backdrop": false; a missing key keeps today's behaviour).
+static func backdrop_wanted(map_def: Dictionary, preset_enabled: bool) -> bool:
+	return preset_enabled and bool(map_def.get("backdrop", true))
 
 
 ## M2P1B: a piece's file position raised by the terrain height under its origin (x, z); the piece files keep
@@ -170,7 +177,19 @@ func _paint_ground(nav: Node) -> void:
 		for body: StaticBody3D in group:
 			trodden.append(Vector2(body.position.x, body.position.z))
 	add_to_group(&"ground_paint")
-	ground_paint = GroundPaint.build(map_json, ground_size_m, landmarks, trodden)
+	# M2L1 (binding fix 6): the map's "ground_paint" keys over the global ones; a map naming a "baked" paint loads
+	# it (1 km: painting in GDScript at load is too slow) and paints as before, with one printed line, when the
+	# file is missing or stale.
+	var settings := GroundPaint.settings_for(map_def)
+	var baked := String(settings.get("baked", ""))
+	if baked != "":
+		var px := GroundPaint.px_for(ground_size_m, settings)
+		var want := GroundPaint.inputs_hash(ground_size_m, landmarks, trodden, settings)
+		ground_paint = GroundPaint.load_baked(map_json, baked, px, want)
+		if ground_paint == null:
+			print("ArtBuilder: painting the ground at load: %s (rerun tools/gen_alesia.gd)" % GroundPaint.baked_problem(baked, px, want))
+	if ground_paint == null:
+		ground_paint = GroundPaint.build(map_json, ground_size_m, landmarks, trodden, settings)
 	ground_material = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
 	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
 	if ground_mesh != null:
@@ -198,6 +217,8 @@ func _build_terrain(nav: Node) -> void:
 	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var swap_m := float(cfg.get("far_swap_m", 0.0))
 	var step_m := float(cfg.get("far_step_m", 0.0))
+	if terrain.far_step_m > 0.0:
+		step_m = terrain.far_step_m  # M2L1: the map's own far step (map_build.json's 5 m does not fit a 2 m grid)
 	var margin_m := float((MapChunks.config().get("classes", {}) as Dictionary).get("margin_m", 0.0))
 	if swap_m > 0.0:
 		var problem := MapTerrain.far_step_problem(step_m, terrain.resolution_m, chunks.chunk_size_m)
