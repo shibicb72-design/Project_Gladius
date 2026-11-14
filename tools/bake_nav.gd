@@ -3,9 +3,17 @@ extends SceneTree
 ## loads it instead of baking at match start (MatchRoot.begin). Re-run after changing any map data; the CI test
 ## tests/test_saved_nav.gd fails until you do.
 ## godot --headless --path . --script res://tools/bake_nav.gd -- --map=res://data/maps/<file>.json
-## Without --map it bakes DataRegistry.MAP_PATH and DataRegistry.TEST_MAP_PATH. Prints one line per map:
+## Without --map it bakes DEFAULT_MAPS (named explicitly, M2L1 binding fix 12). Prints one line per map:
 ## "NAV_SAVED map=<id> polygons=N vertices=N bytes=N bake_ms=N path=<res>", or "NAV_SAVED map=<path> failed:
-## <reason>" and quits with 1.
+## <reason>" and quits with 1. The manifest's tool_inputs also hold the sha256 of a binary heights .res and a
+## baked ground paint .res (MapNav.input_files); the runtime never hashes those, tests/test_saved_nav.gd does.
+## alesia_1km (about 6 s on the desktop, M2L1) is never re-baked by the suite: it gets the hash check only.
+
+const DEFAULT_MAPS: Array[String] = [
+	"res://data/maps/alesia_section.json",
+	"res://data/maps/test_300.json",
+	"res://data/maps/alesia_1km.json",
+]
 
 
 func _initialize() -> void:
@@ -15,7 +23,7 @@ func _initialize() -> void:
 		if arg.begins_with("--map="):
 			maps.append(arg.substr(6))
 	if maps.is_empty():
-		maps = PackedStringArray([DataRegistry.MAP_PATH, DataRegistry.TEST_MAP_PATH])
+		maps = PackedStringArray(DEFAULT_MAPS)
 	var code := 0
 	for map_path in maps:
 		var failure: String = await _bake(map_path)

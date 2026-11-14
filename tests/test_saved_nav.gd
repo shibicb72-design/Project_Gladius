@@ -7,6 +7,10 @@ const _MatchScene := preload("res://scenes/match/match.tscn")
 const ALESIA := "res://data/maps/alesia_section.json"
 const MAP := "res://data/maps/test_300.json"
 const MAPS := [ALESIA, MAP]
+## M2L1 (binding fix 12): the 1 km map is never re-baked or started here; it gets the hash checks only (its scene
+## checks on the loaded mesh live in tests/test_alesia_1km.gd, the one file that builds it).
+const BIG := "res://data/maps/alesia_1km.json"
+const _BakeTool := preload("res://tools/bake_nav.gd")
 ## A temporary copy of alesia: it must sit in res://data/maps/ (DataRegistry.validate_map), so it is removed at
 ## the end of its test.
 const TMP_MAP := "res://data/maps/_saved_nav_test_tmp.json"
@@ -107,7 +111,8 @@ static func _length(path: PackedVector3Array) -> float:
 
 
 func test_committed_meshes_are_fresh() -> void:
-	for map_path: String in MAPS:
+	assert_eq(_BakeTool.DEFAULT_MAPS, [ALESIA, MAP, BIG] as Array[String], "tools/bake_nav.gd bakes the three maps by default, named explicitly")
+	for map_path: String in MAPS + [BIG]:
 		assert_true(FileAccess.file_exists(MapNav.saved_path(map_path)), "saved mesh " + MapNav.saved_path(map_path))
 		assert_true(FileAccess.file_exists(MapNav.manifest_path(map_path)), "manifest " + MapNav.manifest_path(map_path))
 		var reasons := MapNav.stale_reasons(map_path, true)
@@ -124,6 +129,20 @@ func test_input_files_of_both_maps() -> void:
 			"res://data/maps/alesia_structures.json", MAP, "res://data/maps/test_300_cover.json",
 			"res://data/maps/test_300_structures.json"]), "test_300 runtime inputs")
 	assert_eq(big["tool"], PackedStringArray(["res://scenes/maps/test_300.tscn"]), "test_300 tool inputs")
+	# M2L1 (binding fixes 6, 13): the 1 km map's binary heights and baked paint are tool inputs (hashed here and by
+	# the bake tool, never by the runtime), and the manifest holds their current sha256.
+	var km := MapNav.input_files(BIG)
+	var km_tool := PackedStringArray(["res://data/maps/alesia_1km_heights.res", "res://data/maps/alesia_1km_paint.res", "res://scenes/maps/alesia_1km.tscn"])
+	assert_eq(km["tool"], km_tool, "alesia_1km tool inputs: heights .res, paint .res, scene")
+	assert_eq(km["runtime"], PackedStringArray(["res://data/art_astra.json", BIG, "res://data/maps/alesia_1km_cover.json",
+			"res://data/maps/alesia_1km_structures.json", "res://data/maps/alesia_cover.json", "res://data/maps/alesia_structures.json"]), "alesia_1km runtime inputs")
+	var saved_tool: Dictionary = _manifest(BIG).get("tool_inputs", {})
+	for path in km_tool:
+		assert_true(MapNav.file_hash(path) != "" and str(saved_tool.get(path, "")) == MapNav.file_hash(path), "alesia_1km manifest holds the current sha256 of " + path)
+	# The runtime check (MatchRoot.begin -> MapNav.load_fresh) compares JSON only, and finds the 1 km mesh fresh.
+	assert_eq(MapNav.stale_reasons(BIG).size(), 0, "alesia_1km fresh for the runtime")
+	var loaded := MapNav.load_fresh(BIG)
+	assert_true(loaded != null and loaded.get_polygon_count() > 0 and loaded.get_polygon_count() == int(_manifest(BIG).get("polygons", -1)), "the saved 1 km mesh loads with the manifest's polygons")
 	# A heights file: json is a runtime input, a binary .res a tool input.
 	var def := {"scene": "res://s.tscn", "terrain": {"height_source": {"type": "file", "path": "res://h.res"}}}
 	DirAccess.make_dir_recursive_absolute(TMP_DIR)

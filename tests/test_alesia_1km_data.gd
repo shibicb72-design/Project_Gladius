@@ -18,8 +18,10 @@ func _def() -> Dictionary:
 	return DataRegistry.parse_quiet(MAP)
 
 
+## The file's text with every "\r" removed: a CRLF checkout (git on Windows) still compares equal to the tool's
+## LF output, as MapNav.text_hash does for the nav manifest.
 func _file_text(path: String) -> String:
-	return FileAccess.get_file_as_string(path)
+	return FileAccess.get_file_as_string(path).replace("\r", "")
 
 
 func _write(name: String, text: String) -> String:

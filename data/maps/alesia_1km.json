@@ -398,6 +398,119 @@
 		"br"
 	],
 	"name": "Alesia (1 km grey-box)",
+	"overrides": {
+		"_note": "M2L1 (binding fix 3): deep-merged over data/br.json and data/loot.json for this map only (MatchDirector.load_config(map)); dictionaries merge by key, arrays and scalars replace, \"_\" keys are notes. The MINIMUM so a 1 km match works end to end; every value is a guess for Shibi, Z1 owns the real tuning. overrides.br may not touch \"teams\" (the lobby reads it).",
+		"br": {
+			"drop": {
+				"_placeholder": true,
+				"_todo": "OQ-BR-DROP: guesses for Shibi. The carrier flies through the zone start centre (0, 0); path_length_m 960 = twice the play radius 480, so it enters and leaves the play circle on every bearing. carrier_s 40 = 24 m/s: the last forced drop leaves at 40 s and lands (120 m at 15 m/s, about 9 s) before the first zone wait (60 s) ends. map_half_m 498 = the 500 m ground half less 2 m, as br.json's 78 on alesia's 80. altitude_m, glide and fall speeds stay br.json's (120 m clears the 25 m hill and every tower).",
+				"carrier_s": 40.0,
+				"map_half_m": 498.0,
+				"path_length_m": 960.0
+			},
+			"zone": {
+				"_placeholder": true,
+				"_todo": "OQ-BR-ZONE: guesses for Shibi. start_radius_m 480 = the play circle. Phase radii keep br.json's fractions of its start radius (50/75, 30/75, 15/75, 8/75, 0). Phase count, waits and damage stay br.json's. shrink_s is raised only where the edge would outrun a soldier: a phase's centre may move by up to (r - target), so its edge moves up to 2 (r - target) over shrink_s; that is kept at or below 4.0 m/s (data/stats.json run 4.7 m/s x 0.95 for the slowest enabled class, Sagittarii, = 4.47 m/s, less a margin for detours to gates). br.json already meets the same rule at 75 m. Nominal zone length 415 s (waits 170 + shrinks 245).",
+				"phases": [
+					{
+						"damage_per_s": 1.0,
+						"radius_m": 320.0,
+						"shrink_s": 80.0,
+						"wait_s": 60.0
+					},
+					{
+						"damage_per_s": 2.0,
+						"radius_m": 192.0,
+						"shrink_s": 64.0,
+						"wait_s": 45.0
+					},
+					{
+						"damage_per_s": 4.0,
+						"radius_m": 96.0,
+						"shrink_s": 48.0,
+						"wait_s": 30.0
+					},
+					{
+						"damage_per_s": 8.0,
+						"radius_m": 51.2,
+						"shrink_s": 23.0,
+						"wait_s": 20.0
+					},
+					{
+						"damage_per_s": 15.0,
+						"radius_m": 0.0,
+						"shrink_s": 30.0,
+						"wait_s": 15.0
+					}
+				],
+				"start_center": [
+					0.0,
+					0.0
+				],
+				"start_radius_m": 480.0
+			}
+		},
+		"loot": {
+			"_placeholder": true,
+			"_todo": "OQ-BR-LOOT: guesses for Shibi. area_half_m 480 covers the zone start circle (items stay inside it less zone_edge_margin_m, which stays loot.json's). count 540 = 30 per player for 18 players (loot.json: 70 on alesia, 3.9 per player, but that whole map was one fight); loot.json's density per area would be about 2,870 items here (2,870 nodes, up to 34,000 placement rays on the first tick), so 540 is about a fifth of it, like the lower cover density of this map. nearest() and the bots' loot goal use the loot grid (P1c), so the count costs little per frame. Clusters: 12 items at each of the 13 landmarks (156 of 540, about loot.json's share of 20 of 70).",
+			"area_half_m": 480.0,
+			"clusters": [
+				{
+					"items": 12.0,
+					"landmark": "arx"
+				},
+				{
+					"items": 12.0,
+					"landmark": "porta_aquilae"
+				},
+				{
+					"items": 12.0,
+					"landmark": "porta_solis"
+				},
+				{
+					"items": 12.0,
+					"landmark": "porta_martis"
+				},
+				{
+					"items": 12.0,
+					"landmark": "porta_lunae"
+				},
+				{
+					"items": 12.0,
+					"landmark": "castra_prima"
+				},
+				{
+					"items": 12.0,
+					"landmark": "castra_secunda"
+				},
+				{
+					"items": 12.0,
+					"landmark": "castra_tertia"
+				},
+				{
+					"items": 12.0,
+					"landmark": "castra_quarta"
+				},
+				{
+					"items": 12.0,
+					"landmark": "castra_quinta"
+				},
+				{
+					"items": 12.0,
+					"landmark": "castra_sexta"
+				},
+				{
+					"items": 12.0,
+					"landmark": "aquaeductus_magnus"
+				},
+				{
+					"items": 12.0,
+					"landmark": "specula"
+				}
+			],
+			"count": 540.0
+		}
+	},
 	"play_radius_m": 480.0,
 	"reserved_spots": [
 		{
