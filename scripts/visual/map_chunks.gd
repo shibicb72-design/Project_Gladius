@@ -53,9 +53,14 @@ static func index_for(x: float, z: float, half: float, size_m: float, side: int)
 	return Vector2i(ix, iz)
 
 
+## M2P1C: a chunk size that wins over data/map_build.json for every map built while it is > 0 (tests and
+## tools measure other sizes without editing the json; whoever sets it resets it to 0).
+static var size_override_m := 0.0
+
+
 ## Sets the grid for a square ground of `ground_size_m` (0 = no ground: one chunk).
 func setup(ground_size_m: float) -> void:
-	chunk_size_m = float(config()["chunk_size_m"])
+	chunk_size_m = size_override_m if size_override_m > 0.0 else float(config()["chunk_size_m"])
 	half_m = maxf(ground_size_m, 0.0) * 0.5
 	per_side = count_for(ground_size_m, chunk_size_m)
 
@@ -221,6 +226,36 @@ func batch_of(source: String, type: String, xform: Transform3D) -> MultiMeshInst
 ## because a headless renderer keeps no instance data. Needs the batch's global transform (identity here).
 static func range_centre(batch: MultiMeshInstance3D) -> Vector3:
 	return batch.global_transform * _bounds(batch.multimesh.mesh, batch.get_meta(&"transforms", [])).get_center()
+
+
+## M2P1C: what a camera at world `point` would draw of a built map (the root holding ArtBuilder) by the
+## renderer's rule: a node is in range when its end is 0 or the distance from `point` to its world AABB centre
+## is <= visibility_range_end (the hysteresis margin ignored; frustum, occlusion and the far plane ignored).
+## {"batches", "colliding", "non_colliding", "shadow" (batches in range that cast shadows), "per_class"
+## {class: n}, "batches_total", "terrain", "terrain_total"}. A proxy, not a frame time.
+static func visible_at(map: Node, point: Vector3) -> Dictionary:
+	var out := {"batches": 0, "colliding": 0, "non_colliding": 0, "shadow": 0, "per_class": {}, "batches_total": 0, "terrain": 0, "terrain_total": 0}
+	var chunks := map.get_node_or_null("ArtBuilder/Chunks") as MapChunks
+	if chunks != null:
+		for batch in chunks.batches():
+			out["batches_total"] += 1
+			var end := batch.visibility_range_end
+			if end > 0.0 and point.distance_to(range_centre(batch)) > end:
+				continue
+			out["batches"] += 1
+			out["colliding" if bool(batch.get_meta(&"collides", false)) else "non_colliding"] += 1
+			if batch.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				out["shadow"] += 1
+			var cls := String(batch.get_meta(&"class", ""))
+			out["per_class"][cls] = int(out["per_class"].get(cls, 0)) + 1
+	var terrain := map.get_node_or_null("ArtBuilder/Terrain")
+	if terrain != null:
+		for mi: MeshInstance3D in terrain.find_children("*", "MeshInstance3D", true, false):
+			out["terrain_total"] += 1
+			var end := mi.visibility_range_end
+			if end <= 0.0 or point.distance_to(mi.global_transform * mi.get_aabb().get_center()) <= end:
+				out["terrain"] += 1
+	return out
 
 
 ## Instances drawn for one source, across chunks; `type` "" counts every type.

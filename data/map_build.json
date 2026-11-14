@@ -1,7 +1,8 @@
 {
 	"_placeholder": true,
 	"_todo": "OQ-MAP-CHUNK: chunk_size_m is a first guess for Shibi, not a design value; a Fold measurement decides it.",
-	"chunk_size_m": 50,
+	"_note": "M2P1C stop 3: 100 m (was 50) because it gave the fewest batches and the fewest batches in range from the centre and a corner on both maps (tests/test_map_cull.gd CHUNK_SIZE lines) and tiles 300 m and 1 km exactly; the costs are a ~71 m batch radius added to every range end and 20000-triangle terrain chunks.",
+	"chunk_size_m": 100,
 	"terrain": {
 		"_placeholder": true,
 		"_todo": "OQ-MAP-TERRAIN: off is a first guess, not measured; each casting terrain chunk costs a shadow draw per split on the phone, so a Fold measurement decides it.",
@@ -10,9 +11,9 @@
 	"proxy_limits": {
 		"_placeholder": true,
 		"_todo": "OQ-MAP-PROXY: placeholder limits on tree counts (MapChunks.proxies), not measured frame cost; a Fold measurement decides them.",
-		"_note": "Each limit is the larger of the two maps' measured values (alesia_section, test_300; measured after stop 6, the decor looks batched per chunk, chunk_size_m 50) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
-		"per_chunk": {"multimesh": 30, "mesh_instances": 9, "materials": 2, "bodies": 95},
-		"per_map": {"multimesh": 700, "mesh_instances": 150, "materials": 30, "bodies": 850}
+		"_note": "Each limit is the larger of the two maps' measured values (alesia_section, test_300; measured at M2P1C stop 3, chunk_size_m 100) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
+		"per_chunk": {"multimesh": 60, "mesh_instances": 9, "materials": 2, "bodies": 150},
+		"per_map": {"multimesh": 450, "mesh_instances": 150, "materials": 30, "bodies": 850}
 	},
 	"classes": {
 		"_placeholder": true,

@@ -230,6 +230,109 @@ func test_a_collidable_class_below_the_floor_is_raised() -> void:
 	chunks.free()
 
 
+# --- M2P1C stop 3: chunk_size_m as the lever ---
+
+const EYE_M := 1.7
+const SIZES := [50.0, 75.0, 100.0]
+
+
+func test_visible_at_follows_the_renderer_rule() -> void:
+	var map := Node3D.new()
+	var builder := Node3D.new()
+	builder.name = "ArtBuilder"
+	map.add_child(builder)
+	(Engine.get_main_loop() as SceneTree).root.add_child(map)  # range_centre reads global transforms
+	var chunks := MapChunks.new()
+	chunks.name = "Chunks"
+	builder.add_child(chunks)
+	chunks.setup(0.0)
+	chunks.classes_override = {"sight_floor_m": 250.0, "margin_m": 0.0, "by_source": {"cover": "solid", "decor": "early", "ring": "never", "structure": "never"},
+			"list": {"solid": {"range_m": 100.0}, "early": {"range_m": 60.0}, "never": {"range_m": 0.0}}}
+	var box := BoxMesh.new()
+	box.size = Vector3(2, 2, 2)
+	var off := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	chunks.add("decor", "paving_0", box, null, off, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), false)
+	chunks.add("cover", "c", box, null, GeometryInstance3D.SHADOW_CASTING_SETTING_ON, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), true)
+	chunks.add("ring", "r", box, null, off, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), true)
+	chunks.build()
+	var radius := Vector3(2, 2, 2).length() * 0.5
+	var near := MapChunks.visible_at(map, Vector3(0, 1, 60.0 + radius - 0.01))
+	assert_eq(near["batches"], 3, "all three in range just inside the early end")
+	assert_eq([near["colliding"], near["non_colliding"], near["shadow"]], [2, 1, 1], "split by colliders and shadows")
+	var mid := MapChunks.visible_at(map, Vector3(0, 1, 60.0 + radius + 0.01))
+	assert_eq(mid["per_class"], {"solid": 1, "never": 1}, "the early batch ends at its end, measured from its AABB centre")
+	var far := MapChunks.visible_at(map, Vector3(0, 1, 5000.0))
+	assert_eq([far["batches"], far["batches_total"], far["per_class"]], [1, 3, {"never": 1}], "far away: only the never-culled batch (floor raised the solid one to 250 m)")
+	assert_eq(MapChunks.visible_at(map, Vector3(0, 1, 250.0 + radius - 0.01))["colliding"], 2, "the solid batch is drawn out to the floor")
+	map.free()
+
+
+func _match_count(node: Node, splits: int, out: Vector3i) -> Vector3i:
+	# The rules of tests/test_astra_perf.gd _count: x = draws (surfaces x (1 + shadow splits when casting)),
+	# y = the shadow part of x, z = triangles.
+	if node is GeometryInstance3D and node.is_visible_in_tree() and node.layers != 0:
+		var mesh: Mesh
+		var instances := 1
+		if node is MeshInstance3D:
+			mesh = node.mesh
+		elif node is MultiMeshInstance3D and node.multimesh != null:
+			mesh = node.multimesh.mesh
+			instances = node.multimesh.instance_count
+		elif node is CPUParticles3D:
+			mesh = node.mesh
+			instances = node.amount
+		if mesh != null:
+			var shadow := splits if node.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF else 0
+			out.x += mesh.get_surface_count() * (1 + shadow)
+			out.y += mesh.get_surface_count() * shadow
+			out.z += preload("res://tests/test_astra_perf.gd").triangles(mesh) * instances
+	for child in node.get_children():
+		out = _match_count(child, splits, out)
+	return out
+
+
+func _short(v: Dictionary) -> String:
+	return "%d/%d(col=%d,non=%d,shadow=%d) terrain=%d/%d" % [v["batches"], v["batches_total"], v["colliding"], v["non_colliding"], v["shadow"], v["terrain"], v["terrain_total"]]
+
+
+## Report only: chunk sizes 50, 75 and 100 m on both maps, through MapChunks.size_override_m (never the json).
+func test_chunk_size_report_only() -> void:
+	var perf := preload("res://tests/test_astra_perf.gd").new()
+	for size_m: float in SIZES:
+		for json_path: String in MAPS:
+			MapChunks.size_override_m = size_m
+			var label := _label(json_path)
+			var map := _build(json_path)
+			var chunks := map.get_node("ArtBuilder/Chunks") as MapChunks
+			assert_eq(chunks.chunk_size_m, size_m, label + ": the override sets the chunk size")
+			var proxies := MapChunks.proxies(map)
+			var pm: Dictionary = proxies["per_map"]
+			var pc: Dictionary = proxies["per_chunk"]
+			var per_batch_max := 0
+			for batch in chunks.batches():
+				per_batch_max = maxi(per_batch_max, batch.multimesh.instance_count)
+			var terrain_tris := 0
+			var terrain := map.get_node_or_null("ArtBuilder/Terrain")
+			if terrain != null:
+				for mi: MeshInstance3D in terrain.find_children("*", "MeshInstance3D", true, false):
+					terrain_tris = maxi(terrain_tris, preload("res://tests/test_astra_perf.gd").triangles(mi.mesh))
+			var centre := MapChunks.visible_at(map, Vector3(0, EYE_M, 0))
+			var corner := MapChunks.visible_at(map, Vector3(-chunks.half_m, EYE_M, -chunks.half_m))
+			var per_side := chunks.per_side
+			map.free()
+			var setup: Array = await perf._full_match(json_path)
+			var match_scene: MatchRoot = setup[0]
+			var counts := _match_count(match_scene, setup[1], Vector3i.ZERO)
+			match_scene.free()
+			MapChunks.size_override_m = 0.0
+			print("CHUNK_SIZE map=%s size_m=%d per_side=%d chunks=%d batches=%d instances=%d per_batch=%.2f max=%d draw=%d shadow=%d tris=%d centre=%s corner=%s per_chunk_max=mm%d,mi%d,mat%d,bodies%d per_map=mm%d,mi%d,mat%d,bodies%d terrain_tris_per_chunk=%d" % [
+					label, int(size_m), per_side, pm["chunks"], pm["batches"], pm["batch_instances"], float(pm["batch_instances"]) / maxf(1.0, float(pm["batches"])), per_batch_max,
+					counts.x, counts.y, counts.z, _short(centre), _short(corner), pc["multimesh"], pc["mesh_instances"], pc["materials"], pc["bodies"],
+					pm["multimesh"], pm["mesh_instances"], pm["materials"], pm["bodies"], terrain_tris])
+	MapChunks.size_override_m = 0.0
+	failures.append_array(perf.failures)
+
+
 func test_early_classes_end_before_the_floor() -> void:
 	var floor_m := float(_classes()["sight_floor_m"])
 	for json_path: String in MAPS:
