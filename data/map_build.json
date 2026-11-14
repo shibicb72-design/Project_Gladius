@@ -22,7 +22,12 @@
 		"_todo": "OQ-MAP-PROXY: placeholder limits on tree counts (MapChunks.proxies), not measured frame cost; a Fold measurement decides them.",
 		"_note": "Each limit is the larger of the two maps' measured values (alesia_section, test_300; measured at M2P1C stop 3, chunk_size_m 100) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
 		"per_chunk": {"multimesh": 60, "mesh_instances": 9, "materials": 2, "bodies": 150},
-		"per_map": {"multimesh": 450, "mesh_instances": 150, "materials": 30, "bodies": 850}
+		"per_map": {"multimesh": 450, "mesh_instances": 150, "materials": 30, "bodies": 850},
+		"_visible_note": "M2P1C stop 8: limits on the visible-at-a-point counts (MapChunks.visible_proxies: batches whose visibility range covers the point, and the shadow casters among them) from the two standard points (MapChunks.standard_points: the play centre and the ground corner, at eye height). Same rule: the larger of the two maps' measured values (alesia_section 83/36 from both points; test_300 centre 284/136, corner 237/119; measured at M2P1C stop 8, chunk_size_m 100) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
+		"visible": {
+			"centre": {"batches": 450, "shadow": 250},
+			"corner": {"batches": 400, "shadow": 200}
+		}
 	},
 	"classes": {
 		"_placeholder": true,

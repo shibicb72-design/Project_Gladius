@@ -182,8 +182,10 @@ static func _is_num(value: Variant) -> bool:
 
 
 ## M2P1B: the rules of a map's "terrain" block (MapTerrain reads it; for_map returns null on any problem).
-## `def` is the whole map definition, for the ground_size_m cross-check.
-static func validate_terrain(terrain: Variant, def: Dictionary = {}) -> PackedStringArray:
+## `def` is the whole map definition, for the ground_size_m cross-check. M2P1C: `read_heights` also reads a
+## heights file and checks its grid against the block (MapTerrain.heights_file_problem); MapTerrain.from_block
+## passes false because it reads the file itself.
+static func validate_terrain(terrain: Variant, def: Dictionary = {}, read_heights := true) -> PackedStringArray:
 	var problems := PackedStringArray()
 	if typeof(terrain) != TYPE_DICTIONARY:
 		problems.append("map terrain must be a dictionary")
@@ -217,6 +219,10 @@ static func validate_terrain(terrain: Variant, def: Dictionary = {}) -> PackedSt
 				problems.append("terrain heights file path must be a .json or .res string")
 			elif not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
 				problems.append("terrain heights file '%s' does not exist" % path)
+			elif read_heights and _is_num(size) and _is_num(res) and float(size) > 0.0 and float(res) > 0.0:
+				var grid := MapTerrain.heights_file_problem(String(path), float(size), float(res))
+				if grid != "":
+					problems.append(grid)
 		"generated":
 			if not _is_num(source.get("seed")):
 				problems.append("terrain generated source needs a numeric seed")

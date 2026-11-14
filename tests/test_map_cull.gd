@@ -288,7 +288,6 @@ func test_a_collidable_class_below_the_floor_is_raised() -> void:
 
 # --- M2P1C stop 3: chunk_size_m as the lever ---
 
-const EYE_M := 1.7
 const SIZES := [50.0, 75.0, 100.0]
 
 
@@ -396,8 +395,9 @@ func test_chunk_size_report_only() -> void:
 			if terrain != null:
 				for mi: MeshInstance3D in terrain.find_children("*", "MeshInstance3D", true, false):
 					terrain_tris = maxi(terrain_tris, preload("res://tests/test_astra_perf.gd").triangles(mi.mesh))
-			var centre := MapChunks.visible_at(map, Vector3(0, EYE_M, 0))
-			var corner := MapChunks.visible_at(map, Vector3(-chunks.half_m, EYE_M, -chunks.half_m))
+			var visible := MapChunks.visible_proxies(map)  # stop 8: the standard points, defined once
+			var centre: Dictionary = visible["centre"]
+			var corner: Dictionary = visible["corner"]
 			var per_side := chunks.per_side
 			map.free()
 			var setup: Array = await perf._full_match(json_path)
@@ -481,8 +481,9 @@ func test_far_terrain_pairs_on_test_300() -> void:
 		near_total += nt
 		assert_true(ft > 0 and ft < nt, tag + ": far is cheaper")
 		lines.append("%s near_tris=%d far_tris=%d" % [chunk.name, nt, ft])
-	var centre := MapChunks.visible_at(map, Vector3(0, EYE_M, 0))
-	var corner := MapChunks.visible_at(map, Vector3(-chunks.half_m, EYE_M, -chunks.half_m))
+	var visible := MapChunks.visible_proxies(map)
+	var centre: Dictionary = visible["centre"]
+	var corner: Dictionary = visible["corner"]
 	assert_true(int(corner["terrain_far"]) > 0, "the swap happens on test_300 (from the corner)")
 	assert_eq(int(corner["terrain"]), chunks.per_side * chunks.per_side, "every chunk drawn from the corner, near or far")
 	print("TERRAIN_LOD far_step_m=%s far_swap_m=%s %s" % [cfg["far_step_m"], cfg["far_swap_m"], " ".join(lines)])
@@ -522,3 +523,82 @@ func test_early_classes_end_before_the_floor() -> void:
 				early += 1
 		assert_true(early > 0, _label(json_path) + ": some looks without colliders end before the sight floor")
 		map.free()
+
+
+# --- M2P1C stop 8: the proxies at the committed head (report only) ---
+
+## Geometry nodes under `node` (itself included): x = MeshInstance3D, y = MultiMeshInstance3D, z = particles.
+static func _geometry_nodes(node: Node) -> Vector3i:
+	var out := Vector3i.ZERO
+	if node == null:
+		return out
+	var stack: Array[Node] = [node]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D:
+			out.x += 1
+		elif n is MultiMeshInstance3D:
+			out.y += 1
+		elif n is CPUParticles3D or n is GPUParticles3D:
+			out.z += 1
+		stack.append_array(n.get_children())
+	return out
+
+
+func _share(label: String, node: Node, splits: int) -> String:
+	var nodes := _geometry_nodes(node)
+	var c := _match_count(node, splits, Vector3i.ZERO) if node != null else Vector3i.ZERO
+	return "%s=mi%d,mm%d,particles%d(draw=%d,shadow=%d)" % [label, nodes.x, nodes.y, nodes.z, c.x, c.y]
+
+
+## Report only, one P1C_PROXY line per map at the committed head: the 18-player draw proxy and its shadow part
+## (tests/test_astra_perf.gd's counting; the shadow part counts every caster once per split while
+## shadow_max_distance_m limits the real shadows, so it is a proxy), the map's batches and chunks, the batches
+## and terrain in range from the standard points (MapChunks.visible_proxies), and the shares outside the chunks:
+## the backdrop, the world ambient and the soldiers (each pawn's subtree: model, weapon, shot FX).
+func test_p1c_proxy_report_only() -> void:
+	var perf := preload("res://tests/test_astra_perf.gd").new()
+	for json_path: String in MAPS:
+		var label := _label(json_path)
+		var map := _build(json_path)
+		var pm: Dictionary = MapChunks.proxies(map)["per_map"]
+		var visible := MapChunks.visible_proxies(map)
+		map.free()
+		var setup: Array = await perf._full_match(json_path)
+		var match_scene: MatchRoot = setup[0]
+		var splits: int = setup[1]
+		var total := _match_count(match_scene, splits, Vector3i.ZERO)
+		var builder := match_scene.map.get_node("ArtBuilder")
+		var looks := _match_count(builder.get_node("Chunks"), splits, Vector3i.ZERO)
+		var terrain := builder.get_node_or_null("Terrain")
+		var ground := _match_count(terrain, splits, Vector3i.ZERO) if terrain != null else Vector3i.ZERO
+		var pawns: Array = match_scene.director.all_players().values()
+		var soldiers := Vector3i.ZERO
+		var first := Vector3i.ZERO
+		var spread := {}  # draws of one pawn -> pawns with that count
+		for pawn: Pawn in pawns:
+			var c := _match_count(pawn, splits, Vector3i.ZERO)
+			soldiers += c
+			first = c if first == Vector3i.ZERO else first
+			spread[c.x] = int(spread.get(c.x, 0)) + 1
+		var pawn_nodes := _geometry_nodes(pawns[0] if not pawns.is_empty() else null)
+		var backdrop := builder.get_node_or_null("Backdrop")
+		var ambient := builder.get_node_or_null("Ambient")
+		var outside := Vector3i.ZERO
+		for node: Node in [backdrop, ambient]:
+			if node != null:
+				outside += _match_count(node, splits, Vector3i.ZERO)
+		var rest := total - looks - ground - soldiers - outside
+		var shares := "%s %s" % [_share("backdrop", backdrop, splits), _share("ambient", ambient, splits)]
+		match_scene.free()
+		assert_true(total.x > 0 and soldiers.x > 0 and int(pm["batches"]) > 0, label + ": nonvacuous")
+		var line := "P1C_PROXY map=%s proxy, not measured: draw=%d shadow_proxy=%d batches=%d chunks=%d" % [label, total.x, total.y, pm["batches"], pm["chunks"]]
+		for point: String in ["centre", "corner"]:
+			var v: Dictionary = visible[point]
+			line += " %s=%d/%d(col=%d,non=%d,shadow=%d) %s_terrain=%d/%d(near=%d,far=%d,tris=%d)" % [point, v["batches"], v["batches_total"], v["colliding"],
+					v["non_colliding"], v["shadow"], point, v["terrain"], v["terrain_total"], v["terrain_near"], v["terrain_far"], v["terrain_tris"]]
+		line += " chunk_looks(draw=%d,shadow=%d) terrain(draw=%d,shadow=%d) %s soldiers=%d(draw=%d,shadow=%d,tris=%d) per_soldier=mi%d,mm%d,particles%d(draw=%d,shadow=%d) per_soldier_draws=%s rest(draw=%d,shadow=%d)" % [
+				looks.x, looks.y, ground.x, ground.y, shares,
+				pawns.size(), soldiers.x, soldiers.y, soldiers.z, pawn_nodes.x, pawn_nodes.y, pawn_nodes.z, first.x, first.y, str(spread), rest.x, rest.y]
+		print(line)
+	failures.append_array(perf.failures)

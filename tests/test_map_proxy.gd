@@ -105,3 +105,62 @@ func test_per_map_counts_agree_with_a_recount_on_alesia() -> void:
 		assert_eq(int(counts[key]), int(recount[key]), "alesia per-map %s agrees with the recount" % key)
 	assert_eq(int(counts["batch_instances"]), instances, "alesia batch instances agree with the recount")
 	assert_true(int(counts["multimesh"]) > 0 and int(counts["mesh_instances"]) > 0 and int(counts["bodies"]) > 0, "nonvacuous recount")
+
+
+# --- M2P1C stop 8: visible-at-a-point counts (MapChunks.visible_proxies) against proxy_limits "visible" ---
+
+const POINTS := ["centre", "corner"]
+const VISIBLE_KEYS := ["batches", "shadow"]
+
+
+func test_visible_limits_are_placeholders_from_data() -> void:
+	var limits := _limits()
+	var visible: Dictionary = limits.get("visible", {})
+	assert_true(String(limits.get("_visible_note", "")).contains("times 1.5"), "the visible limits state their rule")
+	for point: String in POINTS:
+		for key: String in VISIBLE_KEYS:
+			assert_true(int((visible.get(point, {}) as Dictionary).get(key, 0)) > 0, "a visible %s limit for %s" % [point, key])
+
+
+func test_standard_points_are_the_centre_and_the_ground_corner() -> void:
+	for id: String in MAPS:
+		var map := _build(MAPS[id])
+		var half := (map.get_node("ArtBuilder/Chunks") as MapChunks).half_m
+		var points := MapChunks.standard_points(map)
+		map.free()
+		assert_true(half > 0.0, id + ": the map has a ground")
+		assert_eq(points["centre"], Vector3(0.0, MapChunks.EYE_M, 0.0), id + ": the centre is the origin at eye height")
+		assert_eq(points["corner"], Vector3(-half, MapChunks.EYE_M, -half), id + ": the corner is the ground corner at eye height")
+
+
+func test_visible_counts_within_limits_on_both_maps() -> void:
+	var limits: Dictionary = _limits()["visible"]
+	for id: String in MAPS:
+		var map := _build(MAPS[id])
+		var visible := MapChunks.visible_proxies(map)
+		map.free()
+		for point: String in POINTS:
+			var v: Dictionary = visible[point]
+			assert_true(int(v["batches"]) > 0 and int(v["shadow"]) > 0, "%s %s: nonvacuous" % [id, point])
+			assert_true(int(v["shadow"]) <= int(v["batches"]) and int(v["batches"]) <= int(v["batches_total"]), "%s %s: shadow casters among the batches in range" % [id, point])
+		var problems := MapChunks.visible_problems(visible, limits)
+		assert_true(problems.is_empty(), "%s: within the visible limits: %s" % [id, "; ".join(problems)])
+		print("MAP_VISIBLE map=", id, " proxy, not measured: centre batches=", visible["centre"]["batches"], " shadow=", visible["centre"]["shadow"],
+				" corner batches=", visible["corner"]["batches"], " shadow=", visible["corner"]["shadow"], " of ", visible["centre"]["batches_total"])
+
+
+func test_visible_limit_check_fails_when_a_limit_is_exceeded() -> void:
+	var map := _build(MAPS["test_300"])
+	var visible := MapChunks.visible_proxies(map)
+	map.free()
+	var limits: Dictionary = _limits()["visible"]
+	assert_true(MapChunks.visible_problems(visible, limits).is_empty(), "the real limits pass")
+	for point: String in POINTS:
+		for key: String in VISIBLE_KEYS:
+			var tight := limits.duplicate(true)
+			tight[point][key] = 0
+			var problems := MapChunks.visible_problems(visible, tight)
+			assert_eq(problems.size(), 1, "%s %s set to 0 gives one problem" % [point, key])
+			assert_true(problems.size() == 1 and problems[0].contains(point) and problems[0].contains(key), "the problem names the point and count")
+	assert_eq(MapChunks.visible_problems(visible, {"centre": {"no_such_count": 1}}).size(), 1, "a limit without a count is a problem")
+	assert_eq(MapChunks.visible_problems(visible, {"roof": {"batches": 1}}).size(), 1, "a limit at an unknown point is a problem")

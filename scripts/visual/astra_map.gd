@@ -123,6 +123,12 @@ func _ready() -> void:
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
 
 
+## M2P1C: the map leaves the tree (match end, a test or tool freeing it): MapTerrain's cache drops its terrain
+## (heights, per-sample positions and normals, chunk meshes: megabytes on test_300). This builder keeps its own `terrain` reference; the next for_map regenerates.
+func _exit_tree() -> void:
+	MapTerrain.clear_cache()
+
+
 ## S2: the ground's blend material. The paint map comes from the map data (landmarks, cover and structure
 ## positions); `ground_paint` and `ground_size_m` stay readable for the footstep sounds (GroundPaint.surface_at).
 var ground_paint: Image

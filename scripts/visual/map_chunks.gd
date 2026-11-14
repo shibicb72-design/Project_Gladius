@@ -279,6 +279,46 @@ static func visible_at(map: Node, point: Vector3) -> Dictionary:
 	return out
 
 
+## M2P1C stop 8: the camera height of the standard points (a standing soldier's eye above the ground).
+const EYE_M := 1.7
+
+
+## M2P1C stop 8: the two standard points of the visible-at-a-point proxies, defined once: "centre" = the play
+## centre (the origin at eye height), "corner" = the ground corner (-half, -half) at eye height (the terrain is
+## 0 at the ground's rim: edge_blend_m). Without a ground (one chunk) the corner is the centre.
+static func standard_points(map: Node) -> Dictionary:
+	var chunks := map.get_node_or_null("ArtBuilder/Chunks") as MapChunks
+	var half := chunks.half_m if chunks != null else 0.0
+	return {"centre": Vector3(0.0, EYE_M, 0.0), "corner": Vector3(-half, EYE_M, -half)}
+
+
+## M2P1C stop 8: visible_at from each standard point: {"centre": {..}, "corner": {..}}.
+static func visible_proxies(map: Node) -> Dictionary:
+	var points := standard_points(map)
+	var out := {}
+	for point_name: String in points:
+		out[point_name] = visible_at(map, points[point_name])
+	return out
+
+
+## M2P1C stop 8: every visible-at-a-point count (from visible_proxies) above its limit in `limits`
+## (data/map_build.json proxy_limits "visible": {"centre": {"batches": n, "shadow": n}, "corner": {..}}), one
+## line each; a limited point or count missing from `visible` is a problem too. Empty: all within limits.
+static func visible_problems(visible: Dictionary, limits: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	for point: String in limits:
+		if point.begins_with("_"):
+			continue
+		var wanted: Dictionary = limits[point]
+		var have: Dictionary = visible.get(point, {})
+		for key: String in wanted:
+			if not have.has(key):
+				problems.append("visible %s %s: no count" % [point, key])
+			elif int(have[key]) > int(wanted[key]):
+				problems.append("visible %s %s=%d over the limit %d" % [point, key, int(have[key]), int(wanted[key])])
+	return problems
+
+
 ## M2P1C: whether `node` is drawn for a camera at `point` by the renderer's rule (stop 1): d = distance from
 ## the point to the centre of its world AABB (custom_aabb when set); end 0 or d <= end, and begin 0 or
 ## d >= begin. Margins (hysteresis) ignored.

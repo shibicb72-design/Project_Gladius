@@ -30,7 +30,11 @@ static var _indices := {}  # Vector3i(nx, nz, diagonal) -> PackedInt32Array
 
 
 ## The terrain of a map definition, or null when it has no valid "terrain" block. Cached on the block's
-## content (a file source also on the file's modified time).
+## content (a file source also on the file's modified time). M2P1C: the cache holds at most one map's terrain
+## (a new key drops the others) and clear_cache() empties it (the map builder calls it when it leaves the tree,
+## at match end). A dropped entry only costs a regeneration: a caller holding a MapTerrain keeps it, and the
+## same block always builds the same heights. A "terrain" block that gives no terrain logs one error (the map
+## would load with no ground); load_problem() gives the same text quietly.
 static func for_map(map_def: Dictionary) -> MapTerrain:
 	var block: Variant = map_def.get("terrain")
 	if typeof(block) != TYPE_DICTIONARY:
@@ -40,14 +44,38 @@ static func for_map(map_def: Dictionary) -> MapTerrain:
 	if typeof(source) == TYPE_DICTIONARY and str(source.get("type", "")) == "file":
 		key += "|" + str(FileAccess.get_modified_time(str(source.get("path", ""))))
 	if not _cache.has(key):
-		_cache[key] = from_block(block, map_def)
+		_cache.clear()
+		var built := from_block(block, map_def)
+		if built == null:
+			push_error(load_problem(map_def))
+		_cache[key] = built
 	return _cache[key]
 
 
+## M2P1C: the error for_map logs when a map's "terrain" block gives no terrain ("" when it builds or there is
+## no block). Quiet, for tests and tools.
+static func load_problem(map_def: Dictionary) -> String:
+	var block: Variant = map_def.get("terrain")
+	if typeof(block) != TYPE_DICTIONARY or from_block(block, map_def) != null:
+		return ""
+	var problems := DataRegistry.validate_terrain(block, map_def)
+	return "MapTerrain: map '%s' terrain gives no ground: %s" % [str(map_def.get("id", "?")), "; ".join(problems) if not problems.is_empty() else "the heights do not fit the block"]
+
+
+## M2P1C: drops every cached terrain (see for_map).
+static func clear_cache() -> void:
+	_cache.clear()
+
+
+## M2P1C: how many terrains the cache holds (0 or 1).
+static func cached_count() -> int:
+	return _cache.size()
+
+
 ## Uncached build from a "terrain" block; null when DataRegistry.validate_terrain reports a problem or the
-## heights file does not fit the block.
+## heights file does not fit the block. Quiet (no error logged).
 static func from_block(block: Variant, map_def: Dictionary = {}) -> MapTerrain:
-	if not DataRegistry.validate_terrain(block, map_def).is_empty():
+	if not DataRegistry.validate_terrain(block, map_def, false).is_empty():  # the heights file is read below
 		return null
 	var t := MapTerrain.new()
 	t.size_m = float(block["size_m"])
@@ -474,6 +502,18 @@ static func save_heights(terrain: MapTerrain, path: String) -> Error:
 
 ## The heights in a saved file, or empty when it is unreadable or its grid differs from `t`'s.
 static func _load_heights(path: String, t: MapTerrain) -> PackedFloat32Array:
+	var read := _read_heights(path, t.size_m, t.resolution_m)
+	return read["data"] if String(read["problem"]).is_empty() else PackedFloat32Array()
+
+
+## M2P1C: what is wrong with a heights file for a block of `size_m` and `resolution_m` ("" = it fits): unreadable,
+## its own size_m / resolution_m differ, or its sample count is not ((size_m / resolution_m) + 1) squared. Quiet:
+## no error is logged (DataRegistry.validate_terrain reports it; for_map logs it when a map's terrain fails).
+static func heights_file_problem(path: String, size_m: float, resolution_m: float) -> String:
+	return String(_read_heights(path, size_m, resolution_m)["problem"])
+
+
+static func _read_heights(path: String, size_m: float, resolution_m: float) -> Dictionary:
 	var size: Variant
 	var res: Variant
 	var data := PackedFloat32Array()
@@ -481,18 +521,22 @@ static func _load_heights(path: String, t: MapTerrain) -> PackedFloat32Array:
 		var def := DataRegistry.parse_quiet(path)
 		size = def.get("size_m")
 		res = def.get("resolution_m")
-		if typeof(def.get("heights")) == TYPE_ARRAY:
-			data = PackedFloat32Array(def["heights"])
+		if typeof(def.get("heights")) != TYPE_ARRAY:
+			return {"data": data, "problem": "terrain heights file '%s' has no heights array" % path}
+		data = PackedFloat32Array(def["heights"])
 	else:
 		var shape := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as HeightMapShape3D
 		if shape == null:
-			return data
+			return {"data": data, "problem": "terrain heights file '%s' is not a HeightMapShape3D" % path}
 		size = shape.get_meta(&"size_m", 0.0)
 		res = shape.get_meta(&"resolution_m", 0.0)
 		data = shape.map_data
 	for value: Variant in [size, res]:
 		if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
-			return PackedFloat32Array()
-	if not is_equal_approx(float(size), t.size_m) or not is_equal_approx(float(res), t.resolution_m):
-		return PackedFloat32Array()
-	return data
+			return {"data": data, "problem": "terrain heights file '%s' has no numeric size_m and resolution_m" % path}
+	if not is_equal_approx(float(size), size_m) or not is_equal_approx(float(res), resolution_m):
+		return {"data": data, "problem": "terrain heights file '%s' is %s m at %s m, the block is %s m at %s m" % [path, str(size), str(res), str(size_m), str(resolution_m)]}
+	var samples := roundi(size_m / resolution_m) + 1
+	if data.size() != samples * samples:
+		return {"data": data, "problem": "terrain heights file '%s' has %d samples, the block's grid needs %d (%d x %d)" % [path, data.size(), samples * samples, samples, samples]}
+	return {"data": data, "problem": ""}
