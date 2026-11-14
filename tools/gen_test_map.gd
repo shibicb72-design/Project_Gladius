@@ -23,7 +23,7 @@ func _initialize() -> void:
 	var short := false
 	for key: String in targets:
 		short = short or float(counts[key]) < float(targets[key]) * (1.0 - float(gen["tolerance"]))
-	print("GEN_TEST_MAP seed=%d cover=%d ring=%d decor=%d structures=%d" % [int(gen["seed"]), counts["cover"], counts["ring"], counts["decor"], counts["structures"]])
+	print("GEN_TEST_MAP seed=%d cover=%d ring=%d decor=%d structures=%d ground_rejects=%d" % [int(gen["seed"]), counts["cover"], counts["ring"], counts["decor"], counts["structures"], int(out["ground_rejects"])])
 	quit(1 if short else 0)
 
 
@@ -64,6 +64,8 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		"half": half,
 		"placed": [] as Array[Rect2],
 		"spots": spots_of(map_def),
+		"terrain": MapTerrain.for_map(map_def),  # M2P1B: null on a flat map (no ground filter)
+		"ground_rejects": 0,
 	}
 	# Structures first: they are the largest. The round-robin list is ordered by ground area (largest first).
 	var kit_names := _sorted_keys(kit_types)
@@ -101,7 +103,7 @@ static func generate(map_def: Dictionary) -> Dictionary:
 			decor.append({"id": "Decor_%03d" % decor.size(), "kind": template["kind"], "size": (template["size"] as Array).duplicate(), "at": [spot[0].x, float(template["at"][1]), spot[0].y], "yaw": spot[1]})
 	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring, "decor": decor}
 	var structure_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": structures}
-	return {"cover": cover_file, "structures": structure_file}
+	return {"cover": cover_file, "structures": structure_file, "ground_rejects": int(state["ground_rejects"])}
 
 
 ## Spawn spots sorted by id, on the ground plane (x, z).
@@ -146,8 +148,8 @@ static func _place_cover(state: Dictionary, id_format: String, names: Array, typ
 
 ## Rejection sampling: up to max_attempts snapped candidates in `area` (yaw in steps of `yaw_step`, 0 = none). A
 ## candidate's footprint must lie inside `area` and inside the ground less the edge margin, must not touch
-## `keep_out`, must keep the minimum gap from every footprint placed so far and the spawn and lane clearances.
-## Returns [Vector2 at, float yaw] and records the footprint, or null.
+## `keep_out`, must keep the minimum gap from every footprint placed so far and the spawn and lane clearances,
+## and must stand on fit ground (ground_fits). Returns [Vector2 at, float yaw] and records the footprint, or null.
 static func _place(state: Dictionary, area: Rect2, footprint: Callable, yaw_step: float, keep_out: Rect2) -> Variant:
 	var rng: RandomNumberGenerator = state["rng"]
 	var gen: Dictionary = state["gen"]
@@ -171,6 +173,9 @@ static func _place(state: Dictionary, area: Rect2, footprint: Callable, yaw_step
 			continue
 		if not _clear(rect, spots, spawn_clear, lane_clear):
 			continue
+		if not ground_fits(state["terrain"], at, rect):
+			state["ground_rejects"] = int(state["ground_rejects"]) + 1
+			continue
 		var free := true
 		for other in placed:
 			if WorldRing.rect_gap(rect, other) < gap:
@@ -180,6 +185,24 @@ static func _place(state: Dictionary, area: Rect2, footprint: Callable, yaw_step
 			placed.append(rect)
 			return [at, yaw]
 	return null
+
+
+## M2P1B: true when a piece at `at` with footprint `rect` can stand on `terrain` (always on a flat map): the slope
+## at its origin and at every footprint corner is at most max_piece_slope_deg, and no corner's ground is more
+## than max_piece_float_m above or below the ground at its origin (the builder lifts a piece by that origin height,
+## so a corner would otherwise float or sink).
+static func ground_fits(terrain: MapTerrain, at: Vector2, rect: Rect2) -> bool:
+	if terrain == null:
+		return true
+	if terrain.slope_deg_at(at.x, at.y) > terrain.max_piece_slope_deg:
+		return false
+	var origin := terrain.height_at(at.x, at.y)
+	for corner: Vector2 in [rect.position, Vector2(rect.end.x, rect.position.y), Vector2(rect.position.x, rect.end.y), rect.end]:
+		if terrain.slope_deg_at(corner.x, corner.y) > terrain.max_piece_slope_deg:
+			return false
+		if absf(terrain.height_at(corner.x, corner.y) - origin) > terrain.max_piece_float_m:
+			return false
+	return true
 
 
 ## True when `rect` keeps `spawn_clear` from every spot and `lane_clear` from the line between neighbouring spots

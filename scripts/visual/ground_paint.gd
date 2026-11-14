@@ -9,13 +9,20 @@ extends RefCounted
 static var _cache := {}
 
 
+## M2P1B: the paint's width in pixels for a ground `map_size_m` wide: the same detail per metre on every map
+## size, capped so a large map's image stays small (art_materials.json "ground" paint_px_per_m, paint_px_cap).
+static func px_for(map_size_m: float) -> int:
+	var g: Dictionary = WorldSurface.config()["ground"]
+	return maxi(1, mini(roundi(map_size_m * float(g["paint_px_per_m"])), int(g["paint_px_cap"])))
+
+
 ## The paint image for a square map `map_size_m` wide centred on the origin. `landmarks` = [{at: [x, z]}, ...],
 ## `trodden` = points (x, z) that wear the grass away (cover and structures). Cached by `key`.
 static func build(key: String, map_size_m: float, landmarks: Array, trodden: PackedVector2Array) -> Image:
 	if _cache.has(key):
 		return _cache[key]
 	var g: Dictionary = WorldSurface.config()["ground"]
-	var px := int(g["map_px"])
+	var px := px_for(map_size_m)
 	var metres := map_size_m / float(px)
 	var citadel := float(g["citadel_paving_m"])
 	var plaza := float(g["landmark_paving_m"])

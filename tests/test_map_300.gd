@@ -151,15 +151,17 @@ func test_scene_layout_and_body_counts() -> void:
 		assert_true(markers.has(id) and markers[id].position.distance_to(Vector3(p[0], p[1], p[2])) < 0.05, "marker and position of " + id)
 	assert_eq(scene.get_node("ArtBuilder").get("map_json"), MatchRoot.MAP_PATH, "the scene names no map of its own: whoever loads it sets map_json (review B1)")
 	var ground := scene.get_node("Nav/Ground") as StaticBody3D
-	var mesh_size := ((ground.get_node("Mesh") as MeshInstance3D).mesh as BoxMesh).size
-	var shape_size := ((ground.get_node("Shape") as CollisionShape3D).shape as BoxShape3D).size
-	assert_eq(mesh_size, Vector3(300, 1, 300), "ground mesh 300 x 1 x 300")
-	assert_eq(shape_size, Vector3(300, 1, 300), "ground shape 300 x 1 x 300")
-	assert_true(is_zero_approx(ground.position.y + shape_size.y * 0.5), "ground top at y = 0")
+	assert_true(ground != null and ground.transform == Transform3D.IDENTITY and ground.get_child_count() == 0, "the unbuilt ground is an empty StaticBody3D at the origin")
 	assert_eq(scene.get_node("Nav").get_child_count(), 1, "no scene walls: Nav holds only the ground")
 	scene.free()
 	var map := _build(String(def["scene"]))
 	var builder := map.get_node("ArtBuilder")
+	# M2P1B: the builder fills the ground with the terrain's height map, 300 m across, y = 0 at the origin.
+	var height_map := (map.get_node("Nav/Ground/Shape") as CollisionShape3D).shape as HeightMapShape3D
+	var terrain: MapTerrain = builder.terrain
+	assert_true(height_map != null and height_map.map_width == terrain.samples and height_map.map_depth == terrain.samples and terrain.samples == 301, "ground shape is a 301 x 301 height map")
+	assert_eq((terrain.samples - 1) * terrain.resolution_m, float(def["terrain"]["size_m"]), "the height map spans the data's 300 m")
+	assert_true(is_zero_approx(terrain.height_at(0.0, 0.0)), "ground at y = 0 at the origin")
 	var cover := DataRegistry.parse_quiet(String(def["cover_data"]))
 	var structures := DataRegistry.parse_quiet(String(def["structure_data"]))
 	assert_eq(builder.cover_bodies.size(), (cover["pieces"] as Array).size(), "one cover body per piece")
@@ -183,7 +185,7 @@ func test_chunks_on_test_300() -> void:
 	var chunks := map.get_node("ArtBuilder/Chunks") as MapChunks
 	var builder := map.get_node("ArtBuilder")
 	var size := float(MapChunks.config()["chunk_size_m"])
-	var ground_size := (map.get_node("Nav/Ground/Mesh") as MeshInstance3D).get_aabb().size.x
+	var ground_size := float(builder.ground_size_m)
 	assert_eq(chunks.per_side, ceili(ground_size / size), "chunks per side from the data")
 	if is_equal_approx(size, 50.0):
 		assert_eq(chunks.per_side, 6, "300 m in 50 m chunks")
@@ -357,7 +359,8 @@ func test_map_selection_with_a_second_map() -> void:
 func _ground_of(scene_path: String) -> Dictionary:
 	var map := _build(scene_path)
 	var builder := map.get_node("ArtBuilder")
-	var material := (map.get_node("Nav/Ground/Mesh") as MeshInstance3D).material_override as ShaderMaterial
+	var look := "ArtBuilder/Terrain/Chunk_0_0/Mesh" if builder.terrain != null else "Nav/Ground/Mesh"
+	var material := (map.get_node(look) as MeshInstance3D).material_override as ShaderMaterial
 	var out := {"size": float(material.get_shader_parameter("map_size_m")), "builder_size": float(builder.ground_size_m), "material": material, "image": builder.ground_paint}
 	map.free()
 	return out

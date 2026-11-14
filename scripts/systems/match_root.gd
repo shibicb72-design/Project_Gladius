@@ -16,6 +16,8 @@ const _RigScene := preload("res://scenes/player/camera_rig.tscn")
 ## Tests turn this off to override director config before calling begin().
 @export var auto_start: bool = true
 @export var bake_navmesh: bool = true
+## Runtime navigation bakes in begin(); 0 when the saved mesh was loaded (MapNav, data/maps/nav/).
+var nav_bakes := 0
 ## Fill empty squad slots with bots (data/bots.json match_fill). Existing tests turn it off.
 @export var fill_bots: bool = true
 
@@ -147,7 +149,14 @@ func begin() -> bool:
 	print("MatchRoot.begin: map load OK, scene non-null")
 	var nav := map.get_node_or_null("Nav") as NavigationRegion3D
 	if bake_navmesh and nav != null:
-		nav.bake_navigation_mesh(false)
+		# M2P1B: the saved mesh (tools/bake_nav.gd) when its manifest matches the data; else bake as before.
+		var saved := MapNav.load_fresh(map_path)
+		if saved != null:
+			nav.navigation_mesh = saved
+		else:
+			print("MatchRoot.begin: saved navigation for %s is missing or stale (%s); baking at match start" % [map_path, MapNav.last_reasons[0] if not MapNav.last_reasons.is_empty() else "unknown"])
+			nav.bake_navigation_mesh(false)
+			nav_bakes += 1
 
 	# Spawns face the zone start center (br.json zone.start_center, x/z).
 	var zc: Array = director.mode_cfg.get("zone", {}).get("start_center", [0, 0])

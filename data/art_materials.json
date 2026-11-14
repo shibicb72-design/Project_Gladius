@@ -89,7 +89,9 @@
 	},
 	"ground": {
 		"_note": "The ground is one blend of three tiles by a small map painted from the map data at load (scripts/visual/ground_paint.gd): paving around the citadel and the landmarks and on the roads, grass in the outer ring, trodden earth elsewhere. Colours are sRGB.",
-		"map_px": 256,
+		"_paint_note": "Placeholders (OQ-MAP-TERRAIN). The paint map's width is ground size x paint_px_per_m pixels, at most paint_px_cap. 1.6 px per metre reproduces alesia's 256 px on its 160 m ground exactly; the cap is a first guess.",
+		"paint_px_per_m": 1.6,
+		"paint_px_cap": 2048,
 		"earth_color": [0.42, 0.34, 0.26, 1.0],
 		"grass_color": [0.3, 0.4, 0.18, 1.0],
 		"grass_dry_color": [0.52, 0.46, 0.22, 1.0],

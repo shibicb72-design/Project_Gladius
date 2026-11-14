@@ -37,11 +37,13 @@ func _ready() -> void:
 	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
 	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
 	# runs once, after the decor loop.
+	ground_size_m = ground_size_of(map_def, nav)
 	chunks = MapChunks.new()
 	chunks.name = "Chunks"
 	add_child(chunks)
-	var ground := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
-	chunks.setup(ground.get_aabb().size.x if ground != null else 0.0)
+	chunks.setup(ground_size_m)
+	# M2P1B: resolved before the pieces so each stands on the ground under its origin (lifted()).
+	terrain = MapTerrain.for_map(map_def)
 	for entry: Dictionary in cfg["pieces"]:
 		var definition: Dictionary = cfg["types"][entry["type"]]
 		var body := StaticBody3D.new()
@@ -51,7 +53,7 @@ func _ready() -> void:
 		body.collision_mask = 0
 		if bool(definition.get("coverable", false)):
 			body.add_to_group(&"cover_wall")
-		body.position = LowpolyKit.vec(entry["at"])
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
 		chunks.add("cover", String(entry["type"]), meshes[entry["type"]], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
@@ -78,7 +80,7 @@ func _ready() -> void:
 			mesh.rotation.y = PI * 0.5
 	# W1: world kit pieces come after the loop above, which takes every other Nav child for a one-box wall.
 	# They are bodies in group "structure" (never cover_wall); their look is one batch per chunk and type.
-	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def))
+	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def), terrain)
 	_build_ring(nav, cfg, meshes)
 	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
 	# M2P1A: the decor looks draw as one batch per chunk, kind and size (source "decor", type "<kind>_<n>", see
@@ -96,21 +98,23 @@ func _ready() -> void:
 			size_counts[kind] = int(size_index[key]) + 1
 		var type := "%s_%d" % [kind, int(size_index[key])]
 		decor_types[String(entry["id"])] = type
-		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), LowpolyKit.vec(entry["at"]))
+		var at := LowpolyKit.vec(entry["at"])
+		var lift := lifted(at).y - at.y
+		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), lifted(at))
 		chunks.add("decor", type, meshes[key], null, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, xform)
 		if decor_solid.has(entry["kind"]):
-			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key])
+			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
 			decor_bodies.append(solid)
 	chunks.build()
 	_paint_ground(nav)
+	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	if bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false)):
 		var backdrop := Backdrop.new()
 		backdrop.name = "Backdrop"
 		add_child(backdrop)
-		var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
-		backdrop.build(ground_mesh.material_override if ground_mesh != null else null)
+		backdrop.build(ground_material)
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
@@ -122,12 +126,35 @@ func _ready() -> void:
 ## positions); `ground_paint` and `ground_size_m` stay readable for the footstep sounds (GroundPaint.surface_at).
 var ground_paint: Image
 var ground_size_m := 0.0
+## M2P1B: the ground's material (flat ground mesh, terrain chunks and the backdrop's skirt); null without a ground.
+var ground_material: ShaderMaterial
+## M2P1B: the map's height field (map json "terrain"); null on a flat map (alesia).
+var terrain: MapTerrain
 
+
+## M2P1B: a piece's file position raised by the terrain height under its origin (x, z); the piece files keep
+## their y (half the height, or the template y, over flat ground). Unchanged on a flat map.
+func lifted(at: Vector3) -> Vector3:
+	return at if terrain == null else at + Vector3(0.0, terrain.height_at(at.x, at.z), 0.0)
+
+
+## M2P1B: the square ground's width in metres, one value for the chunk grid, the paint and the footsteps.
+## Data first ("terrain"."size_m", then "ground_size_m"); a map json without either (alesia, read-only) keeps
+## the old source, the AABB of Nav/Ground/Mesh; no ground at all is 0.
+static func ground_size_of(map_def: Dictionary, nav: Node) -> float:
+	var terrain: Variant = map_def.get("terrain")
+	if typeof(terrain) == TYPE_DICTIONARY and (terrain as Dictionary).has("size_m"):
+		return float(terrain["size_m"])
+	if map_def.has("ground_size_m"):
+		return float(map_def["ground_size_m"])
+	var ground := (nav.get_node_or_null("Ground/Mesh") as MeshInstance3D) if nav != null else null
+	return ground.get_aabb().size.x if ground != null else 0.0
+
+
+## Paints from the data size (no ground mesh needed); the material goes on Nav/Ground/Mesh when it exists.
 func _paint_ground(nav: Node) -> void:
-	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
-	if ground_mesh == null:
+	if ground_size_m <= 0.0:
 		return
-	ground_size_m = ground_mesh.get_aabb().size.x
 	var map_def := DataRegistry.new().load_file(map_json)
 	var landmark_path := String(map_def.get("landmarks", ""))
 	var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
@@ -137,7 +164,61 @@ func _paint_ground(nav: Node) -> void:
 			trodden.append(Vector2(body.position.x, body.position.z))
 	add_to_group(&"ground_paint")
 	ground_paint = GroundPaint.build(map_json, ground_size_m, landmarks, trodden)
-	ground_mesh.material_override = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
+	ground_material = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
+	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
+	if ground_mesh != null:
+		ground_mesh.material_override = ground_material
+
+
+## M2P1B: the terrain look, node "Terrain" with one Chunk_<ix>_<iz>/Mesh per cell of the chunk grid (every cell,
+## identity transforms). Kept apart from Chunks, which holds only MultiMesh batches. The collider is
+## _build_terrain_collider's.
+func _build_terrain(nav: Node) -> void:
+	if terrain == null:
+		return
+	_build_terrain_collider(nav)
+	var cfg: Dictionary = MapChunks.config().get("terrain", {})
+	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var root := Node3D.new()
+	root.name = "Terrain"
+	add_child(root)
+	for iz in chunks.per_side:
+		for ix in chunks.per_side:
+			var chunk := Node3D.new()
+			chunk.name = "Chunk_%d_%d" % [ix, iz]
+			root.add_child(chunk)
+			var mesh := MeshInstance3D.new()
+			mesh.name = "Mesh"
+			mesh.mesh = terrain.chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side)
+			mesh.material_override = ground_material
+			mesh.cast_shadow = shadow
+			chunk.add_child(mesh)
+
+
+## M2P1B: the terrain collider, ONE HeightMapShape3D under Nav/Ground (one height field has no seams between
+## chunk colliders for pawns or rays to catch on). The name stays "Ground": the audio code and the wall loop in
+## _ready tell the ground apart by it. Leftover children (an old box) are freed so no second walkable layer
+## can stay at y = 0. The shape is centred on its origin with samples 1 m apart, so with an odd sample count
+## they land on the terrain's grid; resolution_m scales x and z (DataRegistry.validate_terrain).
+func _build_terrain_collider(nav: Node) -> void:
+	var ground := nav.get_node_or_null("Ground") as StaticBody3D
+	if ground == null:
+		ground = StaticBody3D.new()
+		ground.name = "Ground"
+		nav.add_child(ground)
+	for child in ground.get_children():
+		ground.remove_child(child)
+		child.free()
+	ground.transform = Transform3D.IDENTITY
+	var height_map := HeightMapShape3D.new()
+	height_map.map_width = terrain.samples
+	height_map.map_depth = terrain.samples
+	height_map.map_data = terrain.heights
+	var shape := CollisionShape3D.new()
+	shape.name = "Shape"
+	shape.shape = height_map
+	shape.scale = Vector3(terrain.resolution_m, 1.0, terrain.resolution_m)
+	ground.add_child(shape)
 
 
 ## W3: the outer ring's cover (cfg "ring_pieces"): the same one-box cover types as the inner band, in their own
@@ -156,7 +237,7 @@ func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
 		body.add_to_group(&"ring_cover")
 		if bool(definition.get("coverable", false)):
 			body.add_to_group(&"cover_wall")
-		body.position = LowpolyKit.vec(entry["at"])
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
 		var box := BoxShape3D.new()
