@@ -174,6 +174,120 @@ static func validate_map_def(def: Dictionary) -> PackedStringArray:
 		for list: String in lists:
 			if typeof(pieces.get(list)) != TYPE_ARRAY:
 				problems.append("map %s '%s' has no '%s' array" % [key, piece_path, list])
+	if problems.is_empty():
+		problems.append_array(yaw_problems(def))
+		problems.append_array(reserved_spot_problems(def))
+	return problems
+
+
+## M2L1 (binding fix 8): the structure types that may take any yaw on a map ("free_yaw_types"); only wall pieces.
+const FREE_YAW_ALLOWED := ["wall_walk", "wall_stair", "gate", "watchtower"]
+## M2L1 (binding fix 14): the kinds of the reserved J1 spots.
+const RESERVED_KINDS := ["jump_pad", "man_cannon", "lily_trap"]
+
+
+## M2L1: every structure piece's yaw is a multiple of alesia_structures.json rules.yaw_step_deg, except the
+## types the map lists in "free_yaw_types" (only wall types may be listed). Quiet.
+static func yaw_problems(def: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var free: Variant = def.get("free_yaw_types", [])
+	if typeof(free) != TYPE_ARRAY:
+		problems.append("map free_yaw_types must be an array of wall types")
+		return problems
+	for type: Variant in free:
+		if not FREE_YAW_ALLOWED.has(str(type)):
+			problems.append("map free_yaw_types lists '%s'; only %s may take a free yaw" % [str(type), ", ".join(FREE_YAW_ALLOWED)])
+	var step := float(WorldKit.config()["rules"]["yaw_step_deg"])
+	for entry: Dictionary in WorldKit.pieces_for(def):
+		var yaw := float(entry.get("yaw", 0.0))
+		var off := fposmod(yaw, step)
+		if minf(off, step - off) > 0.0001 and not (free as Array).has(str(entry.get("type", ""))):
+			problems.append("structure %s (%s) has yaw %s, not a multiple of %s" % [str(entry.get("id", "?")), str(entry.get("type", "")), str(yaw), str(step)])
+	return problems
+
+
+## M2L1: the ground footprints of a map's colliders from its data (no scene): [{id, at: Vector2, yaw (rad),
+## rect: Rect2 in piece space}], one per box of cover and ring pieces (alesia_cover.json types, no yaw), per
+## structure collider (alesia_structures.json, its XZ bounds in piece space, then the piece's yaw) and per
+## solid decor entry (its size and yaw).
+static func collider_footprints(def: Dictionary) -> Array:
+	var out: Array = []
+	var base := parse_quiet("res://data/maps/alesia_cover.json")
+	var types: Dictionary = base.get("types", {})
+	var solid: Dictionary = base.get("decor_colliders", {})
+	var placed := parse_quiet(str(def.get("cover_data", "res://data/maps/alesia_cover.json")))
+	for list: String in ["pieces", "ring_pieces"]:
+		for entry: Dictionary in placed.get(list, []):
+			var size: Array = types.get(entry["type"], {}).get("size", [0, 0, 0])
+			out.append({"id": str(entry["id"]), "at": Vector2(float(entry["at"][0]), float(entry["at"][2])), "yaw": 0.0,
+				"rect": Rect2(-float(size[0]) * 0.5, -float(size[2]) * 0.5, float(size[0]), float(size[2]))})
+	for entry: Dictionary in placed.get("decor", []):
+		if solid.has(entry["kind"]):
+			var size: Array = entry["size"]
+			out.append({"id": str(entry["id"]), "at": Vector2(float(entry["at"][0]), float(entry["at"][2])), "yaw": deg_to_rad(float(entry.get("yaw", 0.0))),
+				"rect": Rect2(-float(size[0]) * 0.5, -float(size[2]) * 0.5, float(size[0]), float(size[2]))})
+	var kit: Dictionary = WorldKit.config()["types"]
+	for entry: Dictionary in WorldKit.pieces_for(def):
+		for collider: Dictionary in kit.get(entry["type"], {}).get("colliders", []):
+			var rect := Rect2()
+			var first := true
+			for c in WorldKit.collider_corners(collider):
+				rect = Rect2(Vector2(c.x, c.z), Vector2.ZERO) if first else rect.expand(Vector2(c.x, c.z))
+				first = false
+			out.append({"id": str(entry["id"]), "at": Vector2(float(entry["at"][0]), float(entry["at"][2])), "yaw": deg_to_rad(float(entry.get("yaw", 0.0))), "rect": rect})
+	return out
+
+
+## M2L1: the id of the first footprint (collider_footprints) that holds the ground point `p` (edges included), or "".
+static func footprint_at(p: Vector2, footprints: Array) -> String:
+	for fp: Dictionary in footprints:
+		var d: Vector2 = p - (fp["at"] as Vector2)
+		# Godot's yaw turns piece (x, z) to (x cos + z sin, -x sin + z cos); the inverse turn takes the offset back.
+		var yaw: float = fp["yaw"]
+		var local := Vector2(d.x * cos(yaw) - d.y * sin(yaw), d.x * sin(yaw) + d.y * cos(yaw))
+		var rect: Rect2 = fp["rect"]
+		if local.x >= rect.position.x and local.x <= rect.end.x and local.y >= rect.position.y and local.y <= rect.end.y:
+			return str(fp["id"])
+	return ""
+
+
+## M2L1 (binding fix 14): the map's "reserved_spots" ([{id, kind, at: [x, z]}], places for J1's jump pads, man
+## cannons and lily traps; no nodes are built): unique ids, a known kind, inside the play circle
+## ("play_radius_m") and not inside any collider's ground footprint (collider_footprints, from the data). Quiet.
+static func reserved_spot_problems(def: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var spots: Variant = def.get("reserved_spots", [])
+	if typeof(spots) != TYPE_ARRAY:
+		problems.append("map reserved_spots must be an array")
+		return problems
+	if (spots as Array).is_empty():
+		return problems
+	var radius: Variant = def.get("play_radius_m")
+	if not _is_num(radius) or float(radius) <= 0.0:
+		problems.append("map reserved_spots need a play_radius_m greater than 0")
+		return problems
+	var footprints := collider_footprints(def)
+	var ids := {}
+	for spot: Variant in spots:
+		if typeof(spot) != TYPE_DICTIONARY:
+			problems.append("reserved spot must be a dictionary")
+			continue
+		var id := str(spot.get("id", ""))
+		if id == "" or ids.has(id):
+			problems.append("reserved spot id '%s' is empty or not unique" % id)
+		ids[id] = true
+		if not RESERVED_KINDS.has(str(spot.get("kind", ""))):
+			problems.append("reserved spot %s has kind '%s' (known: %s)" % [id, str(spot.get("kind", "")), ", ".join(RESERVED_KINDS)])
+		var at: Variant = spot.get("at")
+		if typeof(at) != TYPE_ARRAY or (at as Array).size() != 2 or not _is_num(at[0]) or not _is_num(at[1]):
+			problems.append("reserved spot %s at must be [x, z] numbers" % id)
+			continue
+		var p := Vector2(float(at[0]), float(at[1]))
+		if p.length() > float(radius):
+			problems.append("reserved spot %s at %s lies outside the play circle (%s m)" % [id, str(at), str(radius)])
+		var inside := footprint_at(p, footprints)
+		if inside != "":
+			problems.append("reserved spot %s at %s lies inside the collider of %s" % [id, str(at), inside])
 	return problems
 
 
@@ -183,8 +297,9 @@ static func _is_num(value: Variant) -> bool:
 
 ## M2P1B: the rules of a map's "terrain" block (MapTerrain reads it; for_map returns null on any problem).
 ## `def` is the whole map definition, for the ground_size_m cross-check. M2P1C: `read_heights` also reads a
-## heights file and checks its grid against the block (MapTerrain.heights_file_problem); MapTerrain.from_block
-## passes false because it reads the file itself.
+## heights file and checks its grid against the block (MapTerrain.heights_file_problem; M2L1: a binary .res by
+## its header only, MapTerrain.heights_header_problem); MapTerrain.from_block passes false because it reads the
+## file itself.
 static func validate_terrain(terrain: Variant, def: Dictionary = {}, read_heights := true) -> PackedStringArray:
 	var problems := PackedStringArray()
 	if typeof(terrain) != TYPE_DICTIONARY:
@@ -208,6 +323,14 @@ static func validate_terrain(terrain: Variant, def: Dictionary = {}, read_height
 		var float_m: Variant = terrain["max_piece_float_m"]
 		if not _is_num(float_m) or float(float_m) <= 0.0:
 			problems.append("terrain max_piece_float_m must be a number greater than 0")
+	if terrain.has("far_step_m"):
+		var step: Variant = terrain["far_step_m"]
+		if not _is_num(step) or float(step) <= 0.0:
+			problems.append("terrain far_step_m must be a number greater than 0")
+		elif _is_num(res) and float(res) > 0.0:
+			var problem := MapTerrain.far_step_problem(float(step), float(res), float(MapChunks.config()["chunk_size_m"]))
+			if problem != "":
+				problems.append("terrain " + problem)
 	var source: Variant = terrain.get("height_source")
 	if typeof(source) != TYPE_DICTIONARY:
 		problems.append("terrain height_source must be a dictionary")
@@ -220,7 +343,9 @@ static func validate_terrain(terrain: Variant, def: Dictionary = {}, read_height
 			elif not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
 				problems.append("terrain heights file '%s' does not exist" % path)
 			elif read_heights and _is_num(size) and _is_num(res) and float(size) > 0.0 and float(res) > 0.0:
-				var grid := MapTerrain.heights_file_problem(String(path), float(size), float(res))
+				# M2L1 (binding fix 13): a binary .res is checked from its header only (MapTerrain.heights_header_problem),
+				# so its samples are read once per load, by MapTerrain.from_block; a JSON file is read whole as before.
+				var grid := MapTerrain.heights_header_problem(String(path), float(size), float(res))
 				if grid != "":
 					problems.append(grid)
 		"generated":

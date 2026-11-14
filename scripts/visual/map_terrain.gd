@@ -23,6 +23,9 @@ var max_piece_slope_deg := 0.0
 ## How far a piece's footprint corner may lie above or below the ground at its origin (map json "terrain"
 ## "max_piece_float_m"; no limit when absent).
 var max_piece_float_m := INF
+## M2L1: the map's own far-terrain step (map json "terrain" "far_step_m"; 0 = data/map_build.json terrain.far_step_m).
+## A 2 m grid needs an even step: the global 5 m is no multiple of 2 m.
+var far_step_m := 0.0
 var _positions := PackedVector3Array()  # per sample, built on the first mesh request
 var _normals := PackedVector3Array()  # per sample, from the whole grid so chunk edges share them
 var _meshes := {}  # chunk key -> ArrayMesh
@@ -83,6 +86,7 @@ static func from_block(block: Variant, map_def: Dictionary = {}) -> MapTerrain:
 	t.samples = roundi(t.size_m / t.resolution_m) + 1
 	t.max_piece_slope_deg = float(block.get("max_piece_slope_deg", 90.0))
 	t.max_piece_float_m = float(block.get("max_piece_float_m", INF))
+	t.far_step_m = float(block.get("far_step_m", 0.0))
 	var source: Dictionary = block["height_source"]
 	if String(source["type"]) == "file":
 		t.heights = _load_heights(String(source["path"]), t)
@@ -511,6 +515,113 @@ static func _load_heights(path: String, t: MapTerrain) -> PackedFloat32Array:
 ## no error is logged (DataRegistry.validate_terrain reports it; for_map logs it when a map's terrain fails).
 static func heights_file_problem(path: String, size_m: float, resolution_m: float) -> String:
 	return String(_read_heights(path, size_m, resolution_m)["problem"])
+
+
+## M2L1 (binding fix 13): the same check for a binary ".res" heights file from its HEADER only: the resource's
+## type, map_width, map_depth, the length of map_data and the size_m / resolution_m metadata, read from Godot's
+## binary resource layout (format 6, as ResourceSaver writes it in 4.7.2) while the samples themselves are skipped
+## with a seek. So a 1 km map's 251,001 heights are read once per load (by from_block), not again by validation.
+## A ".json" file has no header: it is read whole, as before. Quiet.
+static func heights_header_problem(path: String, size_m: float, resolution_m: float) -> String:
+	if not path.ends_with(".res"):
+		return heights_file_problem(path, size_m, resolution_m)
+	var head := res_header(path)
+	if head.has("problem"):
+		return "terrain heights file '%s': %s" % [path, head["problem"]]
+	var samples := roundi(size_m / resolution_m) + 1
+	for key: String in ["size_m", "resolution_m"]:
+		if not head.has(key):
+			return "terrain heights file '%s' has no numeric size_m and resolution_m" % path
+	if not is_equal_approx(float(head["size_m"]), size_m) or not is_equal_approx(float(head["resolution_m"]), resolution_m):
+		return "terrain heights file '%s' is %s m at %s m, the block is %s m at %s m" % [path, str(head["size_m"]), str(head["resolution_m"]), str(size_m), str(resolution_m)]
+	if int(head.get("map_data", -1)) != samples * samples or int(head.get("map_width", -1)) != samples or int(head.get("map_depth", -1)) != samples:
+		return "terrain heights file '%s' has %d samples (%d x %d), the block's grid needs %d (%d x %d)" % [path, int(head.get("map_data", -1)), int(head.get("map_width", -1)), int(head.get("map_depth", -1)), samples * samples, samples, samples]
+	return ""
+
+
+## M2L1: the header of a binary HeightMapShape3D ".res": {map_width, map_depth, map_data (the sample count),
+## size_m, resolution_m} as far as present, or {"problem": text}. Reads the string table and the main resource's
+## property list; the map_data samples are skipped, never read.
+static func res_header(path: String) -> Dictionary:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return {"problem": "cannot be opened"}
+	var magic := f.get_buffer(4).get_string_from_ascii()
+	if magic != "RSRC":
+		return {"problem": "is not an uncompressed binary resource (magic '%s')" % magic}
+	f.big_endian = f.get_32() != 0
+	f.get_32()  # use_real64
+	f.get_32()  # engine major
+	f.get_32()  # engine minor
+	var format := f.get_32()
+	if format < 5 or format > 6:
+		return {"problem": "has binary resource format %d (known: 5, 6)" % format}
+	if _res_string(f) != "HeightMapShape3D":
+		return {"problem": "is not a HeightMapShape3D"}
+	f.get_64()  # import metadata offset
+	var flags := f.get_32()
+	f.get_64()  # uid
+	if flags & 8:  # FORMAT_FLAG_HAS_SCRIPT_CLASS
+		_res_string(f)
+	for i in 11:  # reserved fields
+		f.get_32()
+	var names := PackedStringArray()
+	for i in f.get_32():
+		names.append(_res_string(f))
+	for i in f.get_32():  # external resources
+		_res_string(f)
+		_res_string(f)
+		if flags & 2:  # FORMAT_FLAG_UIDS
+			f.get_64()
+	var internal := f.get_32()
+	if internal < 1:
+		return {"problem": "holds no resource"}
+	var offset := 0
+	for i in internal:  # the main resource is the last one
+		_res_string(f)
+		offset = f.get_64()
+	f.seek(offset)
+	if _res_string(f) != "HeightMapShape3D":
+		return {"problem": "main resource is not a HeightMapShape3D"}
+	var out := {}
+	for i in f.get_32():
+		var index := f.get_32()
+		var name := names[index] if index < names.size() else ""
+		var kind := f.get_32()
+		var value: Variant = null
+		match kind:
+			1:  # nil
+				pass
+			2, 3:  # bool, int (32 bit)
+				value = f.get_32()
+				if kind == 3 and value >= 0x80000000:
+					value -= 0x100000000
+			40:  # int64
+				value = f.get_64()
+			4:  # float (32 bit)
+				value = f.get_float()
+			41:  # double
+				value = f.get_double()
+			5:  # string
+				value = _res_string(f)
+			33:  # PackedFloat32Array: the length is the sample count; the samples are skipped
+				value = f.get_32()
+				f.seek(f.get_position() + int(value) * 4)
+			_:
+				return {"problem": "has a property '%s' of binary type %d this header reader does not know" % [name, kind]}
+		match name:
+			"map_width", "map_depth", "map_data":
+				out[name] = value
+			"metadata/size_m", "metadata/resolution_m":
+				out[name.trim_prefix("metadata/")] = value
+	return out
+
+
+static func _res_string(f: FileAccess) -> String:
+	var length := f.get_32()
+	if length == 0:
+		return ""
+	return f.get_buffer(length).slice(0, length - 1).get_string_from_utf8()  # the stored length counts the trailing 0
 
 
 static func _read_heights(path: String, size_m: float, resolution_m: float) -> Dictionary:

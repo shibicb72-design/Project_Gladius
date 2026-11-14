@@ -11,18 +11,105 @@ static var _cache := {}
 
 ## M2P1B: the paint's width in pixels for a ground `map_size_m` wide: the same detail per metre on every map
 ## size, capped so a large map's image stays small (art_materials.json "ground" paint_px_per_m, paint_px_cap).
-static func px_for(map_size_m: float) -> int:
-	var g: Dictionary = WorldSurface.config()["ground"]
+## M2L1: `settings` = the paint numbers to use (settings_for(); empty = the global art_materials.json "ground").
+static func px_for(map_size_m: float, settings: Dictionary = {}) -> int:
+	var g: Dictionary = settings if not settings.is_empty() else WorldSurface.config()["ground"]
 	return maxi(1, mini(roundi(map_size_m * float(g["paint_px_per_m"])), int(g["paint_px_cap"])))
+
+
+## M2L1 (binding fix 6): the paint numbers of one map: art_materials.json "ground" with the map json's own
+## "ground_paint" keys over it (same key names, plus "roads": false to leave out the spokes from the origin to
+## the landmarks and "baked": the path of an offline-baked paint). A map without "ground_paint" gets the global
+## dictionary itself, so alesia and test_300 paint exactly as before.
+static func settings_for(map_def: Dictionary) -> Dictionary:
+	var g: Dictionary = WorldSurface.config()["ground"]
+	var own: Variant = map_def.get("ground_paint")
+	if typeof(own) != TYPE_DICTIONARY:
+		return g
+	var merged := g.duplicate()
+	for k: String in own:
+		if not k.begins_with("_"):
+			merged[k] = own[k]
+	return merged
+
+
+## M2L1: the sha256 of everything a paint is made from (its numbers, the ground size and pixel width, the
+## landmark centres and the trodden points). An offline-baked paint carries it as its "inputs_sha256" meta; a
+## different value at load means the bake is stale.
+static func inputs_hash(map_size_m: float, landmarks: Array, trodden: PackedVector2Array, settings: Dictionary) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	var numbers := {}
+	for k: String in settings:
+		if not k.begins_with("_") and k != "baked" and k != "baked_sha256":
+			numbers[k] = settings[k]
+	ctx.update(("%s|%s|%d|" % [JSON.stringify(numbers, "", true, true), str(map_size_m), px_for(map_size_m, settings)]).to_utf8_buffer())
+	var centres := PackedFloat32Array()
+	for landmark: Dictionary in landmarks:
+		centres.append(float(landmark["at"][0]))
+		centres.append(float(landmark["at"][1]))
+	ctx.update(centres.to_byte_array())
+	ctx.update("|".to_utf8_buffer())
+	var points := PackedFloat32Array()
+	for t in trodden:
+		points.append(t.x)
+		points.append(t.y)
+	ctx.update(points.to_byte_array())
+	return ctx.finish().hex_encode()
+
+
+## M2L1: an offline-baked paint (a saved Image .res, see save_baked) as the paint of `key`, or null when the file
+## is missing, not an RGBA8 image of `px` pixels, or stale (its inputs_sha256 meta differs from `want_hash`).
+## A loaded paint is cached like a painted one, so texture(key) works the same.
+static func load_baked(key: String, path: String, px: int, want_hash: String) -> Image:
+	if _cache.has(key):
+		return _cache[key]
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	var image := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as Image
+	if image == null or image.get_width() != px or image.get_height() != px or image.get_format() != Image.FORMAT_RGBA8:
+		return null
+	if String(image.get_meta(&"inputs_sha256", "")) != want_hash:
+		return null
+	_cache[key] = image
+	return image
+
+
+## M2L1: why load_baked would give null ("" = it would load). For the one printed line and for tests.
+static func baked_problem(path: String, px: int, want_hash: String) -> String:
+	if path == "" or not ResourceLoader.exists(path):
+		return "baked paint '%s' is missing" % path
+	var image := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as Image
+	if image == null or image.get_width() != px or image.get_height() != px or image.get_format() != Image.FORMAT_RGBA8:
+		return "baked paint '%s' is not an RGBA8 image of %d px" % [path, px]
+	if String(image.get_meta(&"inputs_sha256", "")) != want_hash:
+		return "baked paint '%s' is stale (its inputs changed)" % path
+	return ""
+
+
+## M2L1: saves a paint as a compressed binary Image resource with its inputs hash (never a PNG: the footsteps read
+## it with Image.get_pixel, and a PNG would be imported as a texture).
+static func save_baked(image: Image, path: String, hash: String) -> Error:
+	var copy := image.duplicate() as Image
+	copy.set_meta(&"inputs_sha256", hash)
+	return ResourceSaver.save(copy, path, ResourceSaver.FLAG_COMPRESS)
+
+
+## Drops the cached paint of `key` (and its texture): a tool or test that rebuilds the same map's paint.
+static func forget(key: String) -> void:
+	_cache.erase(key)
+	_textures.erase(key)
 
 
 ## The paint image for a square map `map_size_m` wide centred on the origin. `landmarks` = [{at: [x, z]}, ...],
 ## `trodden` = points (x, z) that wear the grass away (cover and structures). Cached by `key`.
-static func build(key: String, map_size_m: float, landmarks: Array, trodden: PackedVector2Array) -> Image:
+## M2L1: `settings` as in px_for; "roads": false leaves out the roads from the origin to the landmarks.
+static func build(key: String, map_size_m: float, landmarks: Array, trodden: PackedVector2Array, settings: Dictionary = {}) -> Image:
 	if _cache.has(key):
 		return _cache[key]
-	var g: Dictionary = WorldSurface.config()["ground"]
-	var px := px_for(map_size_m)
+	var g: Dictionary = settings if not settings.is_empty() else WorldSurface.config()["ground"]
+	var roads := bool(g.get("roads", true))
+	var px := px_for(map_size_m, g)
 	var metres := map_size_m / float(px)
 	var citadel := float(g["citadel_paving_m"])
 	var plaza := float(g["landmark_paving_m"])
@@ -45,6 +132,8 @@ static func build(key: String, map_size_m: float, landmarks: Array, trodden: Pac
 				paved = maxf(paved, road - absf(r - ring))
 			for c in centres:
 				paved = maxf(paved, plaza - p.distance_to(c))
+				if not roads:
+					continue
 				# The road is the straight line from the origin to the landmark.
 				var along := clampf(p.dot(c) / c.length_squared(), 0.0, 1.0)
 				paved = maxf(paved, road - p.distance_to(c * along))

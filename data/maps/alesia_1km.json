@@ -1,0 +1,708 @@
+{
+	"_backdrop_note": "M2L1 binding fix 5: the outer wall and the fields are this map's edge; a backdrop scaled for 1 km is W1's job.",
+	"_free_yaw_note": "M2L1 binding fix 8: only these wall piece types may take a free yaw (on the polygonal rings' tangents); every other structure keeps alesia_structures.json rules.yaw_step_deg. DataRegistry.validate_map_def checks it.",
+	"_placeholder": true,
+	"_todo": "OQ-ALESIA-LAYOUT: the M2 L1 grey-box of the concentric Alesia (docs/DESIGN.md:8, :14). Every size, count, radius, position and name here and in the generated files is a PROPOSAL, a guess for Shibi to change. Change a number in \"generator\" and rerun tools/gen_alesia.gd; never hand-edit the generated files (alesia_1km_cover.json, alesia_1km_structures.json, alesia_1km_landmarks.json, alesia_1km_heights.res, alesia_1km_paint.res) or the generated keys of this file (spawns, reserved_spots, generator.heights_sha256, generator.paint_sha256).",
+	"backdrop": false,
+	"cover_data": "res://data/maps/alesia_1km_cover.json",
+	"free_yaw_types": [
+		"wall_walk",
+		"wall_stair",
+		"gate",
+		"watchtower"
+	],
+	"generator": {
+		"_aqueduct_note": "An aqueduct runs straight out along bearing_deg, offset_m to the right of the line through the centre (clear of the gate). Spans are 10 m centred every 10 m from inner_m (the inner wall line), spans_in inwards and spans_out outwards (20 reaches past the outer wall at 330), with a ramp at both ends. Where it crosses a wall, the wall runs on under the span (wall top 4.1 m, deck underside 4.2 m): the ground stays closed, the wall walk is cut there (1.2 m head room).",
+		"_max_cover_walls_note": "Lead's density cap for the whole map (group cover_wall): the cover index validates every wall once per frame, about 0.47 us per wall on the desktop (P1c, 433 walls 205 us), several times that on a phone. tests/test_alesia_1km.gd checks the built count against it.",
+		"_placeholder": true,
+		"_todo": "OQ-ALESIA-LAYOUT: every number and name in this block is a proposal (a guess for Shibi). Bearings are compass degrees (0 = north = -z, 90 = east = +x). A ring radius is the apothem: the distance from the centre to the middle of each straight side (gates and towers sit there).",
+		"aqueducts": [
+			{
+				"bearing_deg": 0.0,
+				"id": "aquaeductus_magnus",
+				"inner_m": 140.0,
+				"name": "Aquaeductus Magnus",
+				"offset_m": 12.0,
+				"spans_in": 1.0,
+				"spans_out": 20.0
+			},
+			{
+				"bearing_deg": 90.0,
+				"id": "aqua_marcia",
+				"inner_m": 140.0,
+				"name": "Aqua Marcia",
+				"offset_m": 12.0,
+				"spans_in": 1.0,
+				"spans_out": 20.0
+			},
+			{
+				"bearing_deg": 270.0,
+				"id": "aqua_claudia",
+				"inner_m": 140.0,
+				"name": "Aqua Claudia",
+				"offset_m": 12.0,
+				"spans_in": 1.0,
+				"spans_out": 20.0
+			}
+		],
+		"camps": {
+			"_note": "6 blocks at bearings 15 + 60 k (allowed 4-6), clear of the three aqueducts. Cover 12 in a 60 x 60 m block is about half alesia's 131 cover walls per 160 m x 160 m.",
+			"barracks": [
+				[
+					-18.0,
+					-14.0
+				],
+				[
+					18.0,
+					-14.0
+				]
+			],
+			"cover": 12.0,
+			"cover_types": [
+				"crate",
+				"crate_stack",
+				"low_wall",
+				"sandbags",
+				"barrier",
+				"wreck_cart",
+				"barrier_line"
+			],
+			"first_bearing_deg": 15.0,
+			"half_size_m": 30.0,
+			"names": [
+				"Castra Prima",
+				"Castra Secunda",
+				"Castra Tertia",
+				"Castra Quarta",
+				"Castra Quinta",
+				"Castra Sexta"
+			],
+			"radius_m": 215.0,
+			"stake_rows": 4.0,
+			"tents": [
+				[
+					-15.0,
+					6.0
+				],
+				[
+					-5.0,
+					6.0
+				],
+				[
+					5.0,
+					6.0
+				],
+				[
+					15.0,
+					6.0
+				],
+				[
+					-15.0,
+					16.0
+				],
+				[
+					-5.0,
+					16.0
+				],
+				[
+					5.0,
+					16.0
+				],
+				[
+					15.0,
+					16.0
+				]
+			]
+		},
+		"citadel": {
+			"arches": [
+				{
+					"at": [
+						0.0,
+						17.0
+					],
+					"yaw": 0.0
+				}
+			],
+			"cover_slope": 16.0,
+			"cover_top": 10.0,
+			"cover_top_radius_m": 20.0,
+			"cover_types": [
+				"pillar",
+				"arch",
+				"low_wall",
+				"barrier",
+				"sandbags",
+				"tall_wall",
+				"rubble_pile"
+			],
+			"pieces": [
+				{
+					"at": [
+						0.0,
+						-14.0
+					],
+					"id": "Arx_Front",
+					"type": "pediment_front",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						-14.0,
+						0.0
+					],
+					"id": "Arx_Colonnade_W",
+					"type": "colonnade",
+					"yaw": 90.0
+				},
+				{
+					"at": [
+						14.0,
+						0.0
+					],
+					"id": "Arx_Colonnade_E",
+					"type": "colonnade",
+					"yaw": 90.0
+				},
+				{
+					"at": [
+						0.0,
+						0.0
+					],
+					"id": "Arx_Eagle",
+					"type": "eagle_standard",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						-7.0,
+						-7.0
+					],
+					"id": "Arx_Column_NW",
+					"type": "column",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						7.0,
+						-7.0
+					],
+					"id": "Arx_Column_NE",
+					"type": "column",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						-7.0,
+						8.0
+					],
+					"id": "Arx_Column_SW",
+					"type": "column",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						7.0,
+						8.0
+					],
+					"id": "Arx_Column_SE",
+					"type": "column",
+					"yaw": 0.0
+				}
+			],
+			"rocks": 8.0
+		},
+		"fields": {
+			"_note": "about a tenth of alesia's density: 150 low cover on the 330,000 m2 annulus.",
+			"cover": 150.0,
+			"cover_types": [
+				"low_wall",
+				"crate",
+				"sandbags",
+				"barrier",
+				"rock",
+				"barrier_line",
+				"rubble_pile",
+				"wreck_cart"
+			],
+			"from_m": 345.0,
+			"rocks": 12.0,
+			"stake_rows": 30.0,
+			"to_m": 470.0
+		},
+		"gates": {
+			"clear_m": 5.0,
+			"cover_per_side": 3.0,
+			"lateral_m": 18.0,
+			"reach_m": 14.0
+		},
+		"ground_size_m": 1000.0,
+		"heights_path": "res://data/maps/alesia_1km_heights.res",
+		"heights_sha256": "9c6d011c196b18baf8ca0524bc2f9db9216e8971dfdff89441e40c780a4ef299",
+		"hill": {
+			"_note": "a flat top 45 m across, then a smoothstep fall to 0 at radius_m: steepest about 29 degrees (navmesh agent max slope 45, pawn floor_max_angle 45).",
+			"height_m": 25.0,
+			"id": "arx",
+			"radius_m": 90.0,
+			"top_radius_m": 22.5
+		},
+		"inner_wall": {
+			"_note": "24 sides (allowed 16-24, proposal 20): the gates on the diagonals and a side square to each cardinal for the aqueducts both sit on side middles only when the side count divides by 8.",
+			"gate_bearings_deg": [
+				45.0,
+				135.0,
+				225.0,
+				315.0
+			],
+			"gate_names": [
+				"Porta Astra",
+				"Porta Vulcani",
+				"Porta Cereris",
+				"Porta Iani"
+			],
+			"radius_m": 140.0,
+			"sides": 24.0,
+			"tower_bearings_deg": []
+		},
+		"landmark_radius_m": {
+			"aqueduct": 16.0,
+			"arx": 40.0,
+			"camp": 30.0,
+			"gate": 20.0,
+			"tower": 16.0
+		},
+		"max_cover_walls": 1000.0,
+		"outer_wall": {
+			"_note": "32 sides (allowed 32-40, proposal 36): with 32 the 4 cardinal gates, the 8 towers half-way between them and the aqueduct crossings all sit on side middles.",
+			"gate_bearings_deg": [
+				0.0,
+				90.0,
+				180.0,
+				270.0
+			],
+			"gate_names": [
+				"Porta Aquilae",
+				"Porta Solis",
+				"Porta Martis",
+				"Porta Lunae"
+			],
+			"radius_m": 330.0,
+			"sides": 32.0,
+			"tower_bearings_deg": [
+				22.5,
+				67.5,
+				112.5,
+				157.5,
+				202.5,
+				247.5,
+				292.5,
+				337.5
+			]
+		},
+		"paint_sha256": "a3f0c9730783982a6ca258f10bb84d847a9e4823423c2a791ed9dd0d6d25f07f",
+		"placement": {
+			"anchor_clear_m": 2.5,
+			"edge_margin_m": 4.0,
+			"max_attempts": 600.0,
+			"minimum_gap_m": 1.2,
+			"snap_m": 0.5,
+			"spawn_clear_m": 8.0
+		},
+		"reserved": {
+			"_note": "J1 spots (binding fix 14): places only, no nodes. jump pads at the inner foot of the outer wall, past the outer aqueduct ends and at the hill foot; man cannons from the fields to the camp ring and from the camp ring towards the citadel; lily traps in front of the outer gates and on the stake lines of the fields.",
+			"clear_m": 3.0,
+			"jump_pad_aqueduct_m": 358.0,
+			"jump_pad_hill": {
+				"bearings_deg": [
+					0.0,
+					120.0,
+					240.0
+				],
+				"radius_m": 96.0
+			},
+			"jump_pad_wall": {
+				"bearings_deg": [
+					45.0,
+					135.0,
+					225.0,
+					315.0
+				],
+				"radius_m": 322.0
+			},
+			"lily_fields": {
+				"bearings_deg": [
+					0.0,
+					45.0,
+					90.0,
+					135.0,
+					180.0,
+					225.0,
+					270.0,
+					315.0
+				],
+				"radius_m": 440.0
+			},
+			"lily_gate": {
+				"lateral_m": 6.0,
+				"radius_m": 342.0
+			},
+			"man_cannon_camps": {
+				"bearings_deg": [
+					45.0,
+					165.0,
+					285.0
+				],
+				"radius_m": 200.0
+			},
+			"man_cannon_fields": {
+				"bearings_deg": [
+					60.0,
+					180.0,
+					300.0
+				],
+				"radius_m": 365.0
+			}
+		},
+		"seed": 1000001.0,
+		"spawns": {
+			"count": 6.0,
+			"first_bearing_deg": 30.0,
+			"radius_m": 400.0,
+			"y": 0.1
+		},
+		"specula_bearing_deg": 22.5,
+		"wall": {
+			"half_thickness_m": 1.2,
+			"max_joint_gap_m": 0.3,
+			"piece_length_m": 8.0,
+			"stair_clear_m": 12.0,
+			"stair_every": 4.0
+		}
+	},
+	"ground_paint": {
+		"_placeholder": true,
+		"_todo": "OQ-ALESIA-LAYOUT / OQ-GFX-MATERIALS: art_materials.json \"ground\" keys for this map only. citadel_paving_m = the hill's radius (paved citadel); the ring road runs just inside the inner wall; earth from the hill to the outer wall (the camp ring); grass from the outer wall out (the fields). paint_px_per_m 1.024 gives a 1024 px paint (1 px per 0.98 m), under paint_px_cap 2048. roads false: no spokes from the origin to every landmark. baked: the paint is painted offline by tools/gen_alesia.gd (painting 1 km in GDScript at load is too slow); a missing or stale bake paints at load with one printed line.",
+		"baked": "res://data/maps/alesia_1km_paint.res",
+		"citadel_paving_m": 90.0,
+		"grass_from_m": 334.0,
+		"grass_full_m": 350.0,
+		"landmark_paving_m": 8.0,
+		"paint_px_per_m": 1.024,
+		"ring_road_radius_m": 130.0,
+		"road_half_width_m": 3.0,
+		"roads": false
+	},
+	"id": "alesia_1km",
+	"landmarks": "res://data/maps/alesia_1km_landmarks.json",
+	"modes": [
+		"br"
+	],
+	"name": "Alesia (1 km grey-box)",
+	"play_radius_m": 480.0,
+	"reserved_spots": [
+		{
+			"at": [
+				227.688,
+				-227.688
+			],
+			"id": "jump_pad_00",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				227.688,
+				227.688
+			],
+			"id": "jump_pad_01",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				-227.688,
+				227.688
+			],
+			"id": "jump_pad_02",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				-227.688,
+				-227.688
+			],
+			"id": "jump_pad_03",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				12.0,
+				-358.0
+			],
+			"id": "jump_pad_04",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				358.0,
+				12.0
+			],
+			"id": "jump_pad_05",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				-358.0,
+				-12.0
+			],
+			"id": "jump_pad_06",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				0.0,
+				-96.0
+			],
+			"id": "jump_pad_07",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				83.138,
+				48.0
+			],
+			"id": "jump_pad_08",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				-83.138,
+				48.0
+			],
+			"id": "jump_pad_09",
+			"kind": "jump_pad"
+		},
+		{
+			"at": [
+				316.099,
+				-182.5
+			],
+			"id": "man_cannon_00",
+			"kind": "man_cannon"
+		},
+		{
+			"at": [
+				0.0,
+				365.0
+			],
+			"id": "man_cannon_01",
+			"kind": "man_cannon"
+		},
+		{
+			"at": [
+				-316.099,
+				-182.5
+			],
+			"id": "man_cannon_02",
+			"kind": "man_cannon"
+		},
+		{
+			"at": [
+				141.421,
+				-141.421
+			],
+			"id": "man_cannon_03",
+			"kind": "man_cannon"
+		},
+		{
+			"at": [
+				51.764,
+				193.185
+			],
+			"id": "man_cannon_04",
+			"kind": "man_cannon"
+		},
+		{
+			"at": [
+				-193.185,
+				-51.764
+			],
+			"id": "man_cannon_05",
+			"kind": "man_cannon"
+		},
+		{
+			"at": [
+				-6.0,
+				-342.0
+			],
+			"id": "lily_trap_00",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				6.0,
+				-342.0
+			],
+			"id": "lily_trap_01",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				342.0,
+				-6.0
+			],
+			"id": "lily_trap_02",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				342.0,
+				6.0
+			],
+			"id": "lily_trap_03",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				6.0,
+				342.0
+			],
+			"id": "lily_trap_04",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				-6.0,
+				342.0
+			],
+			"id": "lily_trap_05",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				-342.0,
+				6.0
+			],
+			"id": "lily_trap_06",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				-342.0,
+				-6.0
+			],
+			"id": "lily_trap_07",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				0.0,
+				-440.0
+			],
+			"id": "lily_trap_08",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				311.127,
+				-311.127
+			],
+			"id": "lily_trap_09",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				440.0,
+				0.0
+			],
+			"id": "lily_trap_10",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				311.127,
+				311.127
+			],
+			"id": "lily_trap_11",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				0.0,
+				440.0
+			],
+			"id": "lily_trap_12",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				-311.127,
+				311.127
+			],
+			"id": "lily_trap_13",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				-440.0,
+				0.0
+			],
+			"id": "lily_trap_14",
+			"kind": "lily_trap"
+		},
+		{
+			"at": [
+				-311.127,
+				-311.127
+			],
+			"id": "lily_trap_15",
+			"kind": "lily_trap"
+		}
+	],
+	"scene": "res://scenes/maps/alesia_1km.tscn",
+	"spawns": {
+		"spot_0": [
+			200.0,
+			0.1,
+			-346.41
+		],
+		"spot_1": [
+			400.0,
+			0.1,
+			0.0
+		],
+		"spot_2": [
+			200.0,
+			0.1,
+			346.41
+		],
+		"spot_3": [
+			-200.0,
+			0.1,
+			346.41
+		],
+		"spot_4": [
+			-400.0,
+			0.1,
+			0.0
+		],
+		"spot_5": [
+			-200.0,
+			0.1,
+			-346.41
+		]
+	},
+	"structure_data": "res://data/maps/alesia_1km_structures.json",
+	"terrain": {
+		"_far_step_note": "M2L1: the far terrain's step for this map (OQ-MAP-CULL placeholder): data/map_build.json terrain.far_step_m 5 is no multiple of this 2 m grid; 10 m (every 5th sample) divides the 100 m chunks.",
+		"_placeholder": true,
+		"_todo": "OQ-ALESIA-LAYOUT / OQ-MAP-TERRAIN: flat (0) everywhere except the citadel hill (generator.hill); the heights are baked by tools/gen_alesia.gd into a binary HeightMapShape3D .res at 2 m (501 x 501 samples). max_piece_slope_deg and max_piece_float_m are test_300's guesses.",
+		"far_step_m": 10.0,
+		"height_source": {
+			"path": "res://data/maps/alesia_1km_heights.res",
+			"type": "file"
+		},
+		"max_piece_float_m": 0.3,
+		"max_piece_slope_deg": 15.0,
+		"resolution_m": 2.0,
+		"size_m": 1000.0
+	}
+}
