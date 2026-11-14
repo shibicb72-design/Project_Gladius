@@ -172,7 +172,8 @@ func _paint_ground(nav: Node) -> void:
 
 ## M2P1B: the terrain look, node "Terrain" with one Chunk_<ix>_<iz>/Mesh per cell of the chunk grid (every cell,
 ## identity transforms). Kept apart from Chunks, which holds only MultiMesh batches. The collider is
-## _build_terrain_collider's.
+## _build_terrain_collider's. M2P1C: identity is kept on purpose: the renderer measures a visibility range from
+## the centre of the mesh's world AABB (see MapChunks), so world-space vertices already measure from the cell.
 func _build_terrain(nav: Node) -> void:
 	if terrain == null:
 		return

@@ -6,6 +6,12 @@ extends Node3D
 ## "<kind>_<n>", one per kind and size (the builder's decor_types). Bodies and colliders stay per piece
 ## under Nav; this node draws only. This node and its chunk nodes keep identity transforms, so an instance
 ## transform equals its body's transform. Data: data/map_build.json (placeholder, OQ-MAP-CHUNK).
+## M2P1C: the placement at the origin is kept on purpose. Godot 4.7.2 (Mobile renderer, measured by
+## tools/vis_range_probe.gd) measures visibility_range_begin/end from the camera to the centre of the instance's
+## WORLD AABB (for a MultiMeshInstance3D: the AABB of all its instances), not from the node origin and not from
+## the nearest point. So an origin-placed batch already measures from its own content: range_centre(batch).
+## With fade disabled the end margin is hysteresis: a drawn instance hides beyond end + margin, a hidden one
+## shows again within end - margin.
 
 const CFG_PATH := "res://data/map_build.json"
 static var _registry := DataRegistry.new()
@@ -113,6 +119,20 @@ func batch_of(source: String, type: String, xform: Transform3D) -> MultiMeshInst
 		if placed.is_equal_approx(xform):
 			return batch
 	return null
+
+
+## M2P1C: the world point the renderer measures a batch's visibility range from: the centre of the union of
+## its instances' world AABBs (mesh AABB moved by each world transform), derived from the "transforms" meta
+## because a headless renderer keeps no instance data. Needs the batch's global transform (identity here).
+static func range_centre(batch: MultiMeshInstance3D) -> Vector3:
+	var local := batch.multimesh.mesh.get_aabb()
+	var box := AABB()
+	var first := true
+	for xform: Transform3D in batch.get_meta(&"transforms", []):
+		var placed := xform * local
+		box = placed if first else box.merge(placed)
+		first = false
+	return batch.global_transform * box.get_center()
 
 
 ## Instances drawn for one source, across chunks; `type` "" counts every type.
