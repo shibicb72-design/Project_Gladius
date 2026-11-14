@@ -330,10 +330,12 @@ android/              debug.keystore (shared debug key only)
     (`tests/test_audio_space.gd`). Zones are not loops and use no voice budget.
 
 ### 4.20 Maps and the chunked map builder
-- Status (M2 P1a, Nov 10 2026): the first of three pipeline slices towards the 1 km map. Built: map
+- Status (M2 P1b, Nov 14 2026): two of three pipeline slices towards the 1 km map. Built in P1a: map
   selection, per-map piece files, looks batched per chunk, a 300 m test map, tree-count proxies.
-  Not built: height-field terrain and saved navigation (P1b); visibility ranges, culling, near and far
-  meshes, fog and far plane, loot grid, bot think rate (P1c).
+  Built in P1b: ground size and paint resolution from data, height-field terrain (data, chunked look,
+  one height-map collider), pieces standing on the terrain, saved navigation with stale detection.
+  Not built: visibility ranges, culling, near and far meshes, fog and far plane, loot grid, bot think
+  rate (P1c).
 - **Which map a match loads.** `data/map_select.json` `"map"` names a map json.
   `MatchRoot.select_map()` returns `{path, error}`; a missing or invalid map gives
   `alesia_section` and a non-empty error, and only `MatchRoot.begin()` reports it. The file
@@ -371,6 +373,45 @@ android/              debug.keystore (shared debug key only)
   OQ-MAP-PROXY) and prints one `MAP_PROXY` line per map. `tests/test_astra_perf.gd` reports its
   draw proxy on the test map too. `tools/nav_bake_time.gd -- --map=<json>` times the bake of a map.
   None of these is a frame time: the Fold measurement decides.
+- **Ground size and paint (P1b).** `ArtBuilder.ground_size_of()` resolves the square ground's width
+  once: `terrain.size_m`, then the map json's `ground_size_m`, then the AABB of `Nav/Ground/Mesh`
+  (alesia's fallback: its json is read-only). The chunk grid, the paint and the footsteps read
+  `ArtBuilder.ground_size_m`; `ArtBuilder.ground_material` is the one ground material (flat ground
+  mesh, terrain chunks, backdrop skirt). `GroundPaint.px_for(size)` =
+  min(round(size x `paint_px_per_m`), `paint_px_cap`) from `data/art_materials.json` `ground`
+  (1.6 and 2048, placeholders): alesia stays 256 px and byte-identical, test_300 is 480 px.
+- **Terrain (P1b).** A map json may carry `"terrain"`: `size_m`, `resolution_m`,
+  `max_piece_slope_deg`, `max_piece_float_m` and a `height_source`, either `"generated"` (seed, value
+  noise, a flat centre, an edge blend to 0, named hills with centre, height, radius, outer radius and
+  falloff) or `"file"` (a saved heights file, JSON or a binary `.res`, never an imported image). No
+  block means the flat box ground. `scripts/visual/map_terrain.gd` (`MapTerrain`) holds the grid:
+  `height_at`, `normal_at` and `slope_deg_at` follow the triangulated surface (each quad split along
+  (ix+1, iz)-(ix, iz+1), the split Jolt uses), and generation uses only +, *, floor, sqrt and integer
+  hashing so every platform gets the same heights. `DataRegistry.validate_terrain()` checks the block.
+  - Look: `ArtBuilder/Terrain/Chunk_<ix>_<iz>/Mesh`, one `ArrayMesh` per cell of the chunk grid (every
+    cell), with the ground material; normals come from the whole grid, so chunks share edge normals.
+    `data/map_build.json` `terrain.cast_shadows` is off (placeholder).
+  - Collider: exactly one `StaticBody3D` named `Ground` under `Nav` with one `Shape` holding one
+    `HeightMapShape3D` (no seams between chunk colliders). The name matters: the audio code, the
+    builder's wall loop and `greybox_art.gd` tell the ground apart by it. A terrain map's scene keeps
+    an empty `Nav/Ground`; the builder fills it.
+  - Pieces: the builder adds the terrain height at a piece's origin to its y at build time
+    (`ArtBuilder.lifted()`, `WorldKit.populate`, `WorldKit.decor_body` with a lift so arch piers end at
+    the ground). Piece files keep their flat-ground y. `tools/gen_test_map.gd` rejects spots that are
+    too steep or too uneven (`ground_fits`).
+  - test_300: flat (exactly 0) within 80 m of the origin, where spawns, zone start and drop lie; one
+    12.3 m hill at (90, 90), gentle towards the centre. All numbers are placeholders (OQ-MAP-TERRAIN).
+- **Saved navigation (P1b).** `tools/bake_nav.gd -- --map=<json>` (no argument: both maps) bakes a
+  duplicate of the scene's inline `NavigationMesh` and saves it as `data/maps/nav/<map>.res` with a
+  manifest `data/maps/nav/<map>.json`: the sha256 of every input. Runtime inputs are JSON (map json,
+  piece files, `alesia_cover.json`, `alesia_structures.json`, `art_astra.json`, a JSON heights file),
+  hashed with "\r" removed; tool inputs (the scene, a binary heights file) are compared only by the
+  tool and the tests. `MatchRoot.begin()` calls `MapNav.load_fresh()` (`scripts/visual/map_nav.gd`):
+  a fresh mesh is loaded past the resource cache and assigned to `Nav`; otherwise it bakes as before,
+  prints one line and counts it in `nav_bakes`. `bake_navmesh = false` skips both.
+  `tests/test_saved_nav.gd` fails when a committed mesh is stale and re-bakes both maps to compare
+  polygon and vertex counts (a same-machine check). After changing any input, re-run the tool and
+  commit the four files. `tools/nav_bake_time.gd -- --load` reports load against bake (OQ-MAP-NAV).
 
 ## 5. Testing
 
