@@ -305,6 +305,129 @@ func chunk_mesh(index: Vector2i, chunk_size_m: float, per_side: int) -> ArrayMes
 	return mesh
 
 
+## M2P1C stop 5: why `step_m` cannot be a far-mesh step on this grid ("" = it can): it must be a whole multiple
+## of `res_m` and divide `chunk_m` evenly into at least two steps.
+static func far_step_problem(step_m: float, res_m: float, chunk_m: float) -> String:
+	if step_m <= 0.0 or res_m <= 0.0 or chunk_m <= 0.0:
+		return "far step, resolution and chunk size must be > 0"
+	var k := step_m / res_m
+	if absf(k - roundf(k)) > 1e-4 or roundi(k) < 2:
+		return "far step %.3f m is not a multiple (>= 2) of the height-field resolution %.3f m" % [step_m, res_m]
+	var n := chunk_m / step_m
+	if absf(n - roundf(n)) > 1e-4 or roundi(n) < 2:
+		return "far step %.3f m does not divide the chunk size %.3f m into at least two steps" % [step_m, chunk_m]
+	return ""
+
+
+## M2P1C stop 5: the FAR look of one chunk cell (same cell as chunk_mesh): the true heights on a coarser grid,
+## every `step_m` / resolution_m samples, while the cell's BORDER keeps every full-resolution sample, so a far
+## chunk's edge is the near chunk's edge vertex for vertex (no crack against a near or a far neighbour, no
+## skirt). Inner coarse cells split like _plane; each coarse cell on the border is a fan from its inner corner.
+## Null when the step is unusable (far_step_problem) or the cell's quads do not divide by it (a partial edge
+## cell). Cached per cell, grid and step.
+func far_chunk_mesh(index: Vector2i, chunk_size_m: float, per_side: int, step_m: float) -> ArrayMesh:
+	var key := "far_%d_%d_%s_%d_%s" % [index.x, index.y, str(chunk_size_m), per_side, str(step_m)]
+	if _meshes.has(key):
+		return _meshes[key]
+	_meshes[key] = null
+	if far_step_problem(step_m, resolution_m, chunk_size_m) != "":
+		return null
+	if _positions.is_empty():
+		_build_vertices()
+	var k := roundi(step_m / resolution_m)
+	var rx := _quad_range(index.x, chunk_size_m, per_side)
+	var rz := _quad_range(index.y, chunk_size_m, per_side)
+	var qx := rx.y - rx.x + 1
+	var qz := rz.y - rz.x + 1
+	if qx <= 0 or qz <= 0 or qx % k != 0 or qz % k != 0 or qx / k < 2 or qz / k < 2:
+		return null
+	var cx := qx / k
+	var cz := qz / k
+	# Arrays, not packed arrays: lambdas capture locals by value, and packed arrays are values.
+	var positions: Array[Vector3] = []
+	var normals: Array[Vector3] = []
+	var lookup := {}  # Vector2i(local sample) -> vertex index
+	var vertex := func(i: int, j: int) -> int:
+		var at := Vector2i(i, j)
+		if not lookup.has(at):
+			var s := (rz.x + j) * samples + rx.x + i
+			lookup[at] = positions.size()
+			positions.append(_positions[s])
+			normals.append(_normals[s])
+		return lookup[at]
+	var indices: Array[int] = []
+	# Front faces up: the same turn as _grid_indices' first triangle (i, j), (i+1, j), (i, j+1), which is > 0.
+	var tri := func(a: Vector2i, b: Vector2i, c: Vector2i) -> void:
+		var turn := (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+		if turn == 0:
+			return
+		var ia: int = vertex.call(a.x, a.y)
+		var ib: int = vertex.call(b.x, b.y)
+		var ic: int = vertex.call(c.x, c.y)
+		if turn > 0:
+			indices.append_array([ia, ib, ic])
+		else:
+			indices.append_array([ia, ic, ib])
+	for cj in cz:
+		for ci in cx:
+			var x0 := ci * k
+			var z0 := cj * k
+			var x1 := x0 + k
+			var z1 := z0 + k
+			var low_z := cj == 0
+			var high_x := ci == cx - 1
+			var high_z := cj == cz - 1
+			var low_x := ci == 0
+			if not (low_z or high_x or high_z or low_x):
+				var a := Vector2i(x0, z0)
+				var b := Vector2i(x1, z0)
+				var c := Vector2i(x0, z1)
+				var d := Vector2i(x1, z1)
+				if SPLIT_ANTI_DIAGONAL:
+					tri.call(a, b, c)
+					tri.call(b, d, c)
+				else:
+					tri.call(a, b, d)
+					tri.call(a, d, c)
+				continue
+			# The cell's outline, corner to corner around it, with every sample on a border side.
+			var ring: Array[Vector2i] = []
+			for s in k:
+				ring.append(Vector2i(x0 + s, z0) if low_z or s == 0 else Vector2i(x0, z0))
+			for s in k:
+				ring.append(Vector2i(x1, z0 + s) if high_x or s == 0 else Vector2i(x1, z0))
+			for s in k:
+				ring.append(Vector2i(x1 - s, z1) if high_z or s == 0 else Vector2i(x1, z1))
+			for s in k:
+				ring.append(Vector2i(x0, z1 - s) if low_x or s == 0 else Vector2i(x0, z1))
+			var outline: Array[Vector2i] = []
+			for p in ring:
+				if outline.is_empty() or outline[outline.size() - 1] != p:
+					outline.append(p)
+			if outline.size() > 1 and outline[0] == outline[outline.size() - 1]:
+				outline.pop_back()
+			# Apex: a corner whose two sides are both inner sides (exists because the cell grid is >= 2 x 2).
+			var corners := [[Vector2i(x0, z0), low_x or low_z], [Vector2i(x1, z0), low_z or high_x], [Vector2i(x1, z1), high_x or high_z], [Vector2i(x0, z1), high_z or low_x]]
+			var apex := Vector2i(-1, -1)
+			for c: Array in corners:
+				if not bool(c[1]):
+					apex = c[0]
+					break
+			var start := outline.find(apex)
+			var n := outline.size()
+			for s in range(1, n - 1):
+				tri.call(apex, outline[(start + s) % n], outline[(start + s + 1) % n])
+	var mesh := ArrayMesh.new()
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array(positions)
+	arrays[Mesh.ARRAY_NORMAL] = PackedVector3Array(normals)
+	arrays[Mesh.ARRAY_INDEX] = PackedInt32Array(indices)
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_meshes[key] = mesh
+	return mesh
+
+
 ## Two triangles per quad of an nx x nz vertex grid, split like _plane; shared by chunks of one shape.
 static func _grid_indices(nx: int, nz: int) -> PackedInt32Array:
 	var key := Vector3i(nx, nz, 1 if SPLIT_ANTI_DIAGONAL else 0)

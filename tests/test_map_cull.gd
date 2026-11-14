@@ -82,7 +82,11 @@ func test_terrain_chunks_stay_at_the_origin_and_measure_from_their_cell() -> voi
 			var centre: Vector3 = mi.global_transform * mi.get_aabb().get_center()
 			var cell := _cell_centre(chunks, Vector2i(ix, iz))
 			assert_true(absf(centre.x - cell.x) < 1e-3 and absf(centre.z - cell.y) < 1e-3, "Chunk_%d_%d: the range is measured from its cell centre (%s vs %s)" % [ix, iz, str(centre), str(cell)])
-			assert_true(mi.visibility_range_begin == 0.0 and mi.visibility_range_end == 0.0, "Chunk_%d_%d: terrain is never culled (stop 2)" % [ix, iz])
+			# Stop 5: near ends at the swap, the far sibling begins there and has no end (never culled).
+			var far := root.get_node_or_null("Chunk_%d_%d/Far" % [ix, iz]) as MeshInstance3D
+			assert_true(far != null, "Chunk_%d_%d has a far mesh" % [ix, iz])
+			if far != null:
+				assert_true(mi.visibility_range_begin == 0.0 and mi.visibility_range_end > 0.0 and is_equal_approx(far.visibility_range_begin, mi.visibility_range_end) and far.visibility_range_end == 0.0, "Chunk_%d_%d: near ends where far begins, far never ends" % [ix, iz])
 			checked += 1
 	assert_eq(checked, chunks.per_side * chunks.per_side, "every terrain chunk checked")
 	map.free()
@@ -315,6 +319,31 @@ func test_visible_at_follows_the_renderer_rule() -> void:
 	var far := MapChunks.visible_at(map, Vector3(0, 1, 5000.0))
 	assert_eq([far["batches"], far["batches_total"], far["per_class"]], [1, 3, {"never": 1}], "far away: only the never-culled batch (floor raised the solid one to 250 m)")
 	assert_eq(MapChunks.visible_at(map, Vector3(0, 1, 250.0 + radius - 0.01))["colliding"], 2, "the solid batch is drawn out to the floor")
+	# Stop 5: a terrain near/far pair (near end = far begin = 80 m from the near AABB centre; far uses it as
+	# custom_aabb) and begin honoured.
+	var terrain := Node3D.new()
+	terrain.name = "Terrain"
+	builder.add_child(terrain)
+	var cell := Node3D.new()
+	cell.name = "Chunk_0_0"
+	terrain.add_child(cell)
+	var near_mi := MeshInstance3D.new()
+	near_mi.name = "Mesh"
+	near_mi.mesh = box
+	near_mi.visibility_range_end = 80.0
+	cell.add_child(near_mi)
+	var far_mi := MeshInstance3D.new()
+	far_mi.name = "Far"
+	far_mi.mesh = BoxMesh.new()
+	far_mi.position = Vector3(30, 0, 0)  # its own AABB elsewhere: the custom AABB decides
+	far_mi.custom_aabb = AABB(Vector3(-31, -1, -1), Vector3(2, 2, 2))
+	far_mi.visibility_range_begin = 80.0
+	cell.add_child(far_mi)
+	var in_near := MapChunks.visible_at(map, Vector3(0, 0, 79.0))
+	var in_far := MapChunks.visible_at(map, Vector3(0, 0, 81.0))
+	assert_eq([in_near["terrain_near"], in_near["terrain_far"], in_near["terrain"], in_near["terrain_total"]], [1, 0, 1, 1], "inside the swap: near only")
+	assert_eq([in_far["terrain_near"], in_far["terrain_far"], in_far["terrain"]], [0, 1, 1], "beyond the swap: far only, the chunk still drawn")
+	assert_eq(in_near["terrain_tris"], 12, "triangles of the meshes in range")
 	map.free()
 
 
@@ -343,7 +372,7 @@ func _match_count(node: Node, splits: int, out: Vector3i) -> Vector3i:
 
 
 func _short(v: Dictionary) -> String:
-	return "%d/%d(col=%d,non=%d,shadow=%d) terrain=%d/%d" % [v["batches"], v["batches_total"], v["colliding"], v["non_colliding"], v["shadow"], v["terrain"], v["terrain_total"]]
+	return "%d/%d(col=%d,non=%d,shadow=%d) terrain=%d/%d(near=%d,far=%d)" % [v["batches"], v["batches_total"], v["colliding"], v["non_colliding"], v["shadow"], v["terrain"], v["terrain_total"], v["terrain_near"], v["terrain_far"]]
 
 
 ## Report only: chunk sizes 50, 75 and 100 m on both maps, through MapChunks.size_override_m (never the json).
@@ -382,6 +411,103 @@ func test_chunk_size_report_only() -> void:
 					pm["multimesh"], pm["mesh_instances"], pm["materials"], pm["bodies"], terrain_tris])
 	MapChunks.size_override_m = 0.0
 	failures.append_array(perf.failures)
+
+
+# --- M2P1C stop 5: near and far terrain ---
+
+static func _tris(mesh: ArrayMesh) -> int:
+	return mesh.surface_get_array_index_len(0) / 3 if mesh != null and mesh.get_surface_count() > 0 else 0
+
+
+## Border vertices of a chunk mesh: Vector2(x, z) -> y for every vertex on the rim of `box` (x, z).
+static func _rim(mesh: ArrayMesh, box: AABB) -> Dictionary:
+	var out := {}
+	for p: Vector3 in mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		if is_equal_approx(p.x, box.position.x) or is_equal_approx(p.x, box.end.x) or is_equal_approx(p.z, box.position.z) or is_equal_approx(p.z, box.end.z):
+			out[Vector2(p.x, p.z)] = p.y
+	return out
+
+
+func test_far_terrain_pairs_on_test_300() -> void:
+	var cfg: Dictionary = MapChunks.config()["terrain"]
+	assert_true(String(cfg["_far_todo"]).contains("OQ-MAP-CULL") and float(cfg["far_swap_m"]) > 0.0 and float(cfg["far_step_m"]) > 0.0, "far terrain data are placeholders")
+	var margin_m := float(_classes()["margin_m"])
+	var swap_m := float(cfg["far_swap_m"])
+	var map := _build(MAPS[1])
+	var builder := map.get_node("ArtBuilder")
+	var chunks := builder.chunks as MapChunks
+	var t: MapTerrain = builder.terrain
+	var shape := (map.get_node("Nav/Ground/Shape") as CollisionShape3D).shape as HeightMapShape3D
+	var fresh := MapTerrain.from_block(DataRegistry.parse_quiet(MAPS[1])["terrain"])
+	assert_true(shape.map_data == fresh.heights and shape.map_width == fresh.samples and shape.map_depth == fresh.samples, "the collider keeps the full height field")
+	var lines := PackedStringArray()
+	var near_total := 0
+	for chunk in map.get_node("ArtBuilder/Terrain").get_children():
+		var tag := "test_300 " + String(chunk.name)
+		var near := chunk.get_node("Mesh") as MeshInstance3D
+		var far := chunk.get_node_or_null("Far") as MeshInstance3D
+		assert_true(far != null and chunk.get_child_count() == 2, tag + ": Mesh and Far")
+		if far == null:
+			continue
+		var box := near.get_aabb()
+		var end := swap_m + box.size.length() * 0.5 + margin_m
+		assert_true(is_equal_approx(near.visibility_range_end, end) and is_equal_approx(near.visibility_range_end_margin, margin_m) and near.visibility_range_begin == 0.0, tag + ": near ends at swap + radius + margin")
+		assert_true(is_equal_approx(far.visibility_range_begin, end) and is_equal_approx(far.visibility_range_begin_margin, margin_m) and far.visibility_range_end == 0.0, tag + ": far begins there and never ends")
+		assert_true(far.custom_aabb.is_equal_approx(box), tag + ": far measures from the near mesh's AABB centre")
+		for mi: MeshInstance3D in [near, far]:
+			assert_eq(mi.visibility_range_fade_mode, GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED, tag + ": no fade")
+			assert_true(mi.material_override == builder.ground_material, tag + ": the ground material")
+		# No crack: the far rim is the near rim, vertex for vertex (same full-resolution samples, same heights).
+		var near_rim := _rim(near.mesh, box)
+		var far_rim := _rim(far.mesh, box)
+		assert_true(near_rim.size() > 0 and near_rim == far_rim, "%s: far border = near border (%d vs %d vertices)" % [tag, near_rim.size(), far_rim.size()])
+		# The far surface covers the cell exactly once, every triangle facing up like the near mesh's.
+		var arrays := (far.mesh as ArrayMesh).surface_get_arrays(0)
+		var pos: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var near_arrays := (near.mesh as ArrayMesh).surface_get_arrays(0)
+		var npos: PackedVector3Array = near_arrays[Mesh.ARRAY_VERTEX]
+		var nidx: PackedInt32Array = near_arrays[Mesh.ARRAY_INDEX]
+		var up := signf((npos[nidx[1]] - npos[nidx[0]]).cross(npos[nidx[2]] - npos[nidx[0]]).y)
+		var area := 0.0
+		var flipped := 0
+		for i in range(0, idx.size(), 3):
+			var c := (pos[idx[i + 1]] - pos[idx[i]]).cross(pos[idx[i + 2]] - pos[idx[i]])
+			area += absf(c.y) * 0.5
+			flipped += 1 if signf(c.y) != up else 0
+		assert_true(is_equal_approx(area, box.size.x * box.size.z) and flipped == 0, "%s: far triangles tile the cell once, all up (area %.2f of %.2f, flipped %d)" % [tag, area, box.size.x * box.size.z, flipped])
+		var nt := _tris(near.mesh)
+		var ft := _tris(far.mesh)
+		near_total += nt
+		assert_true(ft > 0 and ft < nt, tag + ": far is cheaper")
+		lines.append("%s near_tris=%d far_tris=%d" % [chunk.name, nt, ft])
+	var centre := MapChunks.visible_at(map, Vector3(0, EYE_M, 0))
+	var corner := MapChunks.visible_at(map, Vector3(-chunks.half_m, EYE_M, -chunks.half_m))
+	assert_true(int(corner["terrain_far"]) > 0, "the swap happens on test_300 (from the corner)")
+	assert_eq(int(corner["terrain"]), chunks.per_side * chunks.per_side, "every chunk drawn from the corner, near or far")
+	print("TERRAIN_LOD far_step_m=%s far_swap_m=%s %s" % [cfg["far_step_m"], cfg["far_swap_m"], " ".join(lines)])
+	print("TERRAIN_LOD in_range before(all near)=%d centre=%d (near=%d far=%d) corner=%d (near=%d far=%d)" % [near_total,
+			centre["terrain_tris"], centre["terrain_near"], centre["terrain_far"], corner["terrain_tris"], corner["terrain_near"], corner["terrain_far"]])
+	assert_true(t != null, "test_300 terrain")
+	map.free()
+
+
+func test_far_step_rules() -> void:
+	assert_eq(MapTerrain.far_step_problem(5.0, 1.0, 100.0), "", "5 m on a 1 m grid in 100 m chunks")
+	assert_eq(MapTerrain.far_step_problem(50.0, 1.0, 100.0), "", "two steps per chunk is enough")
+	for bad: Vector3 in [Vector3(1, 1, 100), Vector3(2.5, 1, 100), Vector3(30, 1, 100), Vector3(100, 1, 100), Vector3(0, 1, 100)]:
+		assert_true(MapTerrain.far_step_problem(bad.x, bad.y, bad.z) != "", "rejected: step %s, grid %s, chunk %s" % [bad.x, bad.y, bad.z])
+	var t := MapTerrain.from_block(DataRegistry.parse_quiet(MAPS[1])["terrain"])
+	var side := MapChunks.count_for(t.size_m, 70.0)
+	assert_true(t.far_chunk_mesh(Vector2i(0, 0), 70.0, side, 7.0) != null, "a full 70 m cell in 7 m steps")
+	assert_true(t.far_chunk_mesh(Vector2i(side - 1, side - 1), 70.0, side, 7.0) == null, "a partial edge cell (20 m) gets no far mesh")
+
+
+func test_no_terrain_no_far_meshes_on_alesia() -> void:
+	var map := _build(MAPS[0])
+	assert_true(map.get_node_or_null("ArtBuilder/Terrain") == null, "alesia: no terrain built")
+	assert_eq(map.find_children("Far", "", true, false).size(), 0, "alesia: no far meshes")
+	map.free()
 
 
 func test_early_classes_end_before_the_floor() -> void:

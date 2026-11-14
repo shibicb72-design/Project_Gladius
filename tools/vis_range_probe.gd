@@ -110,7 +110,67 @@ func _initialize() -> void:
 			point = "aabb_nearest_point"
 	var measured := "node_origin" if origin_based else ("instance_bounds" if bounds_based else "mixed_or_unclear")
 	print("VISRANGE finding=%s point=%s margin_walk=%s (fade disabled; d = distance camera to point)" % [measured, point, ",".join(seq)])
+	for key: String in _probes:
+		(_probes[key] as GeometryInstance3D).visible = false
+	await _swap_walk(world, mat)
 	quit()
+
+
+## M2P1C stop 5: the terrain near/far pair rule (scripts/visual/astra_map.gd _build_terrain). Both nodes at the
+## origin with world-space vertices, like terrain chunks: near = a red box at CONTENT - 6 x, far = a lower green
+## box at CONTENT + 6 x whose custom_aabb is the near box's AABB. near.end = far.begin = RANGE, both margins
+## MARGIN. The camera walks out and back across RANGE +- MARGIN; at every step at least one must be drawn.
+func _swap_walk(world: Node3D, red: Material) -> void:
+	var green := StandardMaterial3D.new()
+	green.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	green.albedo_color = Color(0, 1, 0)
+	green.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var near := _shifted_box(Vector3(8, 8, 8), CONTENT - Vector3(6, 0, 0), red)
+	var far := _shifted_box(Vector3(8, 4, 8), CONTENT + Vector3(6, -2, 0), green)
+	far.custom_aabb = near.get_aabb()
+	near.visibility_range_end = RANGE
+	near.visibility_range_end_margin = MARGIN
+	far.visibility_range_begin = RANGE
+	far.visibility_range_begin_margin = MARGIN
+	world.add_child(near)
+	world.add_child(far)
+	var centre := near.get_aabb().get_center()
+	var walk := [80.0, 94.0, 96.0, 100.0, 104.0, 106.0, 120.0, 106.0, 104.0, 100.0, 96.0, 94.0, 80.0]
+	var none := 0
+	var seq := PackedStringArray()
+	_cam.fov = 30.0
+	for i in walk.size():
+		var d: float = walk[i]
+		_cam.look_at_from_position(centre + Vector3(0, 0, d), CONTENT, Vector3.UP)
+		for f in 4:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var counts := _colour_pixels(root.get_viewport().get_texture().get_image())
+		var objects := RenderingServer.viewport_get_render_info(root.get_viewport().get_viewport_rid(),
+				RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME)
+		var n := counts.x >= RED_MIN_PX
+		var f := counts.y >= RED_MIN_PX
+		none += 1 if not (n or f) else 0
+		var state := "both" if n and f else ("near" if n else ("far" if f else "NONE"))
+		seq.append("%d:%s" % [int(d), state])
+		print("VISRANGE case=swap/step%d_d%d near=%s far=%s red_px=%d green_px=%d objects=%d end=begin=%.0f margin=%.0f" % [
+				i, int(d), "yes" if n else "no", "yes" if f else "no", counts.x, counts.y, objects, RANGE, MARGIN])
+	print("VISRANGE swap_finding=%s walk=%s" % ["never_none" if none == 0 else "GAP_%d_steps" % none, ",".join(seq)])
+
+
+static func _colour_pixels(image: Image) -> Vector2i:
+	image.convert(Image.FORMAT_RGB8)
+	var data := image.get_data()
+	var w := image.get_width()
+	var out := Vector2i.ZERO
+	for y in range(0, image.get_height(), 2):
+		for x in range(0, w, 2):
+			var i := (y * w + x) * 3
+			if data[i] > 200 and data[i + 1] < 60 and data[i + 2] < 60:
+				out.x += 1
+			elif data[i] < 60 and data[i + 1] > 200 and data[i + 2] < 60:
+				out.y += 1
+	return out
 
 
 func _multimesh(mesh: Mesh, mat: Material, at: Vector3, points: Array) -> MultiMeshInstance3D:

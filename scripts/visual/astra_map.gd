@@ -175,12 +175,29 @@ func _paint_ground(nav: Node) -> void:
 ## identity transforms). Kept apart from Chunks, which holds only MultiMesh batches. The collider is
 ## _build_terrain_collider's. M2P1C: identity is kept on purpose: the renderer measures a visibility range from
 ## the centre of the mesh's world AABB (see MapChunks), so world-space vertices already measure from the cell.
+## M2P1C stop 5: near and far. "Mesh" (full resolution) gets visibility_range_end = E and "Far" (a sibling,
+## MapTerrain.far_chunk_mesh) visibility_range_begin = E, with E = terrain.far_swap_m + the chunk's radius (half
+## its AABB diagonal) + classes.margin_m, and the same margin m on both (end margin, begin margin). "Far" takes
+## "Mesh"'s AABB as its custom_aabb, so both measure the same distance d from the same centre. Godot's rule
+## (state = drawn last frame): near hides when d > E + m and shows again when d <= E - m; far shows when
+## d >= E + m and hides when d < E - m. So outwards far is on before near goes, inwards near is on before far
+## goes: never neither, both only at d == E +- m. No end on Far: a terrain chunk is never culled. Without a
+## usable far mesh (far_swap_m 0, a bad far_step_m: push_error, or a partial edge cell) "Mesh" keeps no range.
+## The collider is untouched (one HeightMapShape3D of the full heights).
 func _build_terrain(nav: Node) -> void:
 	if terrain == null:
 		return
 	_build_terrain_collider(nav)
 	var cfg: Dictionary = MapChunks.config().get("terrain", {})
 	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var swap_m := float(cfg.get("far_swap_m", 0.0))
+	var step_m := float(cfg.get("far_step_m", 0.0))
+	var margin_m := float((MapChunks.config().get("classes", {}) as Dictionary).get("margin_m", 0.0))
+	if swap_m > 0.0:
+		var problem := MapTerrain.far_step_problem(step_m, terrain.resolution_m, chunks.chunk_size_m)
+		if problem != "":
+			push_error("ArtBuilder: no far terrain: " + problem)
+			swap_m = 0.0
 	var root := Node3D.new()
 	root.name = "Terrain"
 	add_child(root)
@@ -195,6 +212,22 @@ func _build_terrain(nav: Node) -> void:
 			mesh.material_override = ground_material
 			mesh.cast_shadow = shadow
 			chunk.add_child(mesh)
+			var far_mesh: ArrayMesh = terrain.far_chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side, step_m) if swap_m > 0.0 else null
+			if far_mesh == null:
+				continue
+			var box := mesh.mesh.get_aabb()
+			var end := MapChunks.range_end_for(swap_m, box.size.length() * 0.5, margin_m)
+			mesh.visibility_range_end = end
+			mesh.visibility_range_end_margin = margin_m
+			var far := MeshInstance3D.new()
+			far.name = "Far"
+			far.mesh = far_mesh
+			far.material_override = ground_material
+			far.cast_shadow = shadow
+			far.custom_aabb = box  # the same centre as "Mesh": both swap at the same measured distance
+			far.visibility_range_begin = end
+			far.visibility_range_begin_margin = margin_m
+			chunk.add_child(far)
 
 
 ## M2P1B: the terrain collider, ONE HeightMapShape3D under Nav/Ground (one height field has no seams between

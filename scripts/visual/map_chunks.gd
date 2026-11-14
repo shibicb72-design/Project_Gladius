@@ -241,15 +241,18 @@ static func range_centre(batch: MultiMeshInstance3D) -> Vector3:
 ## renderer's rule: a node is in range when its end is 0 or the distance from `point` to its world AABB centre
 ## is <= visibility_range_end (the hysteresis margin ignored; frustum, occlusion and the far plane ignored).
 ## {"batches", "colliding", "non_colliding", "shadow" (batches in range that cast shadows), "per_class"
-## {class: n}, "batches_total", "terrain", "terrain_total"}. A proxy, not a frame time.
+## {class: n}, "batches_total", "terrain" (terrain chunks with a mesh in range), "terrain_near", "terrain_far"
+## (near / far meshes in range, M2P1C stop 5), "terrain_tris" (their triangles), "terrain_total" (chunks)}.
+## visibility_range_begin counts too (in_range). A proxy, not a frame time.
 static func visible_at(map: Node, point: Vector3) -> Dictionary:
-	var out := {"batches": 0, "colliding": 0, "non_colliding": 0, "shadow": 0, "per_class": {}, "batches_total": 0, "terrain": 0, "terrain_total": 0}
+	var out := {"batches": 0, "colliding": 0, "non_colliding": 0, "shadow": 0, "per_class": {}, "batches_total": 0,
+			"terrain": 0, "terrain_near": 0, "terrain_far": 0, "terrain_tris": 0, "terrain_total": 0}
 	var chunks := map.get_node_or_null("ArtBuilder/Chunks") as MapChunks
 	if chunks != null:
 		for batch in chunks.batches():
 			out["batches_total"] += 1
-			var end := batch.visibility_range_end
-			if end > 0.0 and point.distance_to(range_centre(batch)) > end:
+			var d := point.distance_to(range_centre(batch))
+			if (batch.visibility_range_end > 0.0 and d > batch.visibility_range_end) or (batch.visibility_range_begin > 0.0 and d < batch.visibility_range_begin):
 				continue
 			out["batches"] += 1
 			out["colliding" if bool(batch.get_meta(&"collides", false)) else "non_colliding"] += 1
@@ -259,12 +262,30 @@ static func visible_at(map: Node, point: Vector3) -> Dictionary:
 			out["per_class"][cls] = int(out["per_class"].get(cls, 0)) + 1
 	var terrain := map.get_node_or_null("ArtBuilder/Terrain")
 	if terrain != null:
-		for mi: MeshInstance3D in terrain.find_children("*", "MeshInstance3D", true, false):
+		for chunk in terrain.get_children():
 			out["terrain_total"] += 1
-			var end := mi.visibility_range_end
-			if end <= 0.0 or point.distance_to(mi.global_transform * mi.get_aabb().get_center()) <= end:
-				out["terrain"] += 1
+			var any := false
+			for mi: MeshInstance3D in chunk.find_children("*", "MeshInstance3D", false, false):
+				if not in_range(mi, point):
+					continue
+				any = true
+				out["terrain_far" if mi.name == &"Far" else "terrain_near"] += 1
+				for s in (mi.mesh.get_surface_count() if mi.mesh != null else 0):
+					if mi.mesh is ArrayMesh:
+						out["terrain_tris"] += (mi.mesh as ArrayMesh).surface_get_array_index_len(s) / 3
+					else:
+						out["terrain_tris"] += (mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+			out["terrain"] += 1 if any else 0
 	return out
+
+
+## M2P1C: whether `node` is drawn for a camera at `point` by the renderer's rule (stop 1): d = distance from
+## the point to the centre of its world AABB (custom_aabb when set); end 0 or d <= end, and begin 0 or
+## d >= begin. Margins (hysteresis) ignored.
+static func in_range(node: GeometryInstance3D, point: Vector3) -> bool:
+	var box: AABB = node.custom_aabb if node.custom_aabb.has_volume() else node.get_aabb()
+	var d := point.distance_to(node.global_transform * box.get_center())
+	return (node.visibility_range_end <= 0.0 or d <= node.visibility_range_end) and (node.visibility_range_begin <= 0.0 or d >= node.visibility_range_begin)
 
 
 ## Instances drawn for one source, across chunks; `type` "" counts every type.

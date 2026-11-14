@@ -6,7 +6,10 @@
 	"terrain": {
 		"_placeholder": true,
 		"_todo": "OQ-MAP-TERRAIN: off is a first guess, not measured; each casting terrain chunk costs a shadow draw per split on the phone, so a Fold measurement decides it.",
-		"cast_shadows": false
+		"cast_shadows": false,
+		"_far_todo": "OQ-MAP-CULL / OQ-MAP-TERRAIN: far_step_m and far_swap_m are first guesses for Shibi, not measured. far_step_m: the far mesh's grid step (a whole multiple of the height-field resolution that divides chunk_size_m; otherwise no far mesh). far_swap_m: every point of a terrain chunk is drawn at full resolution at least out to this camera distance, like a class range_m (the code adds the chunk's radius and classes.margin_m); 0 = no far mesh. 150 m keeps every test_300 chunk near from the centre and swaps five of nine to far from a corner.",
+		"far_step_m": 5,
+		"far_swap_m": 150
 	},
 	"proxy_limits": {
 		"_placeholder": true,
