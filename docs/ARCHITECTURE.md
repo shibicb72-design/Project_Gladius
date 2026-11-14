@@ -188,6 +188,7 @@ android/              debug.keystore (shared debug key only)
 - Code: `BotBrain` turns perception into an `InputFrame` and drives the same `Pawn` as a human. So
   bots get movement, weapons and rules for free, and work identically on host and dedicated server.
   Target selection and aim error are pure helpers (`bot_targeting.gd`).
+- Think rate (M2 P1c): a bot far from every alive human decides only every 4th tick; see 4.20.
 - Commands (later): a `BotCommand` id (follow, attack, hold, rush_hill; page 2: guard, rush,
   attack_marked) switches the brain's goal state. Command pages/buttons are data in `input.json`.
   Prone and seeking good spots are brain behaviors.
@@ -330,12 +331,13 @@ android/              debug.keystore (shared debug key only)
     (`tests/test_audio_space.gd`). Zones are not loops and use no voice budget.
 
 ### 4.20 Maps and the chunked map builder
-- Status (M2 P1b, Nov 14 2026): two of three pipeline slices towards the 1 km map. Built in P1a: map
+- Status (M2 P1c, Nov 14 2026): the three pipeline slices towards the 1 km map are built. P1a: map
   selection, per-map piece files, looks batched per chunk, a 300 m test map, tree-count proxies.
-  Built in P1b: ground size and paint resolution from data, height-field terrain (data, chunked look,
-  one height-map collider), pieces standing on the terrain, saved navigation with stale detection.
-  Not built: visibility ranges, culling, near and far meshes, fog and far plane, loot grid, bot think
-  rate (P1c).
+  P1b: ground size and paint resolution from data, height-field terrain (data, chunked look, one
+  height-map collider), pieces standing on the terrain, saved navigation with stale detection. P1c:
+  visibility ranges per piece class, shadows per class, chunk size 100 m, near and far terrain, a
+  cover index, a loot grid, a bot think rate, visible-at-a-point proxies. Not built: fog and far
+  plane matching (a product call for P2, OQ-MAP-CULL).
 - **Which map a match loads.** `data/map_select.json` `"map"` names a map json.
   `MatchRoot.select_map()` returns `{path, error}`; a missing or invalid map gives
   `alesia_section` and a non-empty error, and only `MatchRoot.begin()` reports it. The file
@@ -355,8 +357,8 @@ android/              debug.keystore (shared debug key only)
   a `Shape` child holding a box, collision layer 1).
 - **Looks are batched per chunk** (`scripts/visual/map_chunks.gd`, `MapChunks`):
   `ArtBuilder/Chunks/Chunk_<ix>_<iz>/Batch_<source>_<type>`, one `MultiMeshInstance3D` per chunk,
-  source (`cover`, `ring`, `structure`, `decor`) and type, with that type's material and its source's
-  shadow setting (decor casts none). A decor type is `<kind>_<n>`, one per kind and size
+  source (`cover`, `ring`, `structure`, `decor`) and type, with that type's material; its shadow
+  setting comes from its class (P1c, below). A decor type is `<kind>_<n>`, one per kind and size
   (`ArtBuilder.decor_types` maps a decor id to it), because Godot strips "." from node names. The grid starts at the map centre: index = floor((x + half) / size) on each axis, clamped
   to the grid; the piece's body origin decides. Chunk nodes stay at the origin, so an instance
   transform equals its body's transform; each batch keeps it in the `transforms` meta.
@@ -372,7 +374,8 @@ android/              debug.keystore (shared debug key only)
   `tests/test_map_proxy.gd` checks them against `data/map_build.json` `proxy_limits` (placeholders,
   OQ-MAP-PROXY) and prints one `MAP_PROXY` line per map. `tests/test_astra_perf.gd` reports its
   draw proxy on the test map too. `tools/nav_bake_time.gd -- --map=<json>` times the bake of a map.
-  None of these is a frame time: the Fold measurement decides.
+  None of these is a frame time: the Fold measurement decides. P1c adds the visible-at-a-point
+  counts (below).
 - **Ground size and paint (P1b).** `ArtBuilder.ground_size_of()` resolves the square ground's width
   once: `terrain.size_m`, then the map json's `ground_size_m`, then the AABB of `Nav/Ground/Mesh`
   (alesia's fallback: its json is read-only). The chunk grid, the paint and the footsteps read
@@ -412,6 +415,54 @@ android/              debug.keystore (shared debug key only)
   `tests/test_saved_nav.gd` fails when a committed mesh is stale and re-bakes both maps to compare
   polygon and vertex counts (a same-machine check). After changing any input, re-run the tool and
   commit the four files. `tools/nav_bake_time.gd -- --load` reports load against bake (OQ-MAP-NAV).
+  `DataRegistry.validate_terrain()` reads a heights file and reports a grid that does not fit the
+  block (P1c); `MapTerrain.for_map()` logs one error when a map's terrain block gives no terrain, and
+  its cache holds one map's terrain, dropped when `ArtBuilder` leaves the tree.
+- **Visibility ranges (P1c).** Godot 4.7.2 measures `visibility_range_begin`/`_end` from the camera
+  to the centre of the node's world AABB (for a batch: the box around all its instances), not from
+  the node origin (`tools/vis_range_probe.gd`, windowed). So the P1a placement stays: batches and
+  terrain chunks at the origin with world-space content. Fade is disabled everywhere, so the margin is
+  hysteresis: a drawn node hides beyond end + margin, a hidden one shows again within end - margin.
+  - Classes: `data/map_build.json` `classes` puts each batch in a class (by type, then by kind, then
+    by source) with a `range_m` and `cast_shadows`. `range_m` means "every piece is drawn at least
+    out to this distance", so end = range_m + the batch radius (half its AABB diagonal) + `margin_m`
+    (5); 0 = never culled. A batch with colliders never ends below `sight_floor_m` (250); the code
+    raises it (`MapChunks.effective_range`). Only paving (120 m) ends earlier.
+  - Shadows per class: structures and cover or ring pieces of 1.8 m and taller cast; small cover,
+    small ring and decor do not. The class wins over the builders' old settings.
+  - Chunk size 100 m (was 50): measured at 50, 75 and 100 m (`test_chunk_size_report_only`, through
+    `MapChunks.size_override_m`), 100 m gave the fewest batches, the lowest draw proxy and the fewest
+    batches in range from the centre and a corner on both maps, and tiles 300 m and 1 km. Costs: about
+    71 m of batch radius in every range end and 20,000-triangle terrain chunks.
+  - Near and far terrain: each chunk has `Mesh` (full resolution) and `Far`
+    (`MapTerrain.far_chunk_mesh`, every `far_step_m` 5 m inside, every full-resolution sample on the
+    border, so neighbours meet without cracks). `Mesh` ends and `Far` begins at the same E =
+    `far_swap_m` (150) + chunk radius + margin, measured from the same centre (`Far` takes `Mesh`'s
+    AABB as its custom AABB): never neither drawn. `Far` has no end, so terrain is never culled. The
+    collider is unchanged (the full height map).
+- **Cover index and loot grid (P1c).** `CoverIndex` (`scripts/systems/cover_index.gd`) is a grid over
+  the group `cover_wall`, one per SceneTree (a meta on its root); `CoverProbe` joins only walls near
+  the current ends and still runs every old per-wall check live. Staleness: every sample an O(1)
+  check (a dirty flag from tree signals and the group's node count); at most once per frame a full
+  O(walls) validation (group array, shape positions, box resources). So a wall moved silently is seen
+  from the next frame, not within the frame. `LootField` keeps a grid of its items; `nearest()` and
+  the bot loot goal ask `items_near()`, which returns ids in insertion (rank) order, so ties keep the
+  first-inserted winner. Both give the old results (proven by tests); cell sizes
+  `spatial_index.cover_cell_m` 16 and `loot_cell_m` 20 change only speed (OQ-MAP-INDEX).
+- **Bot think rate (P1c).** A bot farther than `bots.json` `brain.think_rate.far_distance_m` (60) from
+  every alive human runs a full think only when (`MatchDirector.tick_count` + player id) %
+  `far_interval_ticks` (4) == 0; downed, dead and spectating humans do not count. On the other ticks
+  it coasts: movement, look, timers and path following run on the last decision. The near check runs
+  on cadence ticks, so an approached bot is at most 3 ticks late. While the match is not running
+  every tick thinks. OQ-BOT-THINK.
+- **Visible-at-a-point proxies (P1c).** `MapChunks.visible_at(map, point)` counts what the renderer's
+  rule draws from a point (batches, colliding or not, shadow casters, terrain near and far and their
+  triangles). `MapChunks.standard_points()` defines the two points once (the play centre and the
+  ground corner, at eye height 1.7 m); `visible_proxies()` and `visible_problems()` check them
+  against `proxy_limits.visible` (placeholders, OQ-MAP-PROXY).
+- **P1c tests.** `tests/test_map_cull.gd` (placement, classes, floor, shadows, chunk sizes, far
+  terrain, the `P1C_PROXY` report), `tests/test_map_proxy.gd` (limits), `tests/test_cover_index.gd`,
+  `tests/test_loot_grid.gd`, `tests/test_bot_think_rate.gd`, `tests/test_terrain_heights_and_cache.gd`.
 
 ## 5. Testing
 

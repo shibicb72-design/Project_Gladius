@@ -11,6 +11,7 @@ extends Node
 ##   unstick: barely moved over stuck_window_s while walking -> jump and sidestep for unstick_s.
 ## Pickups happen in MatchDirector when a bot stands on an item; revives through director.begin_revive.
 ## A DOWNED, dropping or dead bot does nothing.
+## Think rate (M2P1C stop 7): far from every human a bot decides only every few ticks (see next_frame).
 
 var pawn: Pawn
 var director: MatchDirector
@@ -32,6 +33,28 @@ var _unstick_left: float = 0.0
 var _unstick_side: float = 1.0
 var _seeded: bool = false
 var _swap_cooldown: float = 0.0
+
+## ---- Think rate (M2P1C stop 7, data/bots.json brain.think_rate, placeholder OQ-BOT-THINK) ----
+## A bot farther than far_distance_m from every human runs a full think (build_frame) only on its cadence
+## ticks: (director.tick_count + player_id) % far_interval_ticks == 0. On the ticks between it "coasts"
+## (_coast_frame): movement, look, timers and path following still run every tick on the last decision.
+## Cadence source: MatchDirector.tick_count, the director's own count of rule ticks; it is 0 when the
+## director is made (one director per match), advances by exactly one per physics tick while the match
+## runs, and is shared by every brain of the match, so the player_id stagger holds even for a brain made
+## later. No engine-global or static counter: two matches in one process see the same sequence.
+## While the match is not running (before start, after match_over, a network client) every tick thinks.
+## Feature off (far_interval_ticks <= 1, far_distance_m <= 0 or no block): every tick thinks, as before.
+## Report and test counters: ticks on which this bot was alive and grounded, and how many were full thinks.
+var brain_ticks: int = 0
+var think_ticks: int = 0
+var _near: bool = true  # a human within far_distance_m at the last check
+var _has_decision: bool = false  # build_frame ran its full grounded branch since the last early return
+var _last_goal := Vector3.ZERO  # the walk goal chosen at the last think
+var _last_goal_active: bool = false  # false: the last think held still ("hold")
+var _last_enemy: bool = false  # an enemy was in sight at the last think (the aim timers run)
+var _last_look: bool = false  # the last think turned toward something
+var _last_yaw: float = 0.0
+var _last_pitch: float = 0.0
 
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
@@ -60,15 +83,143 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	pawn.set_frame(build_frame(delta))
+	pawn.set_frame(next_frame(delta))
+
+
+## This tick's frame: a full think (build_frame) on think ticks, else a coast on the last decision.
+func next_frame(delta: float) -> InputFrame:
+	var grounded := pawn != null and pawn.is_alive() and pawn.is_inside_tree() and not pawn.is_dropping()
+	if grounded:
+		brain_ticks += 1
+	if should_think():
+		if grounded:
+			think_ticks += 1
+		return build_frame(delta)
+	return _coast_frame(delta)
+
+
+func _far_interval() -> int:
+	return int(cfg.get("think_rate", {}).get("far_interval_ticks", 1))
+
+
+func _far_distance() -> float:
+	return float(cfg.get("think_rate", {}).get("far_distance_m", 0.0))
+
+
+## True when this tick is a full think. Dead, dropping and falling bots always "think" (build_frame's
+## early returns are cheap and unchanged), as does the first grounded tick (no decision to keep yet).
+## The near check runs on the cadence ticks only (and on that first tick): a far bot that a human
+## approaches notices on its next cadence tick, at most far_interval_ticks - 1 ticks late, and then thinks
+## every tick; a near bot that the human leaves keeps thinking every tick until its next cadence tick.
+func should_think() -> bool:
+	var interval := _far_interval()
+	var dist := _far_distance()
+	if interval <= 1 or dist <= 0.0 or director == null or not director.running:
+		return true
+	if pawn == null or not pawn.is_alive() or not pawn.is_inside_tree() or pawn.is_dropping():
+		return true
+	if not _has_decision:
+		_near = _human_within(dist)
+		return true
+	if posmod(director.tick_count + pawn.player_id, interval) == 0:
+		_near = _human_within(dist)
+		return true
+	return _near
+
+
+## An ALIVE human pawn (no Brain child, the director's own bot test) lies within dist_m.
+## Only ALIVE humans count (the slice's binding rule); a DOWNED, DEAD or spectating human does not, although a
+## downed human still watches the fight around it (open for Shibi, OQ-BOT-THINK).
+## The local idle human of the sim counts, also while aboard the carrier. No human at all:
+## every bot is far. Squared 3D distances over a handful of pawns.
+func _human_within(dist_m: float) -> bool:
+	var d2 := dist_m * dist_m
+	var here := pawn.global_position
+	var players := director.all_players()
+	for id in players:
+		var p: Pawn = players[id]
+		if p == pawn or p.life != Pawn.Life.ALIVE or not p.is_inside_tree() or p.has_node("Brain"):
+			continue
+		if p.global_position.distance_squared_to(here) <= d2:
+			return true
+	return false
+
+
+## A far bot's tick between thinks. Field by field against build_frame:
+##   move: follows the NavigationAgent3D path toward the last decided goal (re-asked every tick, so the
+##     world-space direction is re-expressed in the pawn's current local frame); hold -> no move; the
+##     unstick sidestep and its timer run as in build_frame.
+##   look: BotTargeting.look_toward the last decided yaw and pitch with this tick's turn budget (frame.look
+##     is a per-tick delta, never reused).
+##   one-shots (jump_just_pressed, swap_weapon_just_pressed, reload_just_pressed, fire_just_pressed): false.
+##   held: jump_pressed stays true while the unstick runs (it follows the timer, not a stale decision);
+##     reload_pressed false (the pawn acts only on reload_just_pressed); fire_pressed FALSE: a far bot never
+##     fires on a coast tick, so it never shoots at a stale aim. A burst already started still finishes
+##     (Weapon.update ends running bursts without the trigger); the cost is that a new burst starts on the
+##     first think tick after the gun's cooldown, at most far_interval_ticks - 1 ticks late.
+##   timers: _seen_for_s and _error_age_s (while the last think saw an enemy; the aim error is redrawn on
+##     the tick its age runs out, as build_frame would, and the kept yaw/pitch shift by the change),
+##     _swap_cooldown, _unstick_left and the stuck window _stuck_t all advance by delta. Whether the bot is
+##     stuck is judged at the next think (_track_stuck), so the unstick, and its jump, start on a think tick.
+func _coast_frame(delta: float) -> InputFrame:
+	var frame := InputFrame.new()
+	if _last_enemy:
+		_seen_for_s += delta
+		_error_age_s -= delta
+		if _error_age_s <= 0.0:
+			var old := _error
+			_error = BotTargeting.aim_error(float(profile.get("accuracy", 0.3)),
+					float(cfg.get("max_aim_error_deg", 12.0)), _rng)
+			_error_age_s = float(cfg.get("aim_error_refresh_s", 0.5))
+			_last_yaw += _error.x - old.x
+			_last_pitch += _error.y - old.y
+	_swap_cooldown = maxf(_swap_cooldown - delta, 0.0)
+	var move_dir := _follow_path(delta)
+	if _unstick_left > 0.0:
+		_unstick_left -= delta
+		var side := pawn.global_transform.basis.x * _unstick_side
+		move_dir = (move_dir + side).normalized() if move_dir != Vector3.ZERO else side
+		frame.jump_pressed = true
+	if move_dir != Vector3.ZERO:
+		var local := pawn.global_transform.basis.inverse() * move_dir
+		frame.move = Vector2(local.x, local.z).limit_length(1.0)
+	if _last_look:
+		var turn: float = float(cfg.get("turn_rate_rad_s", 6.0)) * delta
+		frame.look = BotTargeting.look_toward(pawn.rotation.y, pawn.pitch, _last_yaw, _last_pitch, turn)
+	return frame
+
+
+## The path-following half of _move_direction, toward the last decided goal (the goal itself is chosen
+## only on think ticks).
+func _follow_path(delta: float) -> Vector3:
+	if not _last_goal_active:
+		_stuck_t = 0.0
+		return Vector3.ZERO
+	var to_goal := _last_goal - pawn.global_position
+	to_goal.y = 0.0
+	if to_goal.length() < 0.3:
+		_stuck_t = 0.0
+		return Vector3.ZERO
+	if _unstick_left <= 0.0:
+		_stuck_t += delta
+	if _agent.target_position != _last_goal:
+		_agent.target_position = _last_goal
+	var next := _agent.get_next_path_position()
+	var dir := next - pawn.global_position
+	dir.y = 0.0
+	if dir.length() < 0.1:
+		dir = to_goal
+	return dir.normalized()
 
 
 func build_frame(delta: float) -> InputFrame:
 	var frame := InputFrame.new()
 	if pawn == null or not pawn.is_alive() or not pawn.is_inside_tree():
+		_has_decision = false
 		return frame
 	_ensure_seeded()
 	if pawn.drop_state == Pawn.Drop.FALLING:
+		_has_decision = false
 		# Steer the glide toward this bot's own spot inside the next circle.
 		var to := _zone_spot() - pawn.global_position
 		to.y = 0.0
@@ -77,6 +228,7 @@ func build_frame(delta: float) -> InputFrame:
 			frame.move = Vector2(local.x, local.z).limit_length(1.0)
 		return frame
 	if pawn.is_dropping():
+		_has_decision = false
 		return frame
 	var turn: float = float(cfg.get("turn_rate_rad_s", 6.0)) * delta
 	var enemy := _find_target()
@@ -110,9 +262,15 @@ func build_frame(delta: float) -> InputFrame:
 		if enemy == null:
 			want_dir = move_dir
 
+	# The decision a far bot keeps until its next think (_coast_frame); the goal is kept in _move_direction.
+	_has_decision = true
+	_last_enemy = enemy != null
+	_last_look = want_dir != Vector3.ZERO
 	if want_dir != Vector3.ZERO:
 		var yaw := BotTargeting.yaw_of(want_dir) + (_error.x if enemy != null else 0.0)
 		var pitch := BotTargeting.pitch_of(want_dir) + (_error.y if enemy != null else 0.0)
+		_last_yaw = yaw
+		_last_pitch = pitch
 		frame.look = BotTargeting.look_toward(pawn.rotation.y, pawn.pitch, yaw, pitch, turn)
 		if enemy != null and _seen_for_s >= float(profile.get("reaction_time_s", 0.5)):
 			var aimed := absf(wrapf(yaw - pawn.rotation.y, -PI, PI)) < deg_to_rad(float(cfg.get("fire_cone_deg", 6.0)))
@@ -203,6 +361,8 @@ func _find_target() -> Pawn:
 ## World-space direction to walk this tick (ZERO = stay).
 func _move_direction(enemy: Pawn, melee_only: bool, delta: float) -> Vector3:
 	var goal := _goal(enemy, melee_only)
+	_last_goal = goal
+	_last_goal_active = goal_kind != "hold"
 	if goal_kind == "hold":
 		_stuck_t = 0.0
 		return Vector3.ZERO
@@ -305,7 +465,8 @@ func _loot_goal(guns_only: bool = false) -> Vector3:
 	var best := Vector3.INF
 	var best_score := INF
 	var want_gun := _melee_only()
-	for id in loot.items:
+	# M2P1C stop 6: only the items the loot grid finds in range, in the same order as `items` (same result).
+	for id in loot.items_near(pawn.global_position, range_m):
 		var entry: Dictionary = loot.items[id]
 		var item_def := loot.def(str(entry["item_id"]))
 		if not pawn.wants_item(item_def, director.bot_ammo_low_magazines(), director.bot_heal_below_pct()) or (guns_only and str(item_def.get("kind", "")) != "weapon"):

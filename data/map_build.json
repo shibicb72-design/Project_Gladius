@@ -1,17 +1,55 @@
 {
 	"_placeholder": true,
 	"_todo": "OQ-MAP-CHUNK: chunk_size_m is a first guess for Shibi, not a design value; a Fold measurement decides it.",
-	"chunk_size_m": 50,
+	"_note": "M2P1C stop 3: 100 m (was 50) because it gave the fewest batches and the fewest batches in range from the centre and a corner on both maps (tests/test_map_cull.gd CHUNK_SIZE lines) and tiles 300 m and 1 km exactly; the costs are a ~71 m batch radius added to every range end and 20000-triangle terrain chunks.",
+	"chunk_size_m": 100,
+	"spatial_index": {
+		"_placeholder": true,
+		"_todo": "OQ-MAP-INDEX: both cell sizes are first guesses for Shibi, not measured; they change only speed, never a result (scripts/systems/cover_index.gd, LootField's grid). cover_cell_m: grid cell of the cover-wall index (a cover piece is a few metres; a join query spans its chain's ends). loot_cell_m: grid cell of the ground-loot grid (pickup range 2 m, bot loot seek 45 m).",
+		"cover_cell_m": 16,
+		"loot_cell_m": 20
+	},
 	"terrain": {
 		"_placeholder": true,
 		"_todo": "OQ-MAP-TERRAIN: off is a first guess, not measured; each casting terrain chunk costs a shadow draw per split on the phone, so a Fold measurement decides it.",
-		"cast_shadows": false
+		"cast_shadows": false,
+		"_far_todo": "OQ-MAP-CULL / OQ-MAP-TERRAIN: far_step_m and far_swap_m are first guesses for Shibi, not measured. far_step_m: the far mesh's grid step (a whole multiple of the height-field resolution that divides chunk_size_m; otherwise no far mesh). far_swap_m: every point of a terrain chunk is drawn at full resolution at least out to this camera distance, like a class range_m (the code adds the chunk's radius and classes.margin_m); 0 = no far mesh. 150 m keeps every test_300 chunk near from the centre and swaps five of nine to far from a corner.",
+		"far_step_m": 5,
+		"far_swap_m": 150
 	},
 	"proxy_limits": {
 		"_placeholder": true,
 		"_todo": "OQ-MAP-PROXY: placeholder limits on tree counts (MapChunks.proxies), not measured frame cost; a Fold measurement decides them.",
-		"_note": "Each limit is the larger of the two maps' measured values (alesia_section, test_300; measured after stop 6, the decor looks batched per chunk, chunk_size_m 50) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
-		"per_chunk": {"multimesh": 30, "mesh_instances": 9, "materials": 2, "bodies": 95},
-		"per_map": {"multimesh": 700, "mesh_instances": 150, "materials": 30, "bodies": 850}
+		"_note": "Each limit is the larger of the two maps' measured values (alesia_section, test_300; measured at M2P1C stop 3, chunk_size_m 100) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
+		"per_chunk": {"multimesh": 60, "mesh_instances": 9, "materials": 2, "bodies": 150},
+		"per_map": {"multimesh": 450, "mesh_instances": 150, "materials": 30, "bodies": 850},
+		"_visible_note": "M2P1C stop 8: limits on the visible-at-a-point counts (MapChunks.visible_proxies: batches whose visibility range covers the point, and the shadow casters among them) from the two standard points (MapChunks.standard_points: the play centre and the ground corner, at eye height). Same rule: the larger of the two maps' measured values (alesia_section 83/36 from both points; test_300 centre 284/136, corner 237/119; measured at M2P1C stop 8, chunk_size_m 100) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
+		"visible": {
+			"centre": {"batches": 450, "shadow": 250},
+			"corner": {"batches": 400, "shadow": 200}
+		}
+	},
+	"classes": {
+		"_placeholder": true,
+		"_todo": "OQ-MAP-CULL: every distance and shadow choice here is a first guess for Shibi (a 1 km map, a 200 m aim ray), not measured; a Fold measurement and play decide them.",
+		"_note": "MapChunks puts each batch in a class: by_type \"<source>/<type>\" first, then \"<source>/<kind>\" (a decor type \"<kind>_<n>\" without its _<n>), then by_source. range_m: every piece of the batch is drawn at least out to this camera distance; 0 = never culled. A batch whose pieces have colliders never ends below sight_floor_m (the code raises it; 0 stays never). margin_m is the end margin, hysteresis with fade disabled. cast_shadows (required) is the batch's shadow and wins over the builders' old settings (cover and ring always on, alesia_structures.json batches.cast_shadows).",
+		"_shadow_rule": "Big cover = a cover type at least 1.8 m tall (taller than a standing soldier): pillar, arch, tall_wall, crate_stack, wreck_truck, wreck_apc; the same split for the ring. Rim decor (arches 9 m, rocks 4 m) is big but stays off: it stands at the map's rim, away from the fights, and never cast before.",
+		"sight_floor_m": 250,
+		"margin_m": 5,
+		"by_source": {"cover": "cover_small", "ring": "ring_small", "structure": "structure", "decor": "paving"},
+		"by_type": {
+			"decor/arch": "decor_solid", "decor/rock": "decor_solid",
+			"cover/pillar": "cover_big", "cover/arch": "cover_big", "cover/tall_wall": "cover_big", "cover/crate_stack": "cover_big", "cover/wreck_truck": "cover_big", "cover/wreck_apc": "cover_big",
+			"ring/pillar": "ring_big", "ring/arch": "ring_big", "ring/tall_wall": "ring_big", "ring/crate_stack": "ring_big", "ring/wreck_truck": "ring_big", "ring/wreck_apc": "ring_big"
+		},
+		"list": {
+			"paving": {"range_m": 120, "cast_shadows": false},
+			"cover_small": {"range_m": 250, "cast_shadows": false},
+			"cover_big": {"range_m": 250, "cast_shadows": true},
+			"ring_small": {"range_m": 300, "cast_shadows": false},
+			"ring_big": {"range_m": 300, "cast_shadows": true},
+			"decor_solid": {"range_m": 400, "cast_shadows": false},
+			"structure": {"range_m": 500, "cast_shadows": true}
+		}
 	}
 }

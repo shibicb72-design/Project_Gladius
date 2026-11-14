@@ -54,7 +54,8 @@ func _ready() -> void:
 		if bool(definition.get("coverable", false)):
 			body.add_to_group(&"cover_wall")
 		body.position = lifted(LowpolyKit.vec(entry["at"]))
-		chunks.add("cover", String(entry["type"]), meshes[entry["type"]], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
+		# M2P1C stop 4: no shadow argument; the batch class decides (map_build.json "classes", see MapChunks).
+		chunks.add("cover", String(entry["type"]), meshes[entry["type"]], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), body.transform, true)
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
 		var box := BoxShape3D.new()
@@ -101,7 +102,7 @@ func _ready() -> void:
 		var at := LowpolyKit.vec(entry["at"])
 		var lift := lifted(at).y - at.y
 		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), lifted(at))
-		chunks.add("decor", type, meshes[key], null, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, xform)
+		chunks.add("decor", type, meshes[key], null, xform, decor_solid.has(entry["kind"]))  # shadow: the batch class's
 		if decor_solid.has(entry["kind"]):
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
@@ -120,6 +121,12 @@ func _ready() -> void:
 	ambient.name = "Ambient"
 	add_child(ambient)  # before configure: the tufts ask this builder (their parent) where the grass is
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
+
+
+## M2P1C: the map leaves the tree (match end, a test or tool freeing it): MapTerrain's cache drops its terrain
+## (heights, per-sample positions and normals, chunk meshes: megabytes on test_300). This builder keeps its own `terrain` reference; the next for_map regenerates.
+func _exit_tree() -> void:
+	MapTerrain.clear_cache()
 
 
 ## S2: the ground's blend material. The paint map comes from the map data (landmarks, cover and structure
@@ -172,13 +179,31 @@ func _paint_ground(nav: Node) -> void:
 
 ## M2P1B: the terrain look, node "Terrain" with one Chunk_<ix>_<iz>/Mesh per cell of the chunk grid (every cell,
 ## identity transforms). Kept apart from Chunks, which holds only MultiMesh batches. The collider is
-## _build_terrain_collider's.
+## _build_terrain_collider's. M2P1C: identity is kept on purpose: the renderer measures a visibility range from
+## the centre of the mesh's world AABB (see MapChunks), so world-space vertices already measure from the cell.
+## M2P1C stop 5: near and far. "Mesh" (full resolution) gets visibility_range_end = E and "Far" (a sibling,
+## MapTerrain.far_chunk_mesh) visibility_range_begin = E, with E = terrain.far_swap_m + the chunk's radius (half
+## its AABB diagonal) + classes.margin_m, and the same margin m on both (end margin, begin margin). "Far" takes
+## "Mesh"'s AABB as its custom_aabb, so both measure the same distance d from the same centre. Godot's rule
+## (state = drawn last frame): near hides when d > E + m and shows again when d <= E - m; far shows when
+## d >= E + m and hides when d < E - m. So outwards far is on before near goes, inwards near is on before far
+## goes: never neither, both only at d == E +- m. No end on Far: a terrain chunk is never culled. Without a
+## usable far mesh (far_swap_m 0, a bad far_step_m: push_error, or a partial edge cell) "Mesh" keeps no range.
+## The collider is untouched (one HeightMapShape3D of the full heights).
 func _build_terrain(nav: Node) -> void:
 	if terrain == null:
 		return
 	_build_terrain_collider(nav)
 	var cfg: Dictionary = MapChunks.config().get("terrain", {})
 	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var swap_m := float(cfg.get("far_swap_m", 0.0))
+	var step_m := float(cfg.get("far_step_m", 0.0))
+	var margin_m := float((MapChunks.config().get("classes", {}) as Dictionary).get("margin_m", 0.0))
+	if swap_m > 0.0:
+		var problem := MapTerrain.far_step_problem(step_m, terrain.resolution_m, chunks.chunk_size_m)
+		if problem != "":
+			push_error("ArtBuilder: no far terrain: " + problem)
+			swap_m = 0.0
 	var root := Node3D.new()
 	root.name = "Terrain"
 	add_child(root)
@@ -193,6 +218,22 @@ func _build_terrain(nav: Node) -> void:
 			mesh.material_override = ground_material
 			mesh.cast_shadow = shadow
 			chunk.add_child(mesh)
+			var far_mesh: ArrayMesh = terrain.far_chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side, step_m) if swap_m > 0.0 else null
+			if far_mesh == null:
+				continue
+			var box := mesh.mesh.get_aabb()
+			var end := MapChunks.range_end_for(swap_m, box.size.length() * 0.5, margin_m)
+			mesh.visibility_range_end = end
+			mesh.visibility_range_end_margin = margin_m
+			var far := MeshInstance3D.new()
+			far.name = "Far"
+			far.mesh = far_mesh
+			far.material_override = ground_material
+			far.cast_shadow = shadow
+			far.custom_aabb = box  # the same centre as "Mesh": both swap at the same measured distance
+			far.visibility_range_begin = end
+			far.visibility_range_begin_margin = margin_m
+			chunk.add_child(far)
 
 
 ## M2P1B: the terrain collider, ONE HeightMapShape3D under Nav/Ground (one height field has no seams between
@@ -224,7 +265,7 @@ func _build_terrain_collider(nav: Node) -> void:
 ## W3: the outer ring's cover (cfg "ring_pieces"): the same one-box cover types as the inner band, in their own
 ## list with their own rules ("ring_rules"). A ring body holds its Shape only (groups ring_cover and, when the
 ## type is coverable, cover_wall); the pieces of a type draw as one batch per chunk with the inner cover's
-## material per palette, casting shadows like the inner cover.
+## material per palette; shadows per batch class (M2P1C stop 4: big ring pieces cast, small ones do not).
 func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
 	for entry: Dictionary in cfg.get("ring_pieces", []):
 		var type := String(entry["type"])
@@ -246,4 +287,5 @@ func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
 		body.add_child(shape)
 		nav.add_child(body)
 		ring_bodies.append(body)
-		chunks.add("ring", type, meshes[type], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
+		# M2P1C stop 4: ring shadows come from the batch class (map_build.json "classes"), no longer always on.
+		chunks.add("ring", type, meshes[type], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), body.transform, true)

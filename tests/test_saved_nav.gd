@@ -37,6 +37,9 @@ static func calm_zone() -> Dictionary:  # as tests/test_br_bots.gd
 
 
 ## A harmless zone on the hill top: a bot outside it walks to its spot there (bot_brain.gd _zone_pressure).
+## M2P1C: kept on purpose, it is what makes the bot climb. Under calm_zone() the bot stands inside the target
+## circle, so _goal() gives it no zone pressure: it seeks loot in range or holds, never the hill top. Zone
+## pressure ranks above loot, so the hill zone makes the peak its goal; damage 0 keeps the zone harmless.
 static func hill_zone() -> Dictionary:
 	return {"start_center": [HILL.x, HILL.y], "start_radius_m": 3.0, "damage_skips_shield": false,
 			"phases": [{"wait_s": 1000.0, "shrink_s": 10.0, "radius_m": 1.0, "damage_per_s": 0.0}]}
@@ -236,6 +239,10 @@ func test_carriage_returns_do_not_change_hashes() -> void:
 
 
 func test_map_without_saved_mesh_bakes_at_match_start() -> void:
+	# M2P1C: a copy left by an aborted earlier run goes first (a test that dies mid-body skips its cleanup).
+	if FileAccess.file_exists(TMP_MAP):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_MAP))
+	assert_true(not FileAccess.file_exists(TMP_MAP), "no leftover temporary map")
 	var f := FileAccess.open(TMP_MAP, FileAccess.WRITE)
 	f.store_string(FileAccess.get_file_as_string(ALESIA))
 	f.close()

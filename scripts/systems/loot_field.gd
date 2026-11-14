@@ -17,6 +17,19 @@ var _zone: Dictionary = {}
 ## W3: the map's landmarks ([{id, at [x, z], radius_m, ...}], data/maps/alesia_landmarks.json "landmarks"). The
 ## clusters of loot.json name them by id. Empty = no clusters: every item is scattered.
 var _landmarks: Array = []
+## M2P1C stop 6: a grid over the items, so nearest() and the bots' loot goal look only at items near the
+## query. Cell: data/map_build.json "spatial_index.loot_cell_m" (placeholder, OQ-MAP-INDEX). _add and take
+## keep it current; an `items` changed from outside (its size no longer matching) rebuilds it. Each item
+## has a rank (its insertion order in `items`), and items_near() returns ids in rank order, so a loop over
+## it meets the items in the same order as a loop over `items` and keeps the "first inserted wins" ties.
+var _grid_m := 0.0
+var _grid: Dictionary = {}  # Vector2i cell -> PackedInt32Array of ranks
+var _grid_cell: Dictionary = {}  # id -> Vector2i
+var _rank: Dictionary = {}  # id -> rank
+var _rank_id: Dictionary = {}  # rank -> id
+var _next_rank: int = 0
+## Pad of the grid query on every side (float32 rounding of the distances; far below 1 mm at 1 km).
+const GRID_SLACK_M := 0.5
 
 
 func setup(loot_cfg: Dictionary, seed_value: int, zone: Dictionary = {}, landmarks: Array = []) -> void:
@@ -125,7 +138,9 @@ func _add(item_id: String, pos: Vector3, extra: Dictionary) -> int:
 	var entry := {"item_id": item_id, "pos": pos}
 	entry.merge(extra, true)
 	entry["node"] = _make_node(item_id, pos)
+	_grid_sync()
 	items[id] = entry
+	_grid_insert(id, pos)
 	return id
 
 
@@ -160,7 +175,7 @@ func display_name(id: int) -> String:
 func nearest(pos: Vector3, range_m: float, accept: Callable = Callable()) -> int:
 	var best := -1
 	var best_d := INF
-	for id in items:
+	for id in items_near(pos, range_m):
 		var p: Vector3 = items[id]["pos"]
 		if absf(p.y - pos.y) > 2.0:
 			continue
@@ -178,7 +193,9 @@ func take(id: int) -> Dictionary:
 	if not items.has(id):
 		return {}
 	var entry: Dictionary = items[id]
+	_grid_sync()
 	items.erase(id)
+	_grid_remove(id)
 	var node: Node3D = entry["node"]
 	if is_instance_valid(node):
 		node.queue_free()
@@ -192,3 +209,87 @@ func drop(item: Dictionary, pos: Vector3) -> int:
 	extra.erase("item_id")
 	extra.erase("pos")
 	return _add(str(item["item_id"]), pos + Vector3(0.0, 0.25, 0.0), extra)
+
+
+## M2P1C stop 6: ids of every item that could lie within range_m of `pos` on the ground plane (a superset:
+## whole grid cells, padded by GRID_SLACK_M), in `items` order. A range or position that is not finite (or
+## beyond 1e6 m) returns every id.
+func items_near(pos: Vector3, range_m: float) -> Array:
+	_grid_sync()
+	if not (absf(pos.x) + range_m < 1.0e6 and absf(pos.z) + range_m < 1.0e6):
+		return items.keys()  # not finite or too big for cells (floori overflow): every id, still a superset
+	var m := _grid_cell_m()
+	var reach := range_m + GRID_SLACK_M
+	var x0 := floori((pos.x - reach) / m)
+	var x1 := floori((pos.x + reach) / m)
+	var z0 := floori((pos.z - reach) / m)
+	var z1 := floori((pos.z + reach) / m)
+	var ranks := PackedInt32Array()
+	if x1 < x0 or z1 < z0:
+		return []
+	if not (float(x1 - x0 + 1) * float(z1 - z0 + 1) <= float(_grid.size())):
+		for key: Vector2i in _grid:
+			if key.x >= x0 and key.x <= x1 and key.y >= z0 and key.y <= z1:
+				ranks.append_array(_grid[key])
+	else:
+		for cx in range(x0, x1 + 1):
+			for cz in range(z0, z1 + 1):
+				var list: Variant = _grid.get(Vector2i(cx, cz))
+				if list != null:
+					ranks.append_array(list)
+	ranks.sort()
+	var out: Array = []
+	out.resize(ranks.size())
+	for i in ranks.size():
+		out[i] = _rank_id[ranks[i]]
+	return out
+
+
+func _grid_cell_m() -> float:
+	if _grid_m <= 0.0:
+		var cfg: Dictionary = DataRegistry.new().load_file("res://data/map_build.json").get("spatial_index", {})
+		_grid_m = maxf(float(cfg.get("loot_cell_m", 20.0)), 1.0)
+	return _grid_m
+
+
+## Rebuilds the grid when `items` was changed other than through _add / take (its size no longer matches).
+func _grid_sync() -> void:
+	if _grid_cell.size() == items.size():
+		return
+	_grid.clear()
+	_grid_cell.clear()
+	_rank.clear()
+	_rank_id.clear()
+	for id: int in items:
+		_grid_insert(id, items[id]["pos"])
+
+
+func _grid_insert(id: int, pos: Vector3) -> void:
+	var m := _grid_cell_m()
+	var key := Vector2i(floori(pos.x / m), floori(pos.z / m))
+	var rank := _next_rank
+	_next_rank += 1
+	_rank[id] = rank
+	_rank_id[rank] = id
+	_grid_cell[id] = key
+	var list: PackedInt32Array = _grid.get(key, PackedInt32Array())
+	list.append(rank)
+	_grid[key] = list
+
+
+func _grid_remove(id: int) -> void:
+	if not _grid_cell.has(id):
+		return
+	var key: Vector2i = _grid_cell[id]
+	var rank: int = _rank[id]
+	_grid_cell.erase(id)
+	_rank.erase(id)
+	_rank_id.erase(rank)
+	var list: PackedInt32Array = _grid[key]
+	var at := list.find(rank)
+	if at >= 0:
+		list.remove_at(at)
+	if list.is_empty():
+		_grid.erase(key)
+	else:
+		_grid[key] = list
