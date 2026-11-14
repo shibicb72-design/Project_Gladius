@@ -20,6 +20,10 @@ extends Node3D
 ## never culled (end 0). BINDING: a batch whose pieces have colliders (add(..., collides = true)) never gets a
 ## range_m below sight_floor_m; effective_range() raises it in code whatever the data says. Fade stays disabled.
 ## Metas per batch: "class", "collides", "range_m" (the effective data meaning), "radius_m".
+## M2P1C stop 4: a batch's cast_shadow comes from its class's "cast_shadows" (required; class_problems reports a
+## missing one, and a batch without a known class casts none). This replaces the builders' old settings: cover
+## and ring always on (astra_map.gd), alesia_structures.json "batches.cast_shadows" (world_kit.gd). Terrain
+## shadows stay map_build.json "terrain.cast_shadows" (astra_map.gd).
 
 const CFG_PATH := "res://data/map_build.json"
 static var _registry := DataRegistry.new()
@@ -70,15 +74,16 @@ func index_of(at: Vector3) -> Vector2i:
 
 
 ## Collects one instance; build() makes the nodes. `material` null keeps the mesh's own material.
-## `collides`: the piece has a collider (M2P1C: its batch never ends below the sight floor).
-func add(source: String, type: String, mesh: Mesh, material: Material, cast_shadow: GeometryInstance3D.ShadowCastingSetting, xform: Transform3D, collides := false) -> void:
+## `collides`: the piece has a collider (M2P1C: its batch never ends below the sight floor). The shadow is the
+## batch class's (M2P1C stop 4), so the caller passes none.
+func add(source: String, type: String, mesh: Mesh, material: Material, xform: Transform3D, collides := false) -> void:
 	var index := index_of(xform.origin)
 	if not _pending.has(index):
 		_pending[index] = {}
 	var chunk: Dictionary = _pending[index]
 	var key := source + "/" + type
 	if not chunk.has(key):
-		chunk[key] = {"source": source, "type": type, "mesh": mesh, "material": material, "shadow": cast_shadow, "transforms": [], "collides": false}
+		chunk[key] = {"source": source, "type": type, "mesh": mesh, "material": material, "transforms": [], "collides": false}
 	(chunk[key]["transforms"] as Array).append(xform)
 	if collides:
 		chunk[key]["collides"] = true
@@ -122,6 +127,8 @@ static func class_problems(classes: Dictionary) -> PackedStringArray:
 		var range_v: Variant = (list[cls] as Dictionary).get("range_m") if list[cls] is Dictionary else null
 		if not (range_v is float or range_v is int) or float(range_v) < 0.0:
 			problems.append("class %s: range_m must be a number >= 0" % cls)
+		if not (list[cls] is Dictionary and (list[cls] as Dictionary).get("cast_shadows") is bool):
+			problems.append("class %s: cast_shadows must be true or false" % cls)
 	for key: String in ["sight_floor_m", "margin_m"]:
 		var v: Variant = classes.get(key)
 		if not (v is float or v is int) or float(v) < 0.0 or (key == "sight_floor_m" and float(v) <= 0.0):
@@ -177,15 +184,17 @@ func build() -> void:
 			node.multimesh = batch
 			if entry["material"] != null:
 				node.material_override = entry["material"]
-			node.cast_shadow = entry["shadow"]  # performance risk when on: one more shadow draw per batch and split
 			node.set_meta(&"transforms", transforms)  # a headless renderer keeps no instance data to read back
 			node.set_meta(&"source", entry["source"])
 			node.set_meta(&"type", entry["type"])
 			var cls := class_of(String(entry["source"]), String(entry["type"]), classes)
 			if not list.has(cls):
-				push_error("MapChunks: no visibility class for %s/%s; never culled" % [entry["source"], entry["type"]])
+				push_error("MapChunks: no visibility class for %s/%s; never culled, no shadow" % [entry["source"], entry["type"]])
+			var spec: Dictionary = list.get(cls, {})
+			# Performance risk when on: one more shadow draw per batch and split.
+			node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(spec.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			var collides: bool = entry["collides"]
-			var range_m := effective_range(float((list.get(cls, {}) as Dictionary).get("range_m", 0.0)), collides, floor_m)
+			var range_m := effective_range(float(spec.get("range_m", 0.0)), collides, floor_m)
 			var radius_m := _bounds(entry["mesh"], transforms).size.length() * 0.5
 			node.visibility_range_end = range_end_for(range_m, radius_m, margin_m)
 			node.visibility_range_end_margin = margin_m if range_m > 0.0 else 0.0

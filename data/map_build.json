@@ -17,18 +17,25 @@
 	},
 	"classes": {
 		"_placeholder": true,
-		"_todo": "OQ-MAP-CULL: every distance here is a first guess for Shibi (a 1 km map, a 200 m aim ray), not measured; a Fold measurement and play decide them.",
-		"_note": "MapChunks puts each batch in a class: by_type \"<source>/<type>\" first, then \"<source>/<kind>\" (a decor type \"<kind>_<n>\" without its _<n>), then by_source. range_m: every piece of the batch is drawn at least out to this camera distance; 0 = never culled. A batch whose pieces have colliders never ends below sight_floor_m (the code raises it; 0 stays never). margin_m is the end margin, hysteresis with fade disabled.",
+		"_todo": "OQ-MAP-CULL: every distance and shadow choice here is a first guess for Shibi (a 1 km map, a 200 m aim ray), not measured; a Fold measurement and play decide them.",
+		"_note": "MapChunks puts each batch in a class: by_type \"<source>/<type>\" first, then \"<source>/<kind>\" (a decor type \"<kind>_<n>\" without its _<n>), then by_source. range_m: every piece of the batch is drawn at least out to this camera distance; 0 = never culled. A batch whose pieces have colliders never ends below sight_floor_m (the code raises it; 0 stays never). margin_m is the end margin, hysteresis with fade disabled. cast_shadows (required) is the batch's shadow and wins over the builders' old settings (cover and ring always on, alesia_structures.json batches.cast_shadows).",
+		"_shadow_rule": "Big cover = a cover type at least 1.8 m tall (taller than a standing soldier): pillar, arch, tall_wall, crate_stack, wreck_truck, wreck_apc; the same split for the ring. Rim decor (arches 9 m, rocks 4 m) is big but stays off: it stands at the map's rim, away from the fights, and never cast before.",
 		"sight_floor_m": 250,
 		"margin_m": 5,
-		"by_source": {"cover": "cover", "ring": "ring", "structure": "structure", "decor": "paving"},
-		"by_type": {"decor/arch": "decor_solid", "decor/rock": "decor_solid"},
+		"by_source": {"cover": "cover_small", "ring": "ring_small", "structure": "structure", "decor": "paving"},
+		"by_type": {
+			"decor/arch": "decor_solid", "decor/rock": "decor_solid",
+			"cover/pillar": "cover_big", "cover/arch": "cover_big", "cover/tall_wall": "cover_big", "cover/crate_stack": "cover_big", "cover/wreck_truck": "cover_big", "cover/wreck_apc": "cover_big",
+			"ring/pillar": "ring_big", "ring/arch": "ring_big", "ring/tall_wall": "ring_big", "ring/crate_stack": "ring_big", "ring/wreck_truck": "ring_big", "ring/wreck_apc": "ring_big"
+		},
 		"list": {
-			"paving": {"range_m": 120},
-			"cover": {"range_m": 250},
-			"ring": {"range_m": 300},
-			"decor_solid": {"range_m": 400},
-			"structure": {"range_m": 500}
+			"paving": {"range_m": 120, "cast_shadows": false},
+			"cover_small": {"range_m": 250, "cast_shadows": false},
+			"cover_big": {"range_m": 250, "cast_shadows": true},
+			"ring_small": {"range_m": 300, "cast_shadows": false},
+			"ring_big": {"range_m": 300, "cast_shadows": true},
+			"decor_solid": {"range_m": 400, "cast_shadows": false},
+			"structure": {"range_m": 500, "cast_shadows": true}
 		}
 	}
 }

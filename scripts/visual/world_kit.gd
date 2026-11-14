@@ -236,7 +236,8 @@ static func populate(nav: Node, chunks: MapChunks, pieces: Array, terrain: MapTe
 	var cfg := config()
 	var types: Dictionary = cfg["types"]
 	var bodies: Array[StaticBody3D] = []
-	var shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg["batches"]["cast_shadows"]) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# M2P1C stop 4: the batch shadow is the "structure" class's in data/map_build.json "classes" (MapChunks); it
+	# replaces this file's batches.cast_shadows, which stays in alesia_structures.json (a saved-navigation input).
 	for entry: Dictionary in pieces:
 		var type := String(entry["type"])
 		var at := LowpolyKit.vec(entry["at"])
@@ -245,5 +246,5 @@ static func populate(nav: Node, chunks: MapChunks, pieces: Array, terrain: MapTe
 		var body := build_body(String(entry["id"]), type, types[type], at, float(entry.get("yaw", 0.0)))
 		nav.add_child(body)
 		bodies.append(body)
-		chunks.add("structure", type, mesh_for(type), null, shadows, body.transform, not (types[type]["colliders"] as Array).is_empty())
+		chunks.add("structure", type, mesh_for(type), null, body.transform, not (types[type]["colliders"] as Array).is_empty())
 	return bodies

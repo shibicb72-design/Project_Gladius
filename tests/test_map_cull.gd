@@ -125,14 +125,67 @@ func test_class_data_is_a_placeholder_and_valid() -> void:
 	var bad := classes.duplicate(true)
 	bad["by_type"]["decor/arch"] = "nope"
 	(bad["by_source"] as Dictionary).erase("ring")
-	bad["list"]["cover"]["range_m"] = -1
+	bad["list"]["cover_small"]["range_m"] = -1
+	(bad["list"]["paving"] as Dictionary).erase("cast_shadows")
 	bad["sight_floor_m"] = 0
 	var problems := MapChunks.class_problems(bad)
-	for needle in ["unknown class nope", "by_source has no ring", "class cover: range_m", "sight_floor_m"]:
+	for needle in ["unknown class nope", "by_source has no ring", "class cover_small: range_m", "class paving: cast_shadows", "sight_floor_m"]:
 		assert_true(" | ".join(problems).contains(needle), "a bad block is reported: " + needle)
 	assert_eq(MapChunks.class_of("decor", "arch_1", classes), "decor_solid", "a decor type finds its kind")
 	assert_eq(MapChunks.class_of("decor", "box_0", classes), "paving", "an unlisted decor kind takes its source's class")
-	assert_eq(MapChunks.class_of("cover", "crate", classes), "cover", "cover by source")
+	assert_eq(MapChunks.class_of("cover", "crate", classes), "cover_small", "small cover by source")
+	assert_eq(MapChunks.class_of("cover", "tall_wall", classes), "cover_big", "big cover by type")
+	assert_eq(MapChunks.class_of("ring", "wreck_truck", classes), "ring_big", "big ring by type")
+
+
+## M2P1C stop 4: the big-cover rule, worked out from the cover types' sizes (alesia_cover.json "types", the same
+## types both maps and the ring use): a type at least 1.8 m tall is in a *_big class, every other in *_small.
+func test_big_cover_classes_follow_the_size_rule() -> void:
+	var classes := _classes()
+	var types: Dictionary = DataRegistry.new().load_file("res://data/maps/alesia_cover.json")["types"]
+	var big := 0
+	for type: String in types:
+		var tall := LowpolyKit.vec(types[type]["size"]).y >= 1.8 - 1e-6
+		big += 1 if tall else 0
+		for source: String in ["cover", "ring"]:
+			assert_eq(MapChunks.class_of(source, type, classes), source + ("_big" if tall else "_small"), "%s/%s: %s by its height" % [source, type, "big" if tall else "small"])
+	assert_true(big > 0 and big < types.size(), "both sides nonvacuous")
+
+
+func test_every_batch_casts_shadows_by_its_class() -> void:
+	var classes := _classes()
+	var list: Dictionary = classes["list"]
+	for json_path: String in MAPS:
+		var label := _label(json_path)
+		var map := _build(json_path)
+		var casting := 0
+		var colliding_off := 0
+		for batch in (map.get_node("ArtBuilder/Chunks") as MapChunks).batches():
+			var spec: Dictionary = list[String(batch.get_meta(&"class"))]
+			var casts := batch.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			assert_eq(casts, bool(spec["cast_shadows"]), "%s %s/%s: shadow from its class" % [label, batch.get_parent().name, batch.name])
+			casting += 1 if casts else 0
+			colliding_off += 1 if (not casts and bool(batch.get_meta(&"collides"))) else 0
+		assert_true(casting > 0 and colliding_off > 0, "%s: some batches cast, some colliding ones do not (%d, %d)" % [label, casting, colliding_off])
+		var terrain := map.get_node_or_null("ArtBuilder/Terrain")
+		if terrain != null:
+			for mi: MeshInstance3D in terrain.find_children("*", "MeshInstance3D", true, false):
+				assert_eq(mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON, bool(MapChunks.config()["terrain"]["cast_shadows"]), "terrain shadows stay terrain.cast_shadows")
+		map.free()
+
+
+func test_class_shadow_override() -> void:
+	var chunks := MapChunks.new()
+	chunks.setup(0.0)
+	chunks.classes_override = {"sight_floor_m": 250.0, "margin_m": 0.0, "by_source": {"cover": "on", "ring": "off", "structure": "off", "decor": "off"},
+			"list": {"on": {"range_m": 0.0, "cast_shadows": true}, "off": {"range_m": 0.0, "cast_shadows": false}}}
+	var box := BoxMesh.new()
+	chunks.add("cover", "c", box, null, Transform3D.IDENTITY, true)
+	chunks.add("structure", "s", box, null, Transform3D.IDENTITY, true)
+	chunks.build()
+	assert_eq((chunks.get_node("Chunk_0_0/Batch_cover_c") as GeometryInstance3D).cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_ON, "a casting class casts")
+	assert_eq((chunks.get_node("Chunk_0_0/Batch_structure_s") as GeometryInstance3D).cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "a non-casting class wins over the old structure data")
+	chunks.free()
 
 
 func test_every_batch_follows_its_class_rule() -> void:
@@ -210,13 +263,12 @@ func test_a_collidable_class_below_the_floor_is_raised() -> void:
 	var chunks := MapChunks.new()
 	chunks.setup(100.0)
 	chunks.classes_override = {"sight_floor_m": 250.0, "margin_m": 4.0, "by_source": {"cover": "low", "ring": "never", "structure": "low", "decor": "low"},
-			"list": {"low": {"range_m": 60.0}, "never": {"range_m": 0.0}}}
+			"list": {"low": {"range_m": 60.0, "cast_shadows": false}, "never": {"range_m": 0.0, "cast_shadows": false}}}
 	var box := BoxMesh.new()
 	box.size = Vector3(2, 2, 2)
-	var off := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	chunks.add("cover", "c", box, null, off, Transform3D(Basis.IDENTITY, Vector3(-30, 1, -30)), true)
-	chunks.add("decor", "paving_0", box, null, off, Transform3D(Basis.IDENTITY, Vector3(-30, 1, -30)), false)
-	chunks.add("ring", "r", box, null, off, Transform3D(Basis.IDENTITY, Vector3(-30, 1, -30)), true)
+	chunks.add("cover", "c", box, null, Transform3D(Basis.IDENTITY, Vector3(-30, 1, -30)), true)
+	chunks.add("decor", "paving_0", box, null, Transform3D(Basis.IDENTITY, Vector3(-30, 1, -30)), false)
+	chunks.add("ring", "r", box, null, Transform3D(Basis.IDENTITY, Vector3(-30, 1, -30)), true)
 	chunks.build()
 	var radius := Vector3(2, 2, 2).length() * 0.5
 	var cover := chunks.get_node("Chunk_0_0/Batch_cover_c") as MultiMeshInstance3D
@@ -247,13 +299,12 @@ func test_visible_at_follows_the_renderer_rule() -> void:
 	builder.add_child(chunks)
 	chunks.setup(0.0)
 	chunks.classes_override = {"sight_floor_m": 250.0, "margin_m": 0.0, "by_source": {"cover": "solid", "decor": "early", "ring": "never", "structure": "never"},
-			"list": {"solid": {"range_m": 100.0}, "early": {"range_m": 60.0}, "never": {"range_m": 0.0}}}
+			"list": {"solid": {"range_m": 100.0, "cast_shadows": true}, "early": {"range_m": 60.0, "cast_shadows": false}, "never": {"range_m": 0.0, "cast_shadows": false}}}
 	var box := BoxMesh.new()
 	box.size = Vector3(2, 2, 2)
-	var off := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	chunks.add("decor", "paving_0", box, null, off, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), false)
-	chunks.add("cover", "c", box, null, GeometryInstance3D.SHADOW_CASTING_SETTING_ON, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), true)
-	chunks.add("ring", "r", box, null, off, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), true)
+	chunks.add("decor", "paving_0", box, null, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), false)
+	chunks.add("cover", "c", box, null, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), true)
+	chunks.add("ring", "r", box, null, Transform3D(Basis.IDENTITY, Vector3(0, 1, 0)), true)
 	chunks.build()
 	var radius := Vector3(2, 2, 2).length() * 0.5
 	var near := MapChunks.visible_at(map, Vector3(0, 1, 60.0 + radius - 0.01))

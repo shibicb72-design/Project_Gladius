@@ -171,7 +171,7 @@ func test_cover_contract_and_colliders_stay_per_piece() -> void:
 func test_shadows_and_materials_per_source() -> void:
 	var map := _map()
 	var chunks := _chunks(map)
-	var structure_shadows := bool(WorldKit.config()["batches"]["cast_shadows"])
+	var classes: Dictionary = MapChunks.config()["classes"]  # M2P1C stop 4: shadows per batch class
 	var cover_types: Dictionary = DataRegistry.new().load_file("res://data/maps/alesia_cover.json")["types"]
 	for source: String in ["cover", "ring", "structure", "decor"]:
 		assert_true(not chunks.batches(source).is_empty(), source + ": batches present")
@@ -179,14 +179,15 @@ func test_shadows_and_materials_per_source() -> void:
 		var source := String(batch.get_meta(&"source"))
 		var type := String(batch.get_meta(&"type"))
 		var casts := batch.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var class_casts := bool(classes["list"][MapChunks.class_of(source, type, classes)]["cast_shadows"])
 		if source == "decor":
 			assert_true(not casts, String(batch.name) + ": decor casts no shadow")
 			assert_true(batch.material_override == null and batch.multimesh.mesh is ArrayMesh, String(batch.name) + ": kit mesh with its own material")
 		elif source == "structure":
-			assert_eq(casts, structure_shadows, String(batch.name) + ": shadows from the world kit data")
+			assert_eq(casts, class_casts, String(batch.name) + ": shadows from its batch class")
 			assert_true(batch.material_override == null and batch.multimesh.mesh == WorldKit.mesh_for(type), String(batch.name) + ": kit mesh with its own material")
 		else:
-			assert_true(casts, String(batch.name) + ": cover casts shadows")
+			assert_eq(casts, class_casts, String(batch.name) + ": cover casts shadows by its batch class (big cover casts)")
 			assert_true(batch.multimesh.mesh is ArrayMesh and WorldSurface.is_lit(batch.material_override), String(batch.name) + ": kit mesh with the lit cover material")
 			var palette := String(cover_types[type].get("palette", "citadel"))
 			assert_true(batch.material_override == WorldSurface.palette_material(palette), String(batch.name) + ": its type's palette material (" + palette + ")")
