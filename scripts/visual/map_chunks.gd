@@ -12,6 +12,14 @@ extends Node3D
 ## the nearest point. So an origin-placed batch already measures from its own content: range_centre(batch).
 ## With fade disabled the end margin is hysteresis: a drawn instance hides beyond end + margin, a hidden one
 ## shows again within end - margin.
+## M2P1C stop 2: each batch gets a visibility range from its class (data/map_build.json "classes", placeholders,
+## OQ-MAP-CULL). The data range_m means "every piece of the batch is drawn at least out to this camera
+## distance", so visibility_range_end = range_m + radius + margin, with radius = half the diagonal of the batch's
+## world AABB (every piece point lies within it of the AABB centre the renderer measures from) and
+## visibility_range_end_margin = margin (so even a hidden batch shows again by range_m + radius). range_m 0 =
+## never culled (end 0). BINDING: a batch whose pieces have colliders (add(..., collides = true)) never gets a
+## range_m below sight_floor_m; effective_range() raises it in code whatever the data says. Fade stays disabled.
+## Metas per batch: "class", "collides", "range_m" (the effective data meaning), "radius_m".
 
 const CFG_PATH := "res://data/map_build.json"
 static var _registry := DataRegistry.new()
@@ -20,6 +28,8 @@ var chunk_size_m := 50.0
 var half_m := 0.0
 var per_side := 1
 var _pending := {}  # Vector2i -> {"source/type" -> batch entry}, in first-add order
+## M2P1C: the "classes" block build() uses; empty = data/map_build.json's (tests pass their own).
+var classes_override := {}
 
 
 static func config() -> Dictionary:
@@ -55,19 +65,91 @@ func index_of(at: Vector3) -> Vector2i:
 
 
 ## Collects one instance; build() makes the nodes. `material` null keeps the mesh's own material.
-func add(source: String, type: String, mesh: Mesh, material: Material, cast_shadow: GeometryInstance3D.ShadowCastingSetting, xform: Transform3D) -> void:
+## `collides`: the piece has a collider (M2P1C: its batch never ends below the sight floor).
+func add(source: String, type: String, mesh: Mesh, material: Material, cast_shadow: GeometryInstance3D.ShadowCastingSetting, xform: Transform3D, collides := false) -> void:
 	var index := index_of(xform.origin)
 	if not _pending.has(index):
 		_pending[index] = {}
 	var chunk: Dictionary = _pending[index]
 	var key := source + "/" + type
 	if not chunk.has(key):
-		chunk[key] = {"source": source, "type": type, "mesh": mesh, "material": material, "shadow": cast_shadow, "transforms": []}
+		chunk[key] = {"source": source, "type": type, "mesh": mesh, "material": material, "shadow": cast_shadow, "transforms": [], "collides": false}
 	(chunk[key]["transforms"] as Array).append(xform)
+	if collides:
+		chunk[key]["collides"] = true
+
+
+## M2P1C: the class name of a batch from a "classes" block: by_type "<source>/<type>", then "<source>/<kind>"
+## (the type without a trailing "_<n>"), then by_source; "" when none matches.
+static func class_of(source: String, type: String, classes: Dictionary) -> String:
+	var by_type: Dictionary = classes.get("by_type", {})
+	var key := source + "/" + type
+	if by_type.has(key):
+		return String(by_type[key])
+	var cut := type.rfind("_")
+	if cut > 0 and type.substr(cut + 1).is_valid_int():
+		var kind_key := source + "/" + type.substr(0, cut)
+		if by_type.has(kind_key):
+			return String(by_type[kind_key])
+	return String((classes.get("by_source", {}) as Dictionary).get(source, ""))
+
+
+## M2P1C: the range a batch keeps (the data meaning: every piece drawn at least out to it). 0 stays never
+## culled; a colliding batch is raised to the sight floor. Never below 0.
+static func effective_range(range_m: float, collides: bool, floor_m: float) -> float:
+	if range_m <= 0.0:
+		return 0.0
+	return maxf(range_m, floor_m) if collides else range_m
+
+
+## M2P1C: the visibility_range_end for a batch with effective range `range_m` and bounding radius `radius_m`.
+static func range_end_for(range_m: float, radius_m: float, margin_m: float) -> float:
+	return 0.0 if range_m <= 0.0 else range_m + radius_m + margin_m
+
+
+## M2P1C: what is wrong with a "classes" block, one line each (empty: fine).
+static func class_problems(classes: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var list: Dictionary = classes.get("list", {})
+	if list.is_empty():
+		problems.append("classes.list is empty")
+	for cls: String in list:
+		var range_v: Variant = (list[cls] as Dictionary).get("range_m") if list[cls] is Dictionary else null
+		if not (range_v is float or range_v is int) or float(range_v) < 0.0:
+			problems.append("class %s: range_m must be a number >= 0" % cls)
+	for key: String in ["sight_floor_m", "margin_m"]:
+		var v: Variant = classes.get(key)
+		if not (v is float or v is int) or float(v) < 0.0 or (key == "sight_floor_m" and float(v) <= 0.0):
+			problems.append("classes.%s must be a number > 0 (margin >= 0)" % key)
+	for source: String in ["cover", "ring", "structure", "decor"]:
+		if not (classes.get("by_source", {}) as Dictionary).has(source):
+			problems.append("classes.by_source has no %s" % source)
+	for group: String in ["by_source", "by_type"]:
+		var map: Dictionary = classes.get(group, {})
+		for key: String in map:
+			if not list.has(String(map[key])):
+				problems.append("classes.%s.%s names unknown class %s" % [group, key, map[key]])
+	return problems
+
+
+## The world AABB of a mesh placed at each of `transforms` (empty AABB for none).
+static func _bounds(mesh: Mesh, transforms: Array) -> AABB:
+	var local := mesh.get_aabb()
+	var box := AABB()
+	var first := true
+	for xform: Transform3D in transforms:
+		var placed := xform * local
+		box = placed if first else box.merge(placed)
+		first = false
+	return box
 
 
 ## Creates the chunk nodes (sorted by index) and their batches (in first-add order).
 func build() -> void:
+	var classes: Dictionary = classes_override if not classes_override.is_empty() else config().get("classes", {})
+	var list: Dictionary = classes.get("list", {})
+	var floor_m := float(classes.get("sight_floor_m", 0.0))
+	var margin_m := float(classes.get("margin_m", 0.0))
 	var indices: Array = _pending.keys()
 	indices.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x < b.x or (a.x == b.x and a.y < b.y))
 	for index: Vector2i in indices:
@@ -94,6 +176,19 @@ func build() -> void:
 			node.set_meta(&"transforms", transforms)  # a headless renderer keeps no instance data to read back
 			node.set_meta(&"source", entry["source"])
 			node.set_meta(&"type", entry["type"])
+			var cls := class_of(String(entry["source"]), String(entry["type"]), classes)
+			if not list.has(cls):
+				push_error("MapChunks: no visibility class for %s/%s; never culled" % [entry["source"], entry["type"]])
+			var collides: bool = entry["collides"]
+			var range_m := effective_range(float((list.get(cls, {}) as Dictionary).get("range_m", 0.0)), collides, floor_m)
+			var radius_m := _bounds(entry["mesh"], transforms).size.length() * 0.5
+			node.visibility_range_end = range_end_for(range_m, radius_m, margin_m)
+			node.visibility_range_end_margin = margin_m if range_m > 0.0 else 0.0
+			node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED  # fading blends alpha on Mobile
+			node.set_meta(&"class", cls)
+			node.set_meta(&"collides", collides)
+			node.set_meta(&"range_m", range_m)
+			node.set_meta(&"radius_m", radius_m)
 			chunk.add_child(node)
 	_pending.clear()
 
@@ -125,14 +220,7 @@ func batch_of(source: String, type: String, xform: Transform3D) -> MultiMeshInst
 ## its instances' world AABBs (mesh AABB moved by each world transform), derived from the "transforms" meta
 ## because a headless renderer keeps no instance data. Needs the batch's global transform (identity here).
 static func range_centre(batch: MultiMeshInstance3D) -> Vector3:
-	var local := batch.multimesh.mesh.get_aabb()
-	var box := AABB()
-	var first := true
-	for xform: Transform3D in batch.get_meta(&"transforms", []):
-		var placed := xform * local
-		box = placed if first else box.merge(placed)
-		first = false
-	return batch.global_transform * box.get_center()
+	return batch.global_transform * _bounds(batch.multimesh.mesh, batch.get_meta(&"transforms", [])).get_center()
 
 
 ## Instances drawn for one source, across chunks; `type` "" counts every type.

@@ -13,5 +13,21 @@
 		"_note": "Each limit is the larger of the two maps' measured values (alesia_section, test_300; measured after stop 6, the decor looks batched per chunk, chunk_size_m 50) times 1.5, rounded up to the next step of 1 below 10, 5 below 100, 50 below 1000.",
 		"per_chunk": {"multimesh": 30, "mesh_instances": 9, "materials": 2, "bodies": 95},
 		"per_map": {"multimesh": 700, "mesh_instances": 150, "materials": 30, "bodies": 850}
+	},
+	"classes": {
+		"_placeholder": true,
+		"_todo": "OQ-MAP-CULL: every distance here is a first guess for Shibi (a 1 km map, a 200 m aim ray), not measured; a Fold measurement and play decide them.",
+		"_note": "MapChunks puts each batch in a class: by_type \"<source>/<type>\" first, then \"<source>/<kind>\" (a decor type \"<kind>_<n>\" without its _<n>), then by_source. range_m: every piece of the batch is drawn at least out to this camera distance; 0 = never culled. A batch whose pieces have colliders never ends below sight_floor_m (the code raises it; 0 stays never). margin_m is the end margin, hysteresis with fade disabled.",
+		"sight_floor_m": 250,
+		"margin_m": 5,
+		"by_source": {"cover": "cover", "ring": "ring", "structure": "structure", "decor": "paving"},
+		"by_type": {"decor/arch": "decor_solid", "decor/rock": "decor_solid"},
+		"list": {
+			"paving": {"range_m": 120},
+			"cover": {"range_m": 250},
+			"ring": {"range_m": 300},
+			"decor_solid": {"range_m": 400},
+			"structure": {"range_m": 500}
+		}
 	}
 }

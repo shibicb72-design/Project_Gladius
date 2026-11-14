@@ -245,5 +245,5 @@ static func populate(nav: Node, chunks: MapChunks, pieces: Array, terrain: MapTe
 		var body := build_body(String(entry["id"]), type, types[type], at, float(entry.get("yaw", 0.0)))
 		nav.add_child(body)
 		bodies.append(body)
-		chunks.add("structure", type, mesh_for(type), null, shadows, body.transform)
+		chunks.add("structure", type, mesh_for(type), null, shadows, body.transform, not (types[type]["colliders"] as Array).is_empty())
 	return bodies

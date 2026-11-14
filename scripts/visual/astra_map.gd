@@ -54,7 +54,7 @@ func _ready() -> void:
 		if bool(definition.get("coverable", false)):
 			body.add_to_group(&"cover_wall")
 		body.position = lifted(LowpolyKit.vec(entry["at"]))
-		chunks.add("cover", String(entry["type"]), meshes[entry["type"]], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
+		chunks.add("cover", String(entry["type"]), meshes[entry["type"]], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform, true)
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
 		var box := BoxShape3D.new()
@@ -101,7 +101,7 @@ func _ready() -> void:
 		var at := LowpolyKit.vec(entry["at"])
 		var lift := lifted(at).y - at.y
 		var xform := Transform3D(Basis.from_euler(Vector3(0.0, deg_to_rad(float(entry["yaw"])), 0.0)), lifted(at))
-		chunks.add("decor", type, meshes[key], null, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, xform)
+		chunks.add("decor", type, meshes[key], null, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, xform, decor_solid.has(entry["kind"]))
 		if decor_solid.has(entry["kind"]):
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
@@ -247,4 +247,4 @@ func _build_ring(nav: Node, cfg: Dictionary, meshes: Dictionary) -> void:
 		body.add_child(shape)
 		nav.add_child(body)
 		ring_bodies.append(body)
-		chunks.add("ring", type, meshes[type], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform)
+		chunks.add("ring", type, meshes[type], WorldSurface.palette_material(String(definition.get("palette", "citadel"))), GeometryInstance3D.SHADOW_CASTING_SETTING_ON, body.transform, true)
