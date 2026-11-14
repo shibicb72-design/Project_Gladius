@@ -3,6 +3,12 @@
 	"_todo": "OQ-MAP-CHUNK: chunk_size_m is a first guess for Shibi, not a design value; a Fold measurement decides it.",
 	"_note": "M2P1C stop 3: 100 m (was 50) because it gave the fewest batches and the fewest batches in range from the centre and a corner on both maps (tests/test_map_cull.gd CHUNK_SIZE lines) and tiles 300 m and 1 km exactly; the costs are a ~71 m batch radius added to every range end and 20000-triangle terrain chunks.",
 	"chunk_size_m": 100,
+	"spatial_index": {
+		"_placeholder": true,
+		"_todo": "OQ-MAP-INDEX: both cell sizes are first guesses for Shibi, not measured; they change only speed, never a result (scripts/systems/cover_index.gd, LootField's grid). cover_cell_m: grid cell of the cover-wall index (a cover piece is a few metres; a join query spans its chain's ends). loot_cell_m: grid cell of the ground-loot grid (pickup range 2 m, bot loot seek 45 m).",
+		"cover_cell_m": 16,
+		"loot_cell_m": 20
+	},
 	"terrain": {
 		"_placeholder": true,
 		"_todo": "OQ-MAP-TERRAIN: off is a first guess, not measured; each casting terrain chunk costs a shadow draw per split on the phone, so a Fold measurement decides it.",

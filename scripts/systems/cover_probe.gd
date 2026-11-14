@@ -58,10 +58,14 @@ func sample(pawn: Pawn, cfg: Dictionary, locked: bool) -> Dictionary:
 	# Connected coplanar boxes share their usable outside ends; C slide retains own ends.
 	var ends := Vector2(-along_extent, along_extent)
 	var epsilon := float(cfg["motion_epsilon_m"])
+	# M2P1C stop 6: the walls near the current ends from the tree's CoverIndex, re-asked each pass as the
+	# ends grow; every check below stays live per candidate, so the result is the old whole-group walk's.
+	var index := CoverIndex.of(pawn.get_tree())
+	index.refresh()
 	var changed := true
 	while changed:
 		changed = false
-		for body in pawn.get_tree().get_nodes_in_group(&"cover_wall"):
+		for body in index.walls_near(_normal, point, center, tangent, ends, epsilon):
 			if not body is StaticBody3D or body == _wall:
 				continue
 			var other := body.get_node_or_null("Shape") as CollisionShape3D

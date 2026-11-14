@@ -305,7 +305,8 @@ func _loot_goal(guns_only: bool = false) -> Vector3:
 	var best := Vector3.INF
 	var best_score := INF
 	var want_gun := _melee_only()
-	for id in loot.items:
+	# M2P1C stop 6: only the items the loot grid finds in range, in the same order as `items` (same result).
+	for id in loot.items_near(pawn.global_position, range_m):
 		var entry: Dictionary = loot.items[id]
 		var item_def := loot.def(str(entry["item_id"]))
 		if not pawn.wants_item(item_def, director.bot_ammo_low_magazines(), director.bot_heal_below_pct()) or (guns_only and str(item_def.get("kind", "")) != "weapon"):
