@@ -422,6 +422,34 @@ func test_real_match_entry_plays_the_1km_map() -> void:
 	await tree.process_frame
 
 
+## M2L1 Proxies (report only, binding fix 10: no limit is asserted for this map): MapChunks.visible_at from the
+## citadel top (the Arx anchor at eye height), an outer gate (standing in Porta Aquilae's gateway) and the field
+## corner (MapChunks.standard_points "corner" = the ground corner (-500, -500), outside the play circle), plus the
+## standard "centre" point; and which data/map_build.json limits the map-wide counts would exceed.
+func test_visible_counts_from_three_points_report() -> void:
+	var map := _map()
+	var terrain: MapTerrain = map.get_node("ArtBuilder").terrain
+	var gate := Gen.dir_of(0.0) * float(_def()["generator"]["outer_wall"]["radius_m"])
+	var corner: Vector3 = MapChunks.standard_points(map)["corner"]
+	var points := {
+		"citadel_top": Vector3(0.0, terrain.height_at(0.0, 5.0) + MapChunks.EYE_M, 5.0),
+		"porta_aquilae": Vector3(gate.x, terrain.height_at(gate.x, gate.y) + MapChunks.EYE_M, gate.y),
+		"field_corner": corner,
+		"centre_standard": MapChunks.standard_points(map)["centre"],
+	}
+	for point_name: String in points:
+		var v := MapChunks.visible_at(map, points[point_name])
+		assert_true(int(v["batches_total"]) > 0, "nonvacuous: %s" % point_name)
+		print("ALESIA_1KM_VISIBLE point=%s at=%s batches=%d/%d colliding=%d non_colliding=%d shadow=%d terrain=%d/%d near=%d far=%d terrain_tris=%d per_class=%s" % [
+				point_name, str(points[point_name]), v["batches"], v["batches_total"], v["colliding"], v["non_colliding"], v["shadow"],
+				v["terrain"], v["terrain_total"], v["terrain_near"], v["terrain_far"], v["terrain_tris"], v["per_class"]])
+	var limits: Dictionary = MapChunks.config().get("proxy_limits", {})
+	var over := MapChunks.proxy_problems(MapChunks.proxies(map), limits)
+	var over_visible := MapChunks.visible_problems(MapChunks.visible_proxies(map), limits.get("visible", {}))
+	print("ALESIA_1KM_LIMITS report only, not in the limits test: would exceed: %s; visible: %s" % [
+			"; ".join(over) if not over.is_empty() else "none", "; ".join(over_visible) if not over_visible.is_empty() else "none"])
+
+
 ## Last in this file: frees the shared 1 km map so later suite files start clean.
 func test_zz_free_the_map() -> void:
 	if is_instance_valid(_built):
