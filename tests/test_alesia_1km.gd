@@ -154,6 +154,274 @@ func test_baked_paint_loads_and_answers_footsteps() -> void:
 	print("ALESIA_1KM_PAINT px=", image.get_width(), " file_bytes=", FileAccess.get_file_as_bytes(String(settings["baked"])).size(), " load_us=", load_us)
 
 
+## M2L1 stage B: the saved 1 km mesh (never re-baked in the suite) on the one built map's Nav region.
+func _nav_map() -> RID:
+	var nav := _map().get_node("Nav") as NavigationRegion3D
+	if nav.navigation_mesh == null or nav.navigation_mesh.resource_path != MapNav.saved_path(MAP):
+		nav.navigation_mesh = MapNav.load_fresh(MAP)
+		# The server syncs regions over the next physics frames; wait (at most 2 s) until the Arx top is on the map.
+		var tree: SceneTree = Engine.get_main_loop()
+		for n in Engine.physics_ticks_per_second * 2:
+			await tree.physics_frame
+			if NavigationServer3D.map_get_iteration_id(nav.get_navigation_map()) > 0 and _on_nav(nav.get_navigation_map(), Vector3(0, 25, 5)):
+				break
+	return nav.get_navigation_map()
+
+
+## True when the mesh has a polygon at the walkable surface point p: within 1 m across and 0.75 m up or down (the
+## baked mesh floats up to a few cell heights, 0.25 m each, over the collider top).
+static func _on_nav(nav_map: RID, p: Vector3, across: float = 1.0) -> bool:
+	var q := NavigationServer3D.map_get_closest_point(nav_map, p)
+	return Vector2(q.x, q.z).distance_to(Vector2(p.x, p.z)) < across and absf(q.y - p.y) < 0.75
+
+
+static func _length(path: PackedVector3Array) -> float:
+	var total := 0.0
+	for i in range(1, path.size()):
+		total += path[i - 1].distance_to(path[i])
+	return total
+
+
+## "bearing@y" of every point where the path crosses the circle of radius r (bearing 0 = north = -z).
+static func _crossings(path: PackedVector3Array, r: float) -> Array[String]:
+	var out: Array[String] = []
+	for i in range(1, path.size()):
+		var a := Vector2(path[i - 1].x, path[i - 1].z)
+		var b := Vector2(path[i].x, path[i].z)
+		var la := a.length()
+		var lb := b.length()
+		if (la - r) * (lb - r) > 0.0 or la == lb:
+			continue
+		var t := (r - la) / (lb - la)  # the radius is close to linear along a short segment far from the centre
+		var p := a.lerp(b, t)
+		out.append("%d@%.1f" % [roundi(fposmod(rad_to_deg(atan2(p.x, -p.y)), 360.0)), lerpf(path[i - 1].y, path[i].y, t)])
+	return out
+
+
+func test_nav_paths_reach_the_arx_and_the_landmarks() -> void:
+	var nav_map: RID = await _nav_map()
+	var nav := _map().get_node("Nav") as NavigationRegion3D
+	assert_eq(nav.navigation_mesh.resource_path, MapNav.saved_path(MAP), "the region runs on the saved 1 km mesh")
+	var def := _def()
+	var landmarks: Array = DataRegistry.parse_quiet(String(def["landmarks"]))["landmarks"]
+	var arx := LowpolyKit.vec(landmarks[0]["anchor"])
+	assert_eq(String(landmarks[0]["id"]), "arx", "the first landmark is the Arx")
+	# The citadel top has nav polygons: most points of a 5 m grid on the flat top (r < 20 m; the Arx's own pieces
+	# take the rest) have the mesh right there.
+	var top_points := 0
+	var top_on_nav := 0
+	for x in range(-20, 21, 5):
+		for z in range(-20, 21, 5):
+			if Vector2(x, z).length() >= 20.0:
+				continue
+			top_points += 1
+			if _on_nav(nav_map, Vector3(x, 25.0, z)):
+				top_on_nav += 1
+	assert_true(top_on_nav >= top_points * 0.7 and _on_nav(nav_map, arx), "nav polygons on the citadel top: %d of %d grid points, and at the Arx anchor" % [top_on_nav, top_points])
+	var lines: Array[String] = []
+	for spot: String in def["spawns"]:
+		var from := LowpolyKit.vec(def["spawns"][spot])
+		var path := NavigationServer3D.map_get_path(nav_map, from, arx, true)
+		var straight := Vector2(from.x, from.z).distance_to(Vector2(arx.x, arx.z))
+		var length := _length(path)
+		assert_true(path.size() >= 2 and path[path.size() - 1].distance_to(arx) < 1.0, "%s reaches the Arx top" % spot)
+		assert_true(length >= straight and length < straight * 2.0, "%s to the Arx: a plausible length %.0f m (straight %.0f m)" % [spot, length, straight])
+		lines.append("%s len=%d straight=%d outer=%s inner=%s" % [spot, roundi(length), roundi(straight), _crossings(path, 330.0), _crossings(path, 140.0)])
+	for i in landmarks.size():
+		var a := LowpolyKit.vec(landmarks[i]["anchor"])
+		var b := LowpolyKit.vec(landmarks[(i + 1) % landmarks.size()]["anchor"])
+		var path := NavigationServer3D.map_get_path(nav_map, a, b, true)
+		assert_true(path.size() >= 2 and path[path.size() - 1].distance_to(b) < 1.0 and _length(path) < 3.0 * a.distance_to(b) + 50.0,
+				"a path from %s to %s (%.0f m)" % [landmarks[i]["id"], landmarks[(i + 1) % landmarks.size()]["id"], _length(path)])
+	print("ALESIA_1KM_NAV_PATHS ", " | ".join(lines))
+
+
+## Report (stage A's open question): which wall-walk stretches and aqueduct decks the saved mesh reaches from the
+## ground (the Arx top, which every spawn reaches). Printed, not limited: the one assert is that some stretch is
+## reachable at all.
+func test_wall_walks_and_aqueduct_decks_on_the_loaded_mesh() -> void:
+	var nav_map: RID = await _nav_map()
+	var arx := Vector3(0, 25, 5)
+	var pieces: Array = DataRegistry.parse_quiet(String(_def()["structure_data"]))["pieces"]
+	pieces.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return String(a["id"]) < String(b["id"]))
+	var report: Array[String] = []
+	var reachable_any := 0
+	for ring: String in ["InnerRing_", "OuterRing_"]:
+		# Five samples along each walk piece (local x -3 .. 3 on the walkway, 3 m up), in ring order. A stretch is a
+		# run of consecutive samples on the mesh; a gate, a tower or an aqueduct deck over the walk ends one.
+		var stretches: Array = []  # [first piece id, first sample point, has stair, samples]
+		var current: Array = []
+		var samples := 0
+		var on_nav := 0
+		var walk_pieces := 0
+		for entry: Dictionary in pieces:
+			if not String(entry["id"]).begins_with(ring):
+				continue
+			var kind := String(entry["type"])
+			var walk := kind == "wall_walk" or kind == "wall_stair"
+			if walk:
+				walk_pieces += 1
+			var turn := Basis(Vector3.UP, deg_to_rad(float(entry.get("yaw", 0.0))))
+			for x: float in ([-3.0, -1.5, 0.0, 1.5, 3.0] if walk else [0.0]):
+				var top := LowpolyKit.vec(entry["at"]) + turn * Vector3(x, 3.0, 0.0)  # walkway top (collider 3 m)
+				var has := walk and _on_nav(nav_map, top, 0.5)
+				if walk:
+					samples += 1
+				if has:
+					on_nav += 1
+					if current.is_empty():
+						current = [String(entry["id"]), top, false, 0]
+					current[2] = bool(current[2]) or kind == "wall_stair"
+					current[3] = int(current[3]) + 1
+				elif not current.is_empty():
+					stretches.append(current)
+					current = []
+		if not current.is_empty():
+			stretches.append(current)
+		var cut: Array[String] = []
+		var reached_stretches := 0
+		var without_stair := 0
+		for s: Array in stretches:
+			var top: Vector3 = s[1]
+			var path := NavigationServer3D.map_get_path(nav_map, arx, top, true)
+			if path.size() >= 2 and path[path.size() - 1].distance_to(top) < 1.2:
+				reached_stretches += 1
+			else:
+				cut.append("%s(%d samples, stair=%s)" % [s[0], s[3], s[2]])
+			if not bool(s[2]):
+				without_stair += 1
+		reachable_any += reached_stretches
+		report.append("%s walk_pieces=%d samples=%d on_nav=%d stretches=%d reachable=%d without_own_stair=%d unreachable=%s" % [ring.trim_suffix("_"), walk_pieces, samples, on_nav,
+				stretches.size(), reached_stretches, without_stair, cut])
+	var decks := 0
+	var deck_nav := 0
+	var deck_reached := 0
+	for entry: Dictionary in pieces:
+		if String(entry["type"]) != "aqueduct_span":
+			continue
+		decks += 1
+		var top := LowpolyKit.vec(entry["at"]) + Vector3(0, 5.0, 0)  # deck collider top
+		if _on_nav(nav_map, top):
+			deck_nav += 1
+			var path := NavigationServer3D.map_get_path(nav_map, arx, top, true)
+			if path.size() >= 2 and path[path.size() - 1].distance_to(top) < 1.2:
+				deck_reached += 1
+	report.append("aqueduct spans=%d with_nav=%d reachable=%d" % [decks, deck_nav, deck_reached])
+	assert_true(reachable_any > 0, "nonvacuous: some wall-walk stretch is reachable from the ground")
+	print("ALESIA_1KM_NAV_WALKS ", " | ".join(report))
+
+
+## B2 (binding fixes 4, 23): loot with the map's merged loot config lands on the citadel hill. A LootField over the
+## one built map, set up as MatchRoot.begin sets it up (merged loot and zone, the landmarks, the terrain height).
+func _hill_loot(with_terrain: bool) -> LootField:
+	var map := _map()
+	var director := MatchDirector.new()
+	director.load_config(MAP)
+	var landmarks: Array = DataRegistry.parse_quiet(String(_def()["landmarks"]))["landmarks"]
+	var terrain: MapTerrain = map.get_node("ArtBuilder").terrain
+	var field := LootField.new()
+	field.setup(director.loot_cfg, 4242, director.mode_cfg["zone"], landmarks, terrain.height_at if with_terrain else Callable())
+	director.free()
+	map.add_child(field)
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.physics_frame
+	await tree.physics_frame
+	return field
+
+
+## Named so that the usual --only filters of other files (test_loot, test_map_, test_match, test_br_) miss it: a
+## method of this file run without test_zz_free_the_map leaves the 1 km map in the tree for the next files.
+func test_hill_loot_lands_at_every_cluster() -> void:
+	var map := _map()
+	var terrain: MapTerrain = map.get_node("ArtBuilder").terrain
+	var director := MatchDirector.new()
+	director.load_config(MAP)
+	var loot_cfg := director.loot_cfg
+	var zone: Dictionary = director.mode_cfg["zone"]
+	director.free()
+	var landmarks: Array = DataRegistry.parse_quiet(String(_def()["landmarks"]))["landmarks"]
+	var started := Time.get_ticks_usec()
+	var field: LootField = await _hill_loot(true)
+	var place_us := Time.get_ticks_usec() - started
+	assert_true(field.placed and field.items.size() > int(loot_cfg["count"]) * 0.8, "most of the %d items found ground (%d)" % [loot_cfg["count"], field.items.size()])
+	var space := map.get_world_3d().direct_space_state
+	var limit := float(zone["start_radius_m"]) - float(loot_cfg["zone_edge_margin_m"])
+	var inside_collider := 0
+	var outside := 0
+	var off_ground := 0
+	for id in field.items:
+		var p: Vector3 = field.items[id]["pos"]
+		if Vector2(p.x, p.z).length() > limit + 0.001:
+			outside += 1
+		var query := PhysicsPointQueryParameters3D.new()
+		query.position = p
+		query.collision_mask = Hitscan.MASK_WORLD
+		if not space.intersect_point(query, 1).is_empty():
+			inside_collider += 1
+		var above := p.y - terrain.height_at(p.x, p.z)
+		if above < 0.2 or above > float(loot_cfg["max_ground_y_m"]) + 0.25 + 0.01:
+			off_ground += 1
+	assert_eq(outside, 0, "no item outside the zone start circle less the edge margin (%.0f m)" % limit)
+	assert_eq(inside_collider, 0, "no item inside a collider")
+	assert_eq(off_ground, 0, "every item lies at most max_ground_y_m above the terrain under it")
+	var by_landmark := {}
+	var per: Array[String] = []
+	for landmark: Dictionary in landmarks:
+		var here := 0
+		var high := 0
+		for id in field.items:
+			var p: Vector3 = field.items[id]["pos"]
+			if Vector2(p.x, p.z).distance_to(Vector2(float(landmark["at"][0]), float(landmark["at"][1]))) <= float(landmark["radius_m"]):
+				here += 1
+				if p.y > 1.5:
+					high += 1
+		by_landmark[landmark["id"]] = [here, high]
+		per.append("%s=%d" % [landmark["id"], here])
+	for cluster: Dictionary in loot_cfg["clusters"]:
+		var got: Array = by_landmark.get(cluster["landmark"], [0, 0])
+		assert_true(int(got[0]) >= int(cluster["items"]) - 2, "%s gets its cluster: %d items (cluster of %d, a try may find no ground)" % [cluster["landmark"], got[0], cluster["items"]])
+	assert_true(int(by_landmark["arx"][1]) >= int(by_landmark["arx"][0]) - 1 and int(by_landmark["arx"][1]) >= 10, "the Arx cluster sits on the hill, above absolute y 1.5: %s" % [by_landmark["arx"]])
+	# Nonvacuous: the old absolute limit puts nothing on the hill.
+	var flat: LootField = await _hill_loot(false)
+	var flat_high := 0
+	for id in flat.items:
+		if float(flat.items[id]["pos"].y) > float(loot_cfg["max_ground_y_m"]) + 0.25 + 0.001:
+			flat_high += 1
+	assert_eq(flat_high, 0, "without the terrain height no item lies above the absolute limit (the old rule)")
+	print("ALESIA_1KM_LOOT placed=", field.items.size(), " of ", loot_cfg["count"], " place_ms=", place_us / 1000, " arx_high=", by_landmark["arx"], " per_landmark=", " ".join(per))
+	field.free()
+	flat.free()
+
+
+## B3 wiring through the real entry point (docs/LESSONS.md): a match the way the menu and the lobby start one
+## (auto_start) reads data/map_select.json and plays alesia_1km with its overrides, the saved mesh and the
+## terrain-aware loot. The one begin() on this map in the normal suite (bots off to keep it short).
+func test_real_match_entry_plays_the_1km_map() -> void:
+	assert_true(not FileAccess.file_exists(MatchRoot.MAP_OVERRIDE_PATH), "no phone override file on this machine")
+	var m: MatchRoot = (load("res://scenes/match/match.tscn") as PackedScene).instantiate()
+	m.fill_bots = false
+	m.seed_override = 4242
+	var tree: SceneTree = Engine.get_main_loop()
+	var started := Time.get_ticks_msec()
+	tree.root.add_child(m)  # auto_start (the default): _ready runs begin()
+	var begin_ms := Time.get_ticks_msec() - started
+	assert_true(m.use_map_select, "the auto_start path reads the map selection")
+	assert_eq(m.map_path, MAP, "a real match loads alesia_1km")
+	assert_eq(m.nav_bakes, 0, "no runtime nav bake")
+	var nav := m.map.get_node("Nav") as NavigationRegion3D
+	assert_eq(nav.navigation_mesh.resource_path, MapNav.saved_path(MAP), "the saved 1 km mesh")
+	var over: Dictionary = MatchDirector.map_overrides(MAP)
+	assert_eq(float(m.director.mode_cfg["zone"]["start_radius_m"]), float(over["br"]["zone"]["start_radius_m"]), "the map's zone override is in the match config")
+	assert_eq(int(m.director.loot_cfg["count"]), int(over["loot"]["count"]), "the map's loot override is in the loot config")
+	assert_true(m.loot != null and m.loot._ground_height.is_valid(), "the loot field got the terrain height")
+	await tree.physics_frame
+	await tree.physics_frame
+	assert_true(m.loot.placed and m.loot.items.size() > 100, "the match's loot is placed (%d)" % m.loot.items.size())
+	print("ALESIA_1KM_REAL_MATCH begin_ms=", begin_ms, " loot=", m.loot.items.size())
+	m.queue_free()
+	await tree.process_frame
+
+
 ## Last in this file: frees the shared 1 km map so later suite files start clean.
 func test_zz_free_the_map() -> void:
 	if is_instance_valid(_built):

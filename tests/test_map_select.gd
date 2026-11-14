@@ -34,11 +34,13 @@ func _new_match() -> MatchRoot:  # call with await; same setup as test_match_sce
 	return m
 
 
+## M2L1 (binding fix 2): the select file names alesia_1km for real matches; MAP_PATH stays the test fixture.
 func test_map_select_defaults_to_alesia() -> void:
 	var data := DataRegistry.new().load_file(DataRegistry.MAP_SELECT_PATH)
-	assert_eq(str(data.get("map", "")), MatchRoot.MAP_PATH, "map_select.json names alesia_section")
+	assert_eq(str(data.get("map", "")), "res://data/maps/alesia_1km.json", "map_select.json names alesia_1km (real matches)")
+	assert_eq(MatchRoot.MAP_PATH, "res://data/maps/alesia_section.json", "MatchRoot.MAP_PATH stays the alesia_section fixture")
 	var chosen := MatchRoot.select_map(DataRegistry.MAP_SELECT_PATH, NO_FILE)
-	assert_eq(chosen["path"], MatchRoot.MAP_PATH, "selected path")
+	assert_eq(chosen["path"], "res://data/maps/alesia_1km.json", "selected path")
 	assert_eq(chosen["error"], "", "no error")
 
 
@@ -108,6 +110,13 @@ func test_art_builder_follows_the_map() -> void:
 	assert_eq(scene.get_node("ArtBuilder").get("map_json"), MatchRoot.MAP_PATH, "scene built directly keeps alesia")
 	scene.free()
 	var m := await _new_match()
+	# M2L1: a begin() without the real-match flag keeps the fixture; with it the select file wins (checked through
+	# chosen_map(), the choice begin() makes, so no 1 km build here).
+	assert_true(not m.use_map_select, "a match started by a test does not read map_select.json")
+	m.use_map_select = true
+	assert_eq(m.chosen_map()["path"], MatchRoot.select_map()["path"], "real match: the select file (or the phone override) wins")
+	m.use_map_select = false
+	assert_eq(m.chosen_map()["path"], MatchRoot.MAP_PATH, "test match: the fixture default")
 	assert_true(m.begin(), "begin succeeds")
 	assert_eq(m.map_path, MatchRoot.MAP_PATH, "match loaded alesia")
 	assert_eq(m.map.get_node("ArtBuilder").get("map_json"), m.map_path, "ArtBuilder builds the match's map")
