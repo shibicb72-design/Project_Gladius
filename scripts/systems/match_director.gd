@@ -15,6 +15,9 @@ const MODE_ID := "br"
 ## Loaded from data/*.json in load_config(); tests may override before start().
 var mode_cfg: Dictionary = {}
 var match_cfg: Dictionary = {}
+## data/loot.json with the map's loot overrides (load_config); MatchRoot hands it to the LootField.
+var loot_cfg: Dictionary = {}
+const LOOT_PATH := "res://data/loot.json"
 var rules: BrRules
 var running: bool = false
 ## The seed start() was given; bots and pawns derive their own RNG seeds from it (G0).
@@ -31,10 +34,43 @@ var _slot_in_squad: Dictionary = {}  # player id -> index within its squad
 var _reviving: Dictionary = {}  # reviver player id -> target player id (revive input)
 
 
-func load_config() -> void:
+## Loads mode_cfg (data/br.json through modes.json), match_cfg and loot_cfg (data/loot.json). M2L1 (binding fixes
+## 3, 21): with a map json, its "overrides" {"br": {...}, "loot": {...}} are deep-merged over br and loot for this
+## match only (merge_overrides). This is the one place the merge happens: MatchRoot.begin calls load_config(map)
+## only while mode_cfg is empty, so a caller that loads the config and then edits it (the sim's faster phases)
+## keeps its edits. Without a map (every existing caller) the configs are the plain files.
+func load_config(map_json: String = "") -> void:
 	var reg := DataRegistry.new()
 	mode_cfg = ModeRegistry.merged_config(MODE_ID, reg.load_file("res://data/modes.json"))
 	match_cfg = reg.load_file("res://data/match.json").duplicate(true)
+	loot_cfg = reg.load_file(LOOT_PATH).duplicate(true)
+	if map_json != "":
+		var overrides := map_overrides(map_json)
+		mode_cfg = merge_overrides(mode_cfg, overrides.get("br", {}))
+		loot_cfg = merge_overrides(loot_cfg, overrides.get("loot", {}))
+
+
+## M2L1: the "overrides" block of a map json ({} when it has none or the file is unreadable). Quiet.
+static func map_overrides(map_json: String) -> Dictionary:
+	var block: Variant = DataRegistry.parse_quiet(map_json).get("overrides", {})
+	return block if typeof(block) == TYPE_DICTIONARY else {}
+
+
+## M2L1: `over` deep-merged into a copy of `base`: dictionaries merge by key recursively, arrays and scalars
+## replace, keys starting with "_" (notes) are not merged. Neither argument changes.
+static func merge_overrides(base: Dictionary, over: Variant) -> Dictionary:
+	var out: Dictionary = base.duplicate(true)
+	if typeof(over) != TYPE_DICTIONARY:
+		return out
+	for key: Variant in over:
+		if str(key).begins_with("_"):
+			continue
+		var value: Variant = over[key]
+		if typeof(value) == TYPE_DICTIONARY:
+			out[key] = merge_overrides(out[key] if typeof(out.get(key)) == TYPE_DICTIONARY else {}, value)
+		else:
+			out[key] = value.duplicate(true) if value is Array or value is Dictionary else value
+	return out
 
 
 ## "solo" or "squads", from the merged br config (data default: solo).

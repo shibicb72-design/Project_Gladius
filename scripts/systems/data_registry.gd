@@ -174,9 +174,42 @@ static func validate_map_def(def: Dictionary) -> PackedStringArray:
 		for list: String in lists:
 			if typeof(pieces.get(list)) != TYPE_ARRAY:
 				problems.append("map %s '%s' has no '%s' array" % [key, piece_path, list])
+	problems.append_array(overrides_problems(def))
 	if problems.is_empty():
 		problems.append_array(yaw_problems(def))
 		problems.append_array(reserved_spot_problems(def))
+	return problems
+
+
+## M2L1 (binding fixes 3, 22): the blocks a map's "overrides" may hold (merged over data/br.json and data/loot.json
+## by MatchDirector.load_config). Keys starting with "_" are notes.
+const OVERRIDE_BLOCKS := ["br", "loot"]
+## br.json keys the lobby reads before any map is chosen (scripts/ui/lobby.gd: MatchDirector.team_layout and
+## team_mode_of read "teams"): squad layouts stay global, so no map may override them.
+const LOBBY_BR_KEYS := ["teams"]
+
+
+## M2L1: problems of a map's "overrides" block (none when it has no block). Quiet.
+static func overrides_problems(def: Dictionary) -> PackedStringArray:
+	var problems := PackedStringArray()
+	if not def.has("overrides"):
+		return problems
+	var block: Variant = def["overrides"]
+	if typeof(block) != TYPE_DICTIONARY:
+		problems.append("map overrides must be a dictionary")
+		return problems
+	for key: Variant in block:
+		var name := str(key)
+		if name.begins_with("_"):
+			continue
+		if not name in OVERRIDE_BLOCKS:
+			problems.append("map overrides '%s' is not one of %s" % [name, ", ".join(OVERRIDE_BLOCKS)])
+		elif typeof(block[key]) != TYPE_DICTIONARY:
+			problems.append("map overrides '%s' must be a dictionary" % name)
+		elif name == "br":
+			for lobby_key: String in LOBBY_BR_KEYS:
+				if (block[key] as Dictionary).has(lobby_key):
+					problems.append("map overrides br must not set '%s': the lobby reads it from data/br.json before a map is chosen" % lobby_key)
 	return problems
 
 
