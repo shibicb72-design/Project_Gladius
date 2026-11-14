@@ -329,3 +329,30 @@ func test_ground_paint_follows_the_rings_and_flat_maps_are_unchanged() -> void:
 	assert_true(GroundPaint.baked_problem("res://data/maps/none.res", 1024, "").contains("missing"), "a missing bake is named")
 	assert_true(GroundPaint.baked_problem(baked, 512, "").contains("not an RGBA8 image of 512 px"), "a bake of another size is named")
 	assert_true(GroundPaint.load_baked("l1_test_stale", baked, 1024, "not the hash") == null, "a stale bake does not load")
+
+
+## M2L1 item 8: the layout picture's data pass (tools/render_layout.gd layout_items, no drawing, no window): every
+## landmark, gate (inner and outer), tower, aqueduct, spawn and reserved spot yields one labelled item, and every
+## footprint has a known class.
+func test_layout_picture_data_pass() -> void:
+	var Layout = preload("res://tools/render_layout.gd")
+	var def := _def()
+	var gen: Dictionary = def["generator"]
+	var items: Array = Layout.layout_items(def)
+	var by_kind := {}
+	for item: Dictionary in items:
+		by_kind[item["kind"]] = int(by_kind.get(item["kind"], 0)) + 1
+		assert_true(String(item["label"]).strip_edges() != "", "a label for %s %s" % [item["kind"], item["id"]])
+		assert_true(item["at"] is Vector2, "a place for %s" % item["id"])
+	var landmarks: Array = DataRegistry.parse_quiet(String(def["landmarks"]))["landmarks"]
+	assert_eq(int(by_kind.get("landmark", 0)), landmarks.size(), "one item per landmark")
+	assert_eq(int(by_kind.get("gate", 0)), (gen["inner_wall"]["gate_bearings_deg"] as Array).size() + (gen["outer_wall"]["gate_bearings_deg"] as Array).size(), "inner and outer gates")
+	assert_eq(int(by_kind.get("tower", 0)), 8, "the 8 towers")
+	assert_eq(int(by_kind.get("aqueduct", 0)), (gen["aqueducts"] as Array).size(), "every aqueduct")
+	assert_eq(int(by_kind.get("spawn", 0)), 6, "the 6 spawns")
+	assert_eq(int(by_kind.get("reserved", 0)), (def["reserved_spots"] as Array).size(), "every reserved J1 spot")
+	assert_eq(int(by_kind.get("ring", 0)), 2, "both rings")
+	assert_eq(int(by_kind.get("circle", 0)), 2, "the play circle and the zone start")
+	var classes: Dictionary = Layout.footprint_classes(def)
+	for fp: Dictionary in DataRegistry.collider_footprints(def):
+		assert_true(Layout.CLASSES.has(String(classes.get(str(fp["id"]), ""))), "footprint %s has a class" % fp["id"])
