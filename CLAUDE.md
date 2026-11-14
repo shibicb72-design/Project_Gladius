@@ -2,7 +2,7 @@
 Read docs/DESIGN.md (approved design) and docs/ARCHITECTURE.md first.
 Token limits are mandatory:
 - Steps of at most ~30-60 turns, each in a fresh `claude -p` session; Sonnet runs with `--max-budget-usd 2.50`.
-- M2 team (Shibi, Nov 10 2026): a Fable 5.2 session (`claude-fable-5-2`) may orchestrate a slice. It delegates coding to Opus 5.5 subagents at medium effort (Agent tool, model "opus", effort "medium") and grunt work to Haiku 5.5 subagents (model "haiku"), and reviews every result before it commits. Outside such an orchestrated slice: no Sonnet or Opus helper subagents, Haiku only (log reading, bulk renames, Explore).
+- Team (Shibi, Nov 14 2026): a Fable 5.2 session (`claude-fable-5-2`, effort medium) leads and orchestrates each slice. It delegates the complex coding to one Opus 5.5 subagent (Agent tool, model "opus"), gives a Sonnet 5.5 subagent (model "sonnet") to the Opus agent's side when it needs help, and gives the menial work (screenshots, moving files, test runs, counting) to a Haiku 5.5 subagent (model "haiku"). Fable reviews every result before it commits. Outside such an orchestrated slice: no Sonnet or Opus helper subagents, Haiku only (log reading, bulk renames, Explore).
 - Stage files by path; never `git add -A` (Godot's import rewrites .import line endings).
 - Read files by line range (Grep, then Read with offset/limit); never read a file over 200 lines whole.
 - Pin every model explicitly (`--model opus|sonnet|haiku`).
