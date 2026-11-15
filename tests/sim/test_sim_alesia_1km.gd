@@ -231,6 +231,8 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var unstick_goals := {}  # M2B2: brain goal_kind at the unstick start -> events
 	var unstick_bot_goals := {}  # bot player id -> {goal_kind: events}
 	var unstick_bot_areas := {}  # bot player id -> {area: events}
+	# M2B2 commit 3: the brain's NavigationAgent3D at each unstick start (finished is counted in addition).
+	var unstick_nav := {"reachable": 0, "unreachable": 0, "finished": 0}
 	var reached_inner := {}
 	var reached_hill := {}
 	var n := 0
@@ -262,6 +264,12 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 				bg[gk] = int(bg.get(gk, 0)) + 1
 				var ba: Dictionary = unstick_bot_areas.get_or_add(b.player_id, {})
 				ba[area] = int(ba.get(area, 0)) + 1
+				var agent: NavigationAgent3D = brain.get("_agent")
+				if agent != null:
+					var nk := "reachable" if agent.is_target_reachable() else "unreachable"
+					unstick_nav[nk] = int(unstick_nav[nk]) + 1
+					if agent.is_navigation_finished():
+						unstick_nav["finished"] = int(unstick_nav["finished"]) + 1
 			unstick_prev[b.player_id] = left
 			var r := Vector2(b.global_position.x, b.global_position.z).length()
 			if r < 140.0:
@@ -298,8 +306,9 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 				m.director.rules.zone_phase(), m.director.rules.phase_count(), m.director.rules.zone_state(), m.director.rules.zone_radius()])
 	print("SIM_UNSTICK map=alesia_1km mode=%s seed=%d total=%d bots_with_any=%d by_band=%s by_area=%s per_bot=%s" % [
 			mode, seed_value, unstick_total, unstick_per_bot.size(), _top(unstick_bands, 12), _top(unstick_areas, 14), unstick_per_bot])
-	print("SIM_UNSTICK_GOALS map=alesia_1km mode=%s seed=%d by_goal=%s worst=%s" % [
-			mode, seed_value, _top(unstick_goals, 20), _worst_unstick(unstick_per_bot, unstick_bot_goals, unstick_bot_areas)])
+	print("SIM_UNSTICK_GOALS map=alesia_1km mode=%s seed=%d by_goal=%s worst=%s nav={reachable:%d, unreachable:%d, finished:%d}" % [
+			mode, seed_value, _top(unstick_goals, 20), _worst_unstick(unstick_per_bot, unstick_bot_goals, unstick_bot_areas),
+			int(unstick_nav["reachable"]), int(unstick_nav["unreachable"]), int(unstick_nav["finished"])])
 	m.queue_free()
 	await tree.process_frame
 	return {"line": line, "over": over, "bands": bands}

@@ -491,7 +491,11 @@ func test_hunt_goal() -> void:
 	gun.reserve = int(ceil(gun.def.magazine * m.director.bot_ammo_low_magazines())) + 5
 	var c := m.director.zone_target_center()
 	bot.global_position = c + Vector3(30.0, 0.2, 0.0)
-	var b := add_brain(bot)
+	var cfg := base_cfg()
+	cfg["route"]["hunt_edge_frac"] = 0.0  # M2B2 hunt pace off: the M2B1 hunt (test_bot_hunt_pace.gd covers the knobs)
+	cfg["route"]["hunt_delay_s"] = 0.0
+	cfg["route"]["hunt_speed_scale"] = 1.0
+	var b := add_brain(bot, cfg)
 	b._ensure_seeded()
 	assert_true(b.is_geared(), "geared")
 	var g := b._goal(null, false)
