@@ -222,7 +222,7 @@ func test_red_dot_centred_at_full_ads_for_both_guns() -> void:
 		var vm := _rig.get_view_model()
 		var cam := _rig.get_camera()
 		_rig.set_aim_blend(1.0, float(DataRegistry.new().load_file(DataRegistry.STATS_PATH)["aim"]["aim_fov_mult"]))
-		await _frames(2)
+		await _frames(45)  # past the ADS settle
 		var dot := vm.get_red_dot()
 		assert_true(dot != null and vm.get_ads_weight() == 1.0, "%s: full ADS with a red dot" % vm.get_shown_weapon_id())
 		if dot != null:

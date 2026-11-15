@@ -1,6 +1,27 @@
 {
 	"_placeholder": true,
 	"_todo": "OQ-ANIM: procedural rig hierarchy/pivots are derived from art_astra's rest parts; all new animation values are provisional presentation values, never approved design values.",
+	"first_person": {
+		"_placeholder": true,
+		"_todo": "OQ-FP-ANIM (M2 AN1): the first-person view-model motion (scripts/visual/view_motion.gd), view only. Every number is a presentation trial for Shibi on the Fold, not a design value. Durations: switch, blade swing and the kick timer are data/camera.json first_person.view_model swap_s, swing_s and recoil_s; a reload lasts the weapon's own WeaponDef.reload_s (stats.json) and its stages are fractions of it; pickup lasts pickup.s. Positions are view-model metres before view_model.scale, rotations degrees (pitch, yaw, roll).",
+		"breath": {"hz": 0.22, "pos_m": [0.0015, 0.0035, 0.0], "rot_deg": [0.5, 0.25, 0.35], "moving_mult": 0.3},
+		"walk": {"stride_m": 1.5, "pos_m": [0.011, 0.012, 0.004], "rot_deg": [1.0, 1.2, 1.6], "smooth_s": 0.15},
+		"sprint": {"blend_s": 0.2, "pos_m": [-0.05, -0.08, 0.0], "rot_deg": [-14.0, 38.0, 22.0], "bob_mult": 1.7, "stride_m": 2.0},
+		"ads": {"settle_hz": 4.5, "settle_damping": 0.35, "settle_lag_s": 0.05, "settle_m": 0.012},
+		"kick": {"spring_hz": 8.0, "damping": 0.55, "pos_m": [0.0, 0.006, 0.022], "pitch_deg": 6.0, "yaw_deg": 1.8, "roll_deg": 2.5},
+		"reload": {"stages": [["tilt", 0.14], ["hand_to_cell", 0.12], ["cell_out", 0.16], ["cell_in", 0.22], ["charge", 0.2], ["return", 0.16]],
+			"tilt_pos_m": [-0.04, 0.05, -0.03], "tilt_rot_deg": [8.0, 14.0, 38.0], "cell_out_m": [0.0, -0.11, 0.04], "cell_out_rot_deg": [20.0, 0.0, 8.0],
+			"charge_pull_m": 0.035, "charge_rot_deg": [4.0, -6.0, -10.0]},
+		"switch": {"drop_deg": 62.0, "rot_deg": [-10.0, 0.0, 25.0], "melee_rot_deg": [10.0, 0.0, -30.0], "overshoot_deg": 3.0},
+		"pickup": {"s": 0.7, "swap_at": 0.45, "drop_deg": 62.0, "rot_deg": [-12.0, 10.0, 30.0], "melee_rot_deg": [10.0, 0.0, -30.0], "reach_view_m": [-0.08, -0.22, -0.34], "reach_fingers": [0.2, -0.45, -0.85], "reach_back": [-0.7, 0.4, 0.0]},
+		"swing": {"keys": [
+			{"t": 0.0, "pos_m": [0.0, 0.0, 0.0], "rot_deg": [0.0, 0.0, 0.0]},
+			{"t": 0.22, "pos_m": [0.02, 0.03, 0.02], "rot_deg": [8.0, 26.0, -14.0], "ease": "out"},
+			{"t": 0.45, "pos_m": [-0.06, -0.02, -0.03], "rot_deg": [-16.0, -44.0, 30.0], "ease": "in"},
+			{"t": 0.62, "pos_m": [-0.07, -0.03, -0.03], "rot_deg": [-20.0, -52.0, 34.0], "ease": "out"},
+			{"t": 1.0, "pos_m": [0.0, 0.0, 0.0], "rot_deg": [0.0, 0.0, 0.0], "ease": "inout"}]},
+		"land": {"dip_m": 0.02, "per_mps": 0.004, "max_m": 0.055, "pitch_deg": 3.0, "s": 0.4, "min_air_s": 0.12}
+	},
 	"locomotion": {
 		"_placeholder": true, "_todo": "OQ-ANIM: clip periods, sample count, limb angles and replica smoothing are presentation placeholders.",
 		"idle_s": 1.6, "walk_s": 0.8, "run_s": 0.6, "samples": 16,

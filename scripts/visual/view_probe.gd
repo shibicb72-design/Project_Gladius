@@ -38,6 +38,25 @@ static func measure(vm: ViewModel, cam: Camera3D, aspect: float) -> Dictionary:
 	return out
 
 
+## How many posed vertices of the visible model (0 when the view model is hidden) project inside the view, in front of
+## the near plane: > 0 means the arms or the weapon are on screen this frame.
+static func on_screen_vertices(vm: ViewModel, cam: Camera3D, aspect: float) -> int:
+	if not vm.is_visible_in_tree():
+		return 0
+	var to_cam := cam.global_transform.affine_inverse()
+	var tan_h := tan(deg_to_rad(cam.fov) * 0.5)
+	var tan_w := tan_h * aspect
+	var n := 0
+	for mi in vm.model_meshes():
+		var xf := to_cam * mi.global_transform
+		for v in vm.posed_faces(mi):
+			var p := xf * v
+			var d := -p.z
+			if d > cam.near and absf(p.x) <= d * tan_w and absf(p.y) <= d * tan_h:
+				n += 1
+	return n
+
+
 ## The meshes with cuts, as "path(n)" text (empty when none).
 static func cut_report(m: Dictionary) -> String:
 	var parts: PackedStringArray = []

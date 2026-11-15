@@ -4,7 +4,8 @@ extends Node3D
 ## riding on the CameraRig's Camera3D. Presentation only: no colliders, no gameplay reads back from it (the shot,
 ## Hitscan origin, recoil and get_aim_point never see it). M2 AN1: the hands (ViewHands: one skinned mesh per arm on
 ## a code-built skeleton, finger poses as data) and the weapons (ViewWeapons) are built from data/art_soldier.json
-## (OQ-ART-SOLDIER); hold, ADS and motion numbers are data/camera.json first_person.view_model (OQ-FIRST-PERSON).
+## (OQ-ART-SOLDIER) and assembled by ViewRig; hold, ADS and durations are data/camera.json first_person.view_model
+## (OQ-FIRST-PERSON); the layered motion is ViewMotion, data/anim.json first_person (OQ-FP-ANIM).
 ## Ownership: CameraRig calls ViewModel.attach every physics frame until one exists; attach only creates it for a rig
 ## under a Pawn with no "Brain" child (the local player), so bots, replicas and a rig without a pawn never get one.
 ## Clipping (fix 12, option a): the whole model is built at natural size and then scaled down toward the eye
@@ -30,24 +31,16 @@ var _shown: Node3D
 var _muzzle: Marker3D
 var _fx: ShotFx
 var _aim_blend := 0.0
-var _rng := RandomNumberGenerator.new()
+var _view_fx: ViewFx  # the first-person tracer and flash
 
-# Motions: seconds elapsed and total; total 0 = idle.
-var _swap_t := 0.0
-var _swap_total := 0.0
-var _reload_t := 0.0
-var _reload_total := 0.0
-var _swing_t := 0.0
-var _swing_total := 0.0
-var _recoil_left := 0.0
-var _tracer_left := 0.0
-var _flash_left := 0.0
-var _tracer_start := Vector3.ZERO
-var _tracer_end := Vector3.ZERO
+# M2 AN1 commit 3: the layered motion (breathing, walk bob, sprint, ADS settle, kick, staged reload, switch, pickup,
+# swing, landing): scripts/visual/view_motion.gd, numbers in data/anim.json first_person.
+var _motion: ViewMotion
+var _recoil_left := 0.0  # the kick timer (camera.json recoil_s) behind is_recoiling
+var _slots: Array = []  # the loadout's Weapon objects last seen: a slot whose object changed was picked up
+var _slots_of: Loadout  # the Loadout object _slots was read from
 
-# Bob and sway state.
-var _bob_phase := 0.0
-var _bob_amount := 0.0
+# Look sway state.
 var _sway := Vector2.ZERO  # x = pitch lag, y = yaw lag (degrees)
 var _last_look := Vector2.ZERO
 var _look_seen := false
@@ -76,7 +69,6 @@ static func attach(camera_rig: CameraRig) -> ViewModel:
 func _ready() -> void:
 	_cfg = DataRegistry.new().get_camera_cfg()["first_person"]["view_model"]
 	_shot_cfg = DataRegistry.new().load_file("res://data/ui.json")["shot_fx"]
-	_rng.randomize()
 	scale = Vector3.ONE * _f("scale")
 	var cam := get_parent() as Camera3D
 	if cam != null:
@@ -85,9 +77,12 @@ func _ready() -> void:
 	_pivot.name = "Pivot"
 	add_child(_pivot)
 	_build_fx()
+	_motion = ViewMotion.new(DataRegistry.new().load_file("res://data/anim.json")["first_person"])
+	_remember_slots()
 	pawn.weapon_switched.connect(_on_weapon_switched)
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.fired.connect(_on_fired)
+	pawn.landed.connect(_on_landed)
 	_bind_shot_fx()
 	if rig != null:
 		_aim_blend = rig.get_aim_blend()
@@ -134,15 +129,38 @@ func get_shown_weapon() -> Node3D:
 
 
 func is_swapping() -> bool:
-	return _swap_total > 0.0
+	return _motion.switch_total > 0.0
 
 
 func is_reloading() -> bool:
-	return _reload_total > 0.0
+	return _motion.reload_total > 0.0
 
 
 func is_swinging() -> bool:
-	return _swing_total > 0.0
+	return _motion.swing_total > 0.0
+
+
+func is_picking_up() -> bool:
+	return _motion.pickup_total > 0.0
+
+
+## The running reload's length in seconds (the weapon's WeaponDef.reload_s; 0 when not reloading) and stage name.
+func get_reload_length() -> float:
+	return _motion.reload_total
+
+
+func get_reload_stage() -> String:
+	return _motion.reload_stage()
+
+
+## Names of the motions running now: idle, walk, sprint, ads, fire, reload:<stage>, switch, pickup, swing, land.
+func get_motion_names() -> Array[String]:
+	return _motion.active()
+
+
+## The layered motion (tests and tools read its state).
+func get_motion() -> ViewMotion:
+	return _motion
 
 
 func is_recoiling() -> bool:
@@ -157,7 +175,7 @@ func get_muzzle_position() -> Vector3:
 
 
 func get_tracer_endpoints() -> PackedVector3Array:
-	return PackedVector3Array([_tracer_start, _tracer_end])
+	return PackedVector3Array([_view_fx.tracer_start, _view_fx.tracer_end])
 
 
 func is_tracer_visible() -> bool:
@@ -249,34 +267,38 @@ func _update(delta: float) -> void:
 	_tick_motions(delta)
 	_sync_weapon()
 	_tick_look(delta)
-	_tick_fx(delta)
-	var raise := smoothstep(show_from, 1.0, weight) if show_from < 1.0 else (1.0 if weight >= 1.0 else 0.0)
-	_apply_pose(raise)
+	_view_fx.tick(delta)
+	_apply_pose(_raise(weight, show_from))
+	_remember_slots()
+
+
+## 0 (just shown) .. 1 (full first person): how far the model has risen into its pose. M2 AN1 (cover-exit fix): the
+## rise starts at raise_start, not 0, so on the frame the body leaves the view (the same show_weight) the arms and gun
+## are already on screen instead of raise_drop_m below it.
+func _raise(weight: float, show_from: float) -> float:
+	var r := smoothstep(show_from, 1.0, weight) if show_from < 1.0 else (1.0 if weight >= 1.0 else 0.0)
+	return lerpf(clampf(_f("raise_start"), 0.0, 1.0), 1.0, r)
 
 
 func _tick_motions(delta: float) -> void:
-	if _swap_total > 0.0:
-		_swap_t += delta
-		if _swap_t >= _swap_total:
-			_swap_total = 0.0
-	if _reload_total > 0.0:
-		_reload_t += delta
-		if _reload_t >= _reload_total:
-			_reload_total = 0.0
-	if _swing_total > 0.0:
-		_swing_t += delta
-		if _swing_t >= _swing_total:
-			_swing_total = 0.0
+	var flat := Vector2(pawn.velocity.x, pawn.velocity.z).length()
+	var run := maxf(pawn.get_move_speed(), 0.01)
+	var max_mult := maxf(pawn.get_max_move_speed() / run, 1.0001)
+	var sprint := clampf((pawn.sprint_factor - 1.0) / (max_mult - 1.0), 0.0, 1.0)
+	_motion.tick(delta, flat, run, sprint, get_ads_weight(), pawn.is_on_floor(), pawn.velocity.y)
 	_recoil_left = maxf(0.0, _recoil_left - delta)
 
 
-## Shows the active weapon; during a swap the old one stays until the lowest point (half the swap).
+## Shows the active weapon; during a switch the old one stays until the lowest point (half the switch), during a
+## pickup until the pickup's swap point.
 func _sync_weapon() -> void:
 	var w := pawn.loadout.get_active() if pawn.loadout != null else null
 	var id := w.def.id if w != null and w.def != null else ""
 	if id == _shown_id:
 		return
-	if _swap_total > 0.0 and _swap_t < _swap_total * 0.5:
+	if _motion.switch_total > 0.0 and _motion.switch_t < _motion.switch_total * 0.5:
+		return
+	if _motion.pickup_total > 0.0 and not _motion.pickup_swapped():
 		return
 	_show_weapon(id, w != null and w.def.is_melee())
 
@@ -296,7 +318,7 @@ func _show_weapon(id: String, melee: bool) -> void:
 	_muzzle = _shown.get_node_or_null("Muzzle") as Marker3D
 
 
-## Look sway (the gun lags the turn) and the walk bob, from the pawn's real look and velocity.
+## Look sway (the gun lags the turn), from the pawn's real look. The walk bob is ViewMotion's (step phase, real speed).
 func _tick_look(delta: float) -> void:
 	var look := Vector2(pawn.pitch, pawn.global_rotation.y)
 	var target := Vector2.ZERO
@@ -308,89 +330,66 @@ func _tick_look(delta: float) -> void:
 	_look_seen = true
 	var smooth := _f("sway_smooth_s")
 	_sway = _sway.lerp(target, 1.0 - exp(-delta / smooth) if smooth > 0.0 else 1.0)
-	var flat := Vector2(pawn.velocity.x, pawn.velocity.z).length()
-	var top := maxf(pawn.get_move_speed(), 0.01)  # run speed = full bob; sprint stays at full
-	var amount := clampf(flat / top, 0.0, 1.0)
-	var bob_smooth := _f("bob_smooth_s")
-	_bob_amount = lerpf(_bob_amount, amount, 1.0 - exp(-delta / bob_smooth) if bob_smooth > 0.0 else 1.0)
-	if _bob_amount > 0.001:
-		_bob_phase = fmod(_bob_phase + delta * TAU * _f("bob_hz"), TAU * 2.0)
-
-
-## 0 at both ends, 1 in the middle, eased over `ease` of the duration at each end.
-static func _plateau(p: float, edge: float) -> float:
-	if edge <= 0.0:
-		return 1.0 if p > 0.0 and p < 1.0 else 0.0
-	return minf(smoothstep(0.0, edge, p), smoothstep(0.0, edge, 1.0 - p))
-
-
-func _swing_rot() -> Vector3:
-	if _swing_total <= 0.0:
-		return Vector3.ZERO
-	var p := _swing_t / _swing_total
-	var wind := _f("swing_wind_fraction")
-	var strike := _f("swing_strike_fraction")
-	var from := _v("swing_from_deg")
-	var to := _v("swing_to_deg")
-	if p < wind:
-		return from * smoothstep(0.0, wind, p)
-	if p < wind + strike:
-		return from.lerp(to, smoothstep(wind, wind + strike, p))
-	return to * (1.0 - smoothstep(wind + strike, 1.0, p))
 
 
 func _apply_pose(raise: float) -> void:
-	# ADS damps the bob, the look sway and the gun kick (ads_motion_mult, ads_kick_mult).
+	# ADS damps the bob, the breathing, the look sway and the gun kick (ads_motion_mult, ads_kick_mult).
 	var ads := get_ads_weight()
 	var calm := lerpf(1.0, _f("ads_motion_mult"), ads)
-	# About the eye: raise from below, bob, look sway, the blade swing.
-	var bob := _v("bob_m") * _bob_amount * calm
-	var pos := Vector3(sin(_bob_phase) * bob.x, (cos(_bob_phase * 2.0) - 1.0) * 0.5 * bob.y, 0.0)
-	pos.y -= _f("raise_drop_m") * (1.0 - raise)
-	var rot := Vector3(_sway.x, _sway.y, 0.0) * calm + _swing_rot()
-	_pivot.transform = Transform3D(_deg(rot), pos)
+	# About the eye: the rise from below, look sway, then ViewMotion's breathing, bob, landing and swing.
+	var rise := Transform3D(Basis.IDENTITY, Vector3(0.0, -_f("raise_drop_m") * (1.0 - raise), 0.0))
+	_pivot.transform = rise * Transform3D(_deg(Vector3(_sway.x, _sway.y, 0.0) * calm), Vector3.ZERO) * _motion.pivot_xf(calm)
 	if _shown == null:
 		return
-	# About the hand: swap, reload and the gun kick.
-	var hand_pos := Vector3.ZERO
-	var hand_rot := Vector3.ZERO
-	if _swap_total > 0.0:
-		var s := sin(PI * clampf(_swap_t / _swap_total, 0.0, 1.0))
-		hand_pos.y -= _f("swap_drop_m") * s
-		hand_rot += _v("swap_tilt_deg") * s
-	if _reload_total > 0.0:
-		var r := _plateau(_reload_t / _reload_total, _f("reload_ease_fraction"))
-		hand_pos.y -= _f("reload_drop_m") * r
-		hand_rot += _v("reload_tilt_deg") * r
-	if _recoil_left > 0.0 and _f("recoil_s") > 0.0:
-		var k := pow(_recoil_left / _f("recoil_s"), 2.0) * lerpf(1.0, _f("ads_kick_mult"), ads)
-		hand_pos += _v("recoil_kick_m") * k
-		hand_rot.x += _f("recoil_pitch_deg") * k
+	# About the grip: sprint pose, ADS settle, kick, reload tilt, switch and pickup.
 	var base: Transform3D = _shown.get_meta(&"hold")
 	if ads > 0.0:
 		base = base.interpolate_with(_shown.get_meta(&"ads"), ads)
-	_shown.transform = base * Transform3D(_deg(hand_rot), hand_pos)
-	if flash.visible and _muzzle != null:
-		flash.global_transform = _muzzle.global_transform * Transform3D(Basis(Vector3.FORWARD, flash.get_meta(&"spin", 0.0)), Vector3.ZERO)
+	_shown.transform = base * _motion.weapon_xf(lerpf(1.0, _f("ads_kick_mult"), ads), not _shown.has_node("Muzzle"))
+	ViewRig.apply_parts(_shown, _motion, _pivot.transform)  # cell, charging handle, left-hand reach
+	if _muzzle != null:
+		_view_fx.follow(_muzzle.global_transform)
 
 
 # --- signals ------------------------------------------------------------------------------------------------------
 
-func _on_weapon_switched(_slot: int) -> void:
-	_reload_total = 0.0
-	_swing_total = 0.0
-	_swap_t = 0.0
-	_swap_total = maxf(0.0, _f("swap_s"))
-	if _swap_total <= 0.0:
-		_sync_weapon()  # no swap motion: show the new weapon now
+## weapon_switched: a PICKUP when the Weapon object in that slot is a new one and every other slot is unchanged (a loot
+## gun went into the slot: Pawn.take_item); otherwise a switch (Loadout.swap, a new loadout from setup). Derived here
+## from the loadout's state; pawn.gd is not touched.
+func _on_weapon_switched(slot: int) -> void:
+	if _is_pickup(slot):
+		_motion.start_pickup()
+	else:
+		_motion.start_switch(maxf(0.0, _f("swap_s")))
+	_remember_slots()
+	if _motion.switch_total <= 0.0 and _motion.pickup_total <= 0.0:
+		_sync_weapon()  # no motion: show the new weapon now
+
+
+## Snapshot of the loadout (its object and its slots' Weapon objects), refreshed every frame and after every switch,
+## so a loadout replaced without a signal (Pawn.setup) is not mistaken for a pickup later.
+func _remember_slots() -> void:
+	_slots_of = pawn.loadout if pawn != null else null
+	_slots = pawn.loadout.slots.duplicate() if pawn != null and pawn.loadout != null else []
+
+
+func _is_pickup(slot: int) -> bool:
+	if pawn.loadout == null or pawn.loadout != _slots_of or _slots.size() != pawn.loadout.slots.size() or slot < 0 or slot >= _slots.size():
+		return false
+	for i in _slots.size():
+		var same: bool = _slots[i] == pawn.loadout.slots[i]
+		if i == slot and (same or pawn.loadout.slots[i] == null):
+			return false
+		if i != slot and not same:
+			return false
+	return true
 
 
 func _on_reload_started() -> void:
 	var w := pawn.loadout.get_active() if pawn.loadout != null else null
 	if w == null or w.def.is_melee() or w.def.reload_s <= 0.0:
 		return
-	_reload_t = 0.0
-	_reload_total = w.def.reload_s  # the weapon's real reload time (data/stats.json reload_s)
+	_motion.start_reload(w.def.reload_s)  # the weapon's real reload time (data/stats.json reload_s)
 
 
 func _on_fired() -> void:
@@ -398,10 +397,17 @@ func _on_fired() -> void:
 	if w == null:
 		return
 	if w.def.is_melee():
-		_swing_t = 0.0
-		_swing_total = maxf(0.0, _f("swing_s"))
+		_motion.start_swing(maxf(0.0, _f("swing_s")))
 	else:
 		_recoil_left = _f("recoil_s")
+		_motion.kick(1.0)  # damped by ads_kick_mult where it is drawn (_apply_pose), so an ADS change mid-kick follows
+
+
+## Pawn.landed (the carrier drop touching down): a landing dip at the fall's top speed if ViewMotion did not already
+## see the touchdown on its own (it also dips after any fall from is_on_floor and the vertical speed).
+func _on_landed() -> void:
+	if not _motion.is_landing():
+		_motion.land(pawn.drop_max_fall_mps)
 
 
 ## pawn.shot_fx is made in Pawn._ready, but bind whenever it appears or changes.
@@ -416,156 +422,25 @@ func _bind_shot_fx() -> void:
 		_fx.shot_shown.connect(_on_shot_shown)
 
 
-## Fix 1: the first-person tracer and flash start at the VIEW-MODEL muzzle and end at the shot's real end point.
+## Fix 1: the first-person tracer and flash start at the VIEW-MODEL muzzle and end at the shot's real end point (ViewFx).
 func _on_shot_shown(_origin: Vector3, end: Vector3) -> void:
 	if not visible or _muzzle == null:
 		return
-	var start := _muzzle.global_position
-	var to_end := end - start
-	var length := minf(to_end.length(), float(_shot_cfg["tracer_max_length_m"]))
-	_tracer_start = start
-	_tracer_end = start
-	if length > 0.001:
-		var dir := to_end.normalized()
-		var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
-		var width := _f("tracer_width_m")
-		(tracer.mesh as BoxMesh).size = Vector3(width, width, length)
-		tracer.global_transform = Transform3D(Basis.looking_at(dir, up), start + dir * length * 0.5)
-		_tracer_end = start + dir * length
-		tracer.visible = true
-		_tracer_left = _f("tracer_s")
-	var spin := deg_to_rad(float(_shot_cfg.get("flash_spin_deg", 45.0)))
-	flash.set_meta(&"spin", _rng.randf_range(-spin, spin))
-	flash.visible = true
-	_flash_left = _f("flash_s")
-	flash.global_transform = _muzzle.global_transform
-
-
-func _tick_fx(delta: float) -> void:
-	if _tracer_left > 0.0:
-		_tracer_left -= delta
-		var color := _color(_shot_cfg["tracer_color"])
-		color.a *= clampf(_tracer_left / maxf(_f("tracer_s"), 0.0001), 0.0, 1.0)
-		((tracer.mesh as BoxMesh).material as StandardMaterial3D).albedo_color = color
-		if _tracer_left <= 0.0:
-			tracer.visible = false
-	if _flash_left > 0.0:
-		_flash_left -= delta
-		if _flash_left <= 0.0:
-			flash.visible = false
+	_view_fx.show_shot(_muzzle.global_transform, end)
 
 
 # --- building -----------------------------------------------------------------------------------------------------
 
-static func _color(c: Array) -> Color:
-	return Color(c[0], c[1], c[2], c[3])
-
-
-func _fx_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.no_depth_test = bool(_shot_cfg["tracer_draw_on_top"])
-	mat.render_priority = int(_shot_cfg["tracer_render_priority"])
-	return mat
-
-
 func _build_fx() -> void:
-	var box := BoxMesh.new()
-	box.material = _fx_material(_color(_shot_cfg["tracer_color"]))
-	tracer = _mesh_node("Tracer", box, self)
-	tracer.top_level = true
-	tracer.visible = false
-	# The flash: crossed planes like ShotFx's, sized in view-model metres.
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var size := _f("flash_size_m")
-	var narrow := size * float(_shot_cfg["flash_arm_fraction"])
-	var planes := int(_shot_cfg["flash_planes"])
-	# Unlike ShotFx (seen from the side), the arms lie across the muzzle axis, so the eye behind it sees a star.
-	for i in planes:
-		var angle := PI * i / planes
-		var axis := Vector3(cos(angle), sin(angle), 0.0)
-		var side := Vector3(-sin(angle), cos(angle), 0.0)
-		var points: Array[Vector3] = [axis * size * 0.5, side * narrow, -axis * size * 0.5, -side * narrow]
-		for index in [0, 1, 2, 0, 2, 3]:
-			st.add_vertex(points[index])
-	var star := st.commit()
-	var fmat := _fx_material(_color(_shot_cfg["flash_color"]))
-	fmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	fmat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	star.surface_set_material(0, fmat)
-	flash = _mesh_node("Flash", star, self)
-	flash.top_level = true
-	flash.visible = false
+	_view_fx = ViewFx.new(self, _shot_cfg, _f("tracer_s"), _f("tracer_width_m"), _f("flash_s"), _f("flash_size_m"))
+	tracer = _view_fx.tracer
+	flash = _view_fx.flash
 
 
-func _mesh_node(node_name: String, mesh: Mesh, parent: Node) -> MeshInstance3D:
-	var m := MeshInstance3D.new()
-	m.name = node_name
-	m.mesh = mesh
-	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	m.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	parent.add_child(m)
-	return m
-
-
-## A small unshaded, glowing disc (a low sphere, the same from every side) for the sight; colour and size are data.
-func _add_red_dot(anchor: Node3D, at: Vector3) -> void:
-	var sphere := SphereMesh.new()
-	var r := _f("dot_radius_m")
-	sphere.radius = r
-	sphere.height = r * 2.0
-	sphere.radial_segments = 10
-	sphere.rings = 5
-	var mat := StandardMaterial3D.new()
-	var color := _color(_entry("dot_color"))
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color
-	sphere.material = mat
-	var dot := _mesh_node("RedDot", sphere, anchor)
-	dot.position = at
-
-
-## One weapon's node (ViewWeapons): hold pose (meta "hold", camera.json), for guns the red dot and the ADS pose (meta
-## "ads"), and the two arms placed by art_soldier.json weapons.<id>.hands (meta "rest" = the placed transform).
+## One weapon's node with its arms, red dot and hold / ADS poses (ViewRig.build_weapon), hidden until shown.
 func _build_weapon(id: String, melee: bool) -> Node3D:
-	var wc := _weapon_cfg(id, melee)
-	var node := ViewWeapons.build(id, String(_cfg["default_melee" if melee else "default_gun"]))
+	var node := ViewRig.build_weapon(id, _weapon_cfg(id, melee), String(_cfg["default_melee" if melee else "default_gun"]),
+			_f("dot_radius_m"), ViewFx.color_of(_entry("dot_color")))
 	_pivot.add_child(node)
-	var hold := Transform3D(_deg(ViewMesh.vec(wc["hold_rot_deg"])), ViewMesh.vec(wc["hold_m"]))
-	node.set_meta(&"hold", hold)
-	node.transform = hold
-	var art_id := String(node.get_meta(&"art_id"))
-	var anchor := node.get_node_or_null("SightAnchor") as Marker3D
-	if anchor != null:
-		# Fix 8: the red dot in the sight window (art dot_m), and the ADS pose that puts it on the camera's centre ray
-		# at ads_dot_m (camera frame) with the gun turned by ads_rot_deg (0 = straight ahead).
-		var dot_at := ViewWeapons.dot_position(art_id)
-		_add_red_dot(anchor, dot_at - anchor.position)
-		if wc.has("ads_dot_m"):
-			var ads_basis := _deg(ViewMesh.vec(wc.get("ads_rot_deg", [0.0, 0.0, 0.0])))
-			node.set_meta(&"ads", Transform3D(ads_basis, ViewMesh.vec(wc["ads_dot_m"]) - ads_basis * dot_at))
-	for side in ["r", "l"]:
-		var h := ViewWeapons.hand(art_id, side)
-		if h.is_empty():
-			continue
-		var arm := ViewHands.build_arm(side)
-		node.add_child(arm)
-		var xf := Transform3D(ViewHands.placement_basis(h), ViewMesh.vec(h["at"]))
-		if String(h.get("frame", "weapon")) == "view":
-			xf = hold.affine_inverse() * xf  # placed in the camera frame, carried by the weapon node
-		arm.transform = xf
-		arm.set_meta(&"rest", xf)
-		var elbow := ViewMesh.vec(h["elbow"])
-		if String(h.get("frame", "weapon")) == "view":
-			elbow = hold.affine_inverse() * elbow
-		arm.set_meta(&"elbow", elbow)
-		arm.set_meta(&"pose", String(h.get("pose", "grip")))
-		ViewHands.apply_pose(arm, ViewHands.pose(String(h.get("pose", "grip"))))
-		ViewHands.aim_forearm(arm, xf.affine_inverse() * elbow)
 	node.visible = false
 	return node

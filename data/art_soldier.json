@@ -79,7 +79,9 @@
 			"dot_m": [0.0, 0.148, 0.0],
 			"hands": {
 				"r": {"at": [0.034, -0.035, 0.085], "rot": [-15.0, 0.0, -90.0], "pose": "trigger", "elbow": [0.1, -0.3, 0.2]},
-				"l": {"at": [-0.062, 0.1, -0.205], "fingers": [0.85, 0.12, -0.5], "back": [-0.35, 0.93, 0.0], "pose": "foregrip", "elbow": [-0.28, -0.14, 0.02]}
+				"l": {"at": [-0.062, 0.1, -0.205], "fingers": [0.85, 0.12, -0.5], "back": [-0.35, 0.93, 0.0], "pose": "foregrip", "elbow": [-0.28, -0.14, 0.02]},
+				"l_cell": {"_note": "reload: the left hand on the cell, in the Cell node's frame (it follows the cell out and in)", "at": [-0.07, -0.085, 0.01], "fingers": [1.0, 0.1, -0.25], "back": [-0.15, -1.0, 0.0]},
+				"l_charge": {"_note": "reload: the left hand over the receiver on the charging handle, in the Charge node's rest frame", "at": [-0.06, 0.05, 0.0], "fingers": [1.0, -0.3, 0.0], "back": [0.3, 1.0, 0.0]}
 			},
 			"parts": [
 				{"name": "receiver", "shape": "slab", "axis": "x", "width": 0.044, "chamfer": 0.006, "mat": "gunmetal",
@@ -150,11 +152,13 @@
 		},
 		"sagittarii_rifle": {
 			"_note": "Sagittarii rifle (the long rifle): longer fluted barrel, an octagonal hollow scope with bells, tinted lenses, turrets and two mounts, a cheek rest and a squat cell. At ADS the eye looks through the scope tube; the red dot sits at the objective lens (dot_m).",
-			"muzzle_m": [0.0, 0.075, -0.52],
+			"muzzle_m": [0.0, 0.075, -0.5],
 			"dot_m": [0.0, 0.15, -0.038],
 			"hands": {
 				"r": {"at": [0.034, -0.035, 0.085], "rot": [-15.0, 0.0, -90.0], "pose": "trigger", "elbow": [0.1, -0.3, 0.2]},
-				"l": {"at": [-0.062, 0.098, -0.205], "fingers": [0.85, 0.12, -0.5], "back": [-0.35, 0.93, 0.0], "pose": "foregrip", "elbow": [-0.28, -0.14, 0.02]}
+				"l": {"at": [-0.062, 0.098, -0.205], "fingers": [0.85, 0.12, -0.5], "back": [-0.35, 0.93, 0.0], "pose": "foregrip", "elbow": [-0.28, -0.14, 0.02]},
+				"l_cell": {"_note": "reload: the left hand on the cell, in the Cell node's frame", "at": [-0.07, -0.06, 0.01], "fingers": [1.0, 0.1, -0.25], "back": [-0.15, -1.0, 0.0]},
+				"l_charge": {"_note": "reload: the left hand on the bolt handle, in the Charge node's rest frame", "at": [-0.055, 0.045, 0.0], "fingers": [1.0, -0.3, 0.0], "back": [0.3, 1.0, 0.0]}
 			},
 			"parts": [
 				{"name": "receiver", "shape": "slab", "axis": "x", "width": 0.046, "chamfer": 0.007, "mat": "gunmetal_dark",
@@ -196,12 +200,12 @@
 				{"name": "handguard_trim", "shape": "box", "size": [0.052, 0.004, 0.17], "mat": "bronze", "at": [0.0, 0.07, -0.265]},
 				{"name": "vent_glow", "shape": "box", "size": [0.0515, 0.003, 0.012], "mat": "energy", "at": [0.0, 0.08, -0.33]},
 				{"name": "barrel", "shape": "lathe", "sides": 8, "phase_deg": 22.5, "mat": "steel", "at": [0.0, 0.075, 0.0],
-					"profile": [[0.0115, -0.35], [0.0105, -0.485]]},
+					"profile": [[0.0115, -0.35], [0.0105, -0.465]]},
 				{"name": "barrel_band", "shape": "lathe", "sides": 8, "phase_deg": 22.5, "mat": "bronze", "at": [0.0, 0.075, 0.0],
-					"profile": [[0.014, -0.41], [0.014, -0.422]]},
-				{"name": "brake", "shape": "slab", "axis": "z", "width": 0.04, "chamfer": 0.005, "mat": "gunmetal_dark", "at": [0.0, 0.0, -0.5],
+					"profile": [[0.014, -0.4], [0.014, -0.412]]},
+				{"name": "brake", "shape": "slab", "axis": "z", "width": 0.04, "chamfer": 0.005, "mat": "gunmetal_dark", "at": [0.0, 0.0, -0.48],
 					"profile": [[-0.015, 0.064], [0.015, 0.064], [0.019, 0.075], [0.015, 0.086], [-0.015, 0.086], [-0.019, 0.075]]},
-				{"name": "brake_glow", "shape": "box", "size": [0.0395, 0.003, 0.004], "mat": "energy", "at": [0.0, 0.075, -0.5]},
+				{"name": "brake_glow", "shape": "box", "size": [0.0395, 0.003, 0.004], "mat": "energy", "at": [0.0, 0.075, -0.48]},
 				{"name": "stock", "shape": "slab", "axis": "x", "width": 0.04, "chamfer": 0.007, "mat": "gunmetal_dark",
 					"profile": [[0.11, 0.1], [0.11, 0.046], [0.17, 0.034], [0.17, 0.096]]},
 				{"name": "cheek_rest", "shape": "slab", "axis": "x", "width": 0.034, "chamfer": 0.006, "mat": "leather_light",
