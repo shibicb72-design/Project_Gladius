@@ -27,9 +27,13 @@ extends SceneTree
 ##   patch under its chest's shadow vs a lit patch beside it, first person as shipped and a control that lets the
 ##   camera draw the body layer from the same eye; prints FP SHADOW lines, saves shadow_fp and shadow_control).
 ##   Every frame is held still while it renders (pawn, rig and view model paused) and logs body=<drawn by the camera>.
+##   M2 AN1: cover_out and shadow leave cover with the Cover button (Pawn.handle_action_press("cover"), as the tests do;
+##   the back-input exit this tool used predates M2 C1b and no longer exits). inspect: a second camera orbits the
+##   held-still view model (inspect_<weapon>_left/right/top/front/back) and frames each hand from its back, palm and
+##   outer side; --inspect-blade adds the blade.
 
 const STATES: Array[String] = ["standing", "walk", "fire", "reload", "switch", "blade", "blade_swing", "wall", "look_down",
-		"ads_mid", "ads", "ads_fire", "ads_walk", "cover_in", "cover_out", "shadow"]
+		"ads_mid", "ads", "ads_fire", "ads_walk", "cover_in", "cover_out", "shadow", "inspect"]
 const SEQ_FRAMES := 6
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -39,6 +43,7 @@ var _states: Array[String] = []
 var _size := Vector2i(2520, 1080)
 var _class := "hastati"
 var _hide_body := false
+var _inspect_blade := false  # --inspect-blade: the inspect state also orbits the blade
 var _seed := 0  # --seed: MatchRoot.seed_override (0 = the usual random match seed); picks the match's look and sun
 var _svp: SubViewport
 var _match: MatchRoot
@@ -65,6 +70,8 @@ func _initialize() -> void:
 			_class = a.substr(8)
 		elif a == "--hide-body":
 			_hide_body = true
+		elif a == "--inspect-blade":
+			_inspect_blade = true
 		elif a.begins_with("--seed="):
 			_seed = int(a.substr(7))
 	if _states.is_empty():
@@ -212,6 +219,8 @@ func _run() -> void:
 				await _state_cover_out()
 			"shadow":
 				await _state_shadow()
+			"inspect":
+				await _state_inspect()
 	_log("RESULT failed=%d" % _failed)
 	quit(1 if _failed > 0 else 0)
 
@@ -375,6 +384,52 @@ func _state_ads_walk() -> void:
 	await _ads_off()
 
 
+## M2 AN1: the view model seen from outside (a second camera orbiting the held-still model, the body layer left
+## out): inspect_<weapon>_left / right / top / front / back, for checking hands and gun shapes. With --inspect-blade the
+## blade is inspected too.
+func _state_inspect() -> void:
+	for want_blade in ([false, true] if _inspect_blade else [false]):
+		if want_blade:
+			await _blade_out()
+		else:
+			await _gun_out()
+		await _step(20)
+		var vm := _rig.get_view_model()
+		var weapon := vm.get_shown_weapon()
+		var cam := _rig.get_camera()
+		var eye := cam.global_transform
+		var target := weapon.global_position if weapon != null else eye.origin
+		var cam2 := Camera3D.new()
+		cam2.near = 0.005
+		cam2.fov = 50.0
+		cam2.cull_mask = cam.cull_mask
+		_match.add_child(cam2)
+		var b := eye.basis
+		var views := {"left": -b.x, "right": b.x, "top": b.y, "front": -b.z, "back": b.z + b.y * 0.3}
+		for key: String in views:
+			var dir: Vector3 = (views[key] as Vector3).normalized()
+			cam2.global_position = target + dir * 0.32
+			cam2.look_at(target, b.y if absf(dir.dot(b.y)) < 0.9 else -b.z)
+			cam2.make_current()
+			await _save_still("inspect_%s_%s" % [vm.get_shown_weapon_id(), key])
+		# Close-ups of each hand: from its back (+y of the hand) and from its palm side, near the knuckles.
+		for arm_name in ["RightArm", "LeftArm"]:
+			var arm := weapon.get_node_or_null(arm_name) as Node3D if weapon != null else null
+			if arm == null:
+				continue
+			var hb := arm.global_basis.orthonormalized()
+			var palm := arm.global_position - hb.z * 0.045 * arm.global_basis.get_scale().x
+			for side: String in ["back", "palm", "out"]:
+				var dir: Vector3 = {"back": hb.y, "palm": -hb.y, "out": hb.x * (1.0 if arm_name == "RightArm" else -1.0)}[side]
+				cam2.global_position = palm + dir.normalized() * 0.12
+				cam2.look_at(palm, b.y if absf(dir.normalized().dot(b.y)) < 0.9 else -b.z)
+				cam2.make_current()
+				await _save_still("inspect_%s_%s_%s" % [vm.get_shown_weapon_id(), arm_name.to_lower(), side])
+		cam.make_current()
+		cam2.queue_free()
+		await _step(2)
+
+
 ## Turns to the nearest wall around the eye (16 rays, 25 m) and walks into it for three seconds.
 func _state_wall() -> void:
 	await _gun_out()
@@ -532,7 +587,7 @@ func _state_cover_out() -> void:
 			return
 	var gap := maxi(1, ceili(float(DataRegistry.new().get_camera_cfg()["first_person"]["blend_s"]["value"]) * 60.0 / 4.0))
 	var held := await _back_out()
-	_log("COVER exit state=%s weight=%.2f back_input_frames=%d" % [_cover_state(), _rig.get_first_person_weight(), held])
+	_log("COVER exit state=%s weight=%.2f cover_button_wait_frames=%d" % [_cover_state(), _rig.get_first_person_weight(), held])
 	# EXITING plays out in third person; the blend starts when the controller is FREE again.
 	var wait := 0
 	while wait < 180 and _pawn.cover.state != CoverController.State.FREE:
@@ -553,15 +608,16 @@ func _state_cover_out() -> void:
 		_failed += 1
 
 
-## Holds back input (stick down) until the cover controller leaves IN_COVER (at most 90 frames), then releases it;
-## returns the number of frames held.
+## Leaves cover the way a player does since M2 C1b: one press of the Cover button (Pawn.handle_action_press("cover"),
+## as tests/test_first_person_camera.gd does; back input no longer exits), then waits until the controller leaves
+## IN_COVER (at most 90 frames); returns the frames waited.
 func _back_out() -> int:
-	_frame.move = Vector2(0, 1)
+	_frame = InputFrame.new()
+	_pawn.handle_action_press("cover")
 	var n := 0
 	while n < 90 and _pawn.cover != null and _pawn.cover.state == CoverController.State.IN_COVER:
 		await _step()
 		n += 1
-	_frame.move = Vector2.ZERO
 	return n
 
 

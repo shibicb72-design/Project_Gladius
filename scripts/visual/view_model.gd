@@ -1,23 +1,20 @@
 class_name ViewModel
 extends Node3D
-## M2 C1a stage 2: the first-person view model of the local player's pawn: forearms and the held weapon at the bottom
-## right, riding on the CameraRig's Camera3D. Presentation only: no colliders, no gameplay reads back from it (the
-## shot, Hitscan origin, recoil and get_aim_point never see it). Built from the existing procedural kit parts
-## (data/art_astra.json soldier arms, rifle and blade); every number is data/camera.json first_person.view_model
-## (OQ-FIRST-PERSON, guesses).
+## M2 C1a stage 2: the first-person view model of the local player's pawn: two gloved arms and the held weapon,
+## riding on the CameraRig's Camera3D. Presentation only: no colliders, no gameplay reads back from it (the shot,
+## Hitscan origin, recoil and get_aim_point never see it). M2 AN1: the hands (ViewHands: one skinned mesh per arm on
+## a code-built skeleton, finger poses as data) and the weapons (ViewWeapons) are built from data/art_soldier.json
+## (OQ-ART-SOLDIER); hold, ADS and motion numbers are data/camera.json first_person.view_model (OQ-FIRST-PERSON).
 ## Ownership: CameraRig calls ViewModel.attach every physics frame until one exists; attach only creates it for a rig
 ## under a Pawn with no "Brain" child (the local player), so bots, replicas and a rig without a pawn never get one.
 ## Clipping (fix 12, option a): the whole model is built at natural size and then scaled down toward the eye
 ## (scale), which keeps its screen image and keeps every vertex inside max_reach_m (less than the 0.4 m body capsule
 ## radius), so the capsule holds walls farther away than the model reaches. No second camera, no SubViewport.
-## ADS (stage 3): set_aim_blend raises a gun from its hold pose to its ADS pose, where the RedDot (under SightAnchor,
-## the base of the sight window) sits on the camera's centre ray; bob, sway and kick are damped. Stage 4 hides the
-## third-person body by layer; the view model itself stays on the default layer.
+## ADS (stage 3): set_aim_blend raises a gun from its hold pose to its ADS pose, where the RedDot (under SightAnchor)
+## sits on the camera's centre ray; bob, sway and kick are damped. Stage 4 hides the third-person body by layer; the
+## view model itself stays on the default layer.
 
 const NODE_NAME := "ViewModel"
-const _ARM_PARTS: Array[String] = ["lower_arm", "vambrace", "glove"]
-
-static var _mesh_cache := {}
 
 var pawn: Pawn
 var rig: CameraRig
@@ -131,6 +128,11 @@ func get_shown_weapon_id() -> String:
 	return _shown_id
 
 
+## The shown weapon's node (null when none): tests read its Cell, Charge and arms.
+func get_shown_weapon() -> Node3D:
+	return _shown
+
+
 func is_swapping() -> bool:
 	return _swap_total > 0.0
 
@@ -174,6 +176,39 @@ func mesh_instances() -> Array[MeshInstance3D]:
 	return out
 
 
+## The visible model meshes (the tracer and flash left out): what the budget counts.
+func model_meshes() -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for mi in mesh_instances():
+		if mi != tracer and mi != flash and mi.is_visible_in_tree():
+			out.append(mi)
+	return out
+
+
+## Triangle corners of `mi` as drawn now, in its own space: a skinned arm is posed on the CPU (ViewHands), so reach
+## and near-plane checks see the curled fingers and the turned forearm, not the bind pose.
+func posed_faces(mi: MeshInstance3D) -> PackedVector3Array:
+	if mi.has_meta(&"skinned_arm"):
+		var arm := mi.get_parent().get_parent() as Node3D
+		return ViewHands.posed_vertices(arm)
+	return mi.mesh.get_faces()
+
+
+## Triangles and draw calls (one per mesh surface) of the visible model meshes.
+func view_triangle_count() -> int:
+	var n := 0
+	for mi in model_meshes():
+		n += ViewMesh.triangle_count(mi.mesh)
+	return n
+
+
+func view_draw_calls() -> int:
+	var n := 0
+	for mi in model_meshes():
+		n += mi.mesh.get_surface_count()
+	return n
+
+
 # --- data -------------------------------------------------------------------------------------------------------
 
 func _entry(key: String) -> Variant:
@@ -186,7 +221,7 @@ func _f(key: String) -> float:
 
 
 func _v(key: String) -> Vector3:
-	return LowpolyKit.vec(_entry(key))
+	return ViewMesh.vec(_entry(key))
 
 
 func _weapon_cfg(id: String, melee: bool) -> Dictionary:
@@ -476,45 +511,6 @@ func _mesh_node(node_name: String, mesh: Mesh, parent: Node) -> MeshInstance3D:
 	return m
 
 
-static func _cached(key: String, parts: Array) -> ArrayMesh:
-	if not _mesh_cache.has(key):
-		_mesh_cache[key] = LowpolyKit.merge(parts)
-	return _mesh_cache[key]
-
-
-static func _part(parts: Array, part_name: String) -> Dictionary:
-	for p: Dictionary in parts:
-		if p["name"] == part_name:
-			return p
-	return {}
-
-
-## The soldier's forearm (data/art_astra.json soldier parts), moved so the glove sits at the origin; +y runs up the arm.
-static func _forearm_mesh(side: String) -> ArrayMesh:
-	var key := "forearm_" + side
-	if not _mesh_cache.has(key):
-		var soldier: Array = LowpolyKit.config()["soldier"]["parts"]
-		var glove := LowpolyKit.vec(_part(soldier, "glove_" + side)["at"])
-		var parts: Array = []
-		for base in _ARM_PARTS:
-			var p: Dictionary = _part(soldier, base + "_" + side).duplicate(true)
-			var at := LowpolyKit.vec(p["at"]) - glove
-			p["at"] = [at.x, at.y, at.z]
-			parts.append(p)
-		_mesh_cache[key] = LowpolyKit.merge(parts)
-	return _mesh_cache[key]
-
-
-## Basis whose +y points along `dir` (the forearm from the hand toward the elbow).
-static func _along_y(dir: Vector3) -> Basis:
-	var y := dir.normalized()
-	var x := Vector3.UP.cross(y)
-	if x.length_squared() < 0.000001:
-		x = Vector3.RIGHT
-	x = x.normalized()
-	return Basis(x, y, x.cross(y))
-
-
 ## A small unshaded, glowing disc (a low sphere, the same from every side) for the sight; colour and size are data.
 func _add_red_dot(anchor: Node3D, at: Vector3) -> void:
 	var sphere := SphereMesh.new()
@@ -534,53 +530,42 @@ func _add_red_dot(anchor: Node3D, at: Vector3) -> void:
 	dot.position = at
 
 
-func _add_arm(parent: Node3D, side: String, hand: Vector3, elbow: Vector3) -> void:
-	var arm := _mesh_node("RightArm" if side == "r" else "LeftArm", _forearm_mesh(side), parent)
-	arm.transform = Transform3D(_along_y(elbow - hand), hand)
-
-
-## One weapon's node: hold pose (meta "hold"), the weapon mesh with the hand at the origin, the forearms, and for
-## guns a Muzzle and a SightAnchor marker.
+## One weapon's node (ViewWeapons): hold pose (meta "hold", camera.json), for guns the red dot and the ADS pose (meta
+## "ads"), and the two arms placed by art_soldier.json weapons.<id>.hands (meta "rest" = the placed transform).
 func _build_weapon(id: String, melee: bool) -> Node3D:
 	var wc := _weapon_cfg(id, melee)
-	var node := Node3D.new()
-	node.name = "Weapon_" + id
+	var node := ViewWeapons.build(id, String(_cfg["default_melee" if melee else "default_gun"]))
 	_pivot.add_child(node)
-	var hold := Transform3D(_deg(LowpolyKit.vec(wc["hold_rot_deg"])), LowpolyKit.vec(wc["hold_m"]))
+	var hold := Transform3D(_deg(ViewMesh.vec(wc["hold_rot_deg"])), ViewMesh.vec(wc["hold_m"]))
 	node.set_meta(&"hold", hold)
 	node.transform = hold
-	var model := String(wc["model"])
-	if model == "blade":
-		var blade_parts: Array = LowpolyKit.config()["soldier"]["blade"]["parts"]
-		var blade := _mesh_node("Mesh", _cached("blade", blade_parts), node)
-		blade.scale = Vector3.ONE * float(wc.get("size_mult", 1.0))
-	else:
-		var parts: Array = (LowpolyKit.config()["rifle"]["parts"] as Array).duplicate(true)
-		var extra := float(wc.get("barrel_extra_m", 0.0))
-		var barrel := _part(parts, "barrel")
-		barrel["size"][2] = float(barrel["size"][2]) + extra
-		barrel["at"][2] = float(barrel["at"][2]) - extra * 0.5
-		parts.append_array((wc.get("extra_parts", []) as Array).duplicate(true))
-		var grip := LowpolyKit.vec(_part(parts, "grip")["at"])
-		var gun := _mesh_node("Mesh", _cached("rifle_" + id, parts), node)
-		gun.position = -grip
-		var muzzle := Marker3D.new()
-		muzzle.name = "Muzzle"
-		muzzle.position = LowpolyKit.vec(barrel["at"]) - grip + Vector3.FORWARD * float(barrel["size"][2]) * 0.5
-		node.add_child(muzzle)
-		var sight := _part(parts, "sight")
-		var anchor := Marker3D.new()
-		anchor.name = "SightAnchor"
-		anchor.position = LowpolyKit.vec(sight["at"]) - grip + Vector3.UP * float(sight["size"][1]) * 0.5
-		node.add_child(anchor)
-		# Fix 8: the red dot in the sight window (dot_m, in the rifle parts' frame), and the ADS pose that puts it on
-		# the camera's centre ray at ads_dot_m (camera frame) with the gun turned by ads_rot_deg (0 = straight ahead).
-		var dot_at: Vector3 = (LowpolyKit.vec(wc["dot_m"]) - grip) if wc.has("dot_m") else anchor.position
+	var art_id := String(node.get_meta(&"art_id"))
+	var anchor := node.get_node_or_null("SightAnchor") as Marker3D
+	if anchor != null:
+		# Fix 8: the red dot in the sight window (art dot_m), and the ADS pose that puts it on the camera's centre ray
+		# at ads_dot_m (camera frame) with the gun turned by ads_rot_deg (0 = straight ahead).
+		var dot_at := ViewWeapons.dot_position(art_id)
 		_add_red_dot(anchor, dot_at - anchor.position)
 		if wc.has("ads_dot_m"):
-			var ads_basis := _deg(LowpolyKit.vec(wc.get("ads_rot_deg", [0.0, 0.0, 0.0])))
-			node.set_meta(&"ads", Transform3D(ads_basis, LowpolyKit.vec(wc["ads_dot_m"]) - ads_basis * dot_at))
-		_add_arm(node, "l", LowpolyKit.vec(wc["left_hand_m"]), LowpolyKit.vec(wc["left_elbow_m"]))
-	_add_arm(node, "r", LowpolyKit.vec(wc["right_hand_m"]), LowpolyKit.vec(wc["right_elbow_m"]))
+			var ads_basis := _deg(ViewMesh.vec(wc.get("ads_rot_deg", [0.0, 0.0, 0.0])))
+			node.set_meta(&"ads", Transform3D(ads_basis, ViewMesh.vec(wc["ads_dot_m"]) - ads_basis * dot_at))
+	for side in ["r", "l"]:
+		var h := ViewWeapons.hand(art_id, side)
+		if h.is_empty():
+			continue
+		var arm := ViewHands.build_arm(side)
+		node.add_child(arm)
+		var xf := Transform3D(ViewHands.placement_basis(h), ViewMesh.vec(h["at"]))
+		if String(h.get("frame", "weapon")) == "view":
+			xf = hold.affine_inverse() * xf  # placed in the camera frame, carried by the weapon node
+		arm.transform = xf
+		arm.set_meta(&"rest", xf)
+		var elbow := ViewMesh.vec(h["elbow"])
+		if String(h.get("frame", "weapon")) == "view":
+			elbow = hold.affine_inverse() * elbow
+		arm.set_meta(&"elbow", elbow)
+		arm.set_meta(&"pose", String(h.get("pose", "grip")))
+		ViewHands.apply_pose(arm, ViewHands.pose(String(h.get("pose", "grip"))))
+		ViewHands.aim_forearm(arm, xf.affine_inverse() * elbow)
 	node.visible = false
 	return node

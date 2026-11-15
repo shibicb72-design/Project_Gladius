@@ -26,7 +26,7 @@
     "body_layer": {"value": 11, "unit": "render layer 1-20", "note": "stage 4 (spec item 3, fixes 1, 3, 10): the render layer of the local player's own third-person body (Body, HeadMesh, SoldierModel meshes, ShotFx tracer and flash; scripts/visual/local_body_layer.gd). A free layer number, not a tuning guess: no other node or camera in the project uses render layers. The local rig camera stops drawing it at the same first-person weight the view model appears (view_model.show_weight), and draws it again below; every other camera keeps the default cull mask and draws it. 0 turns the hide off"},
     "view_model": {
       "_placeholder": true,
-      "_todo": "OQ-FIRST-PERSON (M2 C1a stage 2): the first-person view model (scripts/visual/view_model.gd): forearms and the held weapon from the art_astra.json soldier arms, rifle and blade parts. Every value here is a guess for Shibi, not a DESIGN.md value. Positions are view-model metres in the camera's frame (+x right, +y up, -z ahead) BEFORE scale; weapon arm points are in that weapon's hold frame, whose origin is the right hand.",
+      "_todo": "OQ-FIRST-PERSON (M2 C1a stage 2): the first-person view model (scripts/visual/view_model.gd): two gloved arms and the held weapon (M2 AN1: built from data/art_soldier.json, OQ-ART-SOLDIER). Every value here is a guess for Shibi, not a DESIGN.md value. Positions are view-model metres in the camera's frame (+x right, +y up, -z ahead) BEFORE scale; weapon arm points are in that weapon's hold frame, whose origin is the right hand.",
       "scale": {"_placeholder": true, "value": 0.45, "unit": "x", "note": "guess: the natural-size model is scaled toward the eye by this; the screen image is unchanged, and every vertex stays inside max_reach_m so walls held off by the 0.4 m body capsule never cut it (fix 12 option a: no second camera, no SubViewport)"},
       "camera_near_m": {"_placeholder": true, "value": 0.05, "unit": "m", "note": "guess: the rig camera's near plane, set when the view model attaches (Godot's default 0.05); the closest view-model vertex is farther (tests/test_first_person_camera.gd)"},
       "max_reach_m": {"_placeholder": true, "value": 0.38, "unit": "m", "note": "guess: test bound: at rest every view-model vertex lies this close to the eye, under the pawn capsule radius 0.4 m (pawn.tscn)"},
@@ -63,30 +63,10 @@
       "default_gun": "pilum_br",
       "default_melee": "gladius_lux",
       "weapons": {
-        "pilum_br": {"_placeholder": true, "note": "guess: hold_m and hold_rot_deg place the right hand (the rifle grip) in the camera frame; arm points in the hold frame; extra_parts add a red-dot hood (stage 3 sights through it; SightAnchor)", "model": "rifle", "hold_m": [0.22, -0.26, -0.34], "hold_rot_deg": [2.0, 6.0, 0.0], "right_hand_m": [0.0, 0.0, 0.0], "right_elbow_m": [0.12, -0.22, 0.3], "left_hand_m": [0.0, 0.03, -0.2], "left_elbow_m": [-0.25, -0.22, 0.12], "barrel_extra_m": 0.0,
-          "dot_m": [0.0, 0.122, 0.0], "ads_dot_m": [0.0, 0.0, -0.4], "ads_rot_deg": [0.0, 0.0, 0.0], "_ads_note": "guess (stage 3, fix 8): dot_m is the red dot in the hood window (rifle parts' frame); at full ADS the dot sits at ads_dot_m in the camera frame (on the centre ray) and the gun turns by ads_rot_deg (0 = straight ahead)",
-          "extra_parts": [
-            {"name": "dot_post_l", "size": [0.01, 0.045, 0.035], "at": [-0.022, 0.122, 0.015], "color": "dark"},
-            {"name": "dot_post_r", "size": [0.01, 0.045, 0.035], "at": [0.022, 0.122, 0.015], "color": "dark"},
-            {"name": "dot_hood", "size": [0.054, 0.01, 0.035], "at": [0.0, 0.149, 0.015], "color": "dark"}
-          ]},
-        "sagittarii_rifle": {"_placeholder": true, "note": "guess: the same rifle with a longer barrel and a scope tube, so it reads as the long gun", "model": "rifle", "hold_m": [0.22, -0.26, -0.34], "hold_rot_deg": [2.0, 6.0, 0.0], "right_hand_m": [0.0, 0.0, 0.0], "right_elbow_m": [0.12, -0.22, 0.3], "left_hand_m": [0.0, 0.03, -0.2], "left_elbow_m": [-0.25, -0.22, 0.12], "barrel_extra_m": 0.1,
-          "dot_m": [0.0, 0.128, -0.08], "ads_dot_m": [0.0, 0.0, -0.48], "ads_rot_deg": [0.0, 0.0, 0.0], "_ads_note": "guess (stage 3, fix 8): the scope is a hollow tube (four walls and two rings) so ADS looks through it; dot_m is the red dot at its front ring (rifle parts' frame); at full ADS the dot sits at ads_dot_m in the camera frame, farther out than the Pilum's so the rear ring stays clear of the near plane",
-          "extra_parts": [
-            {"name": "scope_top", "size": [0.056, 0.006, 0.18], "at": [0.0, 0.153, 0.015], "color": "dark"},
-            {"name": "scope_bottom", "size": [0.056, 0.006, 0.18], "at": [0.0, 0.103, 0.015], "color": "dark"},
-            {"name": "scope_left", "size": [0.006, 0.044, 0.18], "at": [-0.025, 0.128, 0.015], "color": "dark"},
-            {"name": "scope_right", "size": [0.006, 0.044, 0.18], "at": [0.025, 0.128, 0.015], "color": "dark"},
-            {"name": "scope_front_top", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.155, -0.085], "color": "accent"},
-            {"name": "scope_front_bottom", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.101, -0.085], "color": "accent"},
-            {"name": "scope_front_left", "size": [0.01, 0.044, 0.02], "at": [-0.027, 0.128, -0.085], "color": "accent"},
-            {"name": "scope_front_right", "size": [0.01, 0.044, 0.02], "at": [0.027, 0.128, -0.085], "color": "accent"},
-            {"name": "scope_rear_top", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.155, 0.115], "color": "plate_dark"},
-            {"name": "scope_rear_bottom", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.101, 0.115], "color": "plate_dark"},
-            {"name": "scope_rear_left", "size": [0.01, 0.044, 0.02], "at": [-0.027, 0.128, 0.115], "color": "plate_dark"},
-            {"name": "scope_rear_right", "size": [0.01, 0.044, 0.02], "at": [0.027, 0.128, 0.115], "color": "plate_dark"}
-          ]},
-        "gladius_lux": {"_placeholder": true, "note": "guess: the Gladius Lux in the right hand, tip up and ahead, right of the screen centre; size_mult shrinks it to stay inside max_reach_m", "model": "blade", "hold_m": [0.27, -0.25, -0.3], "hold_rot_deg": [-55.0, 0.0, -15.0], "size_mult": 0.65, "right_hand_m": [0.0, 0.0, 0.0], "right_elbow_m": [0.05, -0.3, 0.15]}
+        "_weapons_note": "M2 AN1: the models, hands and red-dot positions are data/art_soldier.json weapons.<id> (OQ-ART-SOLDIER); here only the hold and ADS poses. hold_m and hold_rot_deg place the weapon's origin (the right hand's grip point; the blade: the hilt's middle) in the camera frame; at full ADS the red dot sits at ads_dot_m in the camera frame (on the centre ray) and the gun turns by ads_rot_deg (0 = straight ahead).",
+        "pilum_br": {"_placeholder": true, "note": "guess (M2 AN1): the Pilum low in the lower-right quarter, its reflex sight toward the centre line; at ADS the open sight's dot is ads_dot_m away so the stock stays past the near plane", "hold_m": [0.14, -0.19, -0.25], "hold_rot_deg": [1.0, 8.0, -3.0], "ads_dot_m": [0.0, 0.0, -0.325], "ads_rot_deg": [0.0, 0.0, 0.0]},
+        "sagittarii_rifle": {"_placeholder": true, "note": "guess (M2 AN1): the long rifle; at ADS the eye looks through the hollow scope (the dot at its objective lens), the rear bell clear of the near plane", "hold_m": [0.14, -0.19, -0.29], "hold_rot_deg": [1.0, 8.0, -3.0], "ads_dot_m": [0.0, 0.0, -0.325], "ads_rot_deg": [0.0, 0.0, 0.0]},
+        "gladius_lux": {"_placeholder": true, "note": "guess: the Gladius Lux in the right hand, tip up and ahead, right of the screen centre", "hold_m": [0.19, -0.17, -0.24], "hold_rot_deg": [-55.0, 0.0, -15.0]}
       }
     }
   },
