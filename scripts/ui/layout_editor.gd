@@ -326,7 +326,8 @@ func check_slot(slot_i: int, sz: Vector2i) -> Array:
 			out.append(_issue(slot_i, sz, key, "offscreen", "%s is partly off-screen at %dx%d" % [element_name(key), sz.x, sz.y]))
 		# M2 H1a: a control in the main look area (touch_layout.look_area) is where the look thumb lands by accident.
 		# Warned only, never blocked (overlap_policy warn_only): the player may want it there.
-		if r.intersects(look_area):
+		# The look stick (look mode "stick" only) rests inside the look area by design, so it is never warned.
+		if key != "look_stick" and r.intersects(look_area):
 			out.append(_issue(slot_i, sz, key, "look_area", "%s is in the look area at %dx%d" % [element_name(key), sz.x, sz.y]))
 		for bname in bars:
 			if r.intersects(bars[bname]):

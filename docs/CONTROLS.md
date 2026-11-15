@@ -25,8 +25,8 @@ turns the view, and the buttons sit at the edges. Every number is a placeholder 
   it, Reload left of Fire on the bottom edge. In Simple there is no Fire button and nothing else moves.
 - **Outer ring** (`ring: true`, `ring_size_ratio` 0.85 of a primary side, never below 48 dp, so on 420 dpi small screens
   they are as big as the primary ones): along the bottom edge, Jump left of Reload, the Cover / Shoulder slot just right of
-  the screen centre, Swap just left of it; Interact (contextual) above Swap; the fire-mode button at the top just left of
-  the centre; the pause gear top-right (unchanged, below the HUD top row). With the gear 56 dp down, the right edge of
+  the screen centre, Swap just left of it; Interact (contextual) above Swap; the fire-mode button on the bottom edge,
+  left of Swap; the pause gear top-right (unchanged, below the HUD top row). With the gear 56 dp down, the right edge of
   1512x648 at 420 dpi holds only Aim and Fire, so the ring is on the bottom edge on every size.
 - **Left:** move stick bottom-left; the Sprint lock button above it, up and to the right of its lock target
   (`touch_layout.sprint_lock_offset` in lock button sides from the target's rest centre); Left Fire (optional) as before.
