@@ -148,6 +148,8 @@ func test_alesia_1km_overrides_follow_the_rules() -> void:
 		clustered += int(cluster["items"])
 	assert_true(ids.is_empty(), "every landmark gets a cluster (left: %s)" % [ids.keys()])
 	assert_true(clustered < int(loot["count"]), "clusters take part of the count")
+	# M2Z1 (binding fix 13): the first-tick placement cost grows with the count, so it is capped.
+	assert_true(int(loot["count"]) <= 900, "the loot count is at most 900 (%d)" % int(loot["count"]))
 	for key: String in ["max_ground_y_m", "zone_edge_margin_m", "items", "start_kit", "pickup_range_m", "colors"]:
 		assert_eq(loot[key], plain["loot"][key], "loot " + key + " is loot.json's")
 	print("MAP_OVERRIDES alesia_1km zone_nominal_s=", nominal, " carrier_s=", drop["carrier_s"], " loot_count=", loot["count"], " clustered=", clustered)
