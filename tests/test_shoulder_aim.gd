@@ -182,6 +182,8 @@ func test_camera_json_exposes_left_shoulder_data() -> void:
 ## swapping, and a second tap moves it back. Both Fold sizes of tests/button_rig.gd.
 ## M2 C1a: the match pawn walks in first person, where the Shoulder input is ignored for the view (fix 2), so the tap
 ## leaves the side and the (zero) side offset alone; the third-person swap is covered by the rig-only tests above.
+## Stage 4: the Shoulder button is hidden in first person and its slot swallows the tap, so the side stays for that
+## reason too (tests/test_first_person_camera.gd test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps).
 func test_shoulder_button_swaps_the_match_camera_and_back() -> void:
 	for sz in _Rig.SIZES:
 		var ctx: Dictionary = await _Rig.setup(sz, "virtual")

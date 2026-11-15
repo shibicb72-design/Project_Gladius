@@ -793,3 +793,243 @@ static func _crosses_near_rect(tri: Array[Vector3], near: float, half_w: float, 
 			if t0 > t1:
 				return false
 	return true
+
+
+# --- stage 4: the local body render layer and the Shoulder hide ---------------------------------------------------
+
+const _ButtonRig := preload("res://tests/button_rig.gd")
+
+
+func _body_layer() -> int:
+	return int(_fp("body_layer"))
+
+
+func _body_bit() -> int:
+	return 1 << (_body_layer() - 1)
+
+
+## Every node that must sit on the body layer for a local pawn (Body, HeadMesh, every SoldierModel VisualInstance3D,
+## the ShotFx tracer and flash). The ShotFx weapon box is layers 0 (SoldierModel.add_rifle) and stays 0.
+func _body_nodes(pawn: Pawn) -> Array:
+	var out: Array = [pawn.get_node("Body"), pawn.get_node("Head/HeadMesh"), pawn.shot_fx.tracer, pawn.shot_fx.flash]
+	for n in pawn.get_node("SoldierModel").find_children("*", "VisualInstance3D", true, false):
+		out.append(n)
+	return out
+
+
+func _on_default_layer(nodes: Array) -> bool:
+	for n in nodes:
+		if ((n as VisualInstance3D).layers & 1) == 0 or ((n as VisualInstance3D).layers & _body_bit()) != 0:
+			return false
+	return true
+
+
+func _on_body_layer(nodes: Array) -> bool:
+	for n in nodes:
+		if not LocalBodyLayer.is_on_layer(n, _body_layer()):
+			return false
+	return true
+
+
+func _cam_draws_body() -> bool:
+	return (_rig.get_camera().cull_mask & _body_bit()) != 0
+
+
+## Spec item 3, fixes 3, 10: the local pawn's body is on the body layer; the rig camera leaves it out in first person
+## and draws it in third person (downed, falling, a real cover entry incl. ENTERING), switching on the same physics
+## frame as the view model; back in first person it is left out again. Collision layers are untouched.
+func test_local_body_on_the_layer_and_the_camera_mask_follows_the_mode() -> void:
+	var layer := _body_layer()
+	assert_true(layer >= 1 and layer <= 20, "camera.json first_person.body_layer is a render layer (%d)" % layer)
+	var fresh: Pawn = _PawnScene.instantiate()  # collision reference: a pawn nobody touched
+	await _fixture(true, false, false)
+	var nodes := _body_nodes(_pawn)
+	assert_true(nodes.size() > 4, "SoldierModel has meshes (%d nodes)" % nodes.size())
+	assert_true(_on_body_layer(nodes), "local pawn: Body, HeadMesh, SoldierModel meshes, ShotFx tracer and flash on layer %d only" % layer)
+	assert_eq(_pawn.shot_fx.weapon_mesh.layers, 0, "the ShotFx weapon box stays layers 0 (drawn by no camera, as today)")
+	for n in [_pawn.shot_fx.impact, _pawn.shot_fx.sparks, _pawn.shot_fx.dust]:
+		assert_eq((n as VisualInstance3D).layers, 1, "%s stays on the default layer (the hit is seen in first person)" % n.name)
+	for vi in _rig.get_view_model().find_children("*", "VisualInstance3D", true, false):
+		assert_true(((vi as VisualInstance3D).layers & _body_bit()) == 0, "the view model is not on the body layer (%s)" % vi.name)
+	assert_true(_rig.is_body_hidden() and not _cam_draws_body(), "first person: the rig camera leaves layer %d out" % layer)
+	assert_true((_rig.get_camera().cull_mask & 1) != 0, "first person: the default layer is still drawn")
+	assert_eq(_pawn.collision_layer, fresh.collision_layer, "pawn collision layer unchanged")
+	assert_eq(_pawn.collision_mask, fresh.collision_mask, "pawn collision mask unchanged")
+	assert_eq((_pawn.get_node("Head") as Area3D).collision_layer, (fresh.get_node("Head") as Area3D).collision_layer, "head hitbox layer unchanged")
+	fresh.free()
+	var settle := _vm_frames(_fp("blend_s"))
+	for mode in ["downed", "falling"]:
+		if mode == "downed":
+			_pawn.life = Pawn.Life.DOWNED
+		else:
+			_pawn.drop_state = Pawn.Drop.FALLING
+		await _frames(settle)
+		assert_true(_cam_draws_body(), "%s (third person): the rig camera draws the body" % mode)
+		_pawn.life = Pawn.Life.ALIVE
+		_pawn.drop_state = Pawn.Drop.NONE
+		await _frames(settle)
+		assert_true(not _cam_draws_body(), "%s over (first person): left out again" % mode)
+	await _cleanup()
+	# A real cover entry and exit: on every frame the camera draws the body exactly while the view model is hidden.
+	await _fixture()
+	var vm := _rig.get_view_model()
+	var mismatches := 0
+	var drawn_entering := false
+	var swap_weight := -1.0
+	for i in 150:
+		await _tick(Vector2(0, -1))
+		if _cam_draws_body() == vm.visible:
+			mismatches += 1
+		if _pawn.cover.state == CoverController.State.ENTERING and _cam_draws_body():
+			drawn_entering = true
+		if swap_weight < 0.0 and _cam_draws_body():
+			swap_weight = _rig.get_first_person_weight()
+		if _pawn.cover.state == CoverController.State.IN_COVER and _rig.get_first_person_weight() == 0.0:
+			break
+	assert_true(_cam_draws_body(), "in cover: the rig camera draws the soldier")
+	assert_true(drawn_entering, "ENTERING (third person blend): drawn before IN_COVER")
+	assert_true(swap_weight >= 0.0 and swap_weight < _vm_f("show_weight"), "the body appears below show_weight (at %s)" % swap_weight)
+	for i in 30:
+		await _tick(Vector2.ZERO)
+	await _tick(Vector2(0, 1))
+	for i in 150:
+		await _tick(Vector2.ZERO)
+		if _cam_draws_body() == vm.visible:
+			mismatches += 1
+		if _pawn.cover.state == CoverController.State.FREE and _rig.get_first_person_weight() == 1.0:
+			break
+	assert_eq(mismatches, 0, "body and view model swap on the same physics frame, both ways")
+	assert_true(not _cam_draws_body(), "back in first person: left out again")
+	print("FP BODY layer=%d swap_weight=%.3f show_weight=%.2f" % [layer, swap_weight, _vm_f("show_weight")])
+	await _cleanup()
+
+
+## Bots (Brain), rig-less pawns keep full soldiers on the default layer; a Brain removed later makes the pawn local
+## and its body moves then (test_cover_pawn.gd:133-141 order). A rig without a pawn draws the layer.
+func test_body_layer_only_for_the_local_pawn() -> void:
+	await _fixture(true, true, false)
+	await _frames(3)
+	assert_true(_on_default_layer(_body_nodes(_pawn)), "Brain pawn: every body node on the default layer")
+	assert_true(_cam_draws_body(), "Brain pawn's rig (third person): draws the layer")
+	var brain := _pawn.get_node("Brain")
+	_pawn.remove_child(brain)
+	brain.free()
+	await _frames(2)
+	assert_true(_on_body_layer(_body_nodes(_pawn)), "Brain removed later: the body moves to the layer")
+	await _frames(_vm_frames(_fp("blend_s")))
+	assert_true(not _cam_draws_body(), "and once the blend reaches first person the camera leaves it out")
+	await _cleanup()
+	await _fixture(false, false, false)
+	await _frames(3)
+	assert_true(_on_default_layer(_body_nodes(_pawn)), "rig-less pawn: every body node on the default layer")
+	await _cleanup()
+	var root := Node3D.new()
+	_tree().root.add_child(root)
+	var rig: CameraRig = _RigScene.instantiate()
+	root.add_child(rig)
+	await _frames(2)
+	assert_true((rig.get_camera().cull_mask & _body_bit()) != 0 and not rig.is_body_hidden(), "rig without a pawn draws the layer")
+	root.queue_free()
+	await _tree().process_frame
+
+
+## Meshes SoldierModel (or anyone) adds under the tracked body later carry the layer; a real shot keeps the ShotFx
+## tracer and flash node-visible on the layer while the impact is on the default layer; the melee SwingVisual bar goes
+## on the layer (the view model plays its own swing); a replaced ShotFx is followed. The SpectatorCamera draws it.
+func test_body_layer_follows_new_meshes_shots_and_swings() -> void:
+	await _fixture(true, false, false)
+	var model := _pawn.get_node("SoldierModel") as SoldierModel
+	var late := MeshInstance3D.new()
+	late.mesh = BoxMesh.new()
+	model.skeleton.add_child(late)
+	assert_true(LocalBodyLayer.is_on_layer(late, _body_layer()), "a mesh added under SoldierModel later is on the layer at once")
+	var holder := Node3D.new()
+	var nested := MeshInstance3D.new()
+	nested.mesh = BoxMesh.new()
+	holder.add_child(nested)
+	model.add_child(holder)
+	var deeper := MeshInstance3D.new()
+	deeper.mesh = BoxMesh.new()
+	nested.add_child(deeper)
+	assert_true(LocalBodyLayer.is_on_layer(nested, _body_layer()) and LocalBodyLayer.is_on_layer(deeper, _body_layer()), "nested and deeper meshes follow")
+	late.reparent(model.hand_attachment)
+	assert_true(LocalBodyLayer.is_on_layer(late, _body_layer()), "a reparented mesh keeps it")
+	SoldierSquadColour.apply(model.armor, 2)
+	assert_true(LocalBodyLayer.is_on_layer(model.armor, _body_layer()), "squad colour keeps the armor on the layer")
+	await _frames(2)
+	var res := _pawn.fire_shot()
+	assert_true(res.has("position"), "the shot hit the wall ahead")
+	assert_true(_pawn.shot_fx.is_tracer_visible() and _pawn.shot_fx.is_flash_visible(), "ShotFx tracer and flash still node-visible")
+	assert_true(LocalBodyLayer.is_on_layer(_pawn.shot_fx.tracer, _body_layer()) and LocalBodyLayer.is_on_layer(_pawn.shot_fx.flash, _body_layer()), "on the body layer after the shot")
+	assert_true(_pawn.shot_fx.is_impact_visible() and _pawn.shot_fx.impact.layers == 1, "impact visible on the default layer")
+	assert_true(_pawn.loadout.swap() and _pawn.loadout.get_active().def.is_melee(), "the blade is out")
+	_pawn.fire_shot()
+	var swings := _pawn.get_children().filter(func(n: Node) -> bool: return n is SwingVisual)
+	assert_eq(swings.size(), 1, "the swing visual is under the pawn")
+	var bars: Array = swings[0].find_children("*", "VisualInstance3D", true, false) if swings.size() == 1 else []
+	assert_true(not bars.is_empty() and _on_body_layer(bars), "the SwingVisual bar is on the body layer")
+	# A replaced ShotFx (made after the rig) is followed on the next physics frame.
+	var fx := ShotFx.new()
+	fx.name = "ShotFx2"
+	_pawn.add_child(fx)
+	_pawn.shot_fx = fx
+	await _frames(2)
+	assert_true(LocalBodyLayer.is_on_layer(fx.tracer, _body_layer()) and LocalBodyLayer.is_on_layer(fx.flash, _body_layer()), "a later ShotFx's tracer and flash follow")
+	assert_eq(fx.impact.layers, 1, "its impact stays on the default layer")
+	var spectator := SpectatorCamera.new()
+	assert_true((spectator.cull_mask & _body_bit()) != 0, "SpectatorCamera's cull mask includes the body layer")
+	spectator.free()
+	await _cleanup()
+
+
+## Spec item 5, fix 2, in the real match HUD (tests/button_rig.gd): in first person the Shoulder button is hidden and
+## a tap at its slot centre does nothing (no swap, no shot, no ammo spent, no look turn, no look touch); in third person
+## (DOWNED) it is back and presses swap_shoulder as today; back in first person it hides again.
+func test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps() -> void:
+	for sz in _ButtonRig.SIZES:
+		var ctx: Dictionary = await _ButtonRig.setup(sz, "virtual")
+		var tag: String = ctx["tag"]
+		var pawn: Pawn = ctx["pawn"]
+		var touch: Control = ctx["touch"]
+		var rig := pawn.get_node("CameraRig") as CameraRig
+		var b: Button = touch._buttons["swap_shoulder"]
+		assert_true(rig.is_first_person(), "%s: the match pawn walks in first person" % tag)
+		assert_true((rig.get_camera().cull_mask & _body_bit()) == 0, "%s: the match camera leaves the body layer out" % tag)
+		assert_true(not b.visible and touch.is_first_person_slot_hidden("swap_shoulder"), "%s: Shoulder hidden in first person" % tag)
+		var c: Vector2 = touch.get_button_rect("swap_shoulder").get_center()
+		assert_true(touch.get_button_rect("swap_shoulder").size.x > 0.0, "%s: its slot rect stays reserved" % tag)
+		var w := pawn.loadout.get_active()
+		var ammo := w.ammo_in_mag
+		var shots := [0]
+		var count := func(_o: Vector3, _d: Vector3, _id: String) -> void: shots[0] += 1
+		pawn.shot.connect(count)
+		var yaw := pawn.rotation.y
+		var pitch := pawn.pitch
+		var side := rig.shoulder_side
+		print("FP SHOULDER %s slot=%s in_look_zone=%s" % [tag, c, touch._zone_hit_rect("look_zone").has_point(c)])
+		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, true)
+		await _ButtonRig.frames(2)
+		assert_true(not Input.is_action_pressed("swap_shoulder"), "%s: the hidden slot does not press swap_shoulder" % tag)
+		assert_eq(touch._look_touch, -1, "%s: the tap does not reach the look area" % tag)
+		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, false)
+		await _ButtonRig.frames(12)
+		assert_eq(shots[0], 0, "%s: the tap does not fire" % tag)
+		assert_eq(w.ammo_in_mag, ammo, "%s: ammo unchanged" % tag)
+		assert_true(absf(pawn.rotation.y - yaw) < 1e-6 and absf(pawn.pitch - pitch) < 1e-6, "%s: the look did not turn" % tag)
+		assert_eq(rig.shoulder_side, side, "%s: no swap" % tag)
+		assert_true(is_equal_approx(b.scale.x, 1.0), "%s: no press pulse on the hidden button" % tag)
+		# Third person (DOWNED): the button is back and presses as today.
+		pawn.life = Pawn.Life.DOWNED
+		await _ButtonRig.frames(3)
+		assert_true(not rig.is_first_person() and b.visible, "%s: third person (downed): Shoulder shown" % tag)
+		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, true)
+		assert_true(Input.is_action_pressed("swap_shoulder"), "%s: third person: the tap presses swap_shoulder" % tag)
+		assert_true(b.scale.x < 1.0, "%s: third person: the press pulse runs" % tag)
+		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, false)
+		await _ButtonRig.frames(2)
+		assert_true(not Input.is_action_pressed("swap_shoulder"), "%s: released" % tag)
+		pawn.life = Pawn.Life.ALIVE
+		await _ButtonRig.frames(3)
+		assert_true(rig.is_first_person() and not b.visible, "%s: back in first person: hidden again" % tag)
+		pawn.shot.disconnect(count)
+		await _ButtonRig.teardown(ctx)

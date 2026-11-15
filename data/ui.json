@@ -228,6 +228,11 @@
 		"ring_color": [1.0, 1.0, 1.0, 0.9],
 		"reserved_top_row": {"anchors": [[0.4, 0.04], [0.6, 0.04]], "margin_dp": [8.0, 20.0], "touch_dp": 48.0}
 	},
+	"first_person_touch": {
+		"_placeholder": true,
+		"_todo": "OQ-FIRST-PERSON (M2 C1a stage 4, spec item 5, fix 2): guess for Shibi, not a DESIGN.md value. In first person (the local CameraRig's is_first_person) the Shoulder button has no meaning: false hides it, and its slot stays reserved and swallows taps (no swap, no look, no tap-to-fire) until C1b puts the Cover button there. Third person keeps today's Shoulder button and the cover_buttons hidden_slots rule.",
+		"shoulder_visible": false
+	},
 	"interact_button": {
 		"_placeholder": true,
 		"_todo": "OQ-BR-DOWNED: Interact (Revive) button placement, size, label and alpha are placeholders, not design values. Anchor = the touch HUD's data look-stick rest centre (input.json touch_layout.look_stick_rest); offset and size are in default touch button sides (touch_layout.button_size_frac_of_height, floor button_min_dp), the units the other touch buttons use. Centre-right, five button sides left of the look stick (step 3, Nov 9 2026: moved from [-1.65, 0.0] so it no longer covers the right Fire button). The middle of the band clear of every touch button, the Sprint lock and target, gear and fire-mode buttons on the Fold cover and inner sizes at 420, 373 and 0 dpi (probe).",

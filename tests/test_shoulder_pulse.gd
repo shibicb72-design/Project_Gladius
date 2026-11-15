@@ -22,8 +22,13 @@ func test_shoulder_pulse_keys_are_locked_industry_defaults() -> void:
 func test_shoulder_pulse_in_match_is_centred_monotonic_and_keeps_the_layout_cell() -> void:
 	for sz in _Rig.SIZES:
 		var ctx: Dictionary = await _Rig.setup(sz, "virtual")
+		# M2 C1a stage 4: the match pawn walks in first person, where the Shoulder button is hidden (fix 2); the pulse is
+		# a third-person feature, measured here while DOWNED (third person, Shoulder shown as today).
+		(ctx["pawn"] as Pawn).life = Pawn.Life.DOWNED
+		await _Rig.frames(3)
 		var touch: Control = ctx["touch"]
 		var b: Button = touch._buttons["swap_shoulder"]
+		assert_true(b.visible, "%s: third person: the Shoulder button is shown" % sz)
 		var rect0: Rect2 = touch.get_button_rect("swap_shoulder")
 		var c0 := b.get_global_transform() * (b.size * 0.5)
 		var alpha0 := b.modulate.a

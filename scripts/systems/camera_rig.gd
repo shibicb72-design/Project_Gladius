@@ -3,6 +3,8 @@ extends Node3D
 ## Third-person SpringArm3D + Camera3D. FOV comes from data/camera.json by viewport aspect ratio.
 ## M2 C1a: a first-person mode for the local player walking (spring length 0, rig at eye height), blended from and to
 ## the third-person view (cover, carrier, falling, downed); see is_first_person and data/camera.json first_person.
+## Stage 4: the local pawn's own body sits on first_person.body_layer (LocalBodyLayer), which this camera leaves out
+## while the view model shows (is_body_hidden) and draws again in third person.
 ## Path A: AMSG shoulder swap + GDQuest-style ADS over-shoulder pivot (code only; no NC art).
 ## Path A phase 2: Kenney-style camera knockback on fire (CameraKnockback). It is view only: it turns the rig, but
 ## get_aim_point casts from the un-kicked camera, so shots, Hitscan and the host's aim check never see it.
@@ -71,6 +73,7 @@ func _ready() -> void:
 	# The first evaluation snaps, so a rig attached to a walking local pawn starts in first person (no blend).
 	_tick_first_person(0.0)
 	_ensure_view_model()
+	_ensure_body_layer()
 
 
 ## Recovers the knockback. The pawn (this rig's parent) runs first in a physics frame and may kick during it, so a
@@ -78,6 +81,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_tick_first_person(delta)
 	_ensure_view_model()
+	_ensure_body_layer()
 	_tick_cover_follow(delta)
 	_tick_shoulder(delta)
 	if knockback.offset == Vector2.ZERO or Engine.get_physics_frames() == _kick_frame:
@@ -107,6 +111,36 @@ func _ensure_view_model() -> void:
 
 func get_view_model() -> ViewModel:
 	return _view_model if _view_model != null and is_instance_valid(_view_model) else null
+
+
+## Stage 4: the render layer of the local player's own body (camera.json first_person.body_layer; 0 = no hide).
+func get_body_layer() -> int:
+	return int(_fp_value("body_layer", 0.0))
+
+
+## Lazily puts the local player's pawn body on the body layer (the rig is added after Pawn._ready, and a Brain may be
+## removed later); the pawn ignores the call unless it is the local player. Independent of net_mode.
+func _ensure_body_layer() -> void:
+	var pawn := get_parent() as Pawn
+	if pawn != null:
+		pawn.ensure_local_body_layer(get_body_layer())
+
+
+## True while this camera leaves the body layer out: from the first-person weight at which the view model shows
+## (view_model.show_weight, the same rule as ViewModel._update), so body and view model swap in one physics frame.
+func is_body_hidden() -> bool:
+	var vm_cfg: Dictionary = _fp_cfg.get("view_model", {})
+	var entry: Variant = vm_cfg.get("show_weight", {})
+	var show_from := float((entry as Dictionary).get("value", 1.0)) if entry is Dictionary else 1.0
+	return get_body_layer() > 0 and _fp_weight > 0.0 and _fp_weight >= show_from
+
+
+func _apply_body_cull() -> void:
+	var layer := get_body_layer()
+	if _camera == null or layer <= 0:
+		return
+	var body_bit := 1 << (layer - 1)
+	_camera.cull_mask = (_camera.cull_mask & ~body_bit) if is_body_hidden() else (_camera.cull_mask | body_bit)
 
 
 ## 0 = third person, 1 = first person; between them while the mode blend runs.
@@ -158,6 +192,7 @@ func _set_fp_weight(weight: float) -> void:
 	_apply_arm_length()
 	if _camera != null:
 		_apply_zoom()
+		_apply_body_cull()
 	if changed and not _cover_follow_active:
 		position.y = _rig_height()
 
