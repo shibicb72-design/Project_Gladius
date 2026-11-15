@@ -348,3 +348,77 @@ func test_route_draws_leave_the_aim_stream_alone() -> void:
 	assert_true(same, "aim error sequences equal with and without route picks")
 	assert_eq(a._spot_dir, b._spot_dir, "same spot direction")
 	m.queue_free()
+
+
+# ---- Stage 4: rotation in time ----
+
+## A zone of start radius `start_r` whose first wait is `wait_s` and whose next circle is a small 10 m one.
+static func timed_zone(start_r: float, wait_s: float) -> Dictionary:
+	return {"start_center": [0, 0], "start_radius_m": start_r, "damage_skips_shield": false,
+			"phases": [{"wait_s": wait_s, "shrink_s": 200.0, "radius_m": 10.0, "damage_per_s": 0.0}]}
+
+
+## Puts `bot` on the line from the origin side toward its zone spot so that the walk takes `t_s` seconds by the
+## rotation formula (inverted), still inside the current circle.
+func place_for_walk(bot: Pawn, b: BotBrain, t_s: float) -> void:
+	var spot := b._zone_spot()
+	var d := (t_s - b._route_f("rotate_margin_s", 10.0)) / b._route_f("rotate_detour", 1.3) * bot.get_move_speed()
+	var dir := Vector3(-spot.x, 0.0, -spot.z).normalized() if Vector2(spot.x, spot.z).length() > 1.0 else Vector3.RIGHT
+	bot.global_position = Vector3(spot.x, 0.2, spot.z) + dir * d
+
+
+func test_rotation_starts_when_the_walk_outlasts_the_wait() -> void:
+	await start(timed_zone(400.0, 60.0))
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	assert_true(b.is_big_map(), "big map")
+	var rules := m.director.rules
+	assert_eq(rules.zone_state(), "waiting", "the zone waits")
+	var left := rules.zone_seconds_left()
+	# The formula, computed here independently.
+	place_for_walk(bot, b, left - 5.0)
+	var spot := b._zone_spot()
+	var want := Vector2(spot.x - bot.global_position.x, spot.z - bot.global_position.z).length() / bot.get_move_speed() \
+			* float(base_cfg()["route"]["rotate_detour"]) + float(base_cfg()["route"]["rotate_margin_s"])
+	assert_true(absf(b._time_to_reach() - want) < 0.01, "time_to_reach = distance / class speed x detour + margin (%.2f vs %.2f)" % [b._time_to_reach(), want])
+	assert_true(not rules.is_outside(Vector2(bot.global_position.x, bot.global_position.z)), "inside the current circle")
+	assert_true(not b._inside_target(), "outside the next circle")
+	assert_true(not b._zone_pressure(), "walk %.1f s < %.1f s left: no pressure yet" % [b._time_to_reach(), left])
+	place_for_walk(bot, b, left + 5.0)
+	assert_true(b._zone_pressure(), "walk %.1f s > %.1f s left: pressure" % [b._time_to_reach(), left])
+	# The old fixed margin would have said "no pressure" here (60 s left > zone_margin_s 25).
+	assert_true(left > float(base_cfg()["zone_margin_s"]), "the old margin rule would not have fired")
+	m.queue_free()
+
+
+## A small map keeps zone_margin_s: 20 s left < 25 -> pressure even for a bot a few metres from its spot; 60 s
+## left -> none even for a bot whose walk would take longer.
+func test_small_map_keeps_the_fixed_margin() -> void:
+	await start(timed_zone(80.0, 20.0))
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	assert_true(not b.is_big_map(), "small map")
+	place_for_walk(bot, b, 16.0)
+	assert_true(not b._inside_target(), "outside the next circle")
+	assert_true(b._zone_pressure(), "20 s left < zone_margin_s 25: pressure")
+	m.queue_free()
+	await start(timed_zone(80.0, 60.0))
+	bot = m.bots[0]
+	b = add_brain(bot)
+	b._ensure_seeded()
+	place_for_walk(bot, b, 24.0)
+	assert_true(not m.director.rules.is_outside(Vector2(bot.global_position.x, bot.global_position.z)), "inside the current circle")
+	assert_true(not b._inside_target(), "outside the next circle")
+	assert_true(not b._zone_pressure(), "60 s left > 25: no pressure (walk %.0f s)" % b._time_to_reach())
+	m.queue_free()
+	# The big map with the same 20 s left and a short walk: no pressure (the new rule, not the margin).
+	await start(timed_zone(400.0, 20.0))
+	bot = m.bots[0]
+	b = add_brain(bot)
+	b._ensure_seeded()
+	place_for_walk(bot, b, 16.0)
+	assert_true(not b._inside_target(), "outside the next circle")
+	assert_true(not b._zone_pressure(), "big map: a 16 s walk with 20 s left is not late")
+	m.queue_free()

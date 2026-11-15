@@ -507,8 +507,21 @@ func _zone_pressure() -> bool:
 		return false
 	var rules := director.rules
 	var here := Vector2(pawn.global_position.x, pawn.global_position.z)
-	return rules.zone_state() != "waiting" or rules.zone_seconds_left() < float(cfg.get("zone_margin_s", 25.0)) \
-			or rules.is_outside(here)
+	# M2B1 stage 4: on a big map, while waiting, leave when the walk to the spot would outlast the wait
+	# (_time_to_reach); a small map keeps the fixed zone_margin_s.
+	var late := (_time_to_reach() > rules.zone_seconds_left()) if _big_map and rules.zone_state() == "waiting" \
+			else rules.zone_seconds_left() < float(cfg.get("zone_margin_s", 25.0))
+	return rules.zone_state() != "waiting" or late or rules.is_outside(here)
+
+
+## Big map rotation (M2B1, brain.route, placeholders OQ-BOT-ROUTE): seconds this bot needs to walk to its zone
+## spot = flat distance / its class move speed (Pawn.get_move_speed: stats.json movement.base_speed_mps x
+## class speed_pct / 100; bots never sprint) x route.rotate_detour + route.rotate_margin_s.
+func _time_to_reach() -> float:
+	var spot := _zone_spot()
+	var d := Vector2(spot.x - pawn.global_position.x, spot.z - pawn.global_position.z).length()
+	var speed := maxf(pawn.get_move_speed(), 0.1)
+	return d / speed * _route_f("rotate_detour", 1.3) + _route_f("rotate_margin_s", 10.0)
 
 
 ## Nearest usable loot item within loot_seek_range_m (a gun first when the bot has none); INF if none.
