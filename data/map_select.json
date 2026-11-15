@@ -1,4 +1,4 @@
 {
-	"map": "res://data/maps/alesia_section.json",
-	"_note": "Which map json MatchRoot loads. A missing or invalid map falls back to alesia_section. When the file user://map_select_override is present, its first line wins (a phone measurement tool)."
+	"map": "res://data/maps/alesia_1km.json",
+	"_note": "Which map json a REAL match loads (MatchRoot with auto_start: the menu and the lobby; M2L1, binding fix 2). A begin() without the flag (the match tests) loads MatchRoot.MAP_PATH, alesia_section, the test fixture. A missing or invalid map falls back to alesia_section. When the file user://map_select_override is present, its first line wins for real matches (a phone measurement tool)."
 }

@@ -26,6 +26,10 @@ var map_def: Dictionary = {}
 var map_path: String = MAP_PATH
 ## Tests set this to load another map json instead of the selection (still validated, same fallback).
 var map_path_override: String = ""
+## M2L1 (binding fix 2): only real matches read data/map_select.json (and the phone override file). _ready sets
+## this on the auto_start path, which is how the menu and the lobby start a match (AppFlow changes to
+## scenes/match/match.tscn, auto_start true). A begin() without it (the match tests) loads MAP_PATH, the fixture.
+var use_map_select: bool = false
 var map: Node3D
 var router: InputRouter
 var local_player: Pawn
@@ -95,6 +99,7 @@ func _ready() -> void:
 	if auto_start:
 		drop_from_sky = true  # real matches (menu / lobby) open with the carrier; tests opt in
 		ground_loot = true
+		use_map_select = true
 		var started: bool = begin()
 		if not started:
 			push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
@@ -117,6 +122,16 @@ static func select_map(select_path: String = DataRegistry.MAP_SELECT_PATH, overr
 	return _check_map(str(DataRegistry.parse_quiet(select_path).get("map", "")), "map_select")
 
 
+## The map this match loads ({"path", "error"}, as select_map): map_path_override when set, else the selection
+## when use_map_select (real matches), else MAP_PATH (the test fixture). Builds nothing.
+func chosen_map() -> Dictionary:
+	if map_path_override != "":
+		return _check_map(map_path_override, "map_path_override")
+	if use_map_select:
+		return select_map()
+	return _check_map(MAP_PATH, "MatchRoot.MAP_PATH")
+
+
 static func _check_map(wanted: String, source: String) -> Dictionary:
 	var problems := DataRegistry.new().validate_map(wanted)
 	if problems.is_empty():
@@ -130,12 +145,14 @@ func begin() -> bool:
 	RenderingServer.set_default_clear_color(Color(1, 0, 1))
 	if get_node_or_null("PerfLog") == null and PerfLog.wanted():  # M2 P0: phone frame-time log, off by default
 		add_child(PerfLog.new())
-	if director.mode_cfg.is_empty():
-		director.load_config()
-	var chosen := _check_map(map_path_override, "map_path_override") if map_path_override != "" else select_map()
+	var chosen := chosen_map()
 	if String(chosen["error"]) != "":
 		push_error("MatchRoot.begin: %s; loading %s" % [chosen["error"], chosen["path"]])
 	map_path = String(chosen["path"])
+	# M2L1 (binding fix 21): the map's overrides merge at config load, once; a config loaded (and edited) by the
+	# caller before begin() is used as it is.
+	if director.mode_cfg.is_empty():
+		director.load_config(map_path)
 	map_def = DataRegistry.new().load_file(map_path)
 	var scene: PackedScene = load(str(map_def.get("scene", ""))) as PackedScene
 	if scene == null:
@@ -235,7 +252,12 @@ func begin() -> bool:
 		# W3: the map definition names its landmark file; loot clusters refer to those landmarks by id.
 		var landmark_path := str(map_def.get("landmarks", ""))
 		var landmarks: Array = DataRegistry.new().load_file(landmark_path).get("landmarks", []) if landmark_path != "" else []
-		loot.setup(DataRegistry.new().load_file("res://data/loot.json"), seed_value, director.mode_cfg.get("zone", {}), landmarks)
+		# M2L1: the loot config with the map's overrides (director.load_config; the plain file when the caller set
+		# mode_cfg without it), and the terrain height so max_ground_y_m counts from the ground (the hill).
+		var loot_cfg: Dictionary = director.loot_cfg if not director.loot_cfg.is_empty() else DataRegistry.new().load_file(MatchDirector.LOOT_PATH)
+		var terrain: Variant = builder.get("terrain") if builder != null and "terrain" in builder else null
+		var ground_height := (terrain as MapTerrain).height_at if terrain is MapTerrain else Callable()
+		loot.setup(loot_cfg, seed_value, director.mode_cfg.get("zone", {}), landmarks, ground_height)
 		add_child(loot)
 		director.loot = loot
 	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))

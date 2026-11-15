@@ -11,6 +11,8 @@ extends SceneTree
 ## M2P1B: "-- --load" also times, over the same runs, what MatchRoot.begin does instead when the saved mesh is
 ## fresh: the freshness check (MapNav.stale_reasons) and loading the saved mesh into the region, printed as one
 ## "NAV_LOAD ..." line against the bake median of this process (load_ms=-1 when there is no saved mesh).
+## M2L1: "-- --load-only" prints only the NAV_LOAD line, with no bake runs (bake_median_ms=-1.0): for a map whose
+## bake takes seconds (alesia_1km), where the bake time comes from tools/bake_nav.gd's NAV_SAVED line.
 
 const RUNS := 5
 const DEFAULT_MAP := "res://data/maps/alesia_section.json"
@@ -21,9 +23,12 @@ func _initialize() -> void:
 	var map_path := DEFAULT_MAP
 	var without := ""
 	var time_load := false
+	var load_only := false
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--load":
 			time_load = true
+		elif arg == "--load-only":
+			load_only = true
 		elif arg.begins_with("--without="):
 			without = arg.substr(10)
 		elif arg.begins_with("--map="):
@@ -53,6 +58,11 @@ func _initialize() -> void:
 			if body.is_in_group(without):
 				body.free()
 		await physics_frame
+	if load_only:
+		_time_load(map_path, map_def, nav, -1.0)
+		map.free()
+		quit(0)
+		return
 	var times: Array[float] = []
 	for i in RUNS:
 		var started := Time.get_ticks_usec()

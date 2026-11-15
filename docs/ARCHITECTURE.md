@@ -337,13 +337,18 @@ android/              debug.keystore (shared debug key only)
   height-map collider), pieces standing on the terrain, saved navigation with stale detection. P1c:
   visibility ranges per piece class, shadows per class, chunk size 100 m, near and far terrain, a
   cover index, a loot grid, a bot think rate, visible-at-a-point proxies. Not built: fog and far
-  plane matching (a product call for P2, OQ-MAP-CULL).
-- **Which map a match loads.** `data/map_select.json` `"map"` names a map json.
-  `MatchRoot.select_map()` returns `{path, error}`; a missing or invalid map gives
-  `alesia_section` and a non-empty error, and only `MatchRoot.begin()` reports it. The file
-  `user://map_select_override` (one `res://data/maps/<file>.json` path on its first line) wins when
-  it exists: a measurement tool for a debug build on the phone, like the perf logger's flag file.
-  `MatchRoot.map_path` holds the loaded map; tests set `map_path_override`.
+  plane matching (a product call for P2, OQ-MAP-CULL). M2 L1 (Nov 14 2026): the real M2 map,
+  `alesia_1km`, as a generated grey-box (below); real matches play it, the M1 map stays a fixture.
+- **Which map a match loads.** `MatchRoot.chosen_map()`: `map_path_override` when set (tests and
+  the on-demand sim only); else, when `use_map_select` is on, `select_map()`; else `MatchRoot.MAP_PATH`
+  (`alesia_section`, the test fixture). `_ready` sets `use_map_select` on the `auto_start` path, which
+  is how the menu and the lobby start every real match; a `begin()` without the flag (every match
+  test) keeps the fixture. `data/map_select.json` `"map"` names `alesia_1km`. `select_map()` returns
+  `{path, error}`; a missing or invalid map gives `alesia_section` and a non-empty error, and only
+  `MatchRoot.begin()` reports it. The file `user://map_select_override` (one
+  `res://data/maps/<file>.json` path on its first line) wins for real matches when it exists: a
+  measurement tool for a debug build on the phone. `MatchRoot.map_path` holds the loaded map.
+  `DataRegistry.MAP_PATH` stays `alesia_section`.
 - **A map** is `data/maps/<id>.json` (scene, spawns, landmarks) plus a scene with `Nav/Ground`,
   `ArtBuilder`, `Decor` and `SquadSpawns` markers named like the json spawns. Two optional keys name
   the map's own piece files: `"cover_data"` (`pieces`, `ring_pieces`, `decor`) and
@@ -404,7 +409,7 @@ android/              debug.keystore (shared debug key only)
     too steep or too uneven (`ground_fits`).
   - test_300: flat (exactly 0) within 80 m of the origin, where spawns, zone start and drop lie; one
     12.3 m hill at (90, 90), gentle towards the centre. All numbers are placeholders (OQ-MAP-TERRAIN).
-- **Saved navigation (P1b).** `tools/bake_nav.gd -- --map=<json>` (no argument: both maps) bakes a
+- **Saved navigation (P1b).** `tools/bake_nav.gd -- --map=<json>` (no argument: the three maps) bakes a
   duplicate of the scene's inline `NavigationMesh` and saves it as `data/maps/nav/<map>.res` with a
   manifest `data/maps/nav/<map>.json`: the sha256 of every input. Runtime inputs are JSON (map json,
   piece files, `alesia_cover.json`, `alesia_structures.json`, `art_astra.json`, a JSON heights file),
@@ -463,6 +468,61 @@ android/              debug.keystore (shared debug key only)
 - **P1c tests.** `tests/test_map_cull.gd` (placement, classes, floor, shadows, chunk sizes, far
   terrain, the `P1C_PROXY` report), `tests/test_map_proxy.gd` (limits), `tests/test_cover_index.gd`,
   `tests/test_loot_grid.gd`, `tests/test_bot_think_rate.gd`, `tests/test_terrain_heights_and_cache.gd`.
+- **alesia_1km (M2 L1).** The concentric Alesia at 1 km, a grey-box from data; every size, count,
+  place and name is a proposal (OQ-ALESIA-LAYOUT). `tools/gen_alesia.gd` (seeded) reads the map
+  json's `"generator"` block and writes `alesia_1km_cover.json`, `_structures.json`,
+  `_landmarks.json`, `_heights.res`, `_paint.res` and the generated keys of `alesia_1km.json`
+  (`spawns`, `reserved_spots`, the two sha256 keys; other keys are kept, sorted). Same block, same
+  bytes; `tests/test_alesia_1km_data.gd` pins it. To change the layout: edit `"generator"`, run
+  `tools/gen_alesia.gd`, then `tools/bake_nav.gd -- --map=res://data/maps/alesia_1km.json`, commit
+  all of it. Only existing piece types; rings are polygons (inner 24, outer 32 sides).
+  - `"free_yaw_types"`: the wall types (wall_walk, wall_stair, gate, watchtower) that may take any
+    yaw on the ring tangent; every other piece keeps the 90 degree step
+    (`DataRegistry.yaw_problems`). Consecutive wall pieces overlap; joint gaps stay <= 0.3 m.
+  - `"reserved_spots"`: `[{id, kind, at: [x, z]}]`, kind `jump_pad`, `man_cannon` or `lily_trap`,
+    places for J1 only, no nodes. Validated: known kind, inside `play_radius_m`, outside every
+    collider footprint (`DataRegistry.collider_footprints` / `footprint_at`, from the data).
+  - `"backdrop": false` (honoured by `ArtBuilder`, `backdrop_wanted`): the outer wall and the
+    fields are the edge; a backdrop for 1 km is W1's job.
+  - `"ground_paint"`: the art_materials `ground` keys for this map, plus `roads` (false: no spokes)
+    and `baked`: the paint is painted offline into an Image `.res` (1024 px; footsteps read its
+    pixels) and loaded at runtime with an inputs-hash stale check; a stale or missing bake paints at
+    load and prints one line. Flat maps are unchanged (alesia 256 px byte-identical).
+  - Terrain: flat except the citadel hill (r 90 m, 25 m, steepest 29 degrees), saved as a binary
+    HeightMapShape3D `.res` at 2 m (501 x 501). `validate_terrain` reads only its header
+    (`MapTerrain.heights_header_problem`), so the samples are read once, by the builder.
+    `terrain.far_step_m` (10) overrides map_build.json's 5 m, which is no multiple of 2 m.
+  - `"overrides": {"br": {..}, "loot": {..}}`: deep-merged over `br.json` / `loot.json` for this
+    map only, by `MatchDirector.load_config(map_json)` (dictionaries by key, arrays and scalars
+    replace, `_` keys are notes). `begin()` calls it once, after the map choice, only while
+    `mode_cfg` is empty, so a caller's later changes (the sim's scaling) survive. `overrides.br` may
+    not set `teams` (the lobby reads it first; `DataRegistry.overrides_problems`). alesia_1km: zone
+    start 480 m and phases, drop path 960 m and carrier 40 s, loot over 480 m, 540 items, 12 at each
+    landmark (OQ-BR-ZONE, -DROP, -LOOT guesses).
+  - Loot height: `LootField.setup` takes an optional terrain height callable (passed by `MatchRoot`);
+    `max_ground_y_m` is measured above the terrain at the item, so loot lands on the hill. On flat
+    maps identical.
+  - Saved nav for three maps: `tools/bake_nav.gd`'s default list names alesia_section, test_300
+    and alesia_1km (about 6 s, 329 kB, 10,352 polygons). The manifest's tool inputs hold the heights
+    `.res`, the paint `.res` and the scene sha256; `tests/test_saved_nav.gd` re-hashes them and
+    re-bakes only the two small maps.
+  - Tests: `tests/test_alesia_1km.gd` is the ONE suite file that builds the 1 km scene (a static
+    built by `_map()`, freed by its last method `test_zz_free_the_map`; add scene checks above it;
+    run it whole with `--only=test_alesia_1km`). It also holds the one real-match entry on this map
+    and the report lines (`ALESIA_1KM_*`). Data checks live in `tests/test_alesia_1km_data.gd`.
+  - The sim, on demand: `tests/sim/test_sim_alesia_1km.gd` (never in the normal suite) plays seeded
+    18-player matches with `map_path_override` (its one allowed use), `director.load_config(map)`,
+    then the existing sim's x0.4 phases and carrier time; a 10-minute wall cap per match, an
+    unfinished match fails and says how far it got. It counts kills by gun and blade, zone deaths,
+    loot taken, unstick events (each 0 -> >0 of a brain's `_unstick_left`, read with `get()`) by
+    area, and reports the draw proxy, the cover-index time and load times (`ALESIA_1KM_LOAD`). One
+    match per method: `-- --dir=res://tests/sim --only=test_sim_alesia_1km.gd::<method>`.
+  - The layout picture: `tools/render_layout.gd -- --out=<png>` draws the map from its data into an
+    Image, headless (ground bands, hill contours, every collider footprint by class, rings, gates,
+    towers, aqueducts, camps, spawns, reserved spots, play circle and zone start, legend, north
+    arrow, 100 m scale; text in a built-in 5x7 bitmap font). `-- --shots=<dir>` (windowed) builds
+    the map scene with the match's Light and WorldEnvironment (GreyboxArt) and saves six ground
+    shots at 2520 x 1080 (`shot_points`). Its data pass is tested in test_alesia_1km_data.gd.
 
 ## 5. Testing
 

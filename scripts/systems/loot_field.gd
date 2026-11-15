@@ -32,11 +32,18 @@ var _next_rank: int = 0
 const GRID_SLACK_M := 0.5
 
 
-func setup(loot_cfg: Dictionary, seed_value: int, zone: Dictionary = {}, landmarks: Array = []) -> void:
+## M2L1 (binding fixes 4, 23): the terrain height under a point, (x: float, z: float) -> float, handed in by
+## MatchRoot (the map builder's MapTerrain.height_at). max_ground_y_m is measured above it. Not valid = flat
+## ground at y 0: the absolute limit, as before.
+var _ground_height: Callable = Callable()
+
+
+func setup(loot_cfg: Dictionary, seed_value: int, zone: Dictionary = {}, landmarks: Array = [], ground_height: Callable = Callable()) -> void:
 	cfg = loot_cfg
 	_seed = seed_value
 	_zone = zone
 	_landmarks = landmarks
+	_ground_height = ground_height
 
 
 ## Where each of the first items goes when clusters apply: one [centre, radius] per clustered item, in cluster
@@ -126,7 +133,8 @@ func place_now() -> void:
 				continue
 			var q := PhysicsRayQueryParameters3D.create(Vector3(x, 60.0, z), Vector3(x, -5.0, z), Hitscan.MASK_WORLD)
 			var hit := space.intersect_ray(q)
-			if hit.is_empty() or float(hit["position"].y) > max_y or (hit["normal"] as Vector3).y < 0.8:
+			var ground_y := float(_ground_height.call(x, z)) if _ground_height.is_valid() else 0.0
+			if hit.is_empty() or float(hit["position"].y) > ground_y + max_y or (hit["normal"] as Vector3).y < 0.8:
 				continue
 			_add(item_id, hit["position"] + Vector3(0.0, 0.25, 0.0), {})
 			break

@@ -28,7 +28,7 @@ static func manifest_path(map_path: String) -> String:
 
 ## The files whose content can change the baked colliders, sorted, without repeats:
 ## {"runtime": JSON files (exported verbatim, so a phone can hash them), "tool": files an exported game cannot
-## hash (the map scene, which export converts; a binary heights file)}.
+## hash (the map scene, which export converts; a binary heights file; a baked ground paint .res)}.
 static func input_files(map_path: String) -> Dictionary:
 	var runtime := {map_path: true, _Builder.COVER_PATH: true, WorldKit.PATH: true, LOWPOLY_PATH: true}
 	var tool := {}
@@ -46,6 +46,11 @@ static func input_files(map_path: String) -> Dictionary:
 				runtime[heights] = true
 			else:
 				tool[heights] = true
+	# M2L1 (binding fixes 6, 13): a map's baked ground paint (an Image .res, map json ground_paint.baked) is listed
+	# with the tool inputs like a binary heights file: the bake tool and the CI test hash it, the runtime does not.
+	var paint: Variant = def.get("ground_paint")
+	if typeof(paint) == TYPE_DICTIONARY and str((paint as Dictionary).get("baked", "")) != "":
+		tool[str(paint["baked"])] = true
 	var runtime_list: Array = runtime.keys()
 	var tool_list: Array = tool.keys()
 	runtime_list.sort()
