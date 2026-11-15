@@ -14,10 +14,13 @@ extends StaticBody3D
 ## Motion: both kinds SLIDE (pocket doors): over move_time_s each leaf slides its own width along local x into the
 ## wall beside the opening (slide "left" = towards -x, "right" = +x; "apart" = two half leaves, one each way; the
 ## generator checks that the pocket lies inside the piece's wall colliders). Its path is the doorway plus the pocket,
-## so only a pawn standing in the doorway is ever in the way (a pawn cannot stand inside a wall). Before any move the
+## so only a pawn standing in the doorway is ever in the way (a pawn cannot stand inside a wall). Before a CLOSE the
 ## door asks the physics space for pawn bodies (layer 2) in that path; one there: the door does not move, waits
-## blocked_retry_s and asks again, until it is clear. After a close the collider switches on only when the doorway
-## box is clear of pawns (asked again every blocked_retry_s); until then the door looks closed but stops nothing.
+## blocked_retry_s and asks again, until it is clear. An OPEN starts at once with no check (M2 L1c commit 4): the
+## leaves leave the doorway for the pocket inside the wall and the collider is off while they move, so nothing is
+## pushed, and the opener pressing against the closed leaf (a bot walking into it, a player at it) never blocks its
+## own opening. After a close the collider switches on only when the doorway box is clear of pawns (asked again every
+## blocked_retry_s); until then the door looks closed but stops nothing.
 
 const GROUP := &"door"
 const KIND_DOOR := "door"
@@ -137,7 +140,8 @@ func step(delta: float) -> void:
 			return
 	var want := 1.0 if open else 0.0
 	if not moving and phase != want:
-		if pawn_in_path():
+		# Only a closing leaf moves into the doorway; an opening one leaves it for its pocket (M2 L1c commit 4).
+		if not open and pawn_in_path():
 			_wait()
 			return
 		moving = true

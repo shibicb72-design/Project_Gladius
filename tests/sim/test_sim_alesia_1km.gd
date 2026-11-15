@@ -144,6 +144,17 @@ static func _worst_unstick(per_bot: Dictionary, bot_goals: Dictionary, bot_areas
 	return "%d:%d:%s:%s" % [best, int(per_bot[best]), _first_of(bot_goals.get(best, {})), _first_of(bot_areas.get(best, {}))]
 
 
+## M2 L1c SIM_DOORS: how many doors and gates stand CLOSED in `props` (0 without props).
+static func closed_doors(props: WorldProps) -> int:
+	if props == null or not is_instance_valid(props):
+		return 0
+	var n := 0
+	for id: String in props.doors:
+		if props.state_of(id) == WorldProps.CLOSED:
+			n += 1
+	return n
+
+
 func _run(mode: String, seed_value: int) -> Dictionary:
 	var tree := _tree()
 	var def := DataRegistry.parse_quiet(MAP)
@@ -204,6 +215,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var begin_t := Time.get_ticks_msec()
 	assert_true(m.begin(), "begin %s" % mode)
 	var begin_ms := Time.get_ticks_msec() - begin_t
+	var doors_closed_start := closed_doors(m.world_props)  # M2 L1c SIM_DOORS: before the first tick
 	assert_eq(m.map_path, MAP, "the sim plays alesia_1km")
 	assert_eq(m.nav_bakes, 0, "the saved 1 km mesh loads (no bake at match start)")
 	# Binding fix 21: begin() does not merge again, so the sim's scaled values survive on alesia_1km.
@@ -326,6 +338,11 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	print("SIM_UNSTICK_GOALS map=alesia_1km mode=%s seed=%d by_goal=%s worst=%s nav={reachable:%d, unreachable:%d, finished:%d}" % [
 			mode, seed_value, _top(unstick_goals, 20), _worst_unstick(unstick_per_bot, unstick_bot_goals, unstick_bot_areas),
 			int(unstick_nav["reachable"]), int(unstick_nav["unreachable"]), int(unstick_nav["finished"])])
+	# M2 L1c commit 4 SIM_DOORS (a separate line, so the repeat-compared SIM line keeps its format): the map's doors,
+	# how many stood closed at begin and at the end, and MatchDirector.bot_doors_opened (a report counter only).
+	print("SIM_DOORS map=alesia_1km mode=%s seed=%d doors=%d closed_at_start=%d opened_by_bots=%d closed_at_end=%d" % [
+			mode, seed_value, m.world_props.doors.size() if m.world_props != null else 0, doors_closed_start,
+			m.director.bot_doors_opened, closed_doors(m.world_props)])
 	m.queue_free()
 	await tree.process_frame
 	return {"line": line, "over": over, "bands": bands}

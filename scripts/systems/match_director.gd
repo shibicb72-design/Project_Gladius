@@ -270,6 +270,108 @@ func _bot_chests() -> void:
 			try_open_chest(id)
 
 
+## ---- Bots and doors (M2 L1c commit 4; data/props.json door bot_open_delay_s, OQ-PROPS-DOOR) ----
+## Paths are planned as if every door were open (doors are outside the Nav bake), so a bot whose way forward runs
+## through a CLOSED door opens it: this director pass, not the brain's goal logic (bot_brain.gd is untouched).
+## Condition, per bot and closed door, every tick: the bot (a pawn with a Brain) is alive and not dropping; it is in
+## the door's kind range (WorldProps.door_near's test: flat distance to the closed footprint <= interact_range_m,
+## threshold within height_limit_m); its last move input is not zero (it is walking); and its way forward crosses
+## the doorway (path_crosses_door: the brain's NavigationAgent3D path read with plain getters, never
+## get_next_path_position). A bot walking past along the wall never crosses the door's plane inside the opening.
+## Held for bot_open_delay_s (whole director ticks at the physics rate, counted per bot and door; no wall clock, no
+## random draw) the door opens through props.set_door(id, OPEN) (authority only, the existing prop_changed event).
+## The count resets as soon as the condition fails. Bots never close a door. A client does nothing.
+## Timing: bot_open_delay_s + move_time_s stays under data/bots.json stuck_window_s for both kinds (a test checks
+## it from the data), so a door never trips the brain's stuck check.
+var _bot_door_ticks: Dictionary = {}  # bot player id -> {door id: consecutive ticks the condition held}
+var _door_delay_ticks: Dictionary = {}  # door kind -> bot_open_delay_s in ticks (read once)
+## Report only (the sims print it on SIM_DOORS): doors and gates opened by this pass.
+var bot_doors_opened: int = 0
+## How far ahead along the path the crossing is looked for: path points within this many metres of the bot.
+## The value in use is data/props.json door bot_path_lookahead_m (OQ-PROPS-DOOR); this is the fallback.
+const BOT_DOOR_LOOKAHEAD_M := 6.0
+## The crossing point may lie this far outside the opening's edge (the path's corner rounding). The value in use is
+## data/props.json door bot_path_edge_m (OQ-PROPS-DOOR); this is the fallback.
+const BOT_DOOR_EDGE_M := 0.25
+
+
+func _bot_door_delay_ticks(kind: String) -> int:
+	if not _door_delay_ticks.has(kind):
+		var delay_s := float(WorldProps.door_cfg(props.cfg, kind).get("bot_open_delay_s", 0.4))
+		_door_delay_ticks[kind] = maxi(ceili(delay_s * float(Engine.physics_ticks_per_second) - 0.001), 1)
+	return int(_door_delay_ticks[kind])
+
+
+func _bot_doors() -> void:
+	if props == null or props.doors.is_empty() or not authoritative:
+		return
+	var closed: Array[Door] = []
+	for door_id: String in props.doors:
+		var d: Door = props.doors[door_id]
+		if is_instance_valid(d) and props.state_of(door_id) == WorldProps.CLOSED:
+			closed.append(d)
+	if closed.is_empty():
+		_bot_door_ticks.clear()
+		return
+	for id in _players:
+		var pawn: Pawn = _players[id]
+		var brain := pawn.get_node_or_null("Brain")
+		if brain == null or not pawn.is_alive() or pawn.is_dropping() or pawn._frame.move == Vector2.ZERO:
+			_bot_door_ticks.erase(id)
+			continue
+		var agent: NavigationAgent3D = brain.get("_agent")
+		var held: Dictionary = _bot_door_ticks.get(id, {})
+		var still: Dictionary = {}
+		var pos := pawn.global_position
+		for d: Door in closed:
+			var reach := d.interact_range_m + d.size.x * 0.5 + 0.5
+			var flat := Vector2(d.global_position.x - pos.x, d.global_position.z - pos.z)
+			if flat.length_squared() > reach * reach:  # cheap first: most doors are far
+				continue
+			if absf(d.bottom_y() - pos.y) > d.height_limit_m or d.distance_to(pos) > d.interact_range_m:
+				continue
+			var door_cfg := WorldProps.door_cfg(props.cfg, d.kind)
+			if agent == null or not path_crosses_door(d, pos, agent.get_current_navigation_path(),
+					agent.get_current_navigation_path_index(),
+					float(door_cfg.get("bot_path_lookahead_m", BOT_DOOR_LOOKAHEAD_M)),
+					float(door_cfg.get("bot_path_edge_m", BOT_DOOR_EDGE_M))):
+				continue
+			var ticks := int(held.get(d.prop_id, 0)) + 1
+			if ticks >= _bot_door_delay_ticks(d.kind):
+				if props.set_door(d.prop_id, WorldProps.OPEN):
+					bot_doors_opened += 1
+			else:
+				still[d.prop_id] = ticks
+		if still.is_empty():
+			_bot_door_ticks.erase(id)
+		else:
+			_bot_door_ticks[id] = still
+
+
+## True when the way forward from `from` (the bot's feet) along `path` from `index` (the next point) crosses `door`'s
+## plane (its local z = 0) inside the opening (|local x| <= half the width + BOT_DOOR_EDGE_M) at its floor (within
+## height_limit_m of the threshold). Segments are checked until a point lies BOT_DOOR_LOOKAHEAD_M from `from`.
+static func path_crosses_door(door: Door, from: Vector3, path: PackedVector3Array, index: int,
+		lookahead_m := BOT_DOOR_LOOKAHEAD_M, edge_m := BOT_DOOR_EDGE_M) -> bool:
+	if index < 0 or index >= path.size():
+		return false
+	var inv := door.global_transform.affine_inverse()
+	var half_w := door.size.x * 0.5 + edge_m
+	var floor_y := door.size.y * -0.5  # the threshold in the door's frame
+	var a := inv * from
+	for i in range(index, path.size()):
+		var b := inv * path[i]
+		if (a.z > 0.0) != (b.z > 0.0) and absf(a.z - b.z) > 0.0001:
+			var t := a.z / (a.z - b.z)
+			var at := a.lerp(b, t)
+			if absf(at.x) <= half_w and absf(at.y - floor_y) <= door.height_limit_m:
+				return true
+		if Vector2(path[i].x - from.x, path[i].z - from.z).length() > lookahead_m:
+			break
+		a = b
+	return false
+
+
 ## ---- Drop from the sky (br.json "drop", placeholders, OQ-BR-DROP) ----
 ## The carrier flies a seeded straight line through the zone start center at altitude_m for carrier_s.
 ## Every pawn rides it (Pawn.board_carrier). Humans drop with Jump; bots drop at a seeded moment inside
@@ -462,6 +564,7 @@ func _physics_process(delta: float) -> void:
 		_tick_drop(delta)
 	_catch_fallen()
 	_bot_pickups()
+	_bot_doors()  # M2 L1c: after pickups and chests (loot or not), before the rule tick
 	var positions: Dictionary = {}
 	for id in _players:
 		var pawn: Pawn = _players[id]

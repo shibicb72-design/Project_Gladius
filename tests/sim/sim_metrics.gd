@@ -281,6 +281,7 @@ func loot_fields() -> String:
 ## M2 L1b: the deterministic prop fields of the SIM line, read at the end of the match from MatchRoot.world_props:
 ## breakables broken, chests opened, items the props spilled (WorldProps.spilled) and how many of those are gone
 ## from the ground (LootField.take is the only removal, so gone = taken). All 0 on a map without props.
+## M2 L1c commit 4: doors are stored as OPEN / CLOSED in the same states, so chests_opened counts only chest ids.
 func prop_fields() -> String:
 	var props: WorldProps = m.world_props if m != null else null
 	var broken := 0
@@ -293,7 +294,8 @@ func prop_fields() -> String:
 				WorldProps.BROKEN:
 					broken += 1
 				WorldProps.OPEN:
-					opened += 1
+					if props.chests.has(id):
+						opened += 1
 		spilled = props.spilled.size()
 		for item_id: int in props.spilled:
 			if m.loot != null and not m.loot.items.has(item_id):

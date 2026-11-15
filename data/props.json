@@ -58,6 +58,8 @@
 		"move_time_s": 0.6,
 		"blocked_retry_s": 0.5,
 		"bot_open_delay_s": 0.4,
+		"bot_path_lookahead_m": 6.0,
+		"bot_path_edge_m": 0.25,
 		"palette": "door",
 		"look_size": [2.0, 2.3, 0.12],
 		"look": {
