@@ -212,6 +212,68 @@
 			],
 			"rocks": 8.0
 		},
+		"extra_cover": {
+			"_note": "M2 L1b (Shibi, Nov 14 2026: more cover): static cover placed after every earlier pass (tools/gen_alesia.gd _extra_cover), so the earlier pieces stay byte-identical; existing cover types only. camps.cover is per camp; new camp pieces keep lane_gap_m to every footprint. A wall band samples a side of the polygonal ring (apothem radius_m), a place along it clear of both corners by corner_margin_m and a distance from_m..to_m from the side's centre line, half the pieces towards the centre and half away; it keeps gate_clear_m from that ring's gates, stair_clear_m from every wall stair's foot and tower_clear_m from every tower ramp's foot. arx.radius_m: the hill top. Fields: the fields annulus. Budget: cover and ring pieces plus breakables at most 352 cover walls (the cover index validates every wall once per frame). OQ-ALESIA-LAYOUT: every number is a proposal.",
+			"arx": {
+				"cover": 4.0,
+				"cover_types": [
+					"low_wall",
+					"barrier",
+					"sandbags",
+					"pillar"
+				],
+				"radius_m": 20.0
+			},
+			"camps": {
+				"cover": 3.0,
+				"cover_types": [
+					"crate",
+					"sandbags",
+					"barrier",
+					"low_wall"
+				]
+			},
+			"fields": {
+				"cover": 6.0,
+				"cover_types": [
+					"low_wall",
+					"sandbags",
+					"rock",
+					"barrier"
+				]
+			},
+			"inner_wall": {
+				"corner_margin_m": 3.0,
+				"cover": 7.0,
+				"cover_types": [
+					"low_wall",
+					"sandbags",
+					"barrier",
+					"crate"
+				],
+				"from_m": 4.0,
+				"gate_clear_m": 12.0,
+				"stair_clear_m": 4.0,
+				"to_m": 10.0,
+				"tower_clear_m": 6.0
+			},
+			"lane_gap_m": 2.0,
+			"outer_wall": {
+				"corner_margin_m": 3.0,
+				"cover": 7.0,
+				"cover_types": [
+					"low_wall",
+					"sandbags",
+					"barrier",
+					"crate"
+				],
+				"from_m": 4.0,
+				"gate_clear_m": 12.0,
+				"stair_clear_m": 4.0,
+				"to_m": 10.0,
+				"tower_clear_m": 6.0
+			}
+		},
 		"fields": {
 			"_note": "about a tenth of alesia's density: 150 low cover on the 330,000 m2 annulus.",
 			"cover": 150.0,
@@ -299,7 +361,7 @@
 				337.5
 			]
 		},
-		"paint_sha256": "a3f0c9730783982a6ca258f10bb84d847a9e4823423c2a791ed9dd0d6d25f07f",
+		"paint_sha256": "8198d7ca55199792099222e4de5a8dbd59cddcf212f790c82f487fc0642532d4",
 		"placement": {
 			"anchor_clear_m": 2.5,
 			"edge_margin_m": 4.0,
@@ -307,6 +369,50 @@
 			"minimum_gap_m": 1.2,
 			"snap_m": 0.5,
 			"spawn_clear_m": 8.0
+		},
+		"props": {
+			"_note": "M2 L1b (OQ-PROPS-BREAK): breakable crates and barrels, placed after the extra cover (tools/gen_alesia.gd _breakables) into alesia_1km_cover.json \"breakables\". camps is per camp (inside the block, extra_cover.lane_gap_m to every footprint); inner_gates are spread over the inner gates with the sides alternating, outer_gates over the outer gates on the field side (gates.reach_m and lateral_m); arx inside arx_radius_m; fields on the fields annulus. Types round-robin; types.<type>.size is the collider box (behaviour and looks: data/props.json). Every breakable is a cover wall until it breaks and counts against max_cover_walls with the cover and ring pieces.",
+			"breakables": {
+				"arx": 2.0,
+				"arx_radius_m": 20.0,
+				"camps": 3.0,
+				"fields": 2.0,
+				"inner_gates": 2.0,
+				"outer_gates": 2.0,
+				"types": [
+					"breakable_crate",
+					"breakable_barrel"
+				]
+			},
+			"chests": {
+				"_note": "M2 L1b (OQ-PROPS-CHEST): loot chests, placed after the breakables (tools/gen_alesia.gd _chests) into alesia_1km_cover.json \"chests\" {id, at, size, yaw}. camps is per camp (inside the block, extra_cover.lane_gap_m to every footprint), arx inside arx_radius_m, fields on the fields annulus. size is the collider box (x wide, z deep), yaw a multiple of 90; front_clear_m of free ground in front of the chest (its local -z turned by the yaw, the side it opens towards) is kept as part of its footprint, so the spill (data/props.json chest.spill_*) lands on open ground. Permanent bodies under Nav, baked into the navigation; never cover walls.",
+				"arx": 1.0,
+				"arx_radius_m": 20.0,
+				"camps": 1.0,
+				"fields": 4.0,
+				"front_clear_m": 2.5,
+				"size": [
+					1.4,
+					0.9,
+					0.9
+				]
+			},
+			"types": {
+				"breakable_barrel": {
+					"size": [
+						0.9,
+						1.2,
+						0.9
+					]
+				},
+				"breakable_crate": {
+					"size": [
+						1.2,
+						1.2,
+						1.2
+					]
+				}
+			}
 		},
 		"reserved": {
 			"_note": "J1 spots (binding fix 14): places only, no nodes. jump pads at the inner foot of the outer wall, past the outer aqueduct ends and at the hill foot; man cannons from the fields to the camp ring and from the camp ring towards the citadel; lily traps in front of the outer gates and on the stake lines of the fields.",

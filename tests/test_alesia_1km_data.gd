@@ -150,6 +150,106 @@ func test_wall_rings_close_and_only_walls_turn_freely() -> void:
 	assert_true(", ".join(DataRegistry.yaw_problems(tent_free)).contains("'tent'"), "a non-wall type cannot be given a free yaw")
 
 
+## M2 L1b: the extra static cover pass (generator "extra_cover"): every target is placed, ids continue the cover and
+## ring formats, the camps' new pieces keep lane_gap_m to every other footprint, the wall-band pieces lie in their
+## band and clear of their ring's gates, of every wall stair's foot and of every tower ramp's foot, and the cover
+## walls stay under max_cover_walls.
+func test_extra_cover_pass() -> void:
+	var def := _def()
+	var gen: Dictionary = def["generator"]
+	var extra: Dictionary = gen["extra_cover"]
+	var out: Dictionary = _Gen.generate(def)
+	var counts: Dictionary = out["extra"]["counts"]
+	var ids: Dictionary = out["extra"]["ids"]
+	var want := {
+		"camps": int(extra["camps"]["cover"]) * (gen["camps"]["names"] as Array).size(),
+		"inner": int(extra["inner_wall"]["cover"]),
+		"outer": int(extra["outer_wall"]["cover"]),
+		"arx": int(extra["arx"]["cover"]),
+		"fields": int(extra["fields"]["cover"]),
+	}
+	var total := 0
+	for area: String in want:
+		assert_eq(int(counts[area]), int(want[area]), area + ": every extra piece is placed")
+		assert_eq((ids[area] as Array).size(), int(counts[area]), area + ": its ids are listed")
+		total += int(counts[area])
+	assert_true(total > 0, "nonvacuous: %d extra pieces" % total)
+	for id: Variant in ids["fields"]:
+		assert_true(String(id).begins_with("Ring_"), String(id) + ": a field piece is a ring piece")
+	for area: String in ["camps", "inner", "outer", "arx"]:
+		for id: Variant in ids[area]:
+			assert_true(String(id).begins_with("Cover_"), String(id) + ": a cover piece")
+	assert_true(int(out["cover_walls"]) <= int(gen["max_cover_walls"]), "cover walls %d within max_cover_walls" % int(out["cover_walls"]))
+	# Every footprint the generator keeps apart (its own rule: cover and ring boxes unturned, decor boxes by their
+	# yaw, structures by their colliders' bounds).
+	var types: Dictionary = DataRegistry.parse_quiet(_Gen.COVER_TYPES)["types"]
+	var kit: Dictionary = WorldKit.config()["types"]
+	var rects := {}
+	for list: String in ["pieces", "ring_pieces"]:
+		for entry: Dictionary in out["cover"][list]:
+			rects[String(entry["id"])] = _Gen._box_rect(Vector2(float(entry["at"][0]), float(entry["at"][2])), LowpolyKit.vec(types[entry["type"]]["size"]), 0.0)
+	for entry: Dictionary in out["cover"]["decor"]:
+		rects[String(entry["id"])] = _Gen._box_rect(Vector2(float(entry["at"][0]), float(entry["at"][2])), LowpolyKit.vec(entry["size"]), float(entry["yaw"]))
+	for entry: Dictionary in out["structures"]["pieces"]:
+		rects[String(entry["id"])] = WorldKit.footprint(kit[entry["type"]], LowpolyKit.vec(entry["at"]), float(entry.get("yaw", 0.0)))
+	var lane := float(extra["lane_gap_m"])
+	var narrowest := INF
+	for id: Variant in ids["camps"]:
+		var r: Rect2 = rects[String(id)]
+		for other: String in rects:
+			if other != String(id):
+				narrowest = minf(narrowest, WorldRing.rect_gap(r, rects[other]))
+	assert_true(narrowest >= lane - 0.0001, "the camps' new pieces keep a %.1f m lane to every footprint (narrowest %.3f m)" % [lane, narrowest])
+	# The wall bands.
+	for band: String in ["inner", "outer"]:
+		var cfg: Dictionary = extra[band + "_wall"]
+		var ring_cfg: Dictionary = gen[band + "_wall"]
+		var prefix := "InnerRing_" if band == "inner" else "OuterRing_"
+		var gates: Array[Vector2] = []
+		var feet: Array = []  # [point, clearance]
+		for entry: Dictionary in out["structures"]["pieces"]:
+			if not String(entry["id"]).begins_with(prefix):
+				continue
+			match String(entry["type"]):
+				"gate":
+					gates.append(Vector2(float(entry["at"][0]), float(entry["at"][2])))
+				"wall_stair":
+					feet.append([_Gen.wall_point(entry, _Gen.STAIR_FOOT), float(cfg["stair_clear_m"])])
+				"watchtower":
+					feet.append([_Gen.wall_point(entry, _Gen.TOWER_FOOT), float(cfg["tower_clear_m"])])
+		assert_eq(gates.size(), (ring_cfg["gate_bearings_deg"] as Array).size(), band + ": every gate found")
+		assert_true(feet.size() >= 8, "%s: nonvacuous, %d stair and ramp feet" % [band, feet.size()])
+		var sides := int(ring_cfg["sides"])
+		var apothem := float(ring_cfg["radius_m"])
+		var half_side := apothem * tan(PI / sides)
+		var faces := {-1: 0, 1: 0}
+		for id: Variant in ids[band]:
+			var r: Rect2 = rects[String(id)]
+			var c := r.get_center()
+			for g: Vector2 in gates:
+				assert_true(WorldRing.rect_distance(g, r) >= float(cfg["gate_clear_m"]) - 0.0001, "%s clear of the gate at %s" % [id, g])
+			for foot: Array in feet:
+				assert_true(WorldRing.rect_distance(foot[0], r) >= float(foot[1]) - 0.0001, "%s clear of the stair or ramp foot at %s" % [id, foot[0]])
+			# In the band: some side's centre line lies from_m..to_m away (plus the 0.5 m snap).
+			var best := INF
+			var face := 0
+			for k in sides:
+				var b := deg_to_rad(k * 360.0 / sides)
+				var n := Vector2(sin(b), -cos(b))
+				var t := Vector2(cos(b), sin(b))
+				if absf(c.dot(t)) > half_side + 1.0:
+					continue
+				var off := c.dot(n) - apothem
+				if absf(off) < best:
+					best = absf(off)
+					face = 1 if off > 0.0 else -1
+			assert_true(best >= float(cfg["from_m"]) - 0.75 and best <= float(cfg["to_m"]) + 0.75, "%s lies in the %s wall band (%.2f m from the wall line)" % [id, band, best])
+			if face != 0:
+				faces[face] = int(faces[face]) + 1
+		assert_true(int(faces[-1]) > 0 and int(faces[1]) > 0, "%s: pieces on both faces %s" % [band, faces])
+	print("ALESIA_1KM_EXTRA counts=", counts, " cover_walls=", out["cover_walls"], " camp_lane_narrowest_m=", snappedf(narrowest, 0.001))
+
+
 func test_reserved_spots_validate_and_bad_ones_are_rejected() -> void:
 	var def := _def()
 	assert_eq(DataRegistry.validate_map_def(def).size(), 0, "alesia_1km is clean: " + ", ".join(DataRegistry.validate_map_def(def)))

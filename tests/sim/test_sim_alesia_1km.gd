@@ -254,12 +254,12 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 		unstick_total += int(unstick_per_bot[id])
 	var over := not results.is_empty()
 	# Deterministic part first (compared by the repeat check); wall-clock numbers after "|".
-	var line := "SIM map=alesia_1km mode=%s seed=%d profile=%s game_s=%.1f over=%s alive=%d zone_phase=%d zone_r=%.0f causes=%s kills_gun=%d kills_blade=%d kills_unknown=%d downs_gun=%d downs_blade=%d downs_unknown=%d kill_dist_gun=%s kill_dist_blade=%s down_dist_gun_mean=%.1f down_dist_blade_mean=%.1f zone_deaths=%d zone_before_fight=%d %s %s unstick=%d reached_inner=%d reached_hill=%d goals=%s%s" % [
+	var line := "SIM map=alesia_1km mode=%s seed=%d profile=%s game_s=%.1f over=%s alive=%d zone_phase=%d zone_r=%.0f causes=%s kills_gun=%d kills_blade=%d kills_unknown=%d downs_gun=%d downs_blade=%d downs_unknown=%d kill_dist_gun=%s kill_dist_blade=%s down_dist_gun_mean=%.1f down_dist_blade_mean=%.1f zone_deaths=%d zone_before_fight=%d %s %s unstick=%d reached_inner=%d reached_hill=%d goals=%s%s %s" % [
 			mode, seed_value, profile, n / 60.0, over, m.director.players_alive(), m.director.rules.zone_phase(), m.director.rules.zone_radius(),
 			causes, kills["gun"], kills["blade"], kills["none"], downs["gun"], downs["blade"], downs["none"],
 			kill_dist["gun"], kill_dist["blade"], _mean(down_dist["gun"]), _mean(down_dist["blade"]), zone["deaths"], zone["before_fight"],
 			metrics.shot_fields(), metrics.loot_fields(), unstick_total, reached_inner.size(), reached_hill.size(), shares,
-			route_fields(m.bots, landmarks)]
+			route_fields(m.bots, landmarks), metrics.prop_fields()]
 	print(line + " | scale=%.2f wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s %s" % [scale, wall_s, begin_ms, carrier_s, capped, metrics.cpu_fields()])
 	if over:
 		print("SIM result map=alesia_1km mode=%s winner=%s draw=%s" % [mode, results[0]["winner"], results[0]["draw"]])

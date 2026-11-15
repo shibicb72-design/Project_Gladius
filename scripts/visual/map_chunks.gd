@@ -32,6 +32,12 @@ var chunk_size_m := 50.0
 var half_m := 0.0
 var per_side := 1
 var _pending := {}  # Vector2i -> {"source/type" -> batch entry}, in first-add order
+## M2 L1b: piece id -> {node: MultiMeshInstance3D, index: int, xform: Transform3D (the shown transform)} for the
+## pieces added with an id (props); filled by build(). Ids taken so far (add time), for the duplicate check.
+var _ids := {}
+var _taken_ids := {}
+## Tests capture the duplicate-id error here instead of push_error (as TouchProvider.error_sink).
+var error_sink: Callable = Callable()
 ## M2P1C: the "classes" block build() uses; empty = data/map_build.json's (tests pass their own).
 var classes_override := {}
 
@@ -76,14 +82,26 @@ func index_of(at: Vector3) -> Vector2i:
 ## Collects one instance; build() makes the nodes. `material` null keeps the mesh's own material.
 ## `collides`: the piece has a collider (M2P1C: its batch never ends below the sight floor). The shadow is the
 ## batch class's (M2P1C stop 4), so the caller passes none.
-func add(source: String, type: String, mesh: Mesh, material: Material, xform: Transform3D, collides := false) -> void:
+## M2 L1b: `piece_id` (optional, "" = none) names the instance for hide_piece / show_piece after build(). A
+## duplicate id is reported and the instance is added without it (the first keeps the id).
+func add(source: String, type: String, mesh: Mesh, material: Material, xform: Transform3D, collides := false, piece_id := "") -> void:
 	var index := index_of(xform.origin)
 	if not _pending.has(index):
 		_pending[index] = {}
 	var chunk: Dictionary = _pending[index]
 	var key := source + "/" + type
 	if not chunk.has(key):
-		chunk[key] = {"source": source, "type": type, "mesh": mesh, "material": material, "transforms": [], "collides": false}
+		chunk[key] = {"source": source, "type": type, "mesh": mesh, "material": material, "transforms": [], "collides": false, "ids": {}}
+	if piece_id != "":
+		if _taken_ids.has(piece_id):
+			var message := "MapChunks: piece id %s added twice; the first keeps it" % piece_id
+			if error_sink.is_valid():
+				error_sink.call(message)
+			else:
+				push_error(message)
+		else:
+			_taken_ids[piece_id] = true
+			(chunk[key]["ids"] as Dictionary)[piece_id] = (chunk[key]["transforms"] as Array).size()
 	(chunk[key]["transforms"] as Array).append(xform)
 	if collides:
 		chunk[key]["collides"] = true
@@ -204,6 +222,9 @@ func build() -> void:
 			node.set_meta(&"range_m", range_m)
 			node.set_meta(&"radius_m", radius_m)
 			chunk.add_child(node)
+			var ids: Dictionary = entry["ids"]
+			for id: String in ids:
+				_ids[id] = {"node": node, "index": int(ids[id]), "xform": transforms[int(ids[id])]}
 	_pending.clear()
 
 
@@ -228,6 +249,55 @@ func batch_of(source: String, type: String, xform: Transform3D) -> MultiMeshInst
 		if placed.is_equal_approx(xform):
 			return batch
 	return null
+
+
+## M2 L1b: hiding one named piece (add(..., piece_id)) after build(). A hidden instance keeps its slot and its
+## origin and gets a zero-scale basis, set on the MultiMesh AND in the batch's "transforms" meta (a headless
+## renderer keeps no instance data to read back). Why zero scale rather than rebuilding the batch: O(1), no
+## reallocation of the MultiMesh, the batch's range_m / radius_m metas and its visibility range stay valid (the
+## shrunk instance AABB lies inside the old one, so every shown piece stays within the old radius of the new centre),
+## and one network event can apply it. Names are *_piece because Node3D already has hide() and show().
+## True when the id is known (also when it was already hidden); false for an unknown id.
+func hide_piece(id: String) -> bool:
+	if not _ids.has(id):
+		return false
+	var e: Dictionary = _ids[id]
+	var shown: Transform3D = e["xform"]
+	_set_instance(e, Transform3D(Basis.from_scale(Vector3.ZERO), shown.origin))
+	return true
+
+
+## Shows a piece hidden by hide_piece again (its original transform in the MultiMesh and the meta). True when the
+## id is known; false for an unknown id.
+func show_piece(id: String) -> bool:
+	if not _ids.has(id):
+		return false
+	var e: Dictionary = _ids[id]
+	_set_instance(e, e["xform"])
+	return true
+
+
+## True while a known piece is hidden; false when it is shown or unknown.
+func is_piece_hidden(id: String) -> bool:
+	if not _ids.has(id):
+		return false
+	var e: Dictionary = _ids[id]
+	var now: Transform3D = (e["node"] as MultiMeshInstance3D).get_meta(&"transforms")[int(e["index"])]
+	return now.basis == Basis.from_scale(Vector3.ZERO)
+
+
+## True when build() made an instance for `id`.
+func has_piece(id: String) -> bool:
+	return _ids.has(id)
+
+
+func _set_instance(e: Dictionary, xform: Transform3D) -> void:
+	var node: MultiMeshInstance3D = e["node"]
+	var index := int(e["index"])
+	node.multimesh.set_instance_transform(index, xform)
+	var transforms: Array = node.get_meta(&"transforms")
+	transforms[index] = xform
+	node.set_meta(&"transforms", transforms)
 
 
 ## M2P1C: the world point the renderer measures a batch's visibility range from: the centre of the union of

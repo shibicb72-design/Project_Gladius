@@ -53,6 +53,14 @@ func _initialize() -> void:
 	print("GEN_ALESIA seed=%d cover=%d ring=%d decor=%d structures=%d walls_inner=%d walls_outer=%d max_joint_gap_m=%.3f ground_rejects=%d gen_ms=%d paint_ms=%d" % [
 		int(gen["seed"]), counts["cover"], counts["ring"], counts["decor"], counts["structures"], counts["walls_inner"], counts["walls_outer"],
 		float(out["max_joint_gap_m"]), int(out["ground_rejects"]), gen_ms, paint_ms])
+	var extra: Dictionary = out["extra"]["counts"]
+	var bk: Dictionary = out["breakables"]
+	var ch: Dictionary = out["chests"]
+	print("GEN_ALESIA extra: camps=%d inner=%d outer=%d arx=%d fields=%d breakables=%d (camps=%d inner_gates=%d outer_gates=%d arx=%d fields=%d) cover_wall=%d chests=%d (camps=%d arx=%d fields=%d)" % [
+		int(extra["camps"]), int(extra["inner"]), int(extra["outer"]), int(extra["arx"]), int(extra["fields"]),
+		int(bk["camps"]) + int(bk["inner_gates"]) + int(bk["outer_gates"]) + int(bk["arx"]) + int(bk["fields"]),
+		int(bk["camps"]), int(bk["inner_gates"]), int(bk["outer_gates"]), int(bk["arx"]), int(bk["fields"]), int(out["cover_walls"]),
+		int(ch["camps"]) + int(ch["arx"]) + int(ch["fields"]), int(ch["camps"]), int(ch["arx"]), int(ch["fields"])])
 	for line: String in out["shortfalls"]:
 		print("GEN_ALESIA short: ", line)
 	for p in problems:
@@ -78,7 +86,7 @@ static func sha256(bytes: PackedByteArray) -> String:
 	return ctx.finish().hex_encode()
 
 
-## Placed counts: {cover, ring, decor, structures, walls_inner, walls_outer}.
+## Placed counts: {cover, ring, decor, breakables, structures, walls_inner, walls_outer}.
 static func counts_of(out: Dictionary) -> Dictionary:
 	var inner := 0
 	var outer := 0
@@ -91,6 +99,7 @@ static func counts_of(out: Dictionary) -> Dictionary:
 		"cover": (out["cover"]["pieces"] as Array).size(),
 		"ring": (out["cover"]["ring_pieces"] as Array).size(),
 		"decor": (out["cover"]["decor"] as Array).size(),
+		"breakables": ((out["cover"] as Dictionary).get("breakables", []) as Array).size(),
 		"structures": (out["structures"]["pieces"] as Array).size(),
 		"walls_inner": inner,
 		"walls_outer": outer,
@@ -149,8 +158,10 @@ static func terrain_of(map_def: Dictionary) -> MapTerrain:
 
 
 ## Everything except the paint, in memory: {cover, structures, landmarks (the three files), spawns,
-## reserved_spots, terrain, problems, shortfalls, max_joint_gap_m, ground_rejects}. Touches no file except the
-## type files it reads.
+## reserved_spots, terrain, problems, shortfalls, max_joint_gap_m, ground_rejects, extra (_extra_cover's result),
+## breakables (_breakables' counts), chests (_chests' counts), cover_walls (coverable cover and ring pieces plus
+## breakables)}. Touches no file
+## except the type files it reads.
 static func generate(map_def: Dictionary) -> Dictionary:
 	var gen: Dictionary = map_def["generator"]
 	var rng := RandomNumberGenerator.new()
@@ -253,7 +264,28 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	_stakes(state, structures, "Field_Stakes_%d", int(fields["stake_rows"]), field_ring, kit_types, "field stakes")
 	_cover(state, ring_pieces, "Ring_%03d", fields["cover_types"], int(fields["cover"]), field_ring, "field cover")
 	_decor(state, decor, templates["rock"], int(fields["rocks"]), field_ring, "field rocks")
+	# 4. M2 L1b: the extra static cover ("extra_cover"), appended after every earlier pass, so the earlier pieces and
+	# their random draws stay exactly as they were.
+	var extra := _extra_cover(state, cover, ring_pieces, camp_centres, inner, outer)
+	# 5. M2 L1b: the breakable crates and barrels ("props"), appended after the extra cover. Every breakable is a
+	# cover wall until it breaks.
+	var props := _breakables(state, camp_centres, inner, outer)
+	var breakables: Array = props["entries"]
+	var walls := breakables.size()
+	for list: Array in [cover, ring_pieces]:
+		for entry: Dictionary in list:
+			if bool((cover_cfg["types"][entry["type"]] as Dictionary).get("coverable", false)):
+				walls += 1
+	if walls > int(gen["max_cover_walls"]):
+		(state["problems"] as PackedStringArray).append("%d cover walls exceed max_cover_walls %d" % [walls, int(gen["max_cover_walls"])])
+	# 6. M2 L1b: the loot chests ("props.chests"), appended after the breakables. Permanent bodies under Nav, never
+	# cover walls (so not counted against max_cover_walls).
+	var chest_pass := _chests(state, camp_centres)
 	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
+	if gen.has("props"):
+		cover_file["breakables"] = breakables
+		if (gen["props"] as Dictionary).has("chests"):
+			cover_file["chests"] = chest_pass["entries"]
 	var structure_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": structures}
 	var landmark_file := {
 		"version": 1,
@@ -274,6 +306,10 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		"shortfalls": state["shortfalls"],
 		"max_joint_gap_m": worst,
 		"ground_rejects": int(state["ground_rejects"]),
+		"extra": extra,
+		"breakables": props["counts"],
+		"chests": chest_pass["counts"],
+		"cover_walls": walls,
 	}
 
 
@@ -290,10 +326,11 @@ static func paint_of(map_def: Dictionary, out: Dictionary) -> Dictionary:
 	return {"image": image, "hash": GroundPaint.inputs_hash(size, landmarks, trodden, settings)}
 
 
-## The trodden points the builder uses (ArtBuilder._paint_ground: cover, ring and structure bodies, in that order).
+## The trodden points the builder uses (ArtBuilder._paint_ground: cover, ring and structure bodies, in that order;
+## M2 L1b: the cover bodies are the pieces, then the breakables).
 static func trodden_of(cover_file: Dictionary, structure_file: Dictionary) -> PackedVector2Array:
 	var out := PackedVector2Array()
-	for list: Array in [cover_file["pieces"], cover_file.get("ring_pieces", []), structure_file["pieces"]]:
+	for list: Array in [cover_file["pieces"], cover_file.get("breakables", []), cover_file.get("ring_pieces", []), structure_file["pieces"]]:
 		for entry: Dictionary in list:
 			out.append(Vector2(float(entry["at"][0]), float(entry["at"][2])))
 	return out
@@ -572,14 +609,248 @@ static func _box_rect(at: Vector2, size: Vector3, yaw: float) -> Rect2:
 	return Rect2(at.x - w * 0.5, at.y - d * 0.5, w, d)
 
 
-## Cover pieces ({id, type, at}; no yaw), types round-robin.
-static func _cover(state: Dictionary, out: Array, id_format: String, names: Array, count: int, sampler: Callable, label: String, inside := Rect2()) -> void:
+## M2 L1b: the foot of a wall_stair's stair in the piece's frame (alesia_structures.json: the wedge at x -1, z 2.2,
+## 6 m along x after its 90 degree turn, ridge 1 = its top towards +x by the landing box at x 3; so the foot is at
+## x -4), half a metre past it.
+const STAIR_FOOT := Vector2(-4.5, 2.2)
+## M2 L1b: the foot of a watchtower's ramp in the piece's frame (the wedge at x 3.2, z -3.4, 7.2 m along z, ridge 1 =
+## its top towards +z by the box at z 1.2; so the foot is at z -7.0), half a metre past it.
+const TOWER_FOOT := Vector2(3.2, -7.5)
+const EXTRA_AREAS := ["camps", "inner", "outer", "arx", "fields"]
+
+
+## A point given in a ring piece's frame (x along the wall, z across), on the ground (x, z).
+static func wall_point(p: Dictionary, local: Vector2) -> Vector2:
+	var w := Basis(Vector3.UP, deg_to_rad(float(p["yaw"]))) * Vector3(local.x, 0.0, local.y)
+	return Vector2(float(p["at"][0]) + w.x, float(p["at"][2]) + w.z)
+
+
+## M2 L1b: the extra static cover of generator "extra_cover" (OQ-ALESIA-LAYOUT), in a fixed order after every earlier
+## pass: each camp (inside its block, lane_gap_m to every footprint), the inner and the outer wall band (both faces;
+## clear of that ring's gates by gate_clear_m, of every wall stair's foot by stair_clear_m and of every tower ramp's
+## foot by tower_clear_m), the Arx top and the fields. Camp, band and Arx pieces continue "Cover_%03d" in `cover`,
+## field pieces "Ring_%03d" in `ring_pieces`. The stair and ramp feet stay kept for every later pass; the gate
+## circles only for the bands. Returns {counts: {area: placed}, ids: {area: [ids]}} over EXTRA_AREAS (all 0 without
+## the block).
+static func _extra_cover(state: Dictionary, cover: Array, ring_pieces: Array, camp_centres: Array[Vector2], inner: Dictionary, outer: Dictionary) -> Dictionary:
+	var gen: Dictionary = state["gen"]
+	var counts := {}
+	var ids := {}
+	for area: String in EXTRA_AREAS:
+		counts[area] = 0
+		ids[area] = []
+	if not gen.has("extra_cover"):
+		return {"counts": counts, "ids": ids}
+	var extra: Dictionary = gen["extra_cover"]
+	var keep: Array = state["keep"]
+	# Camps: the lanes between every footprint stay lane_gap_m wide.
+	var camp_cfg: Dictionary = extra["camps"]
+	var half := float(gen["camps"]["half_size_m"])
+	for c in camp_centres.size():
+		var block := Rect2(camp_centres[c] - Vector2(half, half), Vector2(half, half) * 2.0)
+		var first := cover.size()
+		_cover(state, cover, "Cover_%03d", camp_cfg["cover_types"], int(camp_cfg["cover"]), _rect_sampler(block), "camp %d extra cover" % (c + 1), block, float(extra["lane_gap_m"]))
+		_note_ids(ids["camps"], cover, first)
+	# The walls: stair and ramp feet kept from here on, gates only while the bands are placed.
+	for band_key: String in ["inner", "outer"]:
+		var ring: Dictionary = inner if band_key == "inner" else outer
+		var band: Dictionary = extra[band_key + "_wall"]
+		for p: Dictionary in ring["pieces"]:
+			if String(p["type"]) == "wall_stair":
+				keep.append([wall_point(p, STAIR_FOOT), float(band["stair_clear_m"])])
+			elif String(p["type"]) == "watchtower":
+				keep.append([wall_point(p, TOWER_FOOT), float(band["tower_clear_m"])])
+	for band_key: String in ["inner", "outer"]:
+		var ring: Dictionary = inner if band_key == "inner" else outer
+		var ring_cfg: Dictionary = gen[band_key + "_wall"]
+		var band: Dictionary = extra[band_key + "_wall"]
+		var mark := keep.size()
+		for g: Dictionary in ring["gates"]:
+			keep.append([g["at"] as Vector2, float(band["gate_clear_m"])])
+		var total := int(band["cover"])
+		var first := cover.size()
+		for face: float in [-1.0, 1.0]:  # -1: the face towards the centre, +1: the face away from it
+			var count := (total + 1) / 2 if face < 0.0 else total / 2
+			_cover(state, cover, "Cover_%03d", band["cover_types"], count, _band_sampler(ring_cfg, band, face),
+					"%s wall band %s cover" % [band_key, "inner face" if face < 0.0 else "outer face"])
+		_note_ids(ids[band_key], cover, first)
+		keep.resize(mark)
+	var arx: Dictionary = extra["arx"]
+	var arx_from := cover.size()
+	_cover(state, cover, "Cover_%03d", arx["cover_types"], int(arx["cover"]), _annulus(0.0, float(arx["radius_m"])), "arx extra cover")
+	_note_ids(ids["arx"], cover, arx_from)
+	var fields: Dictionary = extra["fields"]
+	var fields_from := ring_pieces.size()
+	_cover(state, ring_pieces, "Ring_%03d", fields["cover_types"], int(fields["cover"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field extra cover")
+	_note_ids(ids["fields"], ring_pieces, fields_from)
+	for area: String in EXTRA_AREAS:
+		counts[area] = (ids[area] as Array).size()
+	return {"counts": counts, "ids": ids}
+
+
+static func _note_ids(into: Array, out: Array, first: int) -> void:
+	for i in range(first, out.size()):
+		into.append(String(out[i]["id"]))
+
+
+## M2 L1b: points beside one polygonal wall ring, on one face: a seeded side k, a place along it (clear of both
+## corners by corner_margin_m) and a distance from_m..to_m from the side's centre line (the apothem), towards the
+## centre (face -1) or away from it (face +1).
+static func _band_sampler(ring_cfg: Dictionary, band: Dictionary, face: float) -> Callable:
+	var sides := int(ring_cfg["sides"])
+	var apothem := float(ring_cfg["radius_m"])
+	var reach := maxf(apothem * tan(PI / sides) - float(band["corner_margin_m"]), 0.0)
+	var d0 := float(band["from_m"])
+	var d1 := float(band["to_m"])
+	return func(rng: RandomNumberGenerator) -> Vector2:
+		var b := deg_to_rad(float(rng.randi_range(0, sides - 1)) * 360.0 / float(sides))
+		var u := rng.randf_range(-reach, reach)
+		var d := rng.randf_range(d0, d1)
+		# dir_of(bearing) * (apothem + face * d) + right_of(bearing) * u, written out
+		return Vector2(sin(b), -cos(b)) * (apothem + face * d) + Vector2(cos(b), sin(b)) * u
+
+
+const BREAKABLE_AREAS := ["camps", "inner_gates", "outer_gates", "arx", "fields"]
+
+
+## M2 L1b: the breakable crates and barrels of generator "props" (OQ-PROPS-BREAK), in a fixed order after the extra
+## cover: each camp (inside its block, extra_cover.lane_gap_m to every footprint), by the inner gates (spread over
+## the gates, sides alternating), by the outer gates (the field side), on the Arx top and in the fields. Types
+## round-robin over props.breakables.types in placement order; box sizes from props.types. Entries {id
+## "Breakable_%03d", type, at [x, h/2, z], size}. Returns {entries, counts: {area: placed}} over BREAKABLE_AREAS
+## (nothing without the block).
+static func _breakables(state: Dictionary, camp_centres: Array[Vector2], inner: Dictionary, outer: Dictionary) -> Dictionary:
+	var gen: Dictionary = state["gen"]
+	var out: Array = []
+	var counts := {}
+	for area: String in BREAKABLE_AREAS:
+		counts[area] = 0
+	if not gen.has("props"):
+		return {"entries": out, "counts": counts}
+	var cfg: Dictionary = gen["props"]["breakables"]
+	var sizes: Dictionary = gen["props"]["types"]
+	var names: Array = cfg["types"]
+	var half := float(gen["camps"]["half_size_m"])
+	for c in camp_centres.size():
+		var block := Rect2(camp_centres[c] - Vector2(half, half), Vector2(half, half) * 2.0)
+		var first := out.size()
+		_breakable(state, out, names, sizes, int(cfg["camps"]), _rect_sampler(block), "camp %d breakables" % (c + 1), block, float(gen["extra_cover"]["lane_gap_m"]))
+		counts["camps"] = int(counts["camps"]) + out.size() - first
+	var gates_cfg: Dictionary = gen["gates"]
+	var reach := float(gates_cfg["reach_m"])
+	var lateral := float(gates_cfg["lateral_m"])
+	for ring_index in 2:
+		var area := "inner_gates" if ring_index == 0 else "outer_gates"
+		var ring_gates: Array = inner["gates"] if ring_index == 0 else outer["gates"]
+		var count := int(cfg[area])
+		for i in count:
+			var g: Dictionary = ring_gates[(i * ring_gates.size()) / maxi(count, 1)]
+			var side := (1.0 if i % 2 == 0 else -1.0) if ring_index == 0 else 1.0  # outer gates: the field side only
+			var normal := g["normal"] as Vector2
+			var along := g["tangent"] as Vector2
+			var mid := (g["at"] as Vector2) + normal * side * reach
+			var sampler := func(r: RandomNumberGenerator) -> Vector2:
+				return mid + along * r.randf_range(-lateral, lateral) + normal * side * r.randf_range(-4.0, 4.0)
+			var first := out.size()
+			_breakable(state, out, names, sizes, 1, sampler, "gate %s breakable" % g["name"])
+			counts[area] = int(counts[area]) + out.size() - first
+	var arx_first := out.size()
+	_breakable(state, out, names, sizes, int(cfg["arx"]), _annulus(0.0, float(cfg["arx_radius_m"])), "arx breakables")
+	counts["arx"] = out.size() - arx_first
+	var fields_first := out.size()
+	_breakable(state, out, names, sizes, int(cfg["fields"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field breakables")
+	counts["fields"] = out.size() - fields_first
+	return {"entries": out, "counts": counts}
+
+
+const CHEST_AREAS := ["camps", "arx", "fields"]
+
+
+## M2 L1b: the loot chests of generator "props.chests" (OQ-PROPS-CHEST), in a fixed order after the breakables: each
+## camp (inside its block, extra_cover.lane_gap_m to every footprint), the Arx top, the fields. A chest's footprint
+## is its box (turned by a seeded multiple of 90 degrees) plus front_clear_m of ground in front of it (chest_rect),
+## so its spill lands on open ground. Entries {id "Chest_%03d", at [x, h/2, z], size, yaw}. Returns {entries,
+## counts: {area: placed}} over CHEST_AREAS (nothing without the block).
+static func _chests(state: Dictionary, camp_centres: Array[Vector2]) -> Dictionary:
+	var gen: Dictionary = state["gen"]
+	var out: Array = []
+	var counts := {}
+	for area: String in CHEST_AREAS:
+		counts[area] = 0
+	if not gen.has("props") or not (gen["props"] as Dictionary).has("chests"):
+		return {"entries": out, "counts": counts}
+	var cfg: Dictionary = gen["props"]["chests"]
+	var size_list: Array = cfg["size"]
+	var clear := float(cfg["front_clear_m"])
+	var half := float(gen["camps"]["half_size_m"])
+	for c in camp_centres.size():
+		var block := Rect2(camp_centres[c] - Vector2(half, half), Vector2(half, half) * 2.0)
+		var first := out.size()
+		_chest(state, out, size_list, clear, int(cfg["camps"]), _rect_sampler(block), "camp %d chests" % (c + 1), block, float(gen["extra_cover"]["lane_gap_m"]))
+		counts["camps"] = int(counts["camps"]) + out.size() - first
+	var arx_first := out.size()
+	_chest(state, out, size_list, clear, int(cfg["arx"]), _annulus(0.0, float(cfg["arx_radius_m"])), "arx chests")
+	counts["arx"] = out.size() - arx_first
+	var fields_first := out.size()
+	_chest(state, out, size_list, clear, int(cfg["fields"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field chests")
+	counts["fields"] = out.size() - fields_first
+	return {"entries": out, "counts": counts}
+
+
+static func _chest(state: Dictionary, out: Array, size_list: Array, clear: float, count: int, sampler: Callable, label: String, inside := Rect2(), gap_m := -1.0) -> void:
+	var size := LowpolyKit.vec(size_list)
+	var placed := 0
+	for i in count:
+		var spot: Variant = _place(state, sampler, func(at: Vector2, yaw: float) -> Rect2: return chest_rect(at, size, yaw, clear), 90.0, inside, gap_m)
+		if spot != null:
+			out.append({"id": "Chest_%03d" % out.size(), "at": [spot[0].x, float(size_list[1]) * 0.5, spot[0].y], "size": size_list.duplicate(), "yaw": spot[1]})
+			placed += 1
+	if placed < count:
+		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+
+
+## The ground a chest keeps: its box at `at` turned by `yaw` (a multiple of 90 degrees) grown by `clear` metres on
+## its front side, the side it opens towards (local -z turned by the yaw: 0 -> -z, 90 -> -x, 180 -> +z, 270 -> +x).
+static func chest_rect(at: Vector2, size: Vector3, yaw: float, clear: float) -> Rect2:
+	var r := _box_rect(at, size, yaw)
+	match posmod(roundi(yaw / 90.0), 4):
+		0:
+			r.position.y -= clear
+			r.size.y += clear
+		1:
+			r.position.x -= clear
+			r.size.x += clear
+		2:
+			r.size.y += clear
+		3:
+			r.size.x += clear
+	return r
+
+
+## Breakable entries (unturned boxes, like cover pieces), the type by the entry's index round-robin.
+static func _breakable(state: Dictionary, out: Array, names: Array, sizes: Dictionary, count: int, sampler: Callable, label: String, inside := Rect2(), gap_m := -1.0) -> void:
+	var placed := 0
+	for i in count:
+		var type: String = names[out.size() % names.size()]
+		var size_list: Array = sizes[type]["size"]
+		var size := LowpolyKit.vec(size_list)
+		var spot: Variant = _place(state, sampler, func(at: Vector2, _yaw: float) -> Rect2: return _box_rect(at, size, 0.0), 0.0, inside, gap_m)
+		if spot != null:
+			out.append({"id": "Breakable_%03d" % out.size(), "type": type, "at": [spot[0].x, float(size_list[1]) * 0.5, spot[0].y], "size": size_list.duplicate()})
+			placed += 1
+	if placed < count:
+		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+
+
+## Cover pieces ({id, type, at}; no yaw), types round-robin. `gap_m` >= 0 replaces placement.minimum_gap_m (M2 L1b:
+## the camps' extra pieces keep extra_cover.lane_gap_m to every footprint).
+static func _cover(state: Dictionary, out: Array, id_format: String, names: Array, count: int, sampler: Callable, label: String, inside := Rect2(), gap_m := -1.0) -> void:
 	var types: Dictionary = state["cover_types"]
 	var placed := 0
 	for i in count:
 		var type: String = names[i % names.size()]
 		var size := LowpolyKit.vec(types[type]["size"])
-		var spot: Variant = _place(state, sampler, func(at: Vector2, _yaw: float) -> Rect2: return _box_rect(at, size, 0.0), 0.0, inside)
+		var spot: Variant = _place(state, sampler, func(at: Vector2, _yaw: float) -> Rect2: return _box_rect(at, size, 0.0), 0.0, inside, gap_m)
 		if spot != null:
 			out.append({"id": id_format % out.size(), "type": type, "at": [spot[0].x, float(types[type]["size"][1]) * 0.5, spot[0].y]})
 			placed += 1
@@ -614,12 +885,13 @@ static func _decor(state: Dictionary, out: Array, template: Dictionary, count: i
 ## Rejection sampling (gen_test_map.gd's rules on a round map): up to max_attempts snapped candidates from
 ## `sampler`; the footprint must lie inside the play circle less the edge margin (and inside `inside` when it has
 ## area), keep its keep-out circles, keep the minimum gap from every footprint so far and stand on fit ground
-## (gen_test_map.ground_fits). Returns [Vector2 at, float yaw] and records the footprint, or null.
-static func _place(state: Dictionary, sampler: Callable, footprint: Callable, yaw_step: float, inside: Rect2) -> Variant:
+## (gen_test_map.ground_fits). Returns [Vector2 at, float yaw] and records the footprint, or null. `gap_m` >= 0
+## replaces the minimum gap (M2 L1b: the camps' lanes); the default keeps every earlier pass exactly as it was.
+static func _place(state: Dictionary, sampler: Callable, footprint: Callable, yaw_step: float, inside: Rect2, gap_m := -1.0) -> Variant:
 	var rng: RandomNumberGenerator = state["rng"]
 	var place: Dictionary = state["place"]
 	var snap := float(place["snap_m"])
-	var gap := float(place["minimum_gap_m"])
+	var gap := gap_m if gap_m >= 0.0 else float(place["minimum_gap_m"])
 	var limit := float(state["play_r"]) - float(place["edge_margin_m"])
 	var placed: Array[Rect2] = state["placed"]
 	var steps := int(round(360.0 / yaw_step)) if yaw_step > 0.0 else 1

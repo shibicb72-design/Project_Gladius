@@ -59,7 +59,7 @@ func test_the_scene_builds_on_its_terrain() -> void:
 	# Pieces stand on the terrain: every body's y is its file y plus the ground under its origin.
 	var cover := DataRegistry.parse_quiet(String(def["cover_data"]))
 	var structures := DataRegistry.parse_quiet(String(def["structure_data"]))
-	var lists := {"cover_bodies": cover["pieces"], "ring_bodies": cover["ring_pieces"], "structure_bodies": structures["pieces"]}
+	var lists := {"cover_bodies": cover["pieces"] + cover.get("breakables", []), "ring_bodies": cover["ring_pieces"], "structure_bodies": structures["pieces"]}
 	var on_hill := 0
 	for list: String in lists:
 		var bodies: Array = builder.get(list)
@@ -113,6 +113,110 @@ func test_counts_density_and_proxies() -> void:
 		" structures=", builder.structure_bodies.size(), " walls_inner=", inner, " walls_outer=", outer, " cover_wall=", walls, " static_bodies=", statics)
 	# Report only (binding fix 10): no limit is checked for this map.
 	print("ALESIA_1KM_PROXY ", MapChunks.proxies(map))
+
+
+## M2 L1b: the cover file's breakables are built under ArtBuilder/Props (outside Nav: the bake never parses them),
+## one Breakable per entry in file order right after the pieces in cover_bodies, each a named, drawn piece of the
+## chunk batches; the builder's trodden points are the generator's (trodden_of), so the baked paint is not stale
+## (no "painting the ground at load").
+func test_breakables_are_built_under_props_and_the_paint_is_fresh() -> void:
+	var map := _map()
+	var builder := map.get_node("ArtBuilder")
+	var def := _def()
+	var cover := DataRegistry.parse_quiet(String(def["cover_data"]))
+	var structures := DataRegistry.parse_quiet(String(def["structure_data"]))
+	var entries: Array = cover.get("breakables", [])
+	assert_eq(entries.size(), 26, "26 breakables in the cover file")
+	var props := map.get_node_or_null("ArtBuilder/Props")
+	assert_true(props != null, "ArtBuilder/Props exists")
+	if props == null:
+		return
+	var nav := map.get_node("Nav")
+	var pieces := (cover["pieces"] as Array).size()
+	var chunks: MapChunks = builder.chunks
+	for i in entries.size():
+		var e: Dictionary = entries[i]
+		var body := props.get_node_or_null(String(e["id"])) as Breakable
+		assert_true(body != null, "%s is built under Props" % e["id"])
+		if body == null:
+			continue
+		assert_true(not nav.is_ancestor_of(body), "%s is outside Nav" % e["id"])
+		assert_true(pieces + i < builder.cover_bodies.size() and builder.cover_bodies[pieces + i] == body, "%s follows the pieces in cover_bodies" % e["id"])
+		assert_true(body.is_in_group(&"cover_wall") and body.is_in_group(Breakable.GROUP), "%s: groups cover_wall and breakable" % e["id"])
+		assert_true(chunks.has_piece(String(e["id"])) and not chunks.is_piece_hidden(String(e["id"])), "%s: a drawn piece of the batches" % e["id"])
+	assert_eq(builder.breakable_bodies().size(), entries.size(), "breakable_bodies lists them all")
+	var want := Gen.trodden_of(cover, structures)
+	var have := PackedVector2Array()
+	for group: Array in [builder.cover_bodies, builder.ring_bodies, builder.structure_bodies]:
+		for body: StaticBody3D in group:
+			have.append(Vector2(body.position.x, body.position.z))
+	assert_eq(have, want, "the builder's trodden points are the generator's, in order")
+	var settings := GroundPaint.settings_for(def)
+	var landmarks: Array = DataRegistry.parse_quiet(String(def["landmarks"])).get("landmarks", [])
+	var px := GroundPaint.px_for(float(builder.ground_size_m), settings)
+	var hash := GroundPaint.inputs_hash(float(builder.ground_size_m), landmarks, have, settings)
+	assert_eq(GroundPaint.baked_problem(String(settings["baked"]), px, hash), "", "the baked paint matches the built map (no paint at load)")
+
+
+## M2 L1b: the cover file's 11 chests are LootChest bodies under Nav (baked into the navigation), group loot_chest,
+## never cover walls nor cover bodies, standing on the terrain, each with a drawn closed look and a hidden open look
+## in the batches; every point of each chest's spill ring lies on open ground (outside every collider footprint:
+## pieces, decor, structures, breakables and chests).
+func test_chests_are_built_under_nav_and_spill_on_open_ground() -> void:
+	var map := _map()
+	var builder := map.get_node("ArtBuilder")
+	var def := _def()
+	var cover := DataRegistry.parse_quiet(String(def["cover_data"]))
+	var entries: Array = cover.get("chests", [])
+	var gen_cfg: Dictionary = def["generator"]["props"]["chests"]
+	assert_eq(entries.size(), int(gen_cfg["camps"]) * (def["generator"]["camps"]["names"] as Array).size() + int(gen_cfg["arx"]) + int(gen_cfg["fields"]), "every chest is placed")
+	assert_eq(entries.size(), 11, "11 chests in the cover file")
+	var nav := map.get_node("Nav")
+	var chunks: MapChunks = builder.chunks
+	var terrain: MapTerrain = builder.terrain
+	var tree: SceneTree = Engine.get_main_loop()
+	var in_group := 0
+	for node in tree.get_nodes_in_group(LootChest.GROUP):
+		if map.is_ancestor_of(node):
+			in_group += 1
+	assert_eq(in_group, entries.size(), "group loot_chest holds every chest")
+	assert_eq(builder.chest_bodies.size(), entries.size(), "chest_bodies lists them all")
+	for i in entries.size():
+		var e: Dictionary = entries[i]
+		var id := String(e["id"])
+		var body := nav.get_node_or_null(id) as LootChest
+		assert_true(body != null and builder.chest_bodies[i] == body, "%s is a LootChest under Nav, in order" % id)
+		if body == null:
+			continue
+		assert_true(not body.is_in_group(&"cover_wall") and not (body in builder.cover_bodies), "%s: no cover wall, no cover body" % id)
+		assert_true(body.collision_layer == 1 and body.has_meta(&"cover_palette"), "%s: layer 1 and a palette" % id)
+		var shape := body.get_node_or_null("Shape") as CollisionShape3D
+		assert_true(shape != null and shape.shape is BoxShape3D and (shape.shape as BoxShape3D).size.is_equal_approx(LowpolyKit.vec(e["size"])), "%s: the cover file's box" % id)
+		var at := LowpolyKit.vec(e["at"])
+		assert_true(absf(body.position.y - (at.y + terrain.height_at(at.x, at.z))) < 0.001, "%s stands on the terrain" % id)
+		assert_true(is_equal_approx(fposmod(float(e["yaw"]), 90.0), 0.0) and body.basis.is_equal_approx(Basis(Vector3.UP, deg_to_rad(float(e["yaw"])))), "%s: a 90 degree yaw" % id)
+		assert_true(chunks.has_piece(id) and not chunks.is_piece_hidden(id), "%s: the closed look is drawn" % id)
+		assert_true(chunks.has_piece(LootChest.open_id(id)) and chunks.is_piece_hidden(LootChest.open_id(id)), "%s: the open look is hidden" % id)
+	# Open ground: the spill ring of every chest (16 points, more than any roll) against every footprint.
+	var footprints := DataRegistry.collider_footprints(def)
+	for list: String in ["breakables", "chests"]:
+		for e: Dictionary in cover.get(list, []):
+			var size := LowpolyKit.vec(e["size"])
+			footprints.append({"id": String(e["id"]), "at": Vector2(float(e["at"][0]), float(e["at"][2])), "yaw": deg_to_rad(float(e.get("yaw", 0.0))),
+				"rect": Rect2(-size.x * 0.5, -size.z * 0.5, size.x, size.z)})
+	var chest_cfg: Dictionary = WorldProps.config()["chest"]
+	var checked := 0
+	for body: StaticBody3D in builder.chest_bodies:
+		var c := body as LootChest
+		var centre := c.spill_centre(float(chest_cfg["spill_offset_m"]))
+		for p: Vector3 in WorldProps.spill_points(centre, 16, float(chest_cfg["spill_radius_m"]), c.yaw_deg):
+			var hit := DataRegistry.footprint_at(Vector2(p.x, p.z), footprints)
+			assert_eq(hit, "", "%s: spill point %s on open ground" % [c.prop_id, p])
+			assert_true(absf(terrain.height_at(p.x, p.z) - c.ground_point().y) < 0.5, "%s: spill point at the chest's ground height" % c.prop_id)
+			checked += 1
+	assert_true(checked == 16 * entries.size(), "nonvacuous: %d spill points" % checked)
+	var problems := WorldProps.problems(cover, WorldProps.config())
+	assert_eq(problems, PackedStringArray(), "WorldProps.problems is clean on the committed cover file")
 
 
 func test_validates_and_has_no_backdrop() -> void:
@@ -417,6 +521,7 @@ func test_real_match_entry_plays_the_1km_map() -> void:
 	await tree.physics_frame
 	await tree.physics_frame
 	assert_true(m.loot.placed and m.loot.items.size() > 100, "the match's loot is placed (%d)" % m.loot.items.size())
+	assert_eq(m.world_props.chests.size(), (DataRegistry.parse_quiet(String(_def()["cover_data"]))["chests"] as Array).size(), "the match's WorldProps holds every chest")
 	print("ALESIA_1KM_REAL_MATCH begin_ms=", begin_ms, " loot=", m.loot.items.size())
 	m.queue_free()
 	await tree.process_frame

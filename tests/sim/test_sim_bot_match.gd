@@ -65,11 +65,11 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 		shares[g] = snappedf(float(goal_frames[g]) / maxf(goal_total, 1.0), 0.01)
 	# Deterministic part (compared by the repeat check); the wall-clock CPU proxy is printed after " | " only.
 	var bp := metrics.bot_pickups()
-	var line := "SIM mode=%s seed=%d profile=%s game_s=%.1f over=%s causes=%s kills=%s shots=%d hits=%d swings=%d gun_shots=%d gun_hit_rate=%.3f loot_left=%d loot_placed=%d loot_taken_placed=%d loot_taken_dropped=%d loot_uncredited=%d loot_flash=%d pickups_per_bot=%.2f pickups_min=%d pickups_max=%d goals=%s" % [
+	var line := "SIM mode=%s seed=%d profile=%s game_s=%.1f over=%s causes=%s kills=%s shots=%d hits=%d swings=%d gun_shots=%d gun_hit_rate=%.3f loot_left=%d loot_placed=%d loot_taken_placed=%d loot_taken_dropped=%d loot_uncredited=%d loot_flash=%d pickups_per_bot=%.2f pickups_min=%d pickups_max=%d goals=%s %s" % [
 			mode, seed_value, profile, n / 60.0, not results.is_empty(), causes, kills, metrics.total_shots(), metrics.total_hits(),
 			metrics.total_swings(), metrics.total_shots() - metrics.total_swings(), metrics.gun_hit_rate(),
 			m.loot.items.size(), metrics.loot_placed, metrics.taken_placed, metrics.taken_dropped, metrics.uncredited, metrics.flash,
-			bp["mean"], bp["min"], bp["max"], shares]
+			bp["mean"], bp["min"], bp["max"], shares, metrics.prop_fields()]
 	print(line + " | " + metrics.cpu_fields())
 	if not results.is_empty():
 		print("SIM result winner=%s draw=%s" % [results[0]["winner"], results[0]["draw"]])

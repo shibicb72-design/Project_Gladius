@@ -9,7 +9,8 @@ const MASK_BODY := 2
 const MASK_HEAD := 4
 
 
-## Returns {} on a miss, else {position, target (Pawn or null), is_headshot}.
+## Returns {} on a miss, else {position, target (Pawn or null), is_headshot, collider (M2 L1b: the object the ray
+## hit, whatever it is; `target` is unchanged and stays null for anything but a pawn)}.
 static func cast(space: PhysicsDirectSpaceState3D, origin: Vector3, direction: Vector3,
 		weapon_def: WeaponDef, exclude: Array[RID], rng: RandomNumberGenerator = null,
 		spread_mult: float = 1.0) -> Dictionary:
@@ -34,14 +35,19 @@ static func cast(space: PhysicsDirectSpaceState3D, origin: Vector3, direction: V
 		target = collider.get_parent()
 	elif collider is CharacterBody3D:
 		target = collider
-	return {"position": hit["position"], "target": target, "is_headshot": is_head}
+	return {"position": hit["position"], "target": target, "is_headshot": is_head, "collider": collider}
 
 
 ## Casts and forwards a pawn hit to the authority. Returns the cast result.
+## M2 L1b: on the authority only (a valid Callable: host or offline; clients get Callable()), a ray that hit a
+## breakable (group "breakable", scripts/props/breakable.gd) damages it by the weapon's damage. No pawn rule changes.
 static func fire(space: PhysicsDirectSpaceState3D, attacker: Node, origin: Vector3, direction: Vector3,
 		weapon_def: WeaponDef, exclude: Array[RID], authority: Callable,
 		rng: RandomNumberGenerator = null, spread_mult: float = 1.0) -> Dictionary:
 	var res := cast(space, origin, direction, weapon_def, exclude, rng, spread_mult)
 	if not res.is_empty() and res["target"] != null and authority.is_valid():
 		authority.call(attacker, res["target"], weapon_def, res["is_headshot"])
+	elif not res.is_empty() and authority.is_valid() and res["collider"] is Node \
+			and (res["collider"] as Node).is_in_group(&"breakable") and (res["collider"] as Node).has_method(&"take_hit"):
+		(res["collider"] as Node).call(&"take_hit", weapon_def.damage, false)
 	return res

@@ -36,6 +36,12 @@ var _last_aim_point: Dictionary = {}  # player id -> camera-centre aim point of 
 var _last_aim: Dictionary = {}  # player id -> aim_pressed of the last InputFrame received from that peer
 ## Spread multiplier used by the most recent host_handle_fire (read by tests).
 var last_spread_mult: float = 1.0
+## M2 L1b: the match's WorldProps (director.props): the host forwards its prop_changed as ev_world_prop, a client
+## applies the host's states to it. MatchRoot.begin() makes it after setup() runs, so it is wired the first time it
+## exists (setup, the next physics tick or an incoming event); null until then and after detach.
+var _props: WorldProps
+## Client: [prop_id, state] received before its WorldProps existed, applied when it is wired.
+var _pending_props: Array = []
 
 
 ## Called by MatchRoot when the match begins. Until then (and after detach) every handler ignores packets.
@@ -49,13 +55,52 @@ func setup(match_director: MatchDirector) -> void:
 	_rng.randomize()
 	director.match_over.connect(_host_match_over)
 	director.player_eliminated.connect(_host_eliminated)
+	_wire_props()
 
 
 func detach() -> void:
 	if director != null:
 		director.match_over.disconnect(_host_match_over)
 		director.player_eliminated.disconnect(_host_eliminated)
+		_pending_props.clear()
+	if _props != null and is_instance_valid(_props) and _props.prop_changed.is_connected(_host_prop_changed):
+		_props.prop_changed.disconnect(_host_prop_changed)
+	_props = null
 	director = null
+
+
+## M2 L1b: wires director.props once it exists. The host connects prop_changed and sends any state decided before
+## the wiring; a client applies the events that arrived before its WorldProps existed.
+func _wire_props() -> void:
+	if director == null or _props != null or director.props == null:
+		return
+	_props = director.props
+	_props.prop_changed.connect(_host_prop_changed)
+	if _is_host():
+		for id: String in _props.states:
+			ev_world_prop.rpc(id, int(_props.states[id]))
+	for e: Array in _pending_props:
+		_props.apply_state(String(e[0]), int(e[1]))
+	_pending_props.clear()
+
+
+func _host_prop_changed(prop_id: String, state: int) -> void:
+	if multiplayer.multiplayer_peer != null and _is_host():
+		ev_world_prop.rpc(prop_id, state)
+
+
+## M2 L1b: one breakable broke or one chest opened on the host (WorldProps state, prop id). The client applies it
+## (look and collider; no loot roll: the host's spill reaches it as ground loot).
+@rpc("authority", "call_remote", "reliable")
+func ev_world_prop(prop_id: String, state: int) -> void:
+	if _props != null and not is_instance_valid(_props):
+		_props = null
+	if _props == null:
+		_wire_props()
+	if _props == null:
+		_pending_props.append([prop_id, state])
+		return
+	_props.apply_state(prop_id, state)
 
 
 func _is_host() -> bool:
@@ -299,6 +344,8 @@ func _player_id_of(pawn: Node) -> int:
 
 func _physics_process(delta: float) -> void:
 	_clock += delta
+	if director != null and _props == null:
+		_wire_props()
 	if director == null or not _is_host():
 		return
 	_since_snapshot += delta

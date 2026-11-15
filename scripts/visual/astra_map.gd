@@ -4,6 +4,7 @@ var cover_bodies: Array[StaticBody3D] = []
 var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
 var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
 var ring_bodies: Array[StaticBody3D] = []  # W3 cover of the outer ring (groups "ring_cover" and "cover_wall")
+var chest_bodies: Array[StaticBody3D] = []  # M2 L1b loot chests under Nav (group "loot_chest", never cover_wall)
 var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and decor, batched per chunk (node "Chunks")
 ## M2P1A: decor id -> its batch type in source "decor" ("<kind>_<n>", n = the index of the entry's size among
 ## its kind's distinct sizes, first seen first). A decor look is chunks.batch_of("decor", decor_types[id], xform).
@@ -64,8 +65,12 @@ func _ready() -> void:
 		body.add_child(shape)
 		nav.add_child(body)
 		cover_bodies.append(body)
+	# M2 L1b: breakables (the cover file's "breakables"; a map without the key gets no Props node). In cover_bodies
+	# right after the pieces: the order of the paint's trodden points (tools/gen_alesia.gd trodden_of).
+	if placed.has("breakables"):
+		_build_breakables(placed["breakables"])
 	for body in nav.get_children():
-		if body in cover_bodies or body.name == &"Ground":
+		if body in cover_bodies or body.name == &"Ground" or body is LootChest:  # a chest is never a wall, whatever the build order
 			continue
 		body.add_to_group(&"cover_wall")
 		var mesh := body.get_node("Mesh") as MeshInstance3D
@@ -107,7 +112,12 @@ func _ready() -> void:
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
 			decor_bodies.append(solid)
+	# M2 L1b: the loot chests (the cover file's "chests"), after the wall loop above (a chest has no "Mesh" child).
+	if placed.has("chests"):
+		_build_chests(nav, placed["chests"])
 	chunks.build()
+	for body in chest_bodies:
+		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
 	_paint_ground(nav)
 	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
@@ -122,6 +132,95 @@ func _ready() -> void:
 	ambient.name = "Ambient"
 	add_child(ambient)  # before configure: the tufts ask this builder (their parent) where the grass is
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
+
+
+## M2 L1b: the breakable crates and barrels under ArtBuilder/Props: OUTSIDE Nav, so the navigation bake never
+## parses them (bots path as if they were not there; Lanista's binding). Each is a Breakable (the cover contract,
+## groups cover_wall and breakable, behaviour from data/props.json) standing on the terrain, appended to
+## cover_bodies; its look is a named piece of the chunk batches (source "cover", type = the breakable type), hidden
+## when it breaks; breaking takes it out of cover_bodies (_on_breakable_removed). Attached below this builder:
+## never a sibling while the map root is in _ready.
+func _build_breakables(entries: Array) -> void:
+	var props_cfg := WorldProps.config()
+	var types: Dictionary = props_cfg.get("breakables", {})
+	var root := Node3D.new()
+	root.name = "Props"
+	add_child(root)
+	var meshes := {}
+	for entry: Dictionary in entries:
+		var type := String(entry["type"])
+		var type_cfg: Dictionary = types.get(type, {})
+		var body := Breakable.make(entry, type_cfg)
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
+		var key := type + str(entry["size"])
+		if not meshes.has(key):
+			var look: Dictionary = (type_cfg.get("look", {}) as Dictionary).duplicate()
+			look["size"] = entry["size"]  # a "kind" look is sized by the collider box; "parts" carry their own sizes
+			meshes[key] = LowpolyKit.build_cover(look)
+		chunks.add("cover", type, meshes[key], WorldSurface.palette_material(body.palette), body.transform, true, body.prop_id)
+		body.chunks = chunks
+		body.fx_parent = self
+		body.fx_cfg = props_cfg.get("break_fx", {})
+		body.on_removed = _on_breakable_removed
+		root.add_child(body)
+		cover_bodies.append(body)
+
+
+## M2 L1b: the loot chests, permanent StaticBody3D (LootChest) under Nav: the navigation bake parses them, so bots
+## path around them. Group "loot_chest" only (never cover_wall, never in cover_bodies, so the paint's trodden points
+## and the cover index are unchanged), layer 1, meta cover_palette, a "Shape" box. Looks: two named pieces in
+## source "cover" per chest, the closed one (type "loot_chest", id = the chest id) and the open one (type
+## "loot_chest_open", id LootChest.open_id), both at the body's transform; _ready hides the open one after build().
+## The data/props.json looks are authored for chest.look_size and scaled to each entry's box.
+func _build_chests(nav: Node, entries: Array) -> void:
+	var chest_cfg: Dictionary = WorldProps.config().get("chest", {})
+	var palette := String(chest_cfg.get("palette", "citadel"))
+	var material := WorldSurface.palette_material(palette)
+	var look_size := LowpolyKit.vec(chest_cfg.get("look_size", [1, 1, 1]))
+	var meshes := {}
+	for entry: Dictionary in entries:
+		var body := LootChest.make(entry, palette)
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
+		var key := str(entry["size"])
+		if not meshes.has(key):
+			var k := LowpolyKit.vec(entry["size"]) / look_size
+			meshes[key] = [
+				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_closed", {}) as Dictionary).get("parts", []), k)}),
+				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_open", {}) as Dictionary).get("parts", []), k)}),
+			]
+		chunks.add("cover", "loot_chest", meshes[key][0], material, body.transform, true, body.prop_id)
+		chunks.add("cover", "loot_chest_open", meshes[key][1], material, body.transform, true, LootChest.open_id(body.prop_id))
+		body.chunks = chunks
+		nav.add_child(body)
+		chest_bodies.append(body)
+
+
+## Look parts with every size and position scaled per axis by `k` (a chest look authored for look_size, fitted to a
+## box).
+static func scaled_parts(parts: Array, k: Vector3) -> Array:
+	var out: Array = []
+	for part: Dictionary in parts:
+		var p := part.duplicate(true)
+		var s := LowpolyKit.vec(p["size"]) * k
+		var a := LowpolyKit.vec(p["at"]) * k
+		p["size"] = [s.x, s.y, s.z]
+		p["at"] = [a.x, a.y, a.z]
+		out.append(p)
+	return out
+
+
+## M2 L1b: a breakable left the world (Breakable._leave).
+func _on_breakable_removed(body: StaticBody3D) -> void:
+	cover_bodies.erase(body)
+
+
+## M2 L1b: the cover bodies that are breakables (group "breakable"), in build order.
+func breakable_bodies() -> Array[StaticBody3D]:
+	var out: Array[StaticBody3D] = []
+	for body in cover_bodies:
+		if body.is_in_group(Breakable.GROUP):
+			out.append(body)
+	return out
 
 
 ## M2P1C: the map leaves the tree (match end, a test or tool freeing it): MapTerrain's cache drops its terrain
