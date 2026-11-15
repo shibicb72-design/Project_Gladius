@@ -1,11 +1,15 @@
 extends "res://tests/test_case.gd"
 ## On-demand simulation (not in the regular suite): full 18-player matches with the drop, ground loot and a
 ## faster zone; the local human idles. Prints how players were eliminated (cause, the killer's weapon in hand and range at the moment of elimination, not of the shot), shots and
-## hits, loot taken, bot goal time shares and the result. The solo match runs twice with the same seed to
-## check that the sim repeats (G0).
+## hits, loot taken, bot goal time shares and the result. The solo and the squads match each run twice with the
+## same seed to check that the sim repeats (G0).
+## M2B1 (tests/sim/sim_metrics.gd): swings, gun_shots, gun_hit_rate = hits / gun_shots, loot taken split into placed
+## and dropped ids with per-bot pickups, --sim-profile=<tiro|miles|centurion|legatus> (after `--`), and the CPU proxy
+## after " | " (wall clock, never compared).
 ## Run: godot --headless --path . --script res://tests/run_tests.gd -- --dir=res://tests/sim
 
 const _MatchScene := preload("res://scenes/match/match.tscn")
+const _Metrics := preload("res://tests/sim/sim_metrics.gd")
 
 
 func _run(mode: String, seed_value: int) -> Dictionary:
@@ -27,8 +31,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	m.director.mode_cfg["drop"]["carrier_s"] = 8.0
 	var causes := {}
 	var kills: Array[String] = []
-	var shots := {}
-	var hits := {}
+	var metrics := _Metrics.new()  # shots, swings, hits, loot credit, CPU proxy (tests/sim/sim_metrics.gd)
 	m.director.player_eliminated.connect(func(id: int, killer: int, cause: String) -> void:
 		causes[cause] = int(causes.get(cause, 0)) + 1
 		var k: Pawn = m.director.player(killer) if killer >= 0 else null
@@ -41,37 +44,33 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var results: Array = []
 	m.director.match_over.connect(func(r: Dictionary) -> void: results.append(r))
 	assert_true(m.begin(), "begin %s" % mode)
-	for id in m.director.all_players():
-		var p: Pawn = m.director.player(id)
-		p.fired.connect(func() -> void: shots[id] = int(shots.get(id, 0)) + 1)
-		p.shot_resolved.connect(func(_o: Vector3, _e: Vector3, hit: Dictionary) -> void:
-			if not hit.is_empty() and hit.get("target") is Pawn:
-				hits[id] = int(hits.get(id, 0)) + 1)
+	var profile := metrics.bind(m)  # --sim-profile (if given) goes onto every bot Brain here, before the first tick
+	assert_true(profile != "", "--sim-profile names a data/bots.json profile (got '%s')" % _Metrics.cli_profile())
 	var goal_frames := {}
 	var n := 0
 	while results.is_empty() and n < 60 * 240:
 		await tree.physics_frame
 		n += 1
+		metrics.loot_step()
 		for b in m.bots:
 			var brain := b.get_node_or_null("Brain")
 			if brain != null and b.is_alive() and not b.is_dropping():
 				goal_frames[brain.goal_kind] = int(goal_frames.get(brain.goal_kind, 0)) + 1
-	var total_shots := 0
-	var total_hits := 0
-	for id in shots:
-		total_shots += int(shots[id])
-	for id in hits:
-		total_hits += int(hits[id])
+	metrics.loot_step()  # the last tick's pickups
 	var goal_total := 0
 	for g in goal_frames:
 		goal_total += int(goal_frames[g])
 	var shares := {}
 	for g in goal_frames:
 		shares[g] = snappedf(float(goal_frames[g]) / maxf(goal_total, 1.0), 0.01)
-	var line := "SIM mode=%s seed=%d game_s=%.1f over=%s causes=%s kills=%s shots=%d hits=%d loot_left=%d goals=%s" % [
-			mode, seed_value, n / 60.0, not results.is_empty(), causes, kills, total_shots, total_hits,
-			m.loot.items.size(), shares]
-	print(line)
+	# Deterministic part (compared by the repeat check); the wall-clock CPU proxy is printed after " | " only.
+	var bp := metrics.bot_pickups()
+	var line := "SIM mode=%s seed=%d profile=%s game_s=%.1f over=%s causes=%s kills=%s shots=%d hits=%d swings=%d gun_shots=%d gun_hit_rate=%.3f loot_left=%d loot_placed=%d loot_taken_placed=%d loot_taken_dropped=%d loot_uncredited=%d loot_flash=%d pickups_per_bot=%.2f pickups_min=%d pickups_max=%d goals=%s" % [
+			mode, seed_value, profile, n / 60.0, not results.is_empty(), causes, kills, metrics.total_shots(), metrics.total_hits(),
+			metrics.total_swings(), metrics.total_shots() - metrics.total_swings(), metrics.gun_hit_rate(),
+			m.loot.items.size(), metrics.loot_placed, metrics.taken_placed, metrics.taken_dropped, metrics.uncredited, metrics.flash,
+			bp["mean"], bp["min"], bp["max"], shares]
+	print(line + " | " + metrics.cpu_fields())
 	if not results.is_empty():
 		print("SIM result winner=%s draw=%s" % [results[0]["winner"], results[0]["draw"]])
 	m.queue_free()
@@ -83,7 +82,10 @@ func test_bot_match_runs_to_a_result_and_repeats() -> void:
 	var a := await _run("solo", 99)
 	var b := await _run("solo", 99)
 	var s := await _run("squads", 199)
+	var t := await _run("squads", 199)
 	assert_true(bool(a["over"]), "solo match ended")
 	assert_true(bool(s["over"]), "squads match ended")
 	print("SIM repeat_identical=%s" % (a["line"] == b["line"]))
+	print("SIM mode=squads repeat_identical=%s" % (s["line"] == t["line"]))
 	assert_eq(a["line"], b["line"], "same seed, same match")
+	assert_eq(s["line"], t["line"], "same seed, same squads match")

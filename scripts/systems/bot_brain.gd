@@ -47,6 +47,9 @@ var _swap_cooldown: float = 0.0
 ## Report and test counters: ticks on which this bot was alive and grounded, and how many were full thinks.
 var brain_ticks: int = 0
 var think_ticks: int = 0
+## Sim CPU proxy (M2B1, report only): microseconds spent in build_frame / _coast_frame on grounded ticks (the
+## brain_ticks condition). Wall clock, so it never enters a deterministic comparison; it changes no decision.
+var brain_usec: int = 0
 var _near: bool = true  # a human within far_distance_m at the last check
 var _has_decision: bool = false  # build_frame ran its full grounded branch since the last early return
 var _last_goal := Vector3.ZERO  # the walk goal chosen at the last think
@@ -91,11 +94,19 @@ func next_frame(delta: float) -> InputFrame:
 	var grounded := pawn != null and pawn.is_alive() and pawn.is_inside_tree() and not pawn.is_dropping()
 	if grounded:
 		brain_ticks += 1
+	var frame: InputFrame
+	var t0 := 0
 	if should_think():
 		if grounded:
 			think_ticks += 1
-		return build_frame(delta)
-	return _coast_frame(delta)
+		t0 = Time.get_ticks_usec()
+		frame = build_frame(delta)
+	else:
+		t0 = Time.get_ticks_usec()
+		frame = _coast_frame(delta)
+	if grounded:
+		brain_usec += Time.get_ticks_usec() - t0
+	return frame
 
 
 func _far_interval() -> int:

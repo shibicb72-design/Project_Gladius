@@ -6,10 +6,16 @@ extends "res://tests/test_case.gd"
 ## must end within a bounded wall time). Plus report-only proxies for alesia_1km (no limit is checked).
 ## One match per method so each command stays inside a shell timeout:
 ##   godot --headless --path . --script res://tests/run_tests.gd -- --dir=res://tests/sim --only=test_sim_alesia_1km.gd::test_match_solo
-## Methods: test_match_solo, test_match_squads, test_repeat_solo (the repeat check, two matches; names chosen so no --only filter half-matches another),
-## test_report_load (run it alone: cold caches), test_report_draw_proxy, test_report_cover_time.
+## Methods: test_match_solo, test_match_squads, test_repeat_solo, test_repeat_squads (the repeat checks, two matches
+## each; names chosen so no --only filter half-matches another), test_report_load (run it alone: cold caches),
+## test_report_draw_proxy, test_report_cover_time.
+## M2B1 metrics (tests/sim/sim_metrics.gd): gun_hit_rate = hits / (shots - swings); loot taken split into placed and
+## dropped ids, each vanished id credited to the nearest pawn in pickup range; kill/down distances at the zeroing
+## blow; --sim-profile=<tiro|miles|centurion|legatus> (after `--`) gives every bot that bots.json profile; the CPU
+## proxy brain_us_per_think is printed after " | " (wall clock, never compared).
 
 const _MatchScene := preload("res://scenes/match/match.tscn")
+const _Metrics := preload("res://tests/sim/sim_metrics.gd")
 const MAP := "res://data/maps/alesia_1km.json"
 ## The existing sim's scaling (test_sim_bot_match.gd:24-27): phases x0.4; its carrier_s 8 is br.json's 20 x 0.4,
 ## so here the map's own carrier_s (40, OQ-BR-DROP) gets the same x0.4 = 16 s: the opening is shortened in the
@@ -69,6 +75,15 @@ static func _named_pieces(def: Dictionary) -> Array:
 	return out
 
 
+static func _mean(values: Array) -> float:
+	if values.is_empty():
+		return -1.0
+	var s := 0.0
+	for v in values:
+		s += float(v)
+	return s / values.size()
+
+
 static func _top(counts: Dictionary, n: int) -> String:
 	var keys: Array = counts.keys()
 	keys.sort_custom(func(a: Variant, b: Variant) -> bool: return int(counts[a]) > int(counts[b]) or (int(counts[a]) == int(counts[b]) and str(a) < str(b)))
@@ -105,17 +120,19 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var causes := {}
 	var kills := {"gun": 0, "blade": 0, "none": 0}
 	var downs := {"gun": 0, "blade": 0, "none": 0}
-	var shots := {}
-	var swings := {}
-	var hits := {}
+	var metrics := _Metrics.new()  # shots, swings, hits, loot credit, CPU proxy (tests/sim/sim_metrics.gd)
 	var fought := {}  # player id -> true once it fired or took a pawn's blow
-	var last_melee := {}  # attacker id -> whether its last fire was the blade
 	var blow := {}  # victim id -> "gun" | "blade": the blow that zeroed its health last
+	var blow_dist := {}  # victim id -> attacker-victim 3D distance (m) at that blow
+	var kill_dist := {"gun": [], "blade": []}  # eliminations by "hit" / "finished", whole metres, event order
+	var down_dist := {"gun": [], "blade": []}  # downs, the same
 	var zone := {"deaths": 0, "before_fight": 0}  # a dictionary: lambdas capture locals by value
 	var wall_start := Time.get_ticks_msec()
 	m.director.player_downed.connect(func(id: int) -> void:
 		var k := String(blow.get(id, "none"))
-		downs[k] = int(downs[k]) + 1)
+		downs[k] = int(downs[k]) + 1
+		if k != "none" and blow_dist.has(id):
+			down_dist[k].append(int(blow_dist[id])))
 	m.director.player_eliminated.connect(func(id: int, killer: int, cause: String) -> void:
 		causes[cause] = int(causes.get(cause, 0)) + 1
 		var v: Pawn = m.director.player(id)
@@ -126,6 +143,8 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 		elif cause == "hit" or cause == "finished":
 			var k := String(blow.get(id, "none"))
 			kills[k] = int(kills[k]) + 1
+			if k != "none" and blow_dist.has(id):
+				kill_dist[k].append(int(blow_dist[id]))
 		if v != null:
 			print("SIM_WHERE map=alesia_1km mode=%s seed=%d cause=%s killer=%d at=(%d, %d) r=%d game_s=%.1f" % [mode, seed_value, cause, killer, int(v.global_position.x), int(v.global_position.z), int(Vector2(v.global_position.x, v.global_position.z).length()), m.director.tick_count / 60.0]))
 	var results: Array = []
@@ -142,24 +161,20 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	assert_eq(got_phases, want_phases, "the scaled phases survive begin()")
 	assert_eq(float(m.director.mode_cfg["drop"]["carrier_s"]), carrier_s, "the scaled carrier_s survives begin()")
 	assert_eq(float(m.director.mode_cfg["zone"]["start_radius_m"]), 480.0, "the map's zone override is in")
+	var profile := metrics.bind(m)  # --sim-profile (if given) goes onto every bot Brain here, before the first tick
+	assert_true(profile != "", "--sim-profile names a data/bots.json profile (got '%s')" % _Metrics.cli_profile())
 	for id in m.director.all_players():
 		var p: Pawn = m.director.player(id)
-		p.fired.connect(func() -> void:
-			shots[id] = int(shots.get(id, 0)) + 1
-			fought[id] = true)
-		p.shot.connect(func(_o: Vector3, _d: Vector3, _w: String) -> void:
-			var w := p.loadout.get_active() if p.loadout != null else null
-			var melee := w != null and w.def.is_melee()
-			last_melee[id] = melee
-			if melee:
-				swings[id] = int(swings.get(id, 0)) + 1)
+		p.fired.connect(func() -> void: fought[id] = true)
 		p.damaged.connect(func(_r: DamageRules.HitResult) -> void: fought[id] = true)
 		p.health_zeroed.connect(func(attacker: int) -> void:
 			if attacker >= 0:
-				blow[id] = "blade" if bool(last_melee.get(attacker, false)) else "gun")
-		p.shot_resolved.connect(func(_o: Vector3, _e: Vector3, hit: Dictionary) -> void:
-			if not hit.is_empty() and hit.get("target") is Pawn:
-				hits[id] = int(hits.get(id, 0)) + 1)
+				blow[id] = "blade" if bool(metrics.last_melee.get(attacker, false)) else "gun"
+				var a: Pawn = m.director.player(attacker)
+				if a != null:
+					blow_dist[id] = a.global_position.distance_to(p.global_position)
+				else:
+					blow_dist.erase(id))
 	var terrain: MapTerrain = m.map.get_node("ArtBuilder").terrain
 	var goal_frames := {}
 	var unstick_prev := {}  # bot player id -> _unstick_left last frame
@@ -168,9 +183,6 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var unstick_bands := {}
 	var reached_inner := {}
 	var reached_hill := {}
-	var loot_placed := -1
-	var loot_seen := {}
-	var loot_size := -1
 	var n := 0
 	var capped := false
 	while results.is_empty():
@@ -179,13 +191,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			break
 		await tree.physics_frame
 		n += 1
-		if m.loot != null and m.loot.placed:
-			if loot_placed < 0:
-				loot_placed = m.loot.items.size()
-			if m.loot.items.size() != loot_size:
-				loot_size = m.loot.items.size()
-				for item_id in m.loot.items:
-					loot_seen[item_id] = true
+		metrics.loot_step()
 		for b in m.bots:
 			var brain := b.get_node_or_null("Brain")
 			if brain == null or not b.is_alive() or b.is_dropping():
@@ -207,15 +213,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			if r < 90.0:
 				reached_hill[b.player_id] = true
 	var wall_s := (Time.get_ticks_msec() - wall_start) / 1000.0
-	var total_shots := 0
-	var total_swings := 0
-	var total_hits := 0
-	for id in shots:
-		total_shots += int(shots[id])
-	for id in swings:
-		total_swings += int(swings[id])
-	for id in hits:
-		total_hits += int(hits[id])
+	metrics.loot_step()  # the last tick's pickups
 	var goal_total := 0
 	for g in goal_frames:
 		goal_total += int(goal_frames[g])
@@ -225,15 +223,14 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var unstick_total := 0
 	for id in unstick_per_bot:
 		unstick_total += int(unstick_per_bot[id])
-	var loot_left: int = m.loot.items.size() if m.loot != null else -1
 	var over := not results.is_empty()
 	# Deterministic part first (compared by the repeat check); wall-clock numbers after "|".
-	var line := "SIM map=alesia_1km mode=%s seed=%d game_s=%.1f over=%s alive=%d zone_phase=%d zone_r=%.0f causes=%s kills_gun=%d kills_blade=%d kills_unknown=%d downs_gun=%d downs_blade=%d downs_unknown=%d zone_deaths=%d zone_before_fight=%d shots=%d swings=%d hits=%d loot_placed=%d loot_seen=%d loot_left=%d loot_taken=%d unstick=%d reached_inner=%d reached_hill=%d goals=%s" % [
-			mode, seed_value, n / 60.0, over, m.director.players_alive(), m.director.rules.zone_phase(), m.director.rules.zone_radius(),
-			causes, kills["gun"], kills["blade"], kills["none"], downs["gun"], downs["blade"], downs["none"], zone["deaths"], zone["before_fight"],
-			total_shots, total_swings, total_hits, loot_placed, loot_seen.size(), loot_left, loot_seen.size() - loot_left, unstick_total,
-			reached_inner.size(), reached_hill.size(), shares]
-	print(line + " | wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s" % [wall_s, begin_ms, carrier_s, capped])
+	var line := "SIM map=alesia_1km mode=%s seed=%d profile=%s game_s=%.1f over=%s alive=%d zone_phase=%d zone_r=%.0f causes=%s kills_gun=%d kills_blade=%d kills_unknown=%d downs_gun=%d downs_blade=%d downs_unknown=%d kill_dist_gun=%s kill_dist_blade=%s down_dist_gun_mean=%.1f down_dist_blade_mean=%.1f zone_deaths=%d zone_before_fight=%d %s %s unstick=%d reached_inner=%d reached_hill=%d goals=%s" % [
+			mode, seed_value, profile, n / 60.0, over, m.director.players_alive(), m.director.rules.zone_phase(), m.director.rules.zone_radius(),
+			causes, kills["gun"], kills["blade"], kills["none"], downs["gun"], downs["blade"], downs["none"],
+			kill_dist["gun"], kill_dist["blade"], _mean(down_dist["gun"]), _mean(down_dist["blade"]), zone["deaths"], zone["before_fight"],
+			metrics.shot_fields(), metrics.loot_fields(), unstick_total, reached_inner.size(), reached_hill.size(), shares]
+	print(line + " | wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s %s" % [wall_s, begin_ms, carrier_s, capped, metrics.cpu_fields()])
 	if over:
 		print("SIM result map=alesia_1km mode=%s winner=%s draw=%s" % [mode, results[0]["winner"], results[0]["draw"]])
 	else:
@@ -264,6 +261,14 @@ func test_repeat_solo() -> void:
 	var b := await _run("solo", SOLO_SEED)
 	print("SIM map=alesia_1km repeat_identical=%s" % (a["line"] == b["line"]))
 	assert_true(bool(a["over"]) and bool(b["over"]), "both solo matches ended")
+	assert_eq(a["line"], b["line"], "same seed, same match")
+
+
+func test_repeat_squads() -> void:
+	var a := await _run("squads", SQUADS_SEED)
+	var b := await _run("squads", SQUADS_SEED)
+	print("SIM map=alesia_1km mode=squads repeat_identical=%s" % (a["line"] == b["line"]))
+	assert_true(bool(a["over"]) and bool(b["over"]), "both squads matches ended")
 	assert_eq(a["line"], b["line"], "same seed, same match")
 
 
