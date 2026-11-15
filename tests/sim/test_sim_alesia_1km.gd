@@ -261,6 +261,8 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			metrics.shot_fields(), metrics.loot_fields(), unstick_total, reached_inner.size(), reached_hill.size(), shares,
 			route_fields(m.bots, landmarks)]
 	print(line + " | scale=%.2f wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s %s" % [scale, wall_s, begin_ms, carrier_s, capped, metrics.cpu_fields()])
+	var bands := metrics.bands_fields()
+	print("SIM_BANDS map=alesia_1km mode=%s seed=%d %s" % [mode, seed_value, bands])
 	if over:
 		print("SIM result map=alesia_1km mode=%s winner=%s draw=%s" % [mode, results[0]["winner"], results[0]["draw"]])
 	else:
@@ -271,35 +273,37 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			mode, seed_value, unstick_total, unstick_per_bot.size(), _top(unstick_bands, 12), _top(unstick_areas, 14), unstick_per_bot])
 	m.queue_free()
 	await tree.process_frame
-	return {"line": line, "over": over}
+	return {"line": line, "over": over, "bands": bands}
 
 
 func test_match_solo() -> void:
-	var a := await _run("solo", SOLO_SEED)
+	var a := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
 	assert_true(bool(a["over"]), "the solo match on alesia_1km ended within the wall cap")
 
 
 func test_match_squads() -> void:
-	var s := await _run("squads", SQUADS_SEED)
+	var s := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
 	assert_true(bool(s["over"]), "the squads match on alesia_1km ended within the wall cap")
 
 
 ## The repeat check, as test_sim_bot_match.gd does it: the same seed twice in one process, the same SIM line
 ## (the deterministic part, before " | ").
 func test_repeat_solo() -> void:
-	var a := await _run("solo", SOLO_SEED)
-	var b := await _run("solo", SOLO_SEED)
+	var a := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
+	var b := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
 	print("SIM map=alesia_1km repeat_identical=%s" % (a["line"] == b["line"]))
 	assert_true(bool(a["over"]) and bool(b["over"]), "both solo matches ended")
 	assert_eq(a["line"], b["line"], "same seed, same match")
+	assert_eq(a["bands"], b["bands"], "same seed, same distance bands")
 
 
 func test_repeat_squads() -> void:
-	var a := await _run("squads", SQUADS_SEED)
-	var b := await _run("squads", SQUADS_SEED)
+	var a := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
+	var b := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
 	print("SIM map=alesia_1km mode=squads repeat_identical=%s" % (a["line"] == b["line"]))
 	assert_true(bool(a["over"]) and bool(b["over"]), "both squads matches ended")
 	assert_eq(a["line"], b["line"], "same seed, same match")
+	assert_eq(a["bands"], b["bands"], "same seed, same distance bands")
 
 
 # --- Proxies (report only, binding fix 10: alesia_1km is in no limits test) ---

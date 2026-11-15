@@ -71,11 +71,13 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			m.loot.items.size(), metrics.loot_placed, metrics.taken_placed, metrics.taken_dropped, metrics.uncredited, metrics.flash,
 			bp["mean"], bp["min"], bp["max"], shares]
 	print(line + " | " + metrics.cpu_fields())
+	var bands := metrics.bands_fields()
+	print("SIM_BANDS mode=%s seed=%d %s" % [mode, seed_value, bands])
 	if not results.is_empty():
 		print("SIM result winner=%s draw=%s" % [results[0]["winner"], results[0]["draw"]])
 	m.queue_free()
 	await tree.process_frame
-	return {"line": line, "over": not results.is_empty()}
+	return {"line": line, "over": not results.is_empty(), "bands": bands}
 
 
 func test_bot_match_runs_to_a_result_and_repeats() -> void:
@@ -89,3 +91,5 @@ func test_bot_match_runs_to_a_result_and_repeats() -> void:
 	print("SIM mode=squads repeat_identical=%s" % (s["line"] == t["line"]))
 	assert_eq(a["line"], b["line"], "same seed, same match")
 	assert_eq(s["line"], t["line"], "same seed, same squads match")
+	assert_eq(a["bands"], b["bands"], "same seed, same distance bands")
+	assert_eq(s["bands"], t["bands"], "same seed, same squads distance bands")
