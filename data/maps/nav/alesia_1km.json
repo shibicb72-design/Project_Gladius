@@ -2,21 +2,21 @@
 	"godot": "4.7.2",
 	"inputs": {
 		"res://data/art_astra.json": "4ad5a9bc3218128deb08f3491e2924ad41a4101aa7d5bbfd780133accafed498",
-		"res://data/maps/alesia_1km.json": "b53518dc188ffa60e34224be962078ba02be990d367fdbeb6bee27721e8321b4",
-		"res://data/maps/alesia_1km_cover.json": "7bf051ae418fdf6bb9013bb3695a16aef53f35dd6cdd43f0efa06c46cb70f385",
+		"res://data/maps/alesia_1km.json": "622c3c4d7fe9ee9f72e8f75a0362a2f4700ea73d620d20ae8e873dd50ff3b5fb",
+		"res://data/maps/alesia_1km_cover.json": "22bba6d5191c1cd031e6e2246cb5e28a3e934d5f9d24337970a2278f65791574",
 		"res://data/maps/alesia_1km_structures.json": "62e68ffe1f51fa20dcc3cb7aa70fbf5207e6a5f97c5b218acc9b19174c6aaaa9",
 		"res://data/maps/alesia_cover.json": "54ac19f80114344e7f7b37811fb6605f685fe863b2e30ec6b5928dcbc95f8221",
 		"res://data/maps/alesia_structures.json": "a185a5544dd777eb91887766790a7522aec95fe5e99d280d491c3da4fc2da0d6"
 	},
 	"map": "res://data/maps/alesia_1km.json",
-	"mesh_bytes": 329091,
-	"mesh_sha256": "528c8d78bbceec867ad7c2a2954cac1bd47e4b4564b99488b1df1fe6c07413db",
-	"polygons": 10352,
+	"mesh_bytes": 340483,
+	"mesh_sha256": "fd32c618dbe3e2da03bcdb46d218a866e20b63408672de0f12c16948ca7e60ab",
+	"polygons": 10735,
 	"tool_inputs": {
 		"res://data/maps/alesia_1km_heights.res": "61fba0be51db39f9fe2a2e0498e67d972a08e6d4c37646958ca5c630c1068618",
-		"res://data/maps/alesia_1km_paint.res": "a7440586b736cd3a0233cd2f40ddaf6bb4aaf6b85e8a9a43a95f268ea0337a0b",
+		"res://data/maps/alesia_1km_paint.res": "be6c79904610f89229496646a0e569c86e1f060ee144994a2def58f47a578fdd",
 		"res://scenes/maps/alesia_1km.tscn": "5bfbe6d38906ea296d443740b5b51014cb64ad24745f59d1072849d841c4b4c8"
 	},
 	"version": 1,
-	"vertices": 10099
+	"vertices": 10410
 }

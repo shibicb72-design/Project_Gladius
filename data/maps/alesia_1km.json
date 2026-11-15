@@ -212,6 +212,68 @@
 			],
 			"rocks": 8.0
 		},
+		"extra_cover": {
+			"_note": "M2 L1b (Shibi, Nov 14 2026: more cover): static cover placed after every earlier pass (tools/gen_alesia.gd _extra_cover), so the earlier pieces stay byte-identical; existing cover types only. camps.cover is per camp; new camp pieces keep lane_gap_m to every footprint. A wall band samples a side of the polygonal ring (apothem radius_m), a place along it clear of both corners by corner_margin_m and a distance from_m..to_m from the side's centre line, half the pieces towards the centre and half away; it keeps gate_clear_m from that ring's gates, stair_clear_m from every wall stair's foot and tower_clear_m from every tower ramp's foot. arx.radius_m: the hill top. Fields: the fields annulus. Budget: cover and ring pieces plus breakables at most 352 cover walls (the cover index validates every wall once per frame). OQ-ALESIA-LAYOUT: every number is a proposal.",
+			"arx": {
+				"cover": 4.0,
+				"cover_types": [
+					"low_wall",
+					"barrier",
+					"sandbags",
+					"pillar"
+				],
+				"radius_m": 20.0
+			},
+			"camps": {
+				"cover": 3.0,
+				"cover_types": [
+					"crate",
+					"sandbags",
+					"barrier",
+					"low_wall"
+				]
+			},
+			"fields": {
+				"cover": 6.0,
+				"cover_types": [
+					"low_wall",
+					"sandbags",
+					"rock",
+					"barrier"
+				]
+			},
+			"inner_wall": {
+				"corner_margin_m": 3.0,
+				"cover": 7.0,
+				"cover_types": [
+					"low_wall",
+					"sandbags",
+					"barrier",
+					"crate"
+				],
+				"from_m": 4.0,
+				"gate_clear_m": 12.0,
+				"stair_clear_m": 4.0,
+				"to_m": 10.0,
+				"tower_clear_m": 6.0
+			},
+			"lane_gap_m": 2.0,
+			"outer_wall": {
+				"corner_margin_m": 3.0,
+				"cover": 7.0,
+				"cover_types": [
+					"low_wall",
+					"sandbags",
+					"barrier",
+					"crate"
+				],
+				"from_m": 4.0,
+				"gate_clear_m": 12.0,
+				"stair_clear_m": 4.0,
+				"to_m": 10.0,
+				"tower_clear_m": 6.0
+			}
+		},
 		"fields": {
 			"_note": "about a tenth of alesia's density: 150 low cover on the 330,000 m2 annulus.",
 			"cover": 150.0,
@@ -299,7 +361,7 @@
 				337.5
 			]
 		},
-		"paint_sha256": "a3f0c9730783982a6ca258f10bb84d847a9e4823423c2a791ed9dd0d6d25f07f",
+		"paint_sha256": "213ee12cf4639fadf3f2235f1dd22104774857f797bf468ba489028432aa6608",
 		"placement": {
 			"anchor_clear_m": 2.5,
 			"edge_margin_m": 4.0,

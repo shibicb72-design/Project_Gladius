@@ -53,6 +53,9 @@ func _initialize() -> void:
 	print("GEN_ALESIA seed=%d cover=%d ring=%d decor=%d structures=%d walls_inner=%d walls_outer=%d max_joint_gap_m=%.3f ground_rejects=%d gen_ms=%d paint_ms=%d" % [
 		int(gen["seed"]), counts["cover"], counts["ring"], counts["decor"], counts["structures"], counts["walls_inner"], counts["walls_outer"],
 		float(out["max_joint_gap_m"]), int(out["ground_rejects"]), gen_ms, paint_ms])
+	var extra: Dictionary = out["extra"]["counts"]
+	print("GEN_ALESIA extra: camps=%d inner=%d outer=%d arx=%d fields=%d cover_wall=%d" % [
+		int(extra["camps"]), int(extra["inner"]), int(extra["outer"]), int(extra["arx"]), int(extra["fields"]), int(out["cover_walls"])])
 	for line: String in out["shortfalls"]:
 		print("GEN_ALESIA short: ", line)
 	for p in problems:
@@ -149,8 +152,8 @@ static func terrain_of(map_def: Dictionary) -> MapTerrain:
 
 
 ## Everything except the paint, in memory: {cover, structures, landmarks (the three files), spawns,
-## reserved_spots, terrain, problems, shortfalls, max_joint_gap_m, ground_rejects}. Touches no file except the
-## type files it reads.
+## reserved_spots, terrain, problems, shortfalls, max_joint_gap_m, ground_rejects, extra (_extra_cover's result),
+## cover_walls (coverable cover and ring pieces)}. Touches no file except the type files it reads.
 static func generate(map_def: Dictionary) -> Dictionary:
 	var gen: Dictionary = map_def["generator"]
 	var rng := RandomNumberGenerator.new()
@@ -253,6 +256,16 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	_stakes(state, structures, "Field_Stakes_%d", int(fields["stake_rows"]), field_ring, kit_types, "field stakes")
 	_cover(state, ring_pieces, "Ring_%03d", fields["cover_types"], int(fields["cover"]), field_ring, "field cover")
 	_decor(state, decor, templates["rock"], int(fields["rocks"]), field_ring, "field rocks")
+	# 4. M2 L1b: the extra static cover ("extra_cover"), appended after every earlier pass, so the earlier pieces and
+	# their random draws stay exactly as they were.
+	var extra := _extra_cover(state, cover, ring_pieces, camp_centres, inner, outer)
+	var walls := 0
+	for list: Array in [cover, ring_pieces]:
+		for entry: Dictionary in list:
+			if bool((cover_cfg["types"][entry["type"]] as Dictionary).get("coverable", false)):
+				walls += 1
+	if walls > int(gen["max_cover_walls"]):
+		(state["problems"] as PackedStringArray).append("%d cover walls exceed max_cover_walls %d" % [walls, int(gen["max_cover_walls"])])
 	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
 	var structure_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": structures}
 	var landmark_file := {
@@ -274,6 +287,8 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		"shortfalls": state["shortfalls"],
 		"max_joint_gap_m": worst,
 		"ground_rejects": int(state["ground_rejects"]),
+		"extra": extra,
+		"cover_walls": walls,
 	}
 
 
@@ -572,14 +587,116 @@ static func _box_rect(at: Vector2, size: Vector3, yaw: float) -> Rect2:
 	return Rect2(at.x - w * 0.5, at.y - d * 0.5, w, d)
 
 
-## Cover pieces ({id, type, at}; no yaw), types round-robin.
-static func _cover(state: Dictionary, out: Array, id_format: String, names: Array, count: int, sampler: Callable, label: String, inside := Rect2()) -> void:
+## M2 L1b: the foot of a wall_stair's stair in the piece's frame (alesia_structures.json: the wedge at x -1, z 2.2,
+## 6 m along x after its 90 degree turn, ridge 1 = its top towards +x by the landing box at x 3; so the foot is at
+## x -4), half a metre past it.
+const STAIR_FOOT := Vector2(-4.5, 2.2)
+## M2 L1b: the foot of a watchtower's ramp in the piece's frame (the wedge at x 3.2, z -3.4, 7.2 m along z, ridge 1 =
+## its top towards +z by the box at z 1.2; so the foot is at z -7.0), half a metre past it.
+const TOWER_FOOT := Vector2(3.2, -7.5)
+const EXTRA_AREAS := ["camps", "inner", "outer", "arx", "fields"]
+
+
+## A point given in a ring piece's frame (x along the wall, z across), on the ground (x, z).
+static func wall_point(p: Dictionary, local: Vector2) -> Vector2:
+	var w := Basis(Vector3.UP, deg_to_rad(float(p["yaw"]))) * Vector3(local.x, 0.0, local.y)
+	return Vector2(float(p["at"][0]) + w.x, float(p["at"][2]) + w.z)
+
+
+## M2 L1b: the extra static cover of generator "extra_cover" (OQ-ALESIA-LAYOUT), in a fixed order after every earlier
+## pass: each camp (inside its block, lane_gap_m to every footprint), the inner and the outer wall band (both faces;
+## clear of that ring's gates by gate_clear_m, of every wall stair's foot by stair_clear_m and of every tower ramp's
+## foot by tower_clear_m), the Arx top and the fields. Camp, band and Arx pieces continue "Cover_%03d" in `cover`,
+## field pieces "Ring_%03d" in `ring_pieces`. The stair and ramp feet stay kept for every later pass; the gate
+## circles only for the bands. Returns {counts: {area: placed}, ids: {area: [ids]}} over EXTRA_AREAS (all 0 without
+## the block).
+static func _extra_cover(state: Dictionary, cover: Array, ring_pieces: Array, camp_centres: Array[Vector2], inner: Dictionary, outer: Dictionary) -> Dictionary:
+	var gen: Dictionary = state["gen"]
+	var counts := {}
+	var ids := {}
+	for area: String in EXTRA_AREAS:
+		counts[area] = 0
+		ids[area] = []
+	if not gen.has("extra_cover"):
+		return {"counts": counts, "ids": ids}
+	var extra: Dictionary = gen["extra_cover"]
+	var keep: Array = state["keep"]
+	# Camps: the lanes between every footprint stay lane_gap_m wide.
+	var camp_cfg: Dictionary = extra["camps"]
+	var half := float(gen["camps"]["half_size_m"])
+	for c in camp_centres.size():
+		var block := Rect2(camp_centres[c] - Vector2(half, half), Vector2(half, half) * 2.0)
+		var first := cover.size()
+		_cover(state, cover, "Cover_%03d", camp_cfg["cover_types"], int(camp_cfg["cover"]), _rect_sampler(block), "camp %d extra cover" % (c + 1), block, float(extra["lane_gap_m"]))
+		_note_ids(ids["camps"], cover, first)
+	# The walls: stair and ramp feet kept from here on, gates only while the bands are placed.
+	for band_key: String in ["inner", "outer"]:
+		var ring: Dictionary = inner if band_key == "inner" else outer
+		var band: Dictionary = extra[band_key + "_wall"]
+		for p: Dictionary in ring["pieces"]:
+			if String(p["type"]) == "wall_stair":
+				keep.append([wall_point(p, STAIR_FOOT), float(band["stair_clear_m"])])
+			elif String(p["type"]) == "watchtower":
+				keep.append([wall_point(p, TOWER_FOOT), float(band["tower_clear_m"])])
+	for band_key: String in ["inner", "outer"]:
+		var ring: Dictionary = inner if band_key == "inner" else outer
+		var ring_cfg: Dictionary = gen[band_key + "_wall"]
+		var band: Dictionary = extra[band_key + "_wall"]
+		var mark := keep.size()
+		for g: Dictionary in ring["gates"]:
+			keep.append([g["at"] as Vector2, float(band["gate_clear_m"])])
+		var total := int(band["cover"])
+		var first := cover.size()
+		for face: float in [-1.0, 1.0]:  # -1: the face towards the centre, +1: the face away from it
+			var count := (total + 1) / 2 if face < 0.0 else total / 2
+			_cover(state, cover, "Cover_%03d", band["cover_types"], count, _band_sampler(ring_cfg, band, face),
+					"%s wall band %s cover" % [band_key, "inner face" if face < 0.0 else "outer face"])
+		_note_ids(ids[band_key], cover, first)
+		keep.resize(mark)
+	var arx: Dictionary = extra["arx"]
+	var arx_from := cover.size()
+	_cover(state, cover, "Cover_%03d", arx["cover_types"], int(arx["cover"]), _annulus(0.0, float(arx["radius_m"])), "arx extra cover")
+	_note_ids(ids["arx"], cover, arx_from)
+	var fields: Dictionary = extra["fields"]
+	var fields_from := ring_pieces.size()
+	_cover(state, ring_pieces, "Ring_%03d", fields["cover_types"], int(fields["cover"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field extra cover")
+	_note_ids(ids["fields"], ring_pieces, fields_from)
+	for area: String in EXTRA_AREAS:
+		counts[area] = (ids[area] as Array).size()
+	return {"counts": counts, "ids": ids}
+
+
+static func _note_ids(into: Array, out: Array, first: int) -> void:
+	for i in range(first, out.size()):
+		into.append(String(out[i]["id"]))
+
+
+## M2 L1b: points beside one polygonal wall ring, on one face: a seeded side k, a place along it (clear of both
+## corners by corner_margin_m) and a distance from_m..to_m from the side's centre line (the apothem), towards the
+## centre (face -1) or away from it (face +1).
+static func _band_sampler(ring_cfg: Dictionary, band: Dictionary, face: float) -> Callable:
+	var sides := int(ring_cfg["sides"])
+	var apothem := float(ring_cfg["radius_m"])
+	var reach := maxf(apothem * tan(PI / sides) - float(band["corner_margin_m"]), 0.0)
+	var d0 := float(band["from_m"])
+	var d1 := float(band["to_m"])
+	return func(rng: RandomNumberGenerator) -> Vector2:
+		var b := deg_to_rad(float(rng.randi_range(0, sides - 1)) * 360.0 / float(sides))
+		var u := rng.randf_range(-reach, reach)
+		var d := rng.randf_range(d0, d1)
+		# dir_of(bearing) * (apothem + face * d) + right_of(bearing) * u, written out
+		return Vector2(sin(b), -cos(b)) * (apothem + face * d) + Vector2(cos(b), sin(b)) * u
+
+
+## Cover pieces ({id, type, at}; no yaw), types round-robin. `gap_m` >= 0 replaces placement.minimum_gap_m (M2 L1b:
+## the camps' extra pieces keep extra_cover.lane_gap_m to every footprint).
+static func _cover(state: Dictionary, out: Array, id_format: String, names: Array, count: int, sampler: Callable, label: String, inside := Rect2(), gap_m := -1.0) -> void:
 	var types: Dictionary = state["cover_types"]
 	var placed := 0
 	for i in count:
 		var type: String = names[i % names.size()]
 		var size := LowpolyKit.vec(types[type]["size"])
-		var spot: Variant = _place(state, sampler, func(at: Vector2, _yaw: float) -> Rect2: return _box_rect(at, size, 0.0), 0.0, inside)
+		var spot: Variant = _place(state, sampler, func(at: Vector2, _yaw: float) -> Rect2: return _box_rect(at, size, 0.0), 0.0, inside, gap_m)
 		if spot != null:
 			out.append({"id": id_format % out.size(), "type": type, "at": [spot[0].x, float(types[type]["size"][1]) * 0.5, spot[0].y]})
 			placed += 1
@@ -614,12 +731,13 @@ static func _decor(state: Dictionary, out: Array, template: Dictionary, count: i
 ## Rejection sampling (gen_test_map.gd's rules on a round map): up to max_attempts snapped candidates from
 ## `sampler`; the footprint must lie inside the play circle less the edge margin (and inside `inside` when it has
 ## area), keep its keep-out circles, keep the minimum gap from every footprint so far and stand on fit ground
-## (gen_test_map.ground_fits). Returns [Vector2 at, float yaw] and records the footprint, or null.
-static func _place(state: Dictionary, sampler: Callable, footprint: Callable, yaw_step: float, inside: Rect2) -> Variant:
+## (gen_test_map.ground_fits). Returns [Vector2 at, float yaw] and records the footprint, or null. `gap_m` >= 0
+## replaces the minimum gap (M2 L1b: the camps' lanes); the default keeps every earlier pass exactly as it was.
+static func _place(state: Dictionary, sampler: Callable, footprint: Callable, yaw_step: float, inside: Rect2, gap_m := -1.0) -> Variant:
 	var rng: RandomNumberGenerator = state["rng"]
 	var place: Dictionary = state["place"]
 	var snap := float(place["snap_m"])
-	var gap := float(place["minimum_gap_m"])
+	var gap := gap_m if gap_m >= 0.0 else float(place["minimum_gap_m"])
 	var limit := float(state["play_r"]) - float(place["edge_margin_m"])
 	var placed: Array[Rect2] = state["placed"]
 	var steps := int(round(360.0 / yaw_step)) if yaw_step > 0.0 else 1
