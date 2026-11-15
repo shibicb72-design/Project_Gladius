@@ -27,8 +27,8 @@ class OldProbe extends RefCounted:
 		out["muzzle_height_m"] = float(_movement["muzzle_height_m"])
 		var weapon := pawn.loadout.get_active()
 		if weapon != null:
-			out["weapon_hold_s"] = weapon.def.fire_interval_s / maxi(weapon.def.burst_count, 1) if not weapon.fire_mode.is_empty() else weapon.def.fire_interval_s + maxf(0, weapon.def.burst_count - 1) * weapon.def.burst_interval_s
-			out["weapon_repeats"] = weapon.fire_mode != "semi"
+			# M2 C1b stage 4: the live probe's weapon facts (weapon_hold_s / weapon_repeats gone, weapon_ready added).
+			out["weapon_ready"] = weapon.has_ammo() and not weapon.reloading
 			out["weapon_pending"] = weapon.has_ammo() and not weapon.reloading and (weapon._semi_armed or weapon._burst_left > 0)
 		if not locked:
 			reset()

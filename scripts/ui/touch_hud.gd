@@ -22,6 +22,9 @@ var _look_down_s: float = 0.0
 var _look_moved: bool = false
 var _fire_pulse_s: float = 0.0
 var _look_hold_fire := false
+## M2 C1b stage 4 (fix 9): the current look touch was down while the pawn was in cover: it never latches fire or sends
+## the tap pulse, even if the pawn leaves cover before it lifts.
+var _look_no_fire := false
 var _hud_fire_down := false
 var _shoulder_pulse_left_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> element key (an action, or LEFT_FIRE_KEY)
@@ -44,34 +47,14 @@ var suspended: bool = false  # true while the in-match menu is open
 ## G2e: the active saved layout slot (element key -> {pos, size_pct, alpha_pct}); {} = the data defaults.
 var slot_layout: Dictionary = {}
 const LOCK_KEY := "sprint_lock"
-var cover_controls_active := false
-var _cover_hidden_slots: Array = []
 
-## Context siblings call this synchronously, including refresh() before the next frame.
-func set_cover_controls_active(active: bool) -> void:
-	if _cover_hidden_slots.is_empty():
-		_cover_hidden_slots = _DataRegistry.new().load_file("res://data/ui.json")["cover_buttons"]["hidden_slots"]
-	if cover_controls_active != active:
-		cover_controls_active = active
-		for idx in _button_touch.keys():
-			var key: String = _button_touch[idx]
-			if is_cover_slot_hidden(key):
-				Input.action_release(_action_of(key))
-				_button_touch.erase(idx)
-		_lock_btn_touch = -1
-		_shoulder_pulse_left_s = 0.0
-		_sync_fire_action()
-	_refresh_button_visibility()
-
-
+## M2 C1b stage 4 (decision 3, fix 4): no slot is hidden in cover any more (the old cover FIRE / Crouch slot swaps and
+## data/ui.json cover_buttons are gone); only C1a's first-person Shoulder rule hides a button.
 func _refresh_button_visibility() -> void:
 	for key in _buttons:
-		_buttons[key].visible = not is_cover_slot_hidden(key) and not is_first_person_slot_hidden(key)
+		_buttons[key].visible = not is_first_person_slot_hidden(key)
 	if lock_button != null:
-		lock_button.visible = not is_cover_slot_hidden(LOCK_KEY)
-
-func is_cover_slot_hidden(key: String) -> bool:
-	return cover_controls_active and key in _cover_hidden_slots
+		lock_button.visible = true
 
 ## M2 C1a stage 4 (spec item 5, fix 2): true while the local pawn's CameraRig wants first person
 ## (CameraRig.is_first_person). The Shoulder button is then hidden (data/ui.json first_person_touch.shoulder_visible,
@@ -97,7 +80,7 @@ func set_first_person_active(active: bool) -> void:
 	_refresh_button_visibility()
 
 func is_first_person_slot_hidden(key: String) -> bool:
-	if not first_person_active or key != SHOULDER_KEY:
+	if not first_person_active or key != SHOULDER_KEY or cover_slot_active:
 		return false
 	if _fp_shoulder_visible == null:
 		_fp_shoulder_visible = bool(_DataRegistry.new().load_file("res://data/ui.json").get("first_person_touch", {}).get("shoulder_visible", true))
@@ -112,6 +95,110 @@ func _refresh_first_person() -> void:
 	if is_instance_valid(pawn) and pawn is Pawn:
 		rig = (pawn as Pawn).get_node_or_null("CameraRig") as CameraRig
 	set_first_person_active(rig != null and rig.is_first_person())
+
+## M2 C1b stage 1 (fixes 8, 23, 26, 30): the Shoulder slot is the Cover button while the local pawn offers it
+## (Pawn.cover_button_available: offline, ALIVE, no drop; FREE or in cover). It then presses the InputMap action
+## "cover" (Input.action_press/release like the other held buttons) AND provider.trigger_action("cover"), which the
+## router re-emits (NON_FRAME_ACTIONS) and MatchRoot forwards to Pawn.handle_action_press. The UI never calls the
+## controller. Carrier, falling and downed keep Shoulder swap; with no Cover button (LAN) the slot is C1a's.
+const COVER_ACTION := "cover"
+var cover_slot_active := false
+## Highlight: a press would enter (Pawn.cover_button_valid). Engaged: in cover (Pawn.in_cover).
+var cover_slot_valid := false
+var cover_slot_engaged := false
+var _cover_button_cfg: Dictionary = {}  # data/ui.json cover_button, read once
+var _shoulder_label := ""
+
+## The pawn the sibling GameHud is bound to, or null (no GameHud, unbound, freed).
+func _hud_pawn() -> Pawn:
+	var game_hud := get_node_or_null("../GameHud")
+	var pawn: Variant = game_hud.get("pawn") if game_hud != null else null
+	return pawn as Pawn if is_instance_valid(pawn) and pawn is Pawn else null
+
+func _refresh_cover_slot() -> void:
+	var pawn := _hud_pawn()
+	var active := pawn != null and pawn.cover_button_available()
+	set_cover_slot(active, active and pawn.cover_button_valid(), active and pawn.in_cover())
+	# M2 C1b stage 3 (fixes 3, 24): in cover (any non-FREE state, read-only) the stick's forward extreme does not sprint;
+	# the Sprint lock button and target stay as they are.
+	if provider != null:
+		provider.cover_suppress_sprint = pawn != null and pawn.in_cover()
+	set_fire_dimmed(pawn != null and pawn.in_cover() and not pawn.cover_fire_available())
+
+## M2 C1b stage 4 (decision 5, fix 9): true while the local pawn is in any cover state (read-only, through the GameHud
+## pawn). Then only the right Fire and Left Fire buttons press "fire"; look-zone taps and holds only turn the view.
+func _fire_from_buttons_only() -> bool:
+	var pawn := _hud_pawn()
+	return pawn != null and pawn.in_cover()
+
+## M2 C1b stage 4 (fix 7, [Shibi default]): the right Fire and Left Fire buttons dim behind HIGH cover away from an
+## edge, where no lean or rise is possible and Fire does nothing (Pawn.cover_fire_available). Style: data/ui.json
+## cover_fire_dim. They stay pressable; the pawn ignores the press there. Callable directly in tests.
+var fire_dimmed := false
+var _fire_dim_cfg: Dictionary = {}
+
+func set_fire_dimmed(dimmed: bool) -> void:
+	if dimmed == fire_dimmed:
+		return
+	fire_dimmed = dimmed
+	for key in [RIGHT_FIRE_KEY, LEFT_FIRE_KEY]:
+		if _buttons.has(key):
+			_style_button(_buttons[key], _button_touch.values().has(key))
+
+func _style_dimmed_fire(b: Button) -> void:
+	if _fire_dim_cfg.is_empty():
+		_fire_dim_cfg = _DataRegistry.new().load_file("res://data/ui.json")["cover_fire_dim"]
+	var c := _fire_dim_cfg
+	var border: Array = c["border_color"]
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, float(c["bg_alpha"]))
+	sb.border_color = Color(float(border[0]), float(border[1]), float(border[2]), float(border[3]))
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(int(ceil(maxf(b.size.x, 1.0) * 0.5)))
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(state, sb)
+	b.add_theme_color_override("font_color", Color(1, 1, 1, float(c["font_alpha"])))
+
+## Callable directly where there is no GameHud sibling (tests). A touch held on the slot when it changes meaning is
+## released under the action it pressed.
+func set_cover_slot(active: bool, valid: bool, engaged: bool) -> void:
+	if not _buttons.has(SHOULDER_KEY) or (not active and not cover_slot_active):
+		return  # nothing to change; no data read on a HUD that never shows the Cover button
+	if _cover_button_cfg.is_empty():
+		_cover_button_cfg = _DataRegistry.new().load_file("res://data/ui.json")["cover_button"]
+		_shoulder_label = (_buttons[SHOULDER_KEY] as Button).text
+	var b: Button = _buttons[SHOULDER_KEY]
+	if active != cover_slot_active:
+		for idx in _button_touch.keys():
+			if _button_touch[idx] == SHOULDER_KEY:
+				_button_touch.erase(idx)
+				Input.action_release(_action_of(SHOULDER_KEY))
+		cover_slot_active = active
+		b.text = str(_cover_button_cfg["label"]) if active else _shoulder_label
+		_shoulder_pulse_left_s = 0.0
+		_apply_shoulder_pulse()
+		cover_slot_valid = valid
+		cover_slot_engaged = engaged
+		_style_button(b, false)
+		_refresh_button_visibility()
+	elif active and (valid != cover_slot_valid or engaged != cover_slot_engaged):
+		cover_slot_valid = valid
+		cover_slot_engaged = engaged
+		_style_button(b, _button_touch.values().has(SHOULDER_KEY))
+
+func _style_cover_button(b: Button, held: bool) -> void:
+	var c := _cover_button_cfg
+	var alpha := float(c["active_alpha"] if cover_slot_engaged else (c["valid_alpha"] if cover_slot_valid else c["idle_alpha"]))
+	if held:
+		alpha = maxf(alpha, float(_layout["button_held_alpha"]))
+	var border: Array = c["active_border_color"] if cover_slot_engaged else (c["valid_border_color"] if cover_slot_valid else c["idle_border_color"])
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, alpha)
+	sb.border_color = Color(float(border[0]), float(border[1]), float(border[2]), float(border[3]))
+	sb.set_border_width_all(int(c["border_px"]))
+	sb.set_corner_radius_all(int(ceil(maxf(b.size.x, 1.0) * 0.5)))
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(state, sb)
 ## G3e: element key of the optional left Fire button (not an InputMap action: it presses "fire").
 const LEFT_FIRE_KEY := "fire_left"
 ## Step 3 (Shibi, Nov 9 2026): the right-side Fire button (data/input.json touch_layout.buttons.fire_right). It holds
@@ -169,6 +256,8 @@ func _add_button(key: String, label: String) -> void:
 
 ## G3e: the InputMap action an element key presses (the left Fire button presses "fire").
 func _action_of(key: String) -> String:
+	if key == SHOULDER_KEY and cover_slot_active:
+		return COVER_ACTION
 	return "fire" if key == LEFT_FIRE_KEY or key == RIGHT_FIRE_KEY else key
 
 
@@ -234,9 +323,6 @@ func _center_px(key: String, default_px: Vector2) -> Vector2:
 func get_element_keys() -> Array:
 	var keys: Array = ["move_stick", "look_stick", LOCK_KEY]
 	keys.append_array(_buttons.keys())
-	if cover_controls_active:
-		for key in _cover_hidden_slots:
-			keys.erase(key)
 	return keys
 
 
@@ -471,12 +557,13 @@ func get_move_target_dp() -> float:
 
 func _process(delta: float) -> void:
 	_refresh_first_person()
+	_refresh_cover_slot()
 	if move_mode == "virtual":
 		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3], 0.0)
 	_place_sprint_elements()
 	if _look_touch != -1:
 		_look_down_s += delta
-		if not _look_moved and _look_down_s > float(_layout["look_hold_fire"]["hold_min_s"]):
+		if not _look_moved and not _look_no_fire and _look_down_s > float(_layout["look_hold_fire"]["hold_min_s"]):
 			_look_hold_fire = true
 	if _fire_pulse_s > 0.0:
 		_fire_pulse_s = maxf(0.0, _fire_pulse_s - delta)
@@ -656,6 +743,15 @@ func get_button_actions() -> Array:
 
 
 func _style_button(b: Button, held: bool) -> void:
+	if cover_slot_active and _buttons.get(SHOULDER_KEY) == b:
+		_style_cover_button(b, held)
+		return
+	var is_fire: bool = _buttons.get(RIGHT_FIRE_KEY) == b or _buttons.get(LEFT_FIRE_KEY) == b
+	if is_fire and fire_dimmed:
+		_style_dimmed_fire(b)
+		return
+	if is_fire:
+		b.remove_theme_color_override("font_color")
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(1, 1, 1, float(_layout["button_held_alpha"]) if held else float(_layout["button_idle_alpha"]))
 	sb.border_color = Color(1, 1, 1, 0.6)
@@ -667,7 +763,7 @@ func _style_button(b: Button, held: bool) -> void:
 
 func _button_at(pos: Vector2) -> String:
 	for action in _buttons:
-		if not is_cover_slot_hidden(action) and get_button_rect(action).has_point(pos):
+		if get_button_rect(action).has_point(pos):
 			return action
 	return ""
 
@@ -729,17 +825,14 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_down(idx: int, pos: Vector2) -> void:
-	# Hidden movement slots must not fall through into stick gestures either.
-	if cover_controls_active:
-		for key in _cover_hidden_slots:
-			if get_element_rect(key).has_point(pos):
-				return
 	# M2 C1a stage 4: the hidden first-person Shoulder slot swallows the tap: it still hit-tests as the Shoulder button
 	# and presses swap_shoulder (tests/test_fold_window_coords.gd), which the CameraRig ignores in first person, so the
-	# tap never reaches the look area or fires; no press pulse is drawn.
+	# tap never reaches the look area or fires; no press pulse is drawn. M2 C1b stage 1: on the ground the slot is the
+	# visible Cover button instead (no swallowing); C1a's swallowing remains only where no Cover button is offered (LAN).
 	_refresh_first_person()
+	_refresh_cover_slot()
 	var action := _button_at(pos)
-	if not is_cover_slot_hidden(LOCK_KEY) and get_lock_button_rect().has_point(pos):
+	if get_lock_button_rect().has_point(pos):
 		_lock_btn_touch = idx
 		provider.toggle_sprint_lock()
 	elif action != "":
@@ -748,8 +841,10 @@ func _on_down(idx: int, pos: Vector2) -> void:
 			_sync_fire_action()
 		else:
 			Input.action_press(_action_of(action))
+		if _action_of(action) == COVER_ACTION:
+			provider.trigger_action(COVER_ACTION)
 		_style_button(_buttons[action], true)
-		if action == "swap_shoulder" and not is_first_person_slot_hidden(action):
+		if _action_of(action) == "swap_shoulder" and not is_first_person_slot_hidden(action):
 			_shoulder_pulse_left_s = maxf(0.0, float(_layout["shoulder_pulse_release_s"]["value"]))
 			_apply_shoulder_pulse()
 	elif _move_touch == -1 and _move_grab_rect().has_point(pos):
@@ -764,6 +859,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_look_pos = pos
 		_look_down_s = 0.0
 		_look_hold_fire = false
+		_look_no_fire = _fire_from_buttons_only()
 		_look_moved = false
 		_look_travel = 0.0
 		provider.clear_look()
@@ -816,21 +912,30 @@ func _on_up(idx: int) -> void:
 			provider.lock_sprint()
 		_update_sticks()
 	elif idx == _look_touch:
-		if not _look_hold_fire and not _look_moved and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
+		if not _look_hold_fire and not _look_moved and not _look_no_fire and not _fire_from_buttons_only() \
+				and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
 			_fire_pulse_s = float(_layout.get("fire_pulse_s", 0.08))
 		_look_touch = -1
 		_look_hold_fire = false
+		_look_no_fire = false
 		_sync_fire_action()
 		provider.clear_look()
 		_update_sticks()
 
 
-## The general fire action is the union of Left Fire, a latched look hold and a tap pulse.
+## The general fire action is the union of the Fire buttons, a latched look hold and a tap pulse.
+## M2 C1b stage 4 (decision 5, fix 9): in cover only the right Fire and Left Fire buttons count; a look hold or a tap
+## pulse is dropped there (the look touch is marked so it cannot fire after an exit either).
 func _sync_fire_action() -> void:
+	if _fire_from_buttons_only():
+		_look_hold_fire = false
+		_fire_pulse_s = 0.0
+		if _look_touch != -1:
+			_look_no_fire = true
 	var held := _look_hold_fire or _fire_pulse_s > 0.0
 	for key in _button_touch.values():
 		held = held or _action_of(key) == "fire"
-	if held and not suspended and not cover_controls_active:
+	if held and not suspended:
 		Input.action_press("fire")
 		_hud_fire_down = true
 	elif _hud_fire_down:

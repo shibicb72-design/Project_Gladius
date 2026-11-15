@@ -51,38 +51,46 @@ func _tick(move: Vector2, fire: bool = false, reload: bool = false, sprint: bool
 	assert_true(NetValidator.new().validate_move(previous, pos, DT, _pawn.get_max_move_speed(), float(_pawn._movement["jump_velocity"]), _pawn.floor_max_angle), "existing host speed check")
 	await _tree().physics_frame
 
-func _enter(sprint: bool = false) -> void:
+func _enter(sprint: bool = false, view_on_wall: bool = true) -> void:
 	for i in 60:
-		await _tick(Vector2(0, -1), false, false, sprint)
+		await _tick(Vector2(0, -1) if not _pawn.in_cover() else Vector2.ZERO, false, false, sprint)
+		if _pawn.in_cover() and view_on_wall:
+			_pawn.cancel_cover_turn()  # M2 C1b stage 2: the view stays on the wall (as a look input would keep it)
+	# M2 C1b stage 3: view_on_wall false keeps the automatic turn: the view then looks ALONG the wall.
+	while _pawn.is_cover_turning():
+		await _tick(Vector2.ZERO)
 	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "real wall snap and enter")
 
 func _cleanup() -> void:
 	_root.queue_free()
 	await _tree().process_frame
 
-func test_real_wall_snap_lock_slide_peek_fire_and_exit() -> void:
+## M2 C1b stage 3: was test_real_wall_snap_lock_slide_peek_fire_and_exit. The view now stays on the automatic turn
+## (looking ALONG the wall, +x), the stick peek is gone (the quick draw leans by itself at the edge) and the exit is
+## the away push held exit_away_hold_s (stick right = the wall normal while looking along it).
+func test_real_wall_snap_lock_slide_draw_fire_and_exit() -> void:
 	await _fixture()
 	_pawn.loadout.get_active().fire_mode = "semi"
-	await _enter()
+	await _enter(false, false)
+	var along: Vector3 = _pawn.cover.tangent * float(_pawn.cover.side)
+	assert_true((-_pawn.global_basis.z).dot(along) > 0.99, "the view looks along the wall")
 	var start := _pawn.global_position
 	for i in 60:
-		await _tick(Vector2(0, -1))
-	assert_true(absf(_pawn.global_position.z - start.z) < 0.02, "forward cannot leave plane")
+		await _tick(Vector2(-1, 0))
+	assert_true(absf(_pawn.global_position.z - start.z) < 0.02, "the into-wall push cannot leave the plane")
+	assert_true(absf(_pawn.global_position.x - start.x) < 0.02, "the into-wall push does nothing")
 	assert_true(absf(_pawn.global_position.z - float(_pawn.cover.config["wall_offset_m"])) < 0.05, "wall offset")
 	var weapon := _pawn.loadout.get_active()
 	var ammo := weapon.ammo_in_mag
 	for i in 60:
 		await _tick(Vector2.ZERO, true)
-	assert_eq(weapon.ammo_in_mag, ammo, "in-cover fire blocked")
+	# M2 C1b stage 4 (fix 7): mid-wall behind HIGH cover no lean is possible, so Fire still spends nothing.
+	assert_eq(weapon.ammo_in_mag, ammo, "in-cover fire blocked behind high cover away from an edge")
 	await _tick(Vector2.ZERO)
 	for i in 100:
-		await _tick(Vector2(0.49, 0))
-	assert_true(absf(_pawn.global_position.x - 1.65) < 0.01, "slide ends at edge margin")
-	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "slide threshold below peek")
-	for i in 30:
-		await _tick(Vector2(0.6, 0))
-	assert_eq(_pawn.cover.state, CoverController.State.PEEK_RIGHT, "real peek")
-	assert_true(absf(_pawn.global_position.x - 2.65) < 0.02, "peek out past edge")
+		await _tick(Vector2(0, -1))
+	assert_true(absf(_pawn.global_position.x - 1.65) < 0.01, "a forward push slides to the edge margin")
+	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "a full push at the edge does not peek")
 	var events := [0, 0]
 	_pawn.fired.connect(func(): events[0] += 1)
 	_pawn.shot.connect(func(origin: Vector3, direction: Vector3, _id: String):
@@ -91,19 +99,23 @@ func test_real_wall_snap_lock_slide_peek_fire_and_exit() -> void:
 		var hit := _pawn.get_world_3d().direct_space_state.intersect_ray(ray)
 		assert_true(hit.is_empty() or hit["collider"] != _wall, "shot ray clears cover wall")
 	)
-	await _tick(Vector2(0.6, 0), true)
-	assert_eq(events, [0, 0], "general fire action does not fire even while peeked")
-	assert_eq(weapon.ammo_in_mag, ammo, "general fire action spends no ammo in cover")
-	_pawn.cover.quick_draw(true)
+	# M2 C1b stage 4: Fire in cover is the frame's fire bit (was: the general fire action never fired in cover and
+	# the routed quick_draw(true) / quick_draw(false) leaned and fired). A one-tick Fire press at the edge is
+	# buffered: the soldier leans past the edge, fires one semi round once the pose is complete, and returns.
+	await _tick(Vector2.ZERO, true)
+	assert_eq(events, [0, 0], "no round before the lean is complete")
+	assert_eq(_pawn.cover.state, CoverController.State.PEEK_RIGHT, "the Fire press leans toward the open edge")
+	var max_x := _pawn.global_position.x
 	for i in 30:
-		await _tick(Vector2(0.6, 0))
-	_pawn.cover.quick_draw(false)
-	assert_eq(events, [1, 1], "cover FIRE emits fired and shot while peeked")
+		await _tick(Vector2.ZERO)
+		max_x = maxf(max_x, _pawn.global_position.x)
+	assert_true(absf(max_x - 2.65) < 0.02, "the Fire press leans out past the edge")
+	assert_eq(events, [1, 1], "the buffered press emits fired and shot once from the lean")
 	assert_eq(weapon.ammo_in_mag, ammo - 1, "one semi round spent")
 	for i in 45:
 		await _tick(Vector2(1, 0))
-	assert_eq(_pawn.cover.state, CoverController.State.FREE, "continued push exits")
-	assert_true(_pawn.global_position.x > 2.65, "normal movement continues")
+	assert_eq(_pawn.cover.state, CoverController.State.FREE, "the held away push exits")
+	assert_true(_pawn.global_position.z > float(_pawn.cover.config["wall_offset_m"]) + 0.2, "normal movement continues away")
 	await _cleanup()
 
 func test_reload_completes_in_cover_and_lifecycle_resets() -> void:
@@ -156,7 +168,15 @@ func test_lazy_gate_excludes_bots_remote_and_replicas() -> void:
 
 func test_sprint_lock_forward_intent_snaps_and_stays_in_cover() -> void:
 	await _fixture()
-	await _enter(true)
+	# M2 C1b stage 1: no auto-snap while sprinting; the Cover button enters with the lock held (not a new Sprint press).
+	for i in 60:
+		await _tick(Vector2(0, -1), false, false, true)
+	assert_eq(_pawn.cover.state, CoverController.State.FREE, "a held sprint never auto-snaps")
+	_pawn.handle_action_press("cover")
+	_pawn.cancel_cover_turn()  # M2 C1b stage 2: the view stays on the wall, so the held stick still pushes into it
+	for i in 60:
+		await _tick(Vector2(0, -1), false, false, true)
+	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "the Cover button enters with sprint held")
 	var start := _pawn.global_position
 	for i in 60:
 		await _tick(Vector2(0, -1), false, false, true)

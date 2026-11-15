@@ -202,36 +202,29 @@
 		"touch_dp": 48.0,
 		"font_dp": 12.0
 	},
-	"cover_crouch": {
+	"cover_fire_dim": {
 		"_placeholder": true,
-		"_todo": "OQ-COVER: Sprint lock slot becomes Crouch; round size and styling are placeholders, not design values.",
-		"slot": "sprint_lock", "preferred_dp": 96.0, "font_dp": 12.0, "label": "Crouch"
-	},
-	"cover_fire": {
-		"_placeholder": true,
-		"_todo": "OQ-COVER: contextual control layout/font/label and red/green colours are placeholders, not design values.",
-		"slot": "jump", "preferred_dp": 96.0, "font_dp": 12.0, "label": "FIRE",
-		"enabled_color": [0.2, 1.0, 0.3, 1.0], "disabled_color": [1.0, 0.2, 0.2, 1.0]
-	},
-	"cover_buttons": {
-		"_placeholder": true,
-		"_todo": "OQ-COVER Path A2: live Jump -> FIRE, Sprint lock -> Crouch; Shoulder is hidden too. Largest clear square at each slot, floor from input.touch_layout.button_min_dp. Reserved old label regions are exclusion zones only, never drawn. Styling/clearance values remain placeholders.",
-		"hidden_slots": ["jump", "sprint_lock", "swap_shoulder"],
-		"_thumb_reach_todo": "OQ-COVER Oct 30 2026: auto-move only conflicting slots; thumb_reach_min x/y fractions 0.5/0.5 are placeholders needing Shibi's ok, not design values.",
-		"thumb_reach_min": [0.5, 0.5],
-		"clearance_dp": 0.1,
-		"ring_dp": 2.0,
-		"ring_points": 64,
-		"fill_alpha": 0.55,
-		"disabled_fill_alpha": 0.18,
-		"pressed_fill_alpha": 0.85,
-		"ring_color": [1.0, 1.0, 1.0, 0.9],
-		"reserved_top_row": {"anchors": [[0.4, 0.04], [0.6, 0.04]], "margin_dp": [8.0, 20.0], "touch_dp": 48.0}
+		"_todo": "OQ-COVER (M2 C1b stage 4, fix 7, [Shibi default]): the right Fire and Left Fire buttons dim while the local pawn is behind HIGH cover away from an open edge (no lean or rise possible, Pawn.cover_fire_available false), where Fire does nothing. Alphas and colour are placeholders; the buttons stay where they are and stay pressable. M2 C1b stage 4 removed the old cover_crouch, cover_fire and cover_buttons blocks (the old cover FIRE / Crouch squares and slot swaps).",
+		"bg_alpha": 0.08,
+		"border_color": [1.0, 1.0, 1.0, 0.2],
+		"font_alpha": 0.3
 	},
 	"first_person_touch": {
 		"_placeholder": true,
-		"_todo": "OQ-FIRST-PERSON (M2 C1a stage 4, spec item 5, fix 2): guess for Shibi, not a DESIGN.md value. In first person (the local CameraRig's is_first_person) the Shoulder button has no meaning: false hides it, and its slot stays reserved and swallows taps (no swap, no look, no tap-to-fire) until C1b puts the Cover button there. Third person keeps today's Shoulder button and the cover_buttons hidden_slots rule.",
+		"_todo": "OQ-FIRST-PERSON (M2 C1a stage 4, spec item 5, fix 2): guess for Shibi, not a DESIGN.md value. In first person (the local CameraRig's is_first_person) the Shoulder button has no meaning: false hides it, and its slot stays reserved and swallows taps (no swap, no look, no tap-to-fire) where no Cover button is offered (M2 C1b: the slot is the Cover button on the ground). Third person keeps today's Shoulder button.",
 		"shoulder_visible": false
+	},
+	"cover_button": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER (M2 C1b stage 1): the Cover button takes the Shoulder slot (input.json touch_layout.buttons.swap_shoulder, same size, floor touch_layout.button_min_dp 48) while the local pawn can use cover on the ground (FREE or in cover; offline only). The carrier, falling and downed keep Shoulder swap. Label, alphas and colours are placeholders: idle when no cover is in reach, highlighted when a press would enter, active while in cover.",
+		"label": "Cover",
+		"idle_alpha": 0.4,
+		"valid_alpha": 0.55,
+		"active_alpha": 0.8,
+		"idle_border_color": [1.0, 1.0, 1.0, 0.6],
+		"valid_border_color": [0.3, 1.0, 0.4, 1.0],
+		"active_border_color": [1.0, 0.85, 0.2, 1.0],
+		"border_px": 3
 	},
 	"interact_button": {
 		"_placeholder": true,

@@ -48,6 +48,25 @@ var _fp_duration_s: float = 0.0
 var _fp_evaluated := false
 ## M2 C1a stage 2: the local player's first-person view model under the camera (scripts/visual/view_model.gd).
 var _view_model: ViewModel
+## M2 C1b stage 2: the close cover view (data/camera.json cover and cover_blend_s, OQ-COVER). _cover_w 1 = the third-
+## person end of the first-person blend is the cover pose (cover.distance_m, side and height) instead of today's
+## arm_length_m / shoulder offset / height_m. It is set to 1 or 0 only while the first-person weight is 1 (invisible),
+## held while an exit blends back to first person, and eased over cover_blend_s for any other change.
+var _cover_cfg: Dictionary = {}
+var _cover_w: float = 0.0
+## 0 = the idle cover pose, 1 = the tighter leaned-out pose (PEEK_LEFT / PEEK_RIGHT or the draw out); eased.
+var _cover_out: float = 0.0
+## The cover side (-1 left, +1 right, CoverController.side), eased with a smoothstep over cover.side_ease_s.
+var _cover_side: float = 1.0
+var _cover_side_from: float = 1.0
+var _cover_side_to: float = 1.0
+var _cover_side_t: float = 0.0
+## The soldier's crouch as last seen in cover (lowers the cover pivot); held after the controller resets.
+var _cover_crouch: float = 0.0
+## The cover follow's lag at the moment it stops (world metres), eased out over cover_blend_s: the exit never snaps.
+var _exit_residual := Vector3.ZERO
+var _exit_t: float = 0.0
+var _exit_s: float = 0.0
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -63,6 +82,7 @@ static func fov_for_aspect(cfg: Dictionary, aspect: float) -> float:
 func _ready() -> void:
 	_cfg = DataRegistry.new().get_camera_cfg()
 	_fp_cfg = _cfg.get("first_person", {})
+	_cover_cfg = _cfg.get("cover", {})
 	shoulder_side = str(_cfg.get("shoulder_side", "right"))
 	position.y = float(_cfg.get("height_m", 1.6))
 	knockback.configure(_cfg)
@@ -79,6 +99,7 @@ func _ready() -> void:
 ## Recovers the knockback. The pawn (this rig's parent) runs first in a physics frame and may kick during it, so a
 ## kick from the current frame is left whole for one frame.
 func _physics_process(delta: float) -> void:
+	_tick_cover_pose(delta)  # before the blend: an entry from full first person sets the cover pose invisibly
 	_tick_first_person(delta)
 	_ensure_view_model()
 	_ensure_body_layer()
@@ -91,15 +112,119 @@ func _physics_process(delta: float) -> void:
 
 
 ## First person is wanted iff the parent is the local player's pawn (a Pawn with no Brain, the pawn.gd cover-gate
-## check), ALIVE, on the ground (not aboard the carrier or falling) and with cover FREE or absent. Everything else,
-## including a rig with no Pawn parent, is today's third person.
+## check), ALIVE, on the ground (not aboard the carrier or falling) and with cover FREE, EXITING or absent. Everything
+## else, including a rig with no Pawn parent, is today's third person.
+## M2 C1b stage 2 (fix 32): the exit blend starts when EXITING begins, not at FREE, so leaving cover is one move.
 func is_first_person() -> bool:
 	var pawn := get_parent() as Pawn
 	if pawn == null or pawn.has_node("Brain"):
 		return false
 	if pawn.life != Pawn.Life.ALIVE or pawn.drop_state != Pawn.Drop.NONE:
 		return false
-	return pawn.cover == null or pawn.cover.state == CoverController.State.FREE
+	return not _holds_cover(pawn)
+
+
+## M2 C1b stage 2: the parent pawn is in cover and not leaving it (ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT).
+func _holds_cover(pawn: Pawn) -> bool:
+	if pawn == null or pawn.cover == null:
+		return false
+	return pawn.cover.state != CoverController.State.FREE and pawn.cover.state != CoverController.State.EXITING
+
+
+## M2 C1b stage 2: true while the rig shows (or blends to) the close cover view.
+func in_cover_view() -> bool:
+	return _holds_cover(get_parent() as Pawn)
+
+
+func get_cover_weight() -> float:
+	return _cover_w
+
+
+func get_cover_side() -> float:
+	return _cover_side
+
+
+func _cover_value(key: String, fallback: float) -> float:
+	var entry: Variant = _cover_cfg.get(key, {})
+	if entry is Dictionary:
+		return float((entry as Dictionary).get("value", fallback))
+	return float(entry) if entry != null else fallback
+
+
+## camera.json cover_blend_s: the FREE <-> cover blend (both ways), falling back to first_person.blend_s.
+func cover_blend_s() -> float:
+	var entry: Variant = _cfg.get("cover_blend_s", {})
+	if entry is Dictionary and (entry as Dictionary).has("value"):
+		return maxf(0.0, float((entry as Dictionary)["value"]))
+	return maxf(0.0, _fp_value("blend_s", 0.0))
+
+
+## Eases the cover pose: its weight, the leaned-out tightening, the side and the crouch height. Runs before the
+## first-person blend each physics frame.
+func _tick_cover_pose(delta: float) -> void:
+	var pawn := get_parent() as Pawn
+	var holding := _holds_cover(pawn)
+	var hidden := _fp_weight >= 1.0  # the third-person end is invisible at full first person
+	var blend := cover_blend_s()
+	if holding:
+		_cover_w = 1.0 if hidden or blend <= 0.0 else move_toward(_cover_w, 1.0, delta / blend)
+	elif hidden or blend <= 0.0:
+		_cover_w = 0.0
+	elif not is_first_person():
+		_cover_w = move_toward(_cover_w, 0.0, delta / blend)  # cover -> another third-person mode (downed)
+	# else: an exit blending back to first person holds the cover pose, so only the first-person weight moves.
+	var out_target := 0.0
+	var side_target := _cover_side_to
+	if pawn != null and pawn.cover != null and pawn.cover.state != CoverController.State.FREE:
+		var c := pawn.cover
+		if holding and (c.state == CoverController.State.PEEK_LEFT or c.state == CoverController.State.PEEK_RIGHT or c.aim_out_amount > 0.0):
+			out_target = 1.0
+		side_target = -1.0 if c.side < 0 else 1.0
+		_cover_crouch = c.crouch_amount
+	var out_s := _cover_value("out_ease_s", 0.0)
+	_cover_out = out_target if out_s <= 0.0 else move_toward(_cover_out, out_target, delta / out_s)
+	if hidden:
+		_cover_side = side_target
+		_cover_side_from = side_target
+		_cover_side_to = side_target
+		_cover_side_t = 0.0
+	else:
+		if side_target != _cover_side_to:
+			_cover_side_from = _cover_side
+			_cover_side_to = side_target
+			_cover_side_t = 0.0
+		var side_s := _cover_value("side_ease_s", 0.0)
+		_cover_side_t = minf(_cover_side_t + maxf(delta, 0.0), side_s)
+		_cover_side = _cover_side_to if side_s <= 0.0 else lerpf(_cover_side_from, _cover_side_to, smoothstep(0.0, 1.0, _cover_side_t / side_s))
+	_apply_third_pose()
+
+
+## Side offset, spring length and (outside the cover follow) pivot height for the current weights.
+func _apply_third_pose() -> void:
+	if _arm != null:
+		_arm.position.x = _third_x() * (1.0 - _fp_weight)
+	_apply_arm_length()
+
+
+## The cover pose's lateral offset: away from the wall toward the open side. Looking along the wall toward side s, the
+## view's right is the wall normal times s, so +offset * s is always on the open side.
+func _cover_x() -> float:
+	var o := smoothstep(0.0, 1.0, _cover_out)
+	return lerpf(_cover_value("side_offset_m", 0.0), _cover_value("out_side_offset_m", 0.0), o) * _cover_side
+
+
+func _cover_length() -> float:
+	var o := smoothstep(0.0, 1.0, _cover_out)
+	return lerpf(_cover_value("distance_m", _shoulder_hip_length), _cover_value("out_distance_m", _shoulder_hip_length), o)
+
+
+func _cover_height() -> float:
+	var stand := _cover_value("height_m", float(_cfg.get("height_m", 1.6)))
+	return lerpf(stand, _cover_value("crouch_height_m", stand), clampf(_cover_crouch, 0.0, 1.0))
+
+
+func _third_x() -> float:
+	return lerpf(_shoulder_x, _cover_x(), _cover_w)
 
 
 ## Lazily gives the local player's pawn its view model (the rig is added after Pawn._ready, and a Brain may be removed
@@ -169,7 +294,10 @@ func _tick_first_person(delta: float) -> void:
 		_fp_from = _fp_weight
 		_fp_target = target
 		_fp_elapsed_s = 0.0
-		_fp_duration_s = maxf(0.0, _fp_value("blend_s", 0.0))
+		# M2 C1b stage 2 (fix 12): into cover and every exit from cover use cover_blend_s; carrier, falling and downed
+		# keep first_person.blend_s.
+		var cover_change := (target == 0.0 and in_cover_view()) or (target == 1.0 and _cover_w > 0.0)
+		_fp_duration_s = cover_blend_s() if cover_change else maxf(0.0, _fp_value("blend_s", 0.0))
 		if _fp_duration_s <= 0.0:
 			_set_fp_weight(target)
 			return
@@ -187,9 +315,7 @@ func _tick_first_person(delta: float) -> void:
 func _set_fp_weight(weight: float) -> void:
 	var changed := weight != _fp_weight
 	_fp_weight = weight
-	if _arm != null:
-		_arm.position.x = _shoulder_x * (1.0 - _fp_weight)
-	_apply_arm_length()
+	_apply_third_pose()
 	if _camera != null:
 		_apply_zoom()
 		_apply_body_cull()
@@ -197,21 +323,38 @@ func _set_fp_weight(weight: float) -> void:
 		position.y = _rig_height()
 
 
-## Rig pivot height: today's height_m in third person, the eye in first person.
+## Rig pivot height: today's height_m in third person (the cover pose's height in cover), the eye in first person.
 func _rig_height() -> float:
-	var third := float(_cfg.get("height_m", 1.6))
+	var third := lerpf(float(_cfg.get("height_m", 1.6)), _cover_height(), _cover_w)
 	return lerpf(third, _fp_value("eye_height_m", third), _fp_weight)
 
-## Presentation-only translation damping. FREE follows the original parent exactly.
+## Presentation-only translation damping while in cover. Outside cover the rig follows the parent exactly.
+## M2 C1b stage 2 (fixes 19, 25): when the follow stops (EXITING, or FREE for an exit that skipped EXITING, such as a
+## lost wall, a reset or a death) its lag is not cut: it eases out over cover_blend_s (smoothstep) to the
+## parent-exact pivot, for every exit, so the camera never snaps.
 func _tick_cover_follow(delta: float) -> void:
 	var pawn := get_parent() as Pawn
-	if pawn == null or pawn.cover == null or pawn.cover.state == CoverController.State.FREE:
+	if not _holds_cover(pawn):
+		if pawn == null:
+			_cover_follow_active = false
+			return
 		if _cover_follow_active:
-			position.x = 0.0
-			position.z = 0.0
-			position.y = _rig_height()
-		_cover_follow_active = false
+			_cover_follow_active = false
+			var exact := global_transform * transform.affine_inverse() * Vector3(0, _rig_height(), 0)
+			_exit_residual = global_position - exact
+			_exit_t = 0.0
+			_exit_s = cover_blend_s()
+		var pivot := Vector3(0, _rig_height(), 0)
+		if _exit_s > 0.0:
+			_exit_t = minf(_exit_t + maxf(delta, 0.0), _exit_s)
+			var k := 1.0 - smoothstep(0.0, 1.0, _exit_t / _exit_s)
+			var parent_basis := (global_transform * transform.affine_inverse()).basis
+			pivot += parent_basis.inverse() * (_exit_residual * k)
+			if _exit_t >= _exit_s:
+				_exit_s = 0.0
+		position = pivot
 		return
+	_exit_s = 0.0
 	var desired := pawn.global_transform * Vector3(0, _rig_height(), 0)
 	if not _cover_follow_active:
 		_cover_follow_position = desired
@@ -257,7 +400,7 @@ func _apply_shoulder(ease_motion: bool = false) -> void:
 ## The side offset does not apply in first person: the first-person weight scales it to 0.
 func _set_shoulder_x(x: float) -> void:
 	_shoulder_x = x
-	_arm.position.x = _shoulder_x * (1.0 - _fp_weight)
+	_arm.position.x = _third_x() * (1.0 - _fp_weight)
 
 
 ## Smoothstep between the current pose and the new side; rapid swaps restart from that pose.
@@ -294,13 +437,14 @@ func _aim_arm_length() -> float:
 func _apply_arm_length() -> void:
 	if _arm == null:
 		return
-	_arm.spring_length = lerpf(lerpf(_shoulder_hip_length, _aim_arm_length(), _aim_blend), 0.0, _fp_weight)
+	var third := lerpf(lerpf(_shoulder_hip_length, _aim_arm_length(), _aim_blend), _cover_length(), _cover_w)
+	_arm.spring_length = lerpf(third, 0.0, _fp_weight)
 
 
 ## AMSG-style right/left shoulder swap. Unknown sides fall back to right. Ignored in first person (M2 C1a: the
-## shoulder has no meaning there); the third-person cover view keeps it.
+## shoulder has no meaning there) and in cover (M2 C1b stage 2: the cover view's side follows CoverController.side).
 func set_shoulder_side(side: String) -> void:
-	if is_first_person():
+	if is_first_person() or in_cover_view():
 		return
 	var next_side := "left" if side == "left" else "right"
 	if next_side == shoulder_side:

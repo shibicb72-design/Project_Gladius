@@ -2,34 +2,47 @@ class_name CoverProbe
 extends RefCounted
 ## Scene adapter. Only tagged box walls can enter the pure controller.
 var _wall: StaticBody3D
+## M2 C1b stage 3: the locked wall's instance id (0 = none), so a freed body is told apart without touching it.
+var _wall_id := 0
 var _normal := Vector3.ZERO
 var _movement := DataRegistry.new().get_movement_cfg()
 
 func reset() -> void:
 	_wall = null
+	_wall_id = 0
 	_normal = Vector3.ZERO
 
-func sample(pawn: Pawn, cfg: Dictionary, locked: bool) -> Dictionary:
+## distance_m < 0 = the auto-snap reach cfg probe_m. M2 C1b: the Cover button passes cfg cover_button_range_m for
+## its own longer unlocked ray; the cover_wall contract and every later check are the same.
+func sample(pawn: Pawn, cfg: Dictionary, locked: bool, distance_m: float = -1.0) -> Dictionary:
 	var out := {"hit": false, "position": pawn.global_position, "basis": pawn.global_basis, "slide_speed_mps": pawn.get_move_speed() * float(_movement["strafe_back_ratio"]["value"])}
 	out["shot_clear"] = shot_clear(pawn)
 	out["stand_clear"] = standing_clear(pawn)
 	out["muzzle_height_m"] = float(_movement["muzzle_height_m"])
 	var weapon := pawn.loadout.get_active()
 	if weapon != null:
-		out["weapon_hold_s"] = weapon.def.fire_interval_s / maxi(weapon.def.burst_count, 1) if not weapon.fire_mode.is_empty() else weapon.def.fire_interval_s + maxf(0, weapon.def.burst_count - 1) * weapon.def.burst_interval_s
-		out["weapon_repeats"] = weapon.fire_mode != "semi"
+		# M2 C1b stage 4: weapon_ready false (empty magazine or reloading) sends the soldier back to cover.
+		out["weapon_ready"] = weapon.has_ammo() and not weapon.reloading
 		out["weapon_pending"] = weapon.has_ammo() and not weapon.reloading and (weapon._semi_armed or weapon._burst_left > 0)
 	if not locked:
 		reset()
 		var from := pawn.global_position + Vector3.UP * float(cfg["probe_height_m"])
 		var ahead := -pawn.global_basis.z
 		ahead.y = 0
-		var query := PhysicsRayQueryParameters3D.create(from, from + ahead.normalized() * float(cfg["probe_m"]), 1, [pawn.get_rid()])
+		var reach := float(cfg["probe_m"]) if distance_m < 0.0 else distance_m
+		var query := PhysicsRayQueryParameters3D.create(from, from + ahead.normalized() * reach, 1, [pawn.get_rid()])
 		var hit := pawn.get_world_3d().direct_space_state.intersect_ray(query)
 		if hit.is_empty() or not hit["collider"] is StaticBody3D or not hit["collider"].is_in_group(&"cover_wall"):
 			return out
 		_wall = hit["collider"]
+		_wall_id = _wall.get_instance_id()
 		_normal = hit["normal"]
+	# M2 C1b stage 3 (item 5, fix 19): a locked wall whose body was freed (its instance id is no longer valid) or taken
+	# out of the tree is "wall_gone"; CoverController then exits through EXITING instead of the lost-sample reset. The
+	# freed body itself is never dereferenced.
+	if locked and _wall_id != 0 and (not is_instance_id_valid(_wall_id) or not (instance_from_id(_wall_id) as Node).is_inside_tree()):
+		out["wall_gone"] = true
+		return out
 	if not is_instance_valid(_wall) or not _wall.is_inside_tree() or not _wall.is_in_group(&"cover_wall"):
 		return out
 	var shape := _wall.get_node_or_null("Shape") as CollisionShape3D

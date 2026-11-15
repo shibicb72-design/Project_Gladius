@@ -129,24 +129,32 @@ func set_frame(frame: InputFrame) -> void:
 ## D1: press-time action from the input layer (InputRouter.action_triggered via MatchRoot).
 ## One press is one toggle: the frame's crouch_just_pressed bit is transport only until the host-side cover slice, so the
 ## physics tick never toggles from it. Reads cover at call time (tests enable it after begin()).
+## M2 C1b stage 2 (decision 7, fix 4): "crouch" is ignored. In cover the crouch is automatic (low vs high cover, see
+## CoverController._update_crouch); outside cover the press never did anything (the old toggle only acted in cover).
+## The InputFrame bit, the router entry and this entry point stay.
+## M2 C1b stage 4 (fix 4): "cover_fire" is a no-op (Fire in cover is the frame's fire bit, see _apply_weapon); its
+## router entry stays.
 func handle_action_press(action: String) -> void:
-	if action == "crouch" and cover != null and is_alive():
-		cover.toggle_crouch()
-	elif action == "cover_fire" and cover != null and is_alive():
-		cover.quick_draw(true)
+	if action == "crouch" or action == "cover_fire":
+		return
+	elif action == "cover" and cover_button_available():
+		# M2 C1b: the Cover button. The main probe samples at the button's own reach (cover.json cover_button_range_m),
+		# so on entry it already holds the wall for the locked samples that follow.
+		var probe := _cover_probe.sample(self, cover.config, false, float(cover.config["cover_button_range_m"])) \
+				if cover.state == CoverController.State.FREE else {}
+		cover.request_cover(probe)
 
 
-## D2: end of the held cover FIRE press. No alive gate: the UI releases on death. cancel drops the
-## buffered round (hide, menu, suspend, death, exit). Stateless: sent even when no press was held.
-func handle_action_release(action: String, cancel: bool) -> void:
-	if action == "cover_fire" and cover != null:
-		cover.quick_draw(false, cancel)
+## D2: end of a held non-frame action (InputRouter.action_released via MatchRoot). M2 C1b stage 4 (fix 4): no action
+## uses it now (the old cover FIRE release is gone); the entry point stays for the router plumbing.
+func handle_action_release(_action: String, _cancel: bool) -> void:
+	pass
 
 
-## D2: cover FIRE look-hold state, sent by the UI every refresh. No alive gate, so false always lands.
-func handle_action_look(action: String, active: bool) -> void:
-	if action == "cover_fire" and cover != null:
-		cover.set_look_active(active)
+## D2: look-hold state of a non-frame action (InputRouter.action_look_changed via MatchRoot). M2 C1b stage 4 (fix 4):
+## no action uses it now (the old cover FIRE look-hold lean is gone; in cover the look zone only turns the view).
+func handle_action_look(_action: String, _active: bool) -> void:
+	pass
 
 
 ## Pawn simulation clock (s); the time base of Weapon reload progress.
@@ -303,7 +311,11 @@ func show_shot_fx(origin: Vector3, end: Vector3) -> void:
 
 ## Path A phase 2: camera knockback for this pawn's own ranged shot. Only the local player's pawn carries a CameraRig
 ## (bots, host-side remote pawns and replicas have none). View only: the next aim point ignores it.
+## M2 C1b stage 4 (decision 6, fix 15): no camera knockback in cover (any non-FREE state); the view model's and the
+## soldier's visual kick (driven by the fired / shot signals) stay.
 func _kick_camera() -> void:
+	if in_cover():
+		return
 	var rig := get_node_or_null("CameraRig") as CameraRig
 	if rig != null:
 		rig.apply_knockback()
@@ -378,6 +390,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_ensure_cover()
 	_apply_look()
+	_tick_cover_turn(delta)
 	_apply_aim(delta)
 	if drop_state == Drop.FALLING:
 		_apply_fall(delta)
@@ -621,9 +634,13 @@ func _apply_movement(delta: float) -> void:
 			_cover_probe.reset()
 		else:
 			var probe := _cover_probe.sample(self, cover.config, cover.state != CoverController.State.FREE)
-			if sprint_pressed and (cover.state == CoverController.State.IN_COVER or cover.state == CoverController.State.PEEK_LEFT or cover.state == CoverController.State.PEEK_RIGHT):
-				cover._begin_exit()
-			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming)
+			# M2 C1b stage 3: a Sprint lock press (the InputFrame.sprint rising edge; in cover the touch stick's forward
+			# extreme no longer sprints, TouchProvider.cover_suppress_sprint) exits and sprints; a lock already on at entry
+			# has no edge and does not exit. Jump (fix 14) exits and jumps (velocity.y above). Both blend (EXITING).
+			var jumped := _frame.jump_just_pressed and bool(_movement.get("jump_enabled", false))
+			if sprint_pressed or jumped:
+				cover.request_exit()
+			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming, _frame.sprint)
 			_apply_cover_shapes()
 			if cover.state != CoverController.State.FREE:
 				var cover_velocity := cover.movement_velocity(global_position, wish, get_max_move_speed(), delta)
@@ -668,7 +685,11 @@ func _apply_weapon() -> void:
 	if _frame.fire_just_pressed and not w.has_ammo() and not w.reloading:
 		fire_empty.emit()
 	var in_cover := cover != null and cover.state != CoverController.State.FREE
-	var trigger := (cover.quick_draw_trigger() if in_cover else _frame.fire_pressed) and not (cover != null and cover.blocks_fire())
+	# M2 C1b stage 4 (decisions 3, 5; fix 9): in cover the frame's fire bit (the Fire buttons, mouse, keyboard, gamepad)
+	# leans or rises out through CoverController.tick and fires as a normal weapon trigger once the out pose is complete
+	# and the wall ray is clear (CoverController.fire_trigger / blocks_fire); a press buffered through ENTERING, EXITING
+	# or the move out counts as held until a round answers it.
+	var trigger := cover.fire_trigger(_frame.fire_pressed) if cover != null else _frame.fire_pressed
 	# A locked semi/burst may finish with a false trigger. Preserve its round while the
 	# ray is blocked, but still update every tick so reload completion remains unchanged.
 	var pending: Array = [w.ammo_in_mag, w._semi_armed, w._burst_left, w._next_fire_time, w._next_burst_time, w._last_mode_shot]
@@ -681,11 +702,11 @@ func _apply_weapon() -> void:
 		w._next_burst_time = pending[4]
 		w._last_mode_shot = pending[5]
 		shots = 0
-	if in_cover and shots > 0:
+	if cover != null and shots > 0:
 		cover.round_fired()
 	for i in shots:
 		fire_shot()
-	# Shibi, Nov 10 2026: no recoil on the quick shot from cover (every in-cover shot goes through the cover trigger).
+	# Shibi, Nov 10 2026 and M2 C1b decision 6: no recoil on any shot from cover (lean or rise).
 	if shots > 0 and not w.def.is_melee() and not in_cover:
 		_apply_recoil(w.def, shots)
 	# G1: a gun that just ran dry with reserve left reloads by itself (stats.json combat.auto_reload_on_empty).
@@ -697,9 +718,10 @@ func _apply_weapon() -> void:
 
 ## Explicit test seam; normal play uses the first-physics-tick CameraRig/no-Brain gate.
 func enable_cover(cfg: Dictionary) -> void:
-	if cfg.is_empty() or net_mode != NetMode.LOCAL:
+	if cfg.is_empty() or net_mode != NetMode.LOCAL or in_lan_session():
 		return
 	cover = CoverController.new(cfg)
+	cover.entered.connect(_on_cover_entered)
 	_init_cover_shapes()
 	_cover_probe.reset()
 	_cover_auto_disabled = false
@@ -732,8 +754,125 @@ func ensure_local_body_layer(layer: int) -> void:
 var _local_body: LocalBodyLayer
 
 
+## M2 C1b stage 1 (fix 1): cover is offline-only until M3. A LAN host's and a LAN client's own pawn both stay
+## NetMode.LOCAL (MatchRoster.build sets net_mode only on the other pawns), so net_mode alone does not tell; the
+## signal is MatchRoot.networked_match (read-only, set in MatchRoot.begin before the CameraRig is attached) of the
+## MatchRoot this pawn lives under. No MatchRoot ancestor (unit fixtures) = offline.
+func in_lan_session() -> bool:
+	var node := get_parent()
+	while node != null:
+		if node is MatchRoot:
+			return (node as MatchRoot).networked_match
+		node = node.get_parent()
+	return false
+
+
+## M2 C1b stage 1, read-only for the HUD: the Shoulder slot shows the Cover button (on the ground, FREE or in cover).
+## False with no controller (bots, replicas, LAN), when not ALIVE (downed) and on the carrier or falling.
+func cover_button_available() -> bool:
+	return cover != null and is_alive() and drop_state == Drop.NONE and not in_lan_session()
+
+
+## M2 C1b stage 1, read-only for the HUD: true while the local pawn is in any cover state (the Cover button's active look).
+func in_cover() -> bool:
+	return cover != null and cover.state != CoverController.State.FREE
+
+
+## M2 C1b stage 4 (fix 7), read-only for the HUD: false only behind HIGH cover away from an open edge (no lean or rise
+## possible, CoverController.fire_available), where Fire does nothing; the touch HUD dims the Fire buttons on it.
+func cover_fire_available() -> bool:
+	return cover == null or cover.fire_available()
+
+
+## M2 C1b stage 1, read-only for the HUD highlight: a Cover press now would enter cover. Samples a separate probe at
+## cover_button_range_m at most once per physics frame, so the gameplay probe is never disturbed.
+func cover_button_valid() -> bool:
+	if not cover_button_available() or cover.state != CoverController.State.FREE:
+		return false
+	var frame := Engine.get_physics_frames()
+	if frame != _cover_button_frame:
+		_cover_button_frame = frame
+		if _cover_button_probe == null:
+			_cover_button_probe = CoverProbe.new()  # lazy: bots and replicas never build it
+		var probe := _cover_button_probe.sample(self, cover.config, false, float(cover.config["cover_button_range_m"]))
+		_cover_button_ok = cover.can_enter_by_button(probe)
+	return _cover_button_ok
+
+
+var _cover_button_probe: CoverProbe
+var _cover_button_frame := -1
+var _cover_button_ok := false
+
+
+## M2 C1b stage 1 (fix 13): one haptic tick on every cover entry, the Cover button or the auto-snap.
+func _on_cover_entered() -> void:
+	Haptics.play("cover_snap")
+	_begin_cover_turn()
+
+
+## M2 C1b stage 2 (decision 1, fix 12): the automatic look turn on cover entry. The pawn's own yaw is the look yaw
+## (_apply_look), so the turn eases it toward the wall tangent times CoverController.side (looking along the wall
+## toward the nearer open edge), over camera.json cover_blend_s with a smoothstep, together with the rig's first-to-
+## third blend. Pitch stays the player's. No turn on exit. Values: camera.json cover_blend_s, cover.turn_cancel_look_deg.
+var _cover_turn_total := 0.0
+var _cover_turn_t := 0.0
+var _cover_turn_s := 0.0
+
+
+func _begin_cover_turn() -> void:
+	_cover_turn_s = 0.0
+	if cover == null:
+		return
+	var along: Vector3 = cover.tangent * float(cover.side)
+	along.y = 0.0
+	if along.length_squared() < 1e-6:
+		return
+	var target := atan2(-along.x, -along.z)
+	_cover_turn_total = wrapf(target - global_rotation.y, -PI, PI)
+	_cover_turn_t = 0.0
+	_cover_turn_s = maxf(0.0, cover_blend_s())
+	if _cover_turn_s <= 0.0:
+		rotate_y(_cover_turn_total)  # a 0 s blend is a cut
+
+
+## camera.json cover_blend_s (OQ-COVER): the FREE <-> cover camera blend and the entry look turn.
+func cover_blend_s() -> float:
+	var entry: Variant = _camera.get("cover_blend_s", {})
+	return float((entry as Dictionary).get("value", 0.0)) if entry is Dictionary else float(entry)
+
+
+## True while the automatic entry turn is still running.
+func is_cover_turning() -> bool:
+	return _cover_turn_s > 0.0
+
+
+## Stops the rest of the automatic entry turn where it is (what a look input does in _tick_cover_turn).
+func cancel_cover_turn() -> void:
+	_cover_turn_s = 0.0
+
+
+## Runs right after _apply_look. The player's look input is never locked (0 s, inside cover.json input_lock_max_s):
+## any look delta above cover.turn_cancel_look_deg (per physics frame, a gyro noise floor) cancels the rest of the
+## turn, so it never fights the thumb. Leaving cover (EXITING or FREE) cancels it too.
+func _tick_cover_turn(delta: float) -> void:
+	if _cover_turn_s <= 0.0:
+		return
+	var cancel_entry: Variant = (_camera.get("cover", {}) as Dictionary).get("turn_cancel_look_deg", {})
+	var cancel_rad := deg_to_rad(float((cancel_entry as Dictionary).get("value", 0.0)) if cancel_entry is Dictionary else 0.0)
+	var looking := absf(_frame.look.x) > cancel_rad or absf(_frame.look.y) > cancel_rad
+	if cover == null or not in_cover() or cover.state == CoverController.State.EXITING or looking or not is_alive():
+		cancel_cover_turn()
+		return
+	var s0 := smoothstep(0.0, 1.0, _cover_turn_t / _cover_turn_s)
+	_cover_turn_t = minf(_cover_turn_t + maxf(delta, 0.0), _cover_turn_s)
+	var s1 := smoothstep(0.0, 1.0, _cover_turn_t / _cover_turn_s)
+	rotate_y(_cover_turn_total * (s1 - s0))
+	if _cover_turn_t >= _cover_turn_s:
+		_cover_turn_s = 0.0
+
+
 func _ensure_cover() -> void:
-	if cover != null or _cover_auto_disabled or net_mode != NetMode.LOCAL or not is_alive():
+	if cover != null or _cover_auto_disabled or net_mode != NetMode.LOCAL or not is_alive() or in_lan_session():
 		return
 	# MatchRoot/BotSpawner attach these children after Pawn._ready().
 	if not has_node("CameraRig") or has_node("Brain"):

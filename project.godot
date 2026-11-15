@@ -120,6 +120,10 @@ interact={
 "deadzone": 0.5,
 "events": []
 }
+cover={
+"deadzone": 0.5,
+"events": []
+}
 
 [input_devices]
 

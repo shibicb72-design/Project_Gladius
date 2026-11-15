@@ -28,6 +28,10 @@ var _viewport_h: float = 1.0
 ## Sprint gesture (forward extreme threshold starts sprint, no hold; then lock). Lives here, not in gameplay or the HUD nodes.
 var detector := SprintDetector.new()
 var sprint_locked: bool = false
+## M2 C1b stage 3 (decision 8, fixes 3, 24): set by the touch HUD from the local pawn's cover state (this provider has
+## no pawn reference). While true the stick's forward-extreme gesture does not sprint (a hard push in cover slides);
+## the Sprint lock and its target (lock_target_visible) are unchanged, so the lock stays the sprint exit.
+var cover_suppress_sprint: bool = false
 
 
 func configure(cfg: Dictionary) -> void:
@@ -80,7 +84,7 @@ func tick(delta: float) -> void:
 
 
 func is_sprinting() -> bool:
-	return sprint_locked or detector.sprinting
+	return sprint_locked or (detector.sprinting and not cover_suppress_sprint)
 
 
 ## Sprint sensitivity 0..100 from the profile slider; moves only the forward threshold.

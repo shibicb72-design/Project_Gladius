@@ -90,6 +90,20 @@
       }
     }
   },
+  "cover_blend_s": {"_placeholder": true, "value": 0.6, "unit": "s", "note": "OQ-COVER (M2 C1b fix 12) [Shibi default]: smoothstep blend between first person and the close cover view, used for every FREE -> cover entry and every cover -> FREE exit (the exit starts when EXITING begins), and for the automatic look turn along the wall on entry; the reference video is about 1 s, first_person.blend_s 0.35 stays for carrier, falling and downed; 0 = cut"},
+  "cover": {
+    "_placeholder": true,
+    "_todo": "OQ-COVER (M2 C1b stage 2): the close third-person view behind the wall-hugging soldier while pawn.cover.state is ENTERING, IN_COVER, PEEK_LEFT or PEEK_RIGHT (scripts/systems/camera_rig.gd). The view looks along the wall toward CoverController.side; the side offset is on the open side, away from the wall. Every value here is a guess for Shibi on the Fold, not a DESIGN.md value.",
+    "distance_m": {"_placeholder": true, "value": 1.6, "unit": "m", "note": "guess: spring length behind the soldier in cover (today's third person is arm_length_m 3.5)"},
+    "side_offset_m": {"_placeholder": true, "value": 0.55, "unit": "m", "note": "guess: lateral arm offset toward the open side (away from the wall), follows the cover side"},
+    "height_m": {"_placeholder": true, "value": 1.45, "unit": "m", "note": "guess: rig pivot height above the pawn origin standing behind high cover"},
+    "crouch_height_m": {"_placeholder": true, "value": 1.05, "unit": "m", "note": "guess: rig pivot height when crouched behind low cover; blends with CoverController.crouch_amount"},
+    "out_distance_m": {"_placeholder": true, "value": 1.1, "unit": "m", "note": "guess: tighter spring length while leaned out (PEEK_LEFT / PEEK_RIGHT or the draw out)"},
+    "out_side_offset_m": {"_placeholder": true, "value": 0.4, "unit": "m", "note": "guess: tighter side offset while leaned out, over the shoulder"},
+    "out_ease_s": {"_placeholder": true, "value": 0.15, "unit": "s", "note": "guess: the idle <-> leaned-out camera ease (research: lean out 0.12 s, return 0.15 s); 0 = cut"},
+    "side_ease_s": {"_placeholder": true, "value": 0.3, "unit": "s", "note": "guess: smoothstep ease when the cover side changes (the lean side); swap_shoulder is ignored in cover"},
+    "turn_cancel_look_deg": {"_placeholder": true, "value": 0.05, "unit": "deg per physics frame", "note": "guess: a look input above this on either axis cancels the rest of the automatic entry turn (look is never locked: 0 s, inside cover.json input_lock_max_s); the floor ignores gyro noise"}
+  },
   "height_m": 1.6,
   "pitch_min_deg": -70.0,
   "pitch_max_deg": 70.0,
