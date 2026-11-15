@@ -61,6 +61,8 @@ func _initialize() -> void:
 		int(bk["camps"]) + int(bk["inner_gates"]) + int(bk["outer_gates"]) + int(bk["arx"]) + int(bk["fields"]),
 		int(bk["camps"]), int(bk["inner_gates"]), int(bk["outer_gates"]), int(bk["arx"]), int(bk["fields"]), int(out["cover_walls"]),
 		int(ch["camps"]) + int(ch["arx"]) + int(ch["fields"]), int(ch["camps"]), int(ch["arx"]), int(ch["fields"])])
+	var dc: Dictionary = out["doors"]
+	print("GEN_ALESIA doors: doors=%d gates=%d open=%d closed=%d" % [int(dc["door"]), int(dc["gate"]), int(dc["open"]), int(dc["closed"])])
 	for line: String in out["shortfalls"]:
 		print("GEN_ALESIA short: ", line)
 	for p in problems:
@@ -284,11 +286,16 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	# 7. M2L1c: a guard beside each aqueduct ramp's foot ("ramp_guard", OQ-MAP-CLEAR), appended after every earlier
 	# pass, so the earlier pieces and their random draws stay exactly as they were.
 	_ramp_guards(state, structures, kit_types)
+	# 8. M2L1c: the doors and gates ("doors", OQ-PROPS-DOOR) in the existing barracks doorways and gate openings,
+	# appended after every earlier pass (their start-state draws come last), so nothing earlier moves.
+	var door_pass := _doors(state, structures, kit_types)
 	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
 	if gen.has("props"):
 		cover_file["breakables"] = breakables
 		if (gen["props"] as Dictionary).has("chests"):
 			cover_file["chests"] = chest_pass["entries"]
+	if gen.has("doors"):
+		cover_file["doors"] = door_pass["entries"]
 	var structure_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": structures}
 	var landmark_file := {
 		"version": 1,
@@ -312,6 +319,7 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		"extra": extra,
 		"breakables": props["counts"],
 		"chests": chest_pass["counts"],
+		"doors": door_pass["counts"],
 		"cover_walls": walls,
 	}
 
@@ -566,6 +574,108 @@ static func _ramp_guards(state: Dictionary, structures: Array, kit_types: Dictio
 				(state["problems"] as PackedStringArray).append("ramp guard %s is %.2f m from another footprint (minimum_gap_m %s)" % [guards[i]["id"], WorldRing.rect_gap(guard_rects[i], other), str(min_gap)])
 	structures.append_array(guards)
 	placed.append_array(guard_rects)
+
+
+## M2L1c (generator.doors, OQ-PROPS-DOOR): one door entry per listed opening of every structure piece of a kind's kit
+## type, in a fixed order (kind "door" then "gate", pieces in structure order, openings in the listed order). No new
+## doorway is cut: an opening is the kit type's "open" box (alesia_structures.json, read-only), so the door's box is
+## that opening's width and height and the kind's thickness_m, centred on it, turned by the piece's yaw. Doors slide
+## (scripts/props/door.gd): slide "inner" = one leaf sliding along local x towards the piece's centre ("left" =
+## towards -x, "right" = +x; an opening at x 0 slides right); "apart" = two half leaves, one each way. Every pocket
+## (where an open leaf rests: its own width past the opening's edge) must lie inside the piece's colliders in the
+## opening's plane (sampled every 0.1 m at three heights), so an open leaf sits inside a wall, and must stay within
+## gates.clear_m of the opening's centre for a gate (problems otherwise). start: one seeded draw per entry, in
+## order, after every other pass: "open" when it is below start_open_share. Ids "Door_%03d" / "Gate_%03d". `at` is the
+## file position (y over flat ground, as every cover-file entry; the builder lifts it), and the terrain under the door
+## must equal the terrain under its piece's origin (a problem otherwise). Returns {entries, counts: {door, gate, open,
+## closed}}.
+static func _doors(state: Dictionary, structures: Array, kit_types: Dictionary) -> Dictionary:
+	var entries: Array = []
+	var counts := {"door": 0, "gate": 0, "open": 0, "closed": 0}
+	var gen: Dictionary = state["gen"]
+	if not gen.has("doors") or not bool((gen["doors"] as Dictionary).get("enabled", true)):
+		return {"entries": entries, "counts": counts}
+	var cfg: Dictionary = gen["doors"]
+	var rng: RandomNumberGenerator = state["rng"]
+	var terrain: MapTerrain = state["terrain"]
+	var problems: PackedStringArray = state["problems"]
+	for kind: String in ["door", "gate"]:
+		if not cfg.has(kind) or not bool((cfg[kind] as Dictionary).get("enabled", true)):
+			continue
+		var k: Dictionary = cfg[kind]
+		var type := String(k["type"])
+		var openings: Array = (kit_types[type] as Dictionary).get("open", [])
+		for piece: Dictionary in structures:
+			if String(piece["type"]) != type:
+				continue
+			var yaw := float(piece["yaw"])
+			var turn := Basis(Vector3.UP, deg_to_rad(yaw))
+			var origin := LowpolyKit.vec(piece["at"])
+			for index: Variant in k["openings"]:
+				var o: Dictionary = openings[int(index)]
+				var local := LowpolyKit.vec(o["at"])
+				var hole := LowpolyKit.vec(o["size"])
+				var at := origin + turn * local
+				var slide := "apart" if String(k["slide"]) == "apart" else ("left" if local.x > 0.0 else "right")
+				var thickness := float(k["thickness_m"])
+				var entry := {
+					"id": ("Door_%03d" if kind == "door" else "Gate_%03d") % int(counts[kind]),
+					"kind": kind,
+					"piece": String(piece["id"]),
+					"at": [_r3(at.x), _r3(at.y), _r3(at.z)],
+					"yaw": yaw,
+					"size": [float(o["size"][0]), float(o["size"][1]), thickness],  # the file's numbers (a Vector3 is float32)
+					"slide": slide,
+				}
+				if absf(terrain.height_at(at.x, at.z) - terrain.height_at(origin.x, origin.z)) > 0.01:
+					problems.append("%s: the ground under the door differs from the ground under %s" % [entry["id"], piece["id"]])
+				var pocket := door_pocket_problem(kit_types[type], local, hole, slide)
+				if pocket != "":
+					problems.append("%s: %s" % [entry["id"], pocket])
+				if kind == "gate":
+					var far := Vector2(hole.x, thickness * 0.5).length()  # the outer edge of an open leaf
+					if far > float(gen["gates"]["clear_m"]):
+						problems.append("%s: an open leaf reaches %.2f m from the opening, past gates.clear_m %s" % [entry["id"], far, str(gen["gates"]["clear_m"])])
+				entries.append(entry)
+				counts[kind] = int(counts[kind]) + 1
+	for entry: Dictionary in entries:
+		var share := float((cfg[String(entry["kind"])] as Dictionary)["start_open_share"])
+		entry["start"] = "open" if rng.randf() < share else "closed"
+		counts[entry["start"]] = int(counts[entry["start"]]) + 1
+	return {"entries": entries, "counts": counts}
+
+
+## M2L1c: "" when every pocket of a sliding door lies inside the colliders of its piece `definition` (piece frame):
+## the stretch of one leaf width past the opening's edge on each side a leaf slides to ("left" -x, "right" +x,
+## "apart" both, each a half leaf), on the opening's centre plane, sampled every 0.1 m at three heights of the
+## opening; otherwise the first point outside. Shared by the generator and tests/test_props_doors.gd.
+static func door_pocket_problem(definition: Dictionary, opening_at: Vector3, opening_size: Vector3, slide: String) -> String:
+	var leaf := opening_size.x / (2.0 if slide == "apart" else 1.0)
+	var sides: Array[float] = []
+	if slide == "apart" or slide == "left":
+		sides.append(-1.0)
+	if slide == "apart" or slide == "right":
+		sides.append(1.0)
+	var boxes: Array[AABB] = []
+	for c: Dictionary in definition.get("colliders", []):
+		if String(c.get("shape", "box")) == "box":
+			var s := LowpolyKit.vec(c["size"])
+			boxes.append(AABB(LowpolyKit.vec(c["at"]) - s * 0.5, s).grow(0.001))
+	for side: float in sides:
+		var edge := opening_at.x + side * opening_size.x * 0.5
+		var steps := maxi(ceili(leaf / 0.1), 1)
+		for i in steps + 1:
+			var x := edge + side * leaf * float(i) / float(steps)
+			for f: float in [0.1, 0.5, 0.9]:
+				var p := Vector3(x, opening_at.y - opening_size.y * 0.5 + opening_size.y * f, opening_at.z)
+				var inside := false
+				for b: AABB in boxes:
+					if b.has_point(p):
+						inside = true
+						break
+				if not inside:
+					return "the pocket point %s is outside every collider of the piece" % p
+	return ""
 
 
 ## The 90-degree-step yaw that turns a piece's local +X onto the ground direction `d` (axis-aligned).

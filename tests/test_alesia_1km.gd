@@ -555,6 +555,49 @@ func test_visible_counts_from_three_points_report() -> void:
 			"; ".join(over) if not over.is_empty() else "none", "; ".join(over_visible) if not over_visible.is_empty() else "none"])
 
 
+## M2 L1c: the cover file's 24 doors and 8 gates are Door bodies under ArtBuilder/Props (outside Nav: the bake never
+## parses them), group door only (never cover_wall, in no body list the paint or the cover index reads), standing on
+## the terrain at their openings, in their start state (the collider on exactly when closed), all settled (no door
+## processes at rest); WorldProps.collect on the map stores every door's state.
+func test_doors_are_built_under_props_outside_nav() -> void:
+	var map := _map()
+	var builder := map.get_node("ArtBuilder")
+	var cover := DataRegistry.parse_quiet(String(_def()["cover_data"]))
+	var entries: Array = cover.get("doors", [])
+	assert_eq(entries.size(), 32, "32 doors and gates in the cover file")
+	var props := map.get_node_or_null("ArtBuilder/Props")
+	var nav := map.get_node("Nav")
+	var terrain: MapTerrain = builder.terrain
+	assert_eq(builder.door_bodies.size(), entries.size(), "door_bodies lists them all")
+	var lists: Array = [builder.cover_bodies, builder.ring_bodies, builder.structure_bodies, builder.decor_bodies, builder.chest_bodies]
+	var closed := 0
+	for i in entries.size():
+		var e: Dictionary = entries[i]
+		var id := String(e["id"])
+		var d := props.get_node_or_null(id) as Door if props != null else null
+		assert_true(d != null and builder.door_bodies[i] == d, "%s is a Door under Props, in order" % id)
+		if d == null:
+			continue
+		assert_true(not nav.is_ancestor_of(d), "%s is outside Nav" % id)
+		assert_true(d.is_in_group(Door.GROUP) and not d.is_in_group(&"cover_wall"), "%s: group door, never cover_wall" % id)
+		for list: Array in lists:
+			assert_true(not (d in list), "%s is in no other body list" % id)
+		var at := LowpolyKit.vec(e["at"])
+		assert_true(absf(d.position.y - (at.y + terrain.height_at(at.x, at.z))) < 0.001, "%s stands on the terrain" % id)
+		assert_eq(d.open, String(e["start"]) == "open", "%s: its start state" % id)
+		assert_eq(d.blocks(), not d.open, "%s: the collider on exactly when closed" % id)
+		assert_true(d.settled() and not d.is_physics_processing(), "%s rests (no processing)" % id)
+		closed += 0 if d.open else 1
+	assert_true(closed > 0 and closed < entries.size(), "nonvacuous: some closed (%d), some open" % closed)
+	var wp := WorldProps.new()
+	wp.setup(WorldProps.config(), 1, true)
+	wp.collect(map)
+	assert_eq(wp.doors.size(), entries.size(), "WorldProps.collect finds every door")
+	for e: Dictionary in entries:
+		assert_eq(wp.state_of(String(e["id"])), WorldProps.OPEN if String(e["start"]) == "open" else WorldProps.CLOSED, "%s: its state is stored" % e["id"])
+	wp.free()
+
+
 ## Last in this file: frees the shared 1 km map so later suite files start clean.
 func test_zz_free_the_map() -> void:
 	if is_instance_valid(_built):

@@ -212,6 +212,30 @@
 			],
 			"rocks": 8.0
 		},
+		"doors": {
+			"_placeholder": true,
+			"_todo": "OQ-PROPS-DOOR: a guess for Shibi, not a design value (M2 L1c). Doors and gates in the doorways the kit already has (no new doorway is cut): kind door = every listed opening of every piece of kit type `type` (barracks: openings 0 and 1, the two 2.0 x 2.3 m doorways of data/maps/alesia_structures.json), one leaf sliding into the wall towards the piece's centre (slide inner); kind gate = the 4 x 4.5 m opening of every gate piece, two half leaves sliding apart into the pillars (slide apart). Sliding, not swinging, so only a soldier standing in the doorway is ever in a door's way (a swing would be blocked by whoever stands in front of it inside, opener included); the generator checks that every pocket lies inside the piece's wall colliders. thickness_m is the leaf's. start_open_share: each door starts open when its seeded draw (one per door, after every other pass, so no other piece or draw changes) is below it; the start state is in the cover file, so host and client start the same. tools/gen_alesia.gd _doors writes alesia_1km_cover.json \"doors\"; behaviour and looks: data/props.json \"door\". Doors are not cover walls (not counted in max_cover_walls) and stand outside the navigation (paths as if open).",
+			"door": {
+				"openings": [
+					0.0,
+					1.0
+				],
+				"slide": "inner",
+				"start_open_share": 0.5,
+				"thickness_m": 0.12,
+				"type": "barracks"
+			},
+			"enabled": true,
+			"gate": {
+				"openings": [
+					0.0
+				],
+				"slide": "apart",
+				"start_open_share": 0.75,
+				"thickness_m": 0.25,
+				"type": "gate"
+			}
+		},
 		"extra_cover": {
 			"_note": "M2 L1b (Shibi, Nov 14 2026: more cover): static cover placed after every earlier pass (tools/gen_alesia.gd _extra_cover), so the earlier pieces stay byte-identical; existing cover types only. camps.cover is per camp; new camp pieces keep lane_gap_m to every footprint. A wall band samples a side of the polygonal ring (apothem radius_m), a place along it clear of both corners by corner_margin_m and a distance from_m..to_m from the side's centre line, half the pieces towards the centre and half away; it keeps gate_clear_m from that ring's gates, stair_clear_m from every wall stair's foot and tower_clear_m from every tower ramp's foot. arx.radius_m: the hill top. Fields: the fields annulus. Budget: cover and ring pieces plus breakables at most 352 cover walls (the cover index validates every wall once per frame). OQ-ALESIA-LAYOUT: every number is a proposal.",
 			"arx": {

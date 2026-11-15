@@ -50,6 +50,39 @@
 		"spill_radius_m": 0.6,
 		"loot": {"count_min": 2, "count_max": 3, "item_kinds": []}
 	},
+	"door": {
+		"_todo": "OQ-PROPS-DOOR: every number and look here is a first guess for Shibi (M2 L1c). Placement, the box size (opening width x height x leaf thickness), the hinge side, the swing side and the seeded start state live in the map's cover file (\"doors\", tools/gen_alesia.gd from the generator block doors), because the saved navigation hashes that file. This file is never a navigation input.",
+		"_note": "The keys here are the barracks door's; \"gate\" holds only what a wall gate does differently (WorldProps.door_cfg merges it over the rest). Both kinds slide (pocket doors: each leaf slides its own width into the wall beside the opening). interact_range_m: flat distance from the closed leaves' footprint within which Interact toggles it; height_limit_m: the most the pawn's feet may lie above or below the threshold. move_time_s: the slide from closed to open (or back). blocked_retry_s: a pawn in the doorway when the door should move (or, after a close, before its collider switches on): the door does not move and asks again after this long. bot_open_delay_s: M2 L1c commit 4 (bots opening doors); bot_open_delay_s + move_time_s must stay under data/bots.json stuck_window_s. palette: the tint (data/art_materials.json tints; an unlisted one draws the parts' own colours) and the impact sound (data/audio.json impacts.by_palette; an unlisted one is by_palette.default, wood). look: LowpolyKit parts of ONE leaf authored for look_size (+x = the side that enters the pocket), scaled to each leaf; grey-box, the art slice dresses it.",
+		"interact_range_m": 2.0,
+		"height_limit_m": 2.0,
+		"move_time_s": 0.6,
+		"blocked_retry_s": 0.5,
+		"bot_open_delay_s": 0.4,
+		"palette": "door",
+		"look_size": [2.0, 2.3, 0.12],
+		"look": {
+			"parts": [
+				{"size": [1.96, 2.26, 0.1], "at": [0, 0, 0], "color": "dark"},
+				{"size": [2.0, 0.14, 0.12], "at": [0, 0.9, 0], "color": "trim"},
+				{"size": [2.0, 0.14, 0.12], "at": [0, -0.9, 0], "color": "trim"},
+				{"size": [0.1, 0.12, 0.2], "at": [-0.8, 0, 0], "color": "bronze"}
+			]
+		},
+		"gate": {
+			"interact_range_m": 3.0,
+			"move_time_s": 1.0,
+			"look_size": [2.0, 4.5, 0.25],
+			"look": {
+				"parts": [
+					{"size": [1.96, 4.46, 0.2], "at": [0, 0, 0], "color": "trim"},
+					{"size": [2.0, 0.2, 0.25], "at": [0, 1.6, 0], "color": "dark"},
+					{"size": [2.0, 0.2, 0.25], "at": [0, 0, 0], "color": "dark"},
+					{"size": [2.0, 0.2, 0.25], "at": [0, -1.6, 0], "color": "dark"},
+					{"size": [0.3, 0.3, 0.3], "at": [-0.85, 0.4, 0], "color": "bronze"}
+				]
+			}
+		}
+	},
 	"break_fx": {
 		"pieces": 8,
 		"life_s": 0.6,

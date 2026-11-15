@@ -67,11 +67,12 @@ func _available() -> bool:
 	if not director.authoritative:
 		return false
 	return director.revive_target_for(pawn.player_id) >= 0 or director.pickup_target_for(pawn.player_id) >= 0 \
-			or director.chest_target_for(pawn.player_id) != ""
+			or director.chest_target_for(pawn.player_id) != "" or director.door_target_for(pawn.player_id) != ""
 
 
 ## "Revive" (cfg label) when a DOWNED squad mate is in range, else "Pick up <item>", else (M2 L1b) "Open chest" when
-## a closed chest is in range. Placeholder text (S6).
+## a closed chest is in range, else (M2 L1c) "Open door" / "Close door" ("Open gate" / "Close gate") for the door
+## a press would toggle. Placeholder text (S6).
 func _label_text() -> String:
 	if not is_instance_valid(director) or not is_instance_valid(pawn):
 		return str(cfg["label"])
@@ -82,6 +83,10 @@ func _label_text() -> String:
 		return "Pick up\n%s" % director.loot.display_name(item)
 	if director.chest_target_for(pawn.player_id) != "":
 		return "Open chest"
+	var door := director.door_target_for(pawn.player_id)
+	if door != "" and director.props != null:
+		var noun := "gate" if director.props.door_kind(door) == Door.KIND_GATE else "door"
+		return ("Close %s" if director.props.state_of(door) == WorldProps.OPEN else "Open %s") % noun
 	return str(cfg["label"])
 
 

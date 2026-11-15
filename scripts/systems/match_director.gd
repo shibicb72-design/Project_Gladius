@@ -231,6 +231,25 @@ func try_open_chest(player_id: int) -> bool:
 	return id != "" and props.open_chest(id)
 
 
+## M2 L1c: the door or gate `player_id` would toggle now (WorldProps.door_near from its feet: the nearest one in its
+## kind's range, open or closed), with pickup's conditions (a running match, an alive pawn that is not dropping);
+## "" if none.
+func door_target_for(player_id: int) -> String:
+	var pawn: Pawn = _players.get(player_id)
+	if props == null or not running or pawn == null or not pawn.is_alive() or pawn.is_dropping():
+		return ""
+	return props.door_near(pawn.global_position)
+
+
+## M2 L1c: toggles the current door target on the authority (WorldProps.toggle_door: the other ABSOLUTE state, sent
+## by the bridge as that value). False on a client or when no door is in range. Nothing else is touched.
+func try_toggle_door(player_id: int) -> bool:
+	if not authoritative:
+		return false
+	var id := door_target_for(player_id)
+	return id != "" and props.toggle_door(id)
+
+
 func _bot_pickups() -> void:
 	if loot == null:
 		return
