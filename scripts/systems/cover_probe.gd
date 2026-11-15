@@ -21,8 +21,8 @@ func sample(pawn: Pawn, cfg: Dictionary, locked: bool, distance_m: float = -1.0)
 	out["muzzle_height_m"] = float(_movement["muzzle_height_m"])
 	var weapon := pawn.loadout.get_active()
 	if weapon != null:
-		out["weapon_hold_s"] = weapon.def.fire_interval_s / maxi(weapon.def.burst_count, 1) if not weapon.fire_mode.is_empty() else weapon.def.fire_interval_s + maxf(0, weapon.def.burst_count - 1) * weapon.def.burst_interval_s
-		out["weapon_repeats"] = weapon.fire_mode != "semi"
+		# M2 C1b stage 4: weapon_ready false (empty magazine or reloading) sends the soldier back to cover.
+		out["weapon_ready"] = weapon.has_ammo() and not weapon.reloading
 		out["weapon_pending"] = weapon.has_ammo() and not weapon.reloading and (weapon._semi_armed or weapon._burst_left > 0)
 	if not locked:
 		reset()

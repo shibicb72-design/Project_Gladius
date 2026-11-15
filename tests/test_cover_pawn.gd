@@ -84,7 +84,8 @@ func test_real_wall_snap_lock_slide_draw_fire_and_exit() -> void:
 	var ammo := weapon.ammo_in_mag
 	for i in 60:
 		await _tick(Vector2.ZERO, true)
-	assert_eq(weapon.ammo_in_mag, ammo, "in-cover fire blocked")
+	# M2 C1b stage 4 (fix 7): mid-wall behind HIGH cover no lean is possible, so Fire still spends nothing.
+	assert_eq(weapon.ammo_in_mag, ammo, "in-cover fire blocked behind high cover away from an edge")
 	await _tick(Vector2.ZERO)
 	for i in 100:
 		await _tick(Vector2(0, -1))
@@ -98,17 +99,18 @@ func test_real_wall_snap_lock_slide_draw_fire_and_exit() -> void:
 		var hit := _pawn.get_world_3d().direct_space_state.intersect_ray(ray)
 		assert_true(hit.is_empty() or hit["collider"] != _wall, "shot ray clears cover wall")
 	)
+	# M2 C1b stage 4: Fire in cover is the frame's fire bit (was: the general fire action never fired in cover and
+	# the routed quick_draw(true) / quick_draw(false) leaned and fired). A one-tick Fire press at the edge is
+	# buffered: the soldier leans past the edge, fires one semi round once the pose is complete, and returns.
 	await _tick(Vector2.ZERO, true)
-	assert_eq(events, [0, 0], "general fire action does not fire in cover")
-	assert_eq(weapon.ammo_in_mag, ammo, "general fire action spends no ammo in cover")
-	_pawn.cover.quick_draw(true)
+	assert_eq(events, [0, 0], "no round before the lean is complete")
+	assert_eq(_pawn.cover.state, CoverController.State.PEEK_RIGHT, "the Fire press leans toward the open edge")
 	var max_x := _pawn.global_position.x
 	for i in 30:
 		await _tick(Vector2.ZERO)
 		max_x = maxf(max_x, _pawn.global_position.x)
-	_pawn.cover.quick_draw(false)
-	assert_true(absf(max_x - 2.65) < 0.02, "the quick draw leans out past the edge by itself")
-	assert_eq(events, [1, 1], "cover FIRE emits fired and shot while drawn out")
+	assert_true(absf(max_x - 2.65) < 0.02, "the Fire press leans out past the edge")
+	assert_eq(events, [1, 1], "the buffered press emits fired and shot once from the lean")
 	assert_eq(weapon.ammo_in_mag, ammo - 1, "one semi round spent")
 	for i in 45:
 		await _tick(Vector2(1, 0))

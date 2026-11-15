@@ -126,26 +126,45 @@ func test_early_drag_never_fires_both_modes_late_drag_retains_hold() -> void:
 		step(10)
 		await cleanup()
 
-func test_look_tap_and_hold_never_fire_in_cover_or_peek_both_modes() -> void:
+## M2 C1b stage 4 (decision 5, fix 9): the HUD reads the pawn's cover state through the sibling GameHud (a stand-in
+## here). Was: nothing fired in cover (the old contextual cover FIRE was the only source). Now look-zone taps and holds
+## still never fire in cover, but Left Fire does, from the completed out pose (the test seam sets it: the rise in
+## IN_COVER, the lean in PEEK_RIGHT).
+class FakeGameHud extends Node:
+	var pawn: Pawn
+
+
+func test_look_tap_and_hold_never_fire_in_cover_or_peek_but_left_fire_does_both_modes() -> void:
 	for mode in ["semi", "auto"]:
 		for state in [CoverController.State.IN_COVER, CoverController.State.PEEK_RIGHT]:
 			await fixture(mode, true)
+			var game_hud := FakeGameHud.new()
+			game_hud.name = "GameHud"
+			game_hud.pawn = pawn
+			hud.add_sibling(game_hud)
 			pawn.enable_cover(DataRegistry.new().load_file("res://data/cover.json"))
 			pawn.cover.state = state
-			pawn.cover._peek_complete = true
+			pawn.cover._draw_active = true
+			pawn.cover.aim_out_amount = 1.0
+			pawn.cover.aimed_out = true
 			pawn.cover._facts = {"shot_clear": true, "stand_clear": true}
 			var ammo := pawn.loadout.get_active().ammo_in_mag
 			tap()
 			look_down()
 			step(60)
+			assert_true(not Input.is_action_pressed("fire"), "a look hold does not press fire in cover: " + mode)
 			hud._on_up(7)
+			step(20)
+			assert_eq(shots, 0, "look-zone taps and holds never fire in cover/peek: " + mode)
+			assert_eq(pawn.loadout.get_active().ammo_in_mag, ammo, "the look zone spends no ammo in cover")
 			var left: Vector2 = hud.get_button_rect("fire_left").get_center()
 			hud._on_down(8, left)
 			step(60)
 			hud._on_up(8)
 			step(20)
-			assert_eq(shots, 0, "only contextual FIRE fires in cover/peek: " + mode)
-			assert_eq(pawn.loadout.get_active().ammo_in_mag, ammo, "cover general fire spends no ammo")
+			assert_true(shots >= 1, "Left Fire fires in cover/peek: " + mode)
+			assert_true(pawn.loadout.get_active().ammo_in_mag < ammo, "Left Fire spends ammo in cover")
+			game_hud.free()
 			await cleanup()
 
 func test_fire_union_pulse_hold_left_release_refresh_and_suspend() -> void:

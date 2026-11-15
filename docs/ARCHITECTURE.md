@@ -609,7 +609,7 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
 `CoverIndex`. `Pawn._ensure_cover` builds it only for the local player (CameraRig child, no Brain,
 `net_mode` LOCAL, offline). All numbers are placeholders in `data/cover.json` (OQ-COVER).
 
-#### C1b cover as built (kept current per stage; stage 1 = the Cover button and auto-snap; stage 2 = the cover camera, pose and auto crouch; stage 3 = moving and exiting)
+#### C1b cover as built (kept current per stage; stage 1 = the Cover button and auto-snap; stage 2 = the cover camera, pose and auto crouch; stage 3 = moving and exiting; stage 4 = Fire in cover, Aim hold and removal of the old path; a final description closes the section)
 - **Entry by button.** Touch only in C1b. The touch HUD's Shoulder slot (`swap_shoulder` element) is the
   Cover button while `Pawn.cover_button_available()` (controller present, ALIVE, `drop_state` NONE, not
   LAN): on the ground, FREE or in cover. Carrier, falling and downed show Shoulder swap as C1a left it.
@@ -757,6 +757,91 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   "In-cover controls". Tests that still drive the routed "cover_fire" press: `test_cover_fire_fix.gd`,
   `test_cover_fire_path_a2.gd`, `test_cover_fire_input_d2.gd`, `test_cover_crouch.gd`, `test_cover_pawn.gd`.
 - Tests: `tests/test_cover_move_exit_c1b.gd` (prints `C1B MOVE_EXIT` lines with the per-frame camera maxima).
+
+**Stage 4: Fire in cover, Aim hold and removal of the old path** (decisions 3-6, 9; fixes 4, 7, 9, 15, 16, 21). The
+"Left for stage 4" list above is done: everything on it is removed or made a no-op as listed below.
+- **Fire is the frame's fire bit.** `Pawn._apply_weapon` no longer ignores `InputFrame.fire_pressed` in cover: the
+  trigger is `CoverController.fire_trigger(fire_pressed)` whenever the controller exists (FREE: the held Fire or a
+  press buffered through EXITING; in cover: the held Fire or a buffered press, only while `blocks_fire()` is false).
+  So the right Fire button, Left Fire, mouse, keyboard and gamepad fire all work in cover. `round_fired()` (any state)
+  answers the buffered press. The muzzle / pose guard that restores a blocked semi or burst round is unchanged.
+- **Out: the lean and the rise** (`CoverController._tick_out`, from IN_COVER only). Wanted (`_wants_out`) while the Aim
+  toggle is on, Fire is held, a press is buffered, `_stay_out_left` > 0 or the weapon still owes a round (`weapon_pending`:
+  a burst or an armed semi), and never while `weapon_ready` is false (empty magazine or reloading). Possible
+  (`can_go_out`) behind LOW cover (`height_m` < `muzzle_height_m`) anywhere, or behind HIGH cover with an open edge
+  (`usable_left_m` / `usable_right_m`) within `lean_reach_m`. HIGH: `side = lean_side(wish)` (the open edge; with both
+  in reach the stick's along-wall direction, else the nearer one), the state becomes PEEK_LEFT / PEEK_RIGHT and the
+  target is the anchor plus `tangent * side * (usable + peek_offset_m)`; CoverAnim's peek poses, the camera's "out"
+  pose and the camera side (it follows `side`) apply. LOW: the state stays IN_COVER and the soldier rises in place
+  (`crouch_amount` to 0 over `aim_out_s`, back over `aim_return_s`, then `crouch_blend_s` again). `aim_out_amount`
+  eases out over `aim_out_s` and back over `aim_return_s`; `aimed_out` (refreshed after the move,
+  `refresh_completed_pose`) needs the amount at 1, standing and the pawn at the target. When the return reaches the
+  anchor the state goes back to IN_COVER. While out the slide is ignored; the away push, Cover, Jump and the Sprint lock
+  exit as in stage 3 (`_begin_exit` ends the draw).
+- **Fire gating.** `blocks_fire()`: in any cover state a round leaves only when `aimed_out` and the probe's
+  `shot_clear` (the full-range wall ray, refreshed after the move) are both true; no blind fire. `fire_available()`
+  (read-only, through `Pawn.cover_fire_available()`) is false only in ENTERING / IN_COVER when no lean or rise is
+  possible (fix 7, [Shibi default]): there Fire does nothing and no ammo is spent.
+- **The press buffer** (`_buffer_fire`, `_fire_buffered`). The rising edge of `fire_pressed` (the controller keeps
+  `_fire_was`) is buffered in ENTERING and EXITING, and in IN_COVER / PEEK_* when out or able to go out; it is dropped
+  when ENTERING settles where no lean or rise is possible, when the weapon is not ready, and when the completed pose's
+  wall ray is blocked (so a press never holds the soldier out by itself). EXITING hands it to FREE (kept through the
+  `reset()` at the end of EXITING; cleared on the next FREE tick). ENTERING and EXITING each last at most
+  `input_lock_max_s`.
+- **Release and the stay-out delay.** While Fire is held or a press is buffered, `_stay_out_left` =
+  `fire_return_delay_s`; after the release it counts down and then the soldier returns, so quick taps do not bob. Aim
+  on, or any along-wall stick push, sets it to 0 (Aim holds out by itself; the stick is never locked by the delay).
+- **Empty magazine** (decision 9): the round that empties the magazine fires; the existing `combat.auto_reload_on_empty`
+  in `_apply_weapon` starts the reload (reused); `weapon_ready` (new probe fact: `has_ammo()` and not `reloading`) is
+  then false, so the soldier returns even with Fire or Aim held, and goes out again when the reload ends and Fire or
+  Aim is still held. With no reserve it just returns.
+- **No recoil, no camera knockback in cover** (decision 6, fix 15): the recoil skip in `_apply_weapon` stays;
+  `Pawn._kick_camera` returns while `in_cover()`. The `fired` / `shot` signals (view model and soldier visual kick)
+  are unchanged. Outside cover the knockback is unchanged (`tests/test_camera_knockback.gd`).
+- **HUD** (decision 5, fixes 7, 9). `TouchHud._sync_fire_action`: while the GameHud pawn is in cover
+  (`_fire_from_buttons_only`, read-only `Pawn.in_cover()`) only the right Fire and Left Fire buttons press "fire"; a
+  look hold or tap pulse is dropped, and a look touch that was down in cover (`_look_no_fire`) never latches fire or
+  pulses, even after an exit. `TouchHud.set_fire_dimmed` (from `_refresh_cover_slot`: in cover and not
+  `Pawn.cover_fire_available()`) restyles both Fire buttons with `ui.json cover_fire_dim`; they stay pressable.
+- **Removed:** `CoverController.quick_draw`, `quick_draw_trigger`, `can_quick_draw`, `set_look_active`,
+  `toggle_crouch`, `_tick_draw`, `_quick_held`, `_buffered_round`, `_look_active`, `_round_hold`, `_trigger_held`,
+  `_anchor`, `_peek_target`, `_peek_complete`, `_returning` and the unused `peeked` signal; the probe facts
+  `weapon_hold_s` / `weapon_repeats`; `TouchHud.cover_controls_active`, `_cover_hidden_slots`,
+  `set_cover_controls_active`, `is_cover_slot_hidden` and their uses; `ui.json cover_fire`, `cover_crouch`,
+  `cover_buttons`; `cover.json fire_requires_peek`, `quick_draw_stay_out`, `cover_edge_quickdraw_m` (renamed
+  `lean_reach_m`). `peek_s` is no longer an input lock (only CoverAnim's peek clip length). Kept as no-op plumbing
+  (fix 4): `Pawn.handle_action_press("cover_fire")` (and "crouch") return at once, `handle_action_release` /
+  `handle_action_look` do nothing; `InputRouter.NON_FRAME_ACTIONS` "cover_fire", the InputFrame bits,
+  `TouchProvider.release_action` / `set_action_look` and match_root.gd are unchanged. Files to delete (unreferenced):
+  `scripts/ui/cover_fire_button.gd`, `scripts/ui/cover_crouch_button.gd` (+ .uid), `tests/test_cover_fire_input_d2.gd`
+  (+ .uid).
+- **Data keys (stage 4, cover.json, OQ-COVER):** `aim_out_s` 0.12 (was 0.15), `aim_return_s` 0.15,
+  `fire_return_delay_s` 0.2 (new), `lean_reach_m` 0.5 (renamed), `_c1b_stage4_todo`; `ui.json cover_fire_dim`
+  (`bg_alpha` 0.08, `border_color`, `font_alpha` 0.3). `lock_durations()` lists `enter_s`, `exit_s`, `aim_out_s`,
+  `aim_return_s`, all <= `input_lock_max_s`.
+- Tests: `tests/test_cover_fire_c1b.gd` (prints `C1B FIRE` and `C1B FIX21` lines).
+
+**C1b cover, final description.**
+- **States:** FREE; ENTERING (the snap, at most `input_lock_max_s`, the stick ignored, Fire buffered); IN_COVER (slide,
+  automatic crouch, the rise over LOW cover); PEEK_LEFT / PEEK_RIGHT (the lean past an edge of HIGH cover, Fire or
+  Aim only); EXITING (at most `input_lock_max_s`, the free wish moves the pawn, Fire buffered to FREE). Every exit goes
+  through EXITING; the camera blends both ways over `camera.json cover_blend_s`.
+- **Controller API.** Mutators, called only by `Pawn` (`tests/test_crouch_guard_d1.gd`): `tick(delta, move,
+  fire_pressed, probe, aiming, sprinting)`, `request_cover(probe)`, `request_exit()`, `round_fired()`,
+  `refresh_shot_clear(clear)`, `refresh_completed_pose(position)`, `movement_velocity(...)`, `reset()`. Read-only
+  (UI may read them): `state_name`, `blocks_fire`, `fire_trigger`, `fire_available`, `can_go_out`, `lean_side`,
+  `enter_duration`, `exit_duration`, `lock_durations`, `can_enter_by_button`, and the fields `state`, `side`,
+  `crouched`, `crouch_amount`, `aim_out_amount`, `aimed_out`, `normal`, `tangent`. Signals `entered`, `exited`.
+- **Pawn hooks:** `_ensure_cover` (local, offline, no Brain), `handle_action_press("cover")`, `cover_button_available`,
+  `cover_button_valid`, `in_cover`, `cover_fire_available`, the entry turn (`_begin_cover_turn`), `_apply_cover_shapes`
+  (capsule and Head follow the crouch), `_apply_movement` (Sprint-lock and Jump exits, the tick), `_apply_weapon`
+  (the trigger, no recoil), `_kick_camera` (no knockback in cover).
+- **HUD wiring:** the Shoulder slot is the Cover button on the ground (`ui.json cover_button`); in cover the stick's
+  forward extreme does not sprint (`TouchProvider.cover_suppress_sprint`); only the Fire buttons fire; the Fire buttons
+  dim where Fire is unavailable. No other button changes in cover.
+- **Data:** `data/cover.json` (every C1b key, OQ-COVER), `data/camera.json` (`cover_blend_s`, `cover`),
+  `data/ui.json` (`cover_button`, `cover_fire_dim`), `data/haptics.json` (`cover_snap`); read-only
+  `stats.json movement.muzzle_height_m` and `combat.auto_reload_on_empty`. See docs/OPEN_QUESTIONS.md OQ-COVER (M2 C1b).
 
 ## 5. Testing
 

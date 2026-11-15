@@ -261,10 +261,10 @@ func _tick(move: Vector2 = Vector2.ZERO) -> InputFrame:
 
 func _blend(routed: bool) -> Array[float]:
 	var before := local.cover.crouched
+	# M2 C1b stage 4: CoverController.toggle_crouch is deleted, so the "direct" pass is no press at all (was:
+	# local.cover.toggle_crouch()); a routed press must still be identical to it.
 	if routed:
 		_tap_crouch()
-	else:
-		local.cover.toggle_crouch()
 	# M2 C1b stage 2 (decision 7): both paths are ignored in cover (was: toggle at press).
 	assert_eq(local.cover.crouched, before, "no toggle at press (routed=%s)" % routed)
 	var amounts: Array[float] = []
@@ -300,8 +300,8 @@ func test_t6_routed_tap_blends_identically_to_direct_toggle() -> void:
 	for i in 20:
 		await _tick()
 	assert_true(local.cover.crouched and local.cover.crouch_amount == 1.0, "routed: still crouched under overhang")
-	local.cover.toggle_crouch()
+	# M2 C1b stage 4: was local.cover.toggle_crouch() (deleted); the automatic crouch alone holds under the overhang.
 	for i in 20:
 		await _tick()
-	assert_true(local.cover.crouched and local.cover.crouch_amount == 1.0, "direct: still crouched under overhang")
+	assert_true(local.cover.crouched and local.cover.crouch_amount == 1.0, "no press: still crouched under overhang")
 	await _end_match()

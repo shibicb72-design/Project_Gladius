@@ -389,7 +389,8 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 	else:
 		fire_mode_button.bind(pawn, get_node_or_null("../TouchHud") as Control, get_node_or_null("../PauseMenu") as PauseMenu)
 	# M2 C1b stage 3 (decision 3, fixes 26, 28): the old cover FIRE (Jump slot) and Crouch (Sprint-lock slot) squares
-	# are no longer created; Jump and the Sprint lock stay visible and usable in cover. Fire in cover is stage 4.
+	# are no longer created; Jump and the Sprint lock stay visible and usable in cover. M2 C1b stage 4: their scripts are
+	# deleted; Fire in cover is the normal right Fire / Left Fire buttons (touch_hud.gd _sync_fire_action).
 	var touch_for_interact := get_node_or_null("../TouchHud") as Control
 	if interact_button == null:
 		interact_button = InteractButton.new()

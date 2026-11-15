@@ -114,7 +114,7 @@ func test_exit_hold_short_hold_back_and_reset_signals() -> void:
 	var c := CoverController.new(_cfg())
 	var events: Array[String] = []
 	c.entered.connect(func(): events.append("entered"))
-	c.peeked.connect(func(_side: int): events.append("peeked"))
+	# M2 C1b stage 4: the unused peeked signal is removed (was: c.peeked.connect(...), never emitted here).
 	c.exited.connect(func(): events.append("exited"))
 	_enter(c)
 	var pos := Vector3(1.0, 0, 0.45)

@@ -1,8 +1,8 @@
 extends "res://tests/test_case.gd"
 ## FIRE FIX: real match, live physics, window-pixel input via root viewport.
 ## M2 C1b stage 3: the HUD no longer creates the old cover FIRE / Crouch squares. Their layout tests (test_l_*) are
-## deleted; the shot tests drive the routed "cover_fire" press directly (TouchProvider.trigger_action /
-## release_action, the path those squares used) until stage 4 moves Fire in cover to the normal Fire buttons.
+## deleted. M2 C1b stage 4: the shot tests press the normal right Fire button (fire_button below; was the routed
+## "cover_fire" press through TouchProvider.trigger_action / release_action).
 var match_scene: MatchRoot
 var pawn: Pawn
 var touch: Control
@@ -91,9 +91,9 @@ func cleanup() -> void:
 		Input.action_release(action)
 	await tree().process_frame
 
-func event_at(point: Vector2, down: bool) -> void:
+func event_at(point: Vector2, down: bool, index: int = 41) -> void:
 	var event := InputEventScreenTouch.new()
-	event.index = 41
+	event.index = index
 	event.pressed = down
 	event.position = tree().root.get_screen_transform() * point
 	tree().root.push_input(event, false)
@@ -111,23 +111,22 @@ func tap(point: Vector2) -> void:
 	event_at(point, false)
 	await frames(2)
 
-## The routed cover FIRE press / release (what the old square sent).
-func cover_fire(down: bool) -> void:
-	if down:
-		touch.provider.trigger_action("cover_fire")
-	else:
-		touch.provider.release_action("cover_fire", false)
+## M2 C1b stage 4: the right Fire button, touched in window pixels (was the routed cover FIRE press / release).
+func fire_button(down: bool) -> void:
+	event_at(touch.get_button_rect(touch.RIGHT_FIRE_KEY).get_center(), down, 42)
 
 ## M2 C1b stage 3: the press is routed instead of tapped on the old square, and the crouched pass (a Crouch tap,
-## ignored in cover since stage 2) is gone: one standing pass per edge.
+## ignored in cover since stage 2) is gone: one standing pass per edge. M2 C1b stage 4: a two-frame tap on the right
+## Fire button (was cover_fire(true); cover_fire(false), a press-time route with no frame between).
 func test_t_arrival_tick_first_shot_standing() -> void:
 	for edge in [0.01, 0.25, 0.50]:
 		await setup(SCREENS[0], edge)
 		var start := pawn.position
 		var began := pawn.get_clock()
 		var pop := -1.0
-		cover_fire(true)
-		cover_fire(false)
+		fire_button(true)
+		await frames(2)
+		fire_button(false)
 		for i in 60:
 			await frames(1)
 			if pop < 0.0 and pawn.position.distance_to(start) > 0.0001:
@@ -136,7 +135,9 @@ func test_t_arrival_tick_first_shot_standing() -> void:
 		print("A2 T edge=%.2f pop=%.4f first_shot=%.4f" % [edge, pop, latency])
 		assert_eq(shots, 1, "isolated green tap fires once")
 		assert_true(pop >= 0.0 and pop < 0.1, "tap starts live pop-out promptly")
-		assert_true(latency > 0.0 and latency <= (0.1834 if edge == 0.50 else 0.1667), "arrival-tick standing shot meets speed-bound target")
+		# M2 C1b stage 4: the polled Fire button can add one physics tick over the old press-time route at the 0.5 m
+		# edge (measured 0.2000 s there, 0.1500 / 0.1667 s at 0.01 / 0.25 m). Was 0.1834 / 0.1667.
+		assert_true(latency > 0.0 and latency <= (0.2001 if edge == 0.50 else 0.1667), "arrival-tick standing shot meets speed-bound target")
 		assert_eq(pawn.cover.config["crouch_blend_s"], 0.2, "reserved crouch blend unchanged")
 		await cleanup()
 
@@ -156,7 +157,9 @@ func test_s_hard_push_stays_and_lock_release_exits() -> void:
 		var target: Vector2 = touch.get_lock_target_rect().get_center()
 		drag_to(target, target - origin)
 		await frames(30)
-		assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "the forward extreme does not leave cover")
+		# M2 C1b stage 4: the Aim lean at this edge is PEEK_RIGHT (was IN_COVER with the old quick draw).
+		var held_state := CoverController.State.PEEK_RIGHT if quick_draw else CoverController.State.IN_COVER
+		assert_eq(pawn.cover.state, held_state, "the forward extreme does not leave cover")
 		assert_true(not touch.provider.is_sprinting(), "the stick gesture does not sprint in cover")
 		assert_true(touch.provider.lock_target_visible(), "transient lock target remains available")
 		event_at(target, false)
@@ -190,16 +193,17 @@ func test_s_lock_already_on_enters_and_stays_in_cover() -> void:
 	assert_true(touch.provider.sprint_locked, "cover entry preserves existing lock")
 	await cleanup()
 
-## M2 C1b stage 3: the FIRE hold is routed instead of held on the old square.
+## M2 C1b stage 3: the FIRE hold is routed instead of held on the old square. M2 C1b stage 4: held on the right Fire
+## button (was cover_fire(true) / cover_fire(false)).
 func test_h_aimed_semi_hold_records_shot_count() -> void:
 	await setup(SCREENS[0])
 	pawn.loadout.get_active().fire_mode = "semi"
 	await tap(touch._buttons["aim"].get_global_rect().get_center())
 	await frames(20)
 	assert_true(pawn.cover.aimed_out, "completed aimed-out pose before hold")
-	cover_fire(true)
+	fire_button(true)
 	await frames(30)
-	cover_fire(false)
+	fire_button(false)
 	await frames(2)
 	print("A2 H semi cover FIRE hold 30 frames shots=%d" % shots)
 	assert_true(shots >= 1, "held cover FIRE emits a shot; repeat policy remains undecided")

@@ -1,8 +1,9 @@
 extends "res://tests/test_case.gd"
 ## Real match, live pawn physics and real tagged-wall probe; window-pixel touch routes.
-## M2 C1b stage 3: the HUD no longer creates the old cover FIRE / Crouch squares. Shots are sent through the routed
-## "cover_fire" press they used (cover_fire / fire_tap below) until stage 4 moves Fire in cover to the normal Fire
-## buttons; tests that pinned the squares' geometry, colours or hit circles, or the stick peek, are deleted.
+## M2 C1b stage 3: the HUD no longer creates the old cover FIRE / Crouch squares; tests that pinned the squares'
+## geometry, colours or hit circles, or the stick peek, are deleted. M2 C1b stage 4: shots are fired with the normal
+## right Fire button (cover_fire / fire_tap below; was the routed "cover_fire" press), and the reach rule is
+## CoverController.fire_available (was can_quick_draw).
 var match_scene: MatchRoot
 var pawn: Pawn
 var touch: Control
@@ -110,17 +111,16 @@ func tap(point: Vector2, singleton: bool = false) -> void:
 	event_at(point, false, singleton)
 	await tree().process_frame
 
-## The routed cover FIRE press / release (what the old square sent through the touch provider).
-func cover_fire(down: bool, cancel: bool = false) -> void:
-	if down:
-		touch.provider.trigger_action("cover_fire")
-	else:
-		touch.provider.release_action("cover_fire", cancel)
+## M2 C1b stage 4: the right Fire button press / release in window pixels (was the routed cover FIRE press / release;
+## the cancel flag of the old release has no meaning any more).
+func cover_fire(down: bool, _cancel: bool = false) -> void:
+	event_at(touch.get_button_rect(touch.RIGHT_FIRE_KEY).get_center(), down, false, 42)
 
-## A routed tap with the timing of tap() (one process frame down).
+## A Fire button tap, two physics frames down (was one process frame on the press-time route, which a polled button
+## can miss between two physics ticks).
 func fire_tap() -> void:
 	cover_fire(true)
-	await tree().process_frame
+	await frames(2)
 	cover_fire(false)
 	await tree().process_frame
 
@@ -167,7 +167,7 @@ func test_rc_green_auto_tap_during_weapon_interval_is_not_lost() -> void:
 	await setup(Vector2i(2520, 1080), 420.0)
 	await hold_tap(touch._buttons["aim"].get_global_rect().get_center())
 	await frames(30)
-	assert_true(pawn.cover.can_quick_draw() and pawn.cover.aimed_out, "green completed live lean")
+	assert_true(pawn.cover.fire_available() and pawn.cover.aimed_out, "green completed live lean")
 	await fire_hold_tap()
 	assert_eq(shots, 1, "first green auto tap shoots")
 	await fire_tap()
@@ -176,24 +176,25 @@ func test_rc_green_auto_tap_during_weapon_interval_is_not_lost() -> void:
 	assert_eq(shots, 2, "second accepted green auto tap survives weapon interval")
 	await cleanup()
 
-## M2 C1b stage 3: the colour assertions on the old square are gone; the reach rule (can_quick_draw) is kept.
+## M2 C1b stage 3: the colour assertions on the old square are gone; the reach rule is kept. M2 C1b stage 4: the rule
+## is fire_available (was can_quick_draw) and the buffer is _fire_buffered (was _buffered_round / _quick_held).
 func test_red_tap_no_queue_and_reach_updates_on_live_slide() -> void:
 	await setup(Vector2i(2520, 1080), 420.0, 2.2, 2.0)
-	assert_true(not pawn.cover.can_quick_draw(), "tall midwall red")
+	assert_true(not pawn.cover.fire_available(), "tall midwall red")
 	var start := pawn.position
 	await fire_tap()
 	await frames(30)
-	assert_true(not pawn.cover._buffered_round and not pawn.cover._quick_held and not pawn.cover._draw_active, "red tap queues nothing")
+	assert_true(not pawn.cover._fire_buffered and not pawn.cover._draw_active, "red tap queues nothing")
 	assert_true(pawn.position.distance_to(start) < 0.00001 and shots == 0, "red tap never pops or fires")
 	touch.provider.move_value = Vector2(0.49, 0)
 	var crossed := false
 	for i in 100:
 		await frames(1)
-		crossed = crossed or pawn.cover.can_quick_draw()
+		crossed = crossed or pawn.cover.fire_available()
 	touch.provider.move_value = Vector2.ZERO
 	await frames(20)
-	assert_true(crossed and pawn.cover.can_quick_draw(), "slide reaches green edge band")
-	assert_true(shots == 0 and not pawn.cover._buffered_round and not pawn.cover._draw_active, "old red tap is not promoted after green")
+	assert_true(crossed and pawn.cover.fire_available(), "slide reaches green edge band")
+	assert_true(shots == 0 and not pawn.cover._fire_buffered and not pawn.cover._draw_active, "old red tap is not promoted after green")
 	await fire_tap()
 	await frames(60)
 	assert_eq(shots, 1, "fresh green tap fires")
@@ -202,7 +203,7 @@ func test_red_tap_no_queue_and_reach_updates_on_live_slide() -> void:
 func test_low_cover_green_fires_at_both_ends_and_middle() -> void:
 	for edge in [0.25, 2.0, 3.75]:
 		await setup(Vector2i(2176, 1812), 373.0, 1.1, edge)
-		assert_true(pawn.cover.can_quick_draw(), "low wall green along entire wall")
+		assert_true(pawn.cover.fire_available(), "low wall green along entire wall")
 		await fire_tap()
 		await frames(60)
 		assert_eq(shots, 1, "low wall tap fires once")
@@ -264,7 +265,8 @@ func test_free_controls_restore_after_cover() -> void:
 	assert_true(not touch.provider.sprint_locked, "restored Sprint lock unlocks")
 	await cleanup()
 
-func test_look_and_optional_left_fire_general_action_only_outside_cover() -> void:
+## M2 C1b stage 4: was test_look_and_optional_left_fire_general_action_only_outside_cover.
+func test_look_fires_only_outside_cover_and_left_fire_also_in_cover() -> void:
 	await setup(Vector2i(2520, 1080), 420.0)
 	AppFlow.profile["left_fire_enabled"] = true
 	touch.refresh_left_fire()
@@ -278,16 +280,17 @@ func test_look_and_optional_left_fire_general_action_only_outside_cover() -> voi
 			var before := shots
 			event_at(point, true)
 			await frames(20)
-			# M2 C1b stage 3: the HUD gate was the old cover squares' active flag (set_cover_controls_active), which nothing
-			# sets now, so the HUD presses "fire" in cover too; the pawn still ignores it there (below). Stage 4 (fix 9)
-			# adds the look-zone filter and routes the Fire buttons in cover. Was: pressed == not covered.
-			assert_true(Input.is_action_pressed("fire"), "the HUD presses the general fire action (covered=%s)" % covered)
+			# M2 C1b stage 4 (decision 5, fix 9): in cover only the Fire buttons press "fire"; the look-zone hold does not.
+			# Was (stage 3): the HUD pressed "fire" for both and the pawn ignored it in cover.
+			var is_look: bool = point != touch._buttons["fire_left"].get_global_rect().get_center()
+			assert_eq(Input.is_action_pressed("fire"), not (covered and is_look), "fire pressed by look=%s covered=%s" % [is_look, covered])
 			event_at(point, false)
 			await frames(12)
-			if covered:
-				assert_eq(shots, before, "only contextual FIRE can shoot in cover")
+			if covered and is_look:
+				assert_eq(shots, before, "a look-zone hold never shoots in cover")
 			else:
-				assert_true(shots > before, "normal fire source shoots outside cover")
+				assert_true(shots > before, "Left Fire shoots in cover, and every fire source outside cover (covered=%s)" % covered)
+			await frames(30)  # the return from the lean before the next press
 	await cleanup()
 
 ## M2 C1b stage 3 (decision 8): the forward-extreme drag itself no longer leaves cover (it did: "transient Sprint
@@ -325,10 +328,12 @@ func test_vf_timing_live_window_tap_motion_bounds_and_probe_cost() -> void:
 		var return_start := -1.0
 		var out_complete := -1.0
 		var max_step := 0.0
+		# M2 C1b stage 4: a two-frame Fire button tap (was the routed press and release in one frame).
 		cover_fire(true)
-		cover_fire(false)
 		for i in 65:
 			await frames(1)
+			if i == 1:
+				cover_fire(false)
 			var now := pawn.get_clock()
 			var dt := now - previous_clock
 			var step := pawn.position.distance_to(last)
@@ -453,11 +458,12 @@ func test_vf_crouched_first_shot_measured_without_changing_reserved_blend() -> v
 func test_vf_camera_damped_in_cover_and_free_follow_restored() -> void:
 	await setup(Vector2i(2520, 1080), 420.0)
 	var rig := pawn.get_node("CameraRig") as CameraRig
-	cover_fire(true)
-	cover_fire(false)
+	cover_fire(true)  # M2 C1b stage 4: a two-frame Fire button tap (was the routed press and release in one frame)
 	var lag_seen := false
 	for i in 12:
 		await frames(1)
+		if i == 1:
+			cover_fire(false)
 		lag_seen = lag_seen or absf(rig.global_position.x - pawn.global_position.x) > 0.0001
 	assert_true(lag_seen and rig._cover_follow_active, "camera damps translation while cover transitions")
 	await frames(45)

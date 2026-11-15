@@ -71,7 +71,8 @@ func test_new_data_keys_and_every_lock_respects_the_cap() -> void:
 		assert_true(not cfg.has(dead), "the stick-peek key %s is gone" % dead)
 	var c := CoverController.new(cfg)
 	var locks := c.lock_durations()
-	assert_true(locks.size() >= 5, "every lock span is listed")
+	# M2 C1b stage 4: peek_s is no longer an input lock (it only sets the CoverAnim peek clip length); was >= 5.
+	assert_true(locks.size() >= 4, "every lock span is listed")
 	for key in locks:
 		assert_true(float(locks[key]) <= cap + 0.000001, "lock %s = %s s <= input_lock_max_s %s" % [key, locks[key], cap])
 	var over := _cfg()
@@ -204,10 +205,11 @@ func _fixture(at: Vector3 = Vector3(0, 0, 0.6)) -> void:
 	assert_true((-_pawn.global_basis.z).dot(along) > 0.99, "fixture: the cover camera looks along the wall")
 
 
-func _tick(move: Vector2 = Vector2.ZERO, jump: bool = false) -> void:
+func _tick(move: Vector2 = Vector2.ZERO, jump: bool = false, fire: bool = false) -> void:
 	var frame := InputFrame.new()
 	frame.move = move
 	frame.jump_just_pressed = jump
+	frame.fire_pressed = fire  # M2 C1b stage 4: Fire in cover is the frame's fire bit
 	_pawn.set_frame(frame)
 	_pawn._physics_process(DT)
 	await _tree().physics_frame
@@ -322,7 +324,8 @@ func test_vanished_wall_exits_through_exiting_without_a_snap() -> void:
 	for case in ["in_cover", "drawn_out"]:
 		await _fixture(Vector3(1.65, 0, 0.6) if case == "drawn_out" else Vector3(0, 0, 0.6))
 		if case == "drawn_out":
-			_pawn.cover.quick_draw(true)
+			# M2 C1b stage 4: drawn out by a Fire press (the frame's fire bit; was the routed quick_draw(true)).
+			await _tick(Vector2.ZERO, false, true)
 			for i in 20:
 				await _tick()
 			assert_true(_pawn.cover.aim_out_amount > 0.0 and _pawn.cover._draw_active, "fixture: drawn out at the edge")
@@ -345,7 +348,6 @@ func test_vanished_wall_exits_through_exiting_without_a_snap() -> void:
 		assert_eq(states[0], CoverController.State.EXITING, "%s: the first tick after the wall vanished is EXITING" % case)
 		assert_eq(states[-1], CoverController.State.FREE, "%s: then FREE" % case)
 		assert_eq(_rig.get_first_person_weight(), 1.0, "%s: back in first person" % case)
-		_pawn.cover.quick_draw(false, true)
 		_assert_smooth(meter, "vanished wall " + case)
 		await _cleanup()
 
@@ -472,7 +474,8 @@ func _wait_free(max_frames: int = 60) -> void:
 
 func test_hidden_slots_empty_and_jump_sprint_lock_cover_visible_in_cover() -> void:
 	var ui := DataRegistry.new().load_file("res://data/ui.json")
-	assert_eq((ui["cover_buttons"]["hidden_slots"] as Array).size(), 0, "ui.json cover_buttons.hidden_slots is empty")
+	# M2 C1b stage 4: the whole cover_buttons block is gone (was: its hidden_slots list is empty).
+	assert_true(not ui.has("cover_buttons"), "ui.json has no cover_buttons block (no slot hidden in cover)")
 	await _match_setup()
 	assert_true(touch._buttons["jump"].visible, "Jump visible in cover")
 	assert_true(touch.lock_button.visible, "the Sprint lock visible in cover")
@@ -480,7 +483,8 @@ func test_hidden_slots_empty_and_jump_sprint_lock_cover_visible_in_cover() -> vo
 	assert_true(touch.cover_slot_engaged, "the Cover button shows its active state")
 	for key in ["jump", "sprint_lock", "swap_shoulder"]:
 		assert_true(key in touch.get_element_keys(), "%s stays a layout element in cover" % key)
-	assert_true(not touch.cover_controls_active, "the old slot hiding is inert")
+	# M2 C1b stage 4: the slot-hiding machinery is deleted (was: assert not touch.cover_controls_active).
+	assert_true(not ("cover_controls_active" in touch) and not touch.has_method("set_cover_controls_active"), "the old slot hiding is gone")
 	assert_true(match_scene.find_children("CoverFireButton", "", true, false).is_empty() and match_scene.find_children("CoverCrouchButton", "", true, false).is_empty(), "the old cover FIRE / Crouch squares are not created")
 	await _match_cleanup()
 

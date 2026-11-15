@@ -7,15 +7,18 @@ const NET_DIR := "res://scripts/net"
 const COVER_PATH := "res://scripts/systems/cover_controller.gd"
 
 ## Read-only CoverController API that UI may call. Field reads and null checks are also allowed.
-const READ_ONLY_METHODS: Array[String] = ["state_name", "blocks_fire", "can_quick_draw", "enter_duration", "can_enter_by_button",
-	"exit_duration", "lock_durations"]
+## M2 C1b stage 4: can_quick_draw is gone; fire_available, fire_trigger, can_go_out, _is_low, lean_side and
+## _wants_out are pure reads.
+const READ_ONLY_METHODS: Array[String] = ["state_name", "blocks_fire", "fire_available", "fire_trigger", "can_go_out",
+	"_is_low", "lean_side", "_wants_out", "enter_duration", "can_enter_by_button", "exit_duration", "lock_durations"]
 ## Every other func in cover_controller.gd, written out (derived from its `func` lines; the test fails when a
 ## new func appears so it must be classified here). UI may call none of them.
-const MUTATORS: Array[String] = ["_init", "reset", "toggle_crouch", "set_look_active", "quick_draw",
-	"quick_draw_trigger", "round_fired", "refresh_shot_clear", "refresh_completed_pose", "tick", "_update_crouch",
-	"_tick_draw", "_try_snap", "_plane_position", "_begin_exit", "movement_velocity", "request_cover", "_enter",
-	"_tick_away_exit", "request_exit"]
-## Crouch mutators: forbidden anywhere in scripts/ui, with no exception.
+## M2 C1b stage 4: toggle_crouch, set_look_active, quick_draw, quick_draw_trigger and _tick_draw are gone;
+## _buffer_fire and _tick_out are new.
+const MUTATORS: Array[String] = ["_init", "reset", "round_fired", "refresh_shot_clear", "refresh_completed_pose",
+	"tick", "_buffer_fire", "_tick_out", "_update_crouch", "_try_snap", "_plane_position", "_begin_exit",
+	"movement_velocity", "request_cover", "_enter", "_tick_away_exit", "request_exit"]
+## Crouch mutators: forbidden anywhere in scripts/ui, with no exception (toggle_crouch stays a forbidden name).
 const CROUCH_METHODS: Array[String] = ["toggle_crouch", "_update_crouch"]
 const CROUCH_FIELDS: Array[String] = ["crouched", "crouch_amount"]
 ## Exception list, keyed by file and method (not lines). Empty since D2 routed cover FIRE through the input layer.
@@ -112,13 +115,13 @@ func test_t7_scanner_bites_on_samples() -> void:
 		"func f(k: CoverController) -> void:\n\tk.round_fired()": "method:round_fired",
 		"pawn.cover.crouch_amount += 0.5": "assign:crouch_amount",
 		"pawn.cover.set(\"crouched\", true)": "method:set",
-		"var t := pawn.cover.quick_draw_trigger()": "method:quick_draw_trigger",
+		"var t := pawn.cover.request_exit()": "method:request_exit",
 		"x.crouched = true": "crouch:crouched",
 	}
 	for sample in cases:
 		assert_true(violations(sample).has(cases[sample]), "scanner flags %s in: %s" % [cases[sample], sample])
 	assert_true(violations("obj.set(\"crouch_amount\", 1.0)").has("crouch:crouch_amount"), "scanner flags set() by name")
-	var clean := "\t# pawn.cover.toggle_crouch()\n\tvar s := pawn.cover.state_name()\n\tif pawn.cover != null and pawn.cover.state == CoverController.State.IN_COVER and not pawn.cover.blocks_fire() and pawn.cover.can_quick_draw():\n\t\tlabel.text = \"#\" + str(pawn.cover.crouched)"
+	var clean := "\t# pawn.cover.toggle_crouch()\n\tvar s := pawn.cover.state_name()\n\tif pawn.cover != null and pawn.cover.state == CoverController.State.IN_COVER and not pawn.cover.blocks_fire() and pawn.cover.fire_available():\n\t\tlabel.text = \"#\" + str(pawn.cover.crouched)"
 	assert_eq(violations(clean), [] as Array[String], "reads, null checks and comments are allowed")
 
 

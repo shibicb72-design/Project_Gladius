@@ -166,29 +166,31 @@ func test_real_aim_latch_and_gyro_modes_while_leaned() -> void:
 	var yaw := pawn.rotation.y
 	await router_tick(router)
 	assert_true(pawn.rotation.y != yaw, "scope_on gyro turns aim while Aim-leaned")
-	pawn.cover.set_look_active(true)
+	# M2 C1b stage 4: the look-drag lean (set_look_active) is gone (was: Aim off while a drag was held kept the lean,
+	# and the general fire action could not shoot from it). Aim off now returns; the general fire action (mouse,
+	# keyboard, gamepad) leans and fires like the Fire buttons.
 	Input.action_press("aim")
 	await router_tick(router)
 	Input.action_release("aim")
 	for i in 30:
 		await router_tick(router)
-	assert_true(not pawn.aiming and pawn.cover.aimed_out, "Aim off while drag held keeps lean")
+	assert_true(not pawn.aiming and not pawn.cover.aimed_out, "Aim off returns")
 	yaw = pawn.rotation.y
 	await router_tick(router)
-	assert_eq(pawn.rotation.y, yaw, "scope_on does not turn quick/drag lean without ADS")
+	assert_eq(pawn.rotation.y, yaw, "scope_on does not turn without ADS")
 	gyro.configure({"gyro_mode": "always_on"})
 	await router_tick(router)
-	assert_true(pawn.rotation.y != yaw, "always_on steers unzoomed lean")
+	assert_true(pawn.rotation.y != yaw, "always_on steers unzoomed in cover")
+	gyro.configure({"gyro_mode": "off"})
+	pawn.rotation.y = 0.0
 	Input.action_press("fire")
 	for i in 60:
 		await router_tick(router)
 	Input.action_release("fire")
-	assert_eq(shots, 0, "look/Left Fire/general fire action cannot shoot during drag lean")
-	pawn.cover.set_look_active(false)
-	gyro.configure({"gyro_mode": "off"})
+	assert_true(shots >= 1, "the general fire action (keyboard / mouse / gamepad) leans and fires in cover")
 	for i in 40:
 		await router_tick(router)
-	assert_true(not pawn.cover.aimed_out, "drag release returns after second Aim tap")
+	assert_true(not pawn.cover.aimed_out, "Fire release returns")
 	router.free()
 	await cleanup()
 
@@ -207,9 +209,8 @@ func test_overhang_refuses_stand_and_low_wall_quick_tap_rises_then_returns() -> 
 	set_wall_height(1.1)
 	roof.queue_free()
 	await ticks(2)
-	assert_true(pawn.cover.can_quick_draw(), "low cover green at mid-wall")
-	pawn.cover.quick_draw(true)
-	pawn.cover.quick_draw(false)
+	assert_true(pawn.cover.fire_available(), "low cover green at mid-wall")
+	await tick(Vector2.ZERO, false, true)  # M2 C1b stage 4: a one-tick Fire press (was quick_draw(true) / (false))
 	for i in 60:
 		await tick()
 		no_shape_clip()
@@ -221,60 +222,48 @@ func test_high_midwall_red_press_and_aim_levels_edge_drag_and_fullauto() -> void
 	await fixture(2.2)
 	var start := pawn.global_position
 	var ammo := pawn.loadout.get_active().ammo_in_mag
-	assert_true(not pawn.cover.can_quick_draw(), "high mid-wall red")
-	pawn.cover.quick_draw(true)
+	# M2 C1b stage 4 (fix 7): the reach rule is fire_available (was can_quick_draw); the press is the frame's fire bit
+	# (was quick_draw(true)); the drag lean is replaced by the Aim lean (fix 16).
+	assert_true(not pawn.cover.fire_available(), "high mid-wall red")
 	await ticks(60, Vector2.ZERO, true, true)
 	assert_true(pawn.aiming and pawn.aim_blend == 1.0, "ADS still zooms at red mid-wall")
 	assert_true(pawn.global_position.distance_to(start) < 0.0001, "red press / midwall Aim cannot move pawn")
-	assert_eq(shots, 0, "red press and general fire do not shoot")
+	assert_eq(shots, 0, "Fire at red mid-wall does not shoot")
 	assert_eq(pawn.loadout.get_active().ammo_in_mag, ammo, "no ammo spent")
-	# M2 C1b stage 3: the old cover FIRE button and its red/green colours are gone from the HUD; the controller rule
-	# stays. Red press still held: sliding into the band must not promote it.
+	# Released press: sliding into the band does not promote it.
 	for i in 100:
 		await tick(Vector2(0.49, 0))
-	assert_true(pawn.cover.can_quick_draw(), "slide reaches green usable edge")
-	assert_eq(shots, 0, "red press not promoted while held")
-	pawn.cover.quick_draw(false)
-	await tree().process_frame
-	pawn.cover.set_look_active(true)
-	await ticks(30)
-	assert_true(pawn.cover.aimed_out and not pawn.cover.blocks_fire(), "drag lean clears high wall")
-	assert_eq(shots, 0, "drag never fires")
-	pawn.cover.quick_draw(true)
-	await tick()
-	pawn.cover.quick_draw(false)
-	assert_eq(shots, 1, "FIRE during drag shoots immediately")
-	await ticks(20)
+	assert_true(pawn.cover.fire_available(), "slide reaches green usable edge")
+	assert_eq(shots, 0, "the red press is not promoted")
+	await ticks(30, Vector2.ZERO, true)
+	assert_true(pawn.cover.aimed_out and not pawn.cover.blocks_fire(), "Aim lean clears high wall")
+	assert_eq(shots, 0, "Aim never fires")
+	await tick(Vector2.ZERO, true, true)
+	assert_eq(shots, 1, "FIRE during the Aim lean shoots immediately")
+	await ticks(20, Vector2.ZERO, true)
 	pawn.loadout.get_active().fire_mode = "auto"
-	pawn.cover.quick_draw(true)
-	await ticks(60)
-	pawn.cover.quick_draw(false)
+	await ticks(60, Vector2.ZERO, true, true)
 	var after := shots
 	assert_true(after >= 6 and after <= 8, "auto while held at weapon data interval")
-	await ticks(20)
-	assert_eq(shots, after, "auto stops on release while drag holds pose")
-	pawn.cover.set_look_active(false)
+	await ticks(20, Vector2.ZERO, true)
+	assert_eq(shots, after, "auto stops on release while Aim holds pose")
 	await ticks(40)
-	assert_true(not pawn.cover.aimed_out and pawn.global_position.x < 2, "drag release returns to anchor")
+	assert_true(not pawn.cover.aimed_out and pawn.global_position.x < 2, "Aim off returns to anchor")
 	await cleanup()
 
 func test_aim_holds_without_fire_and_delayed_semi_round_stays_out() -> void:
 	await fixture()  # M2 C1b stage 2: the 1.1 m wall is LOW, so the pawn is already crouched (was toggle_crouch here)
 	await ticks(14)
-	await ticks(120, Vector2.ZERO, true, true)
+	# M2 C1b stage 4 (fix 16): Aim alone rises and holds (was: Aim plus the general fire action, which never shot);
+	# the drag hold after Aim off is gone, so both semi presses come while Aim is on and Aim goes off right after the
+	# second one (was: quick_draw taps during a drag hold).
+	await ticks(120, Vector2.ZERO, true)
 	assert_true(pawn.cover.aimed_out and pawn.cover.crouch_amount == 0.0, "Aim rises and stays for two seconds")
-	assert_eq(shots, 0, "Aim plus general fire never shoots")
-	pawn.cover.set_look_active(true)
-	await ticks(20, Vector2.ZERO, false)
-	assert_true(pawn.cover.aimed_out, "drag holds after Aim off")
-	pawn.cover.quick_draw(true)
-	await tick()
-	pawn.cover.quick_draw(false)
-	await ticks(6)
-	pawn.cover.quick_draw(true)
-	await tick()
-	pawn.cover.quick_draw(false)
-	pawn.cover.set_look_active(false)
+	assert_eq(shots, 0, "Aim alone never shoots")
+	await tick(Vector2.ZERO, true, true)
+	assert_eq(shots, 1, "the first semi press fires from the held rise")
+	await ticks(6, Vector2.ZERO, true)
+	await tick(Vector2.ZERO, true, true)
 	await ticks(3)
 	assert_true(pawn.cover.aimed_out, "second semi round armed within interval keeps pose out")
 	await ticks(60)
@@ -286,19 +275,19 @@ func test_joined_edges_and_turning_back_into_wall_blocks_even_without_pose_gate(
 	await fixture(2.2)
 	var joined := add_wall(Vector3(4, 1.1, -0.5), Vector3(4, 2.2, 1))
 	await ticks(100, Vector2(0.49, 0))
-	assert_true(not pawn.cover.can_quick_draw(), "zero-gap joined edge is not usable")
+	assert_true(not pawn.cover.fire_available(), "zero-gap joined edge is not usable")
 	joined.queue_free()
 	await ticks(2)
-	assert_true(pawn.cover.can_quick_draw(), "removed neighbor exposes usable end")
+	assert_true(pawn.cover.fire_available(), "removed neighbor exposes usable end")
 	await ticks(30, Vector2.ZERO, true)
 	assert_true(pawn.cover.aimed_out, "Aim leans at edge")
-	pawn.cover.config["fire_requires_peek"] = false
+	# M2 C1b stage 4: the fire_requires_peek switch is deleted (was set false here); the pose gate is always on, and
+	# the full-range ray still blocks on top of it.
 	# Point diagonally back across the long wall, beyond a short muzzle check.
 	pawn.rotation.y = PI / 4.0
 	await tick(Vector2.ZERO, true)
-	assert_true(pawn.cover.blocks_fire(), "full-range ray blocks glancing shot even without pose requirement")
-	pawn.cover.quick_draw(true)
-	await ticks(60, Vector2.ZERO, true)
+	assert_true(pawn.cover.aimed_out and pawn.cover.blocks_fire(), "full-range ray blocks the glancing shot from the completed pose")
+	await ticks(60, Vector2.ZERO, true, true)  # Fire held (was quick_draw(true))
 	assert_eq(shots, 0, "wall ray blocks all shots and ammo")
 	assert_eq(pawn.loadout.get_active().ammo_in_mag, pawn.loadout.get_active().def.magazine, "blocked ray spends no ammo")
 	await cleanup()
@@ -308,8 +297,7 @@ func test_legacy_burst_stays_out_until_all_rounds_and_blocked_pending_round_is_p
 	await ticks(100, Vector2(0.49, 0))
 	var weapon := pawn.loadout.get_active()
 	weapon.fire_mode = ""
-	pawn.cover.quick_draw(true)
-	pawn.cover.quick_draw(false)
+	await tick(Vector2.ZERO, false, true)  # M2 C1b stage 4: a one-tick Fire press (was quick_draw(true) / (false))
 	for i in 60:
 		await tick()
 		no_shape_clip()
@@ -318,13 +306,10 @@ func test_legacy_burst_stays_out_until_all_rounds_and_blocked_pending_round_is_p
 	assert_true(not pawn.cover.aimed_out, "legacy burst eventually returns automatically")
 	weapon.fire_mode = "semi"
 	await ticks(30, Vector2.ZERO, true)
-	pawn.cover.quick_draw(true)
-	await tick(Vector2.ZERO, true)
-	pawn.cover.quick_draw(false)
+	# M2 C1b stage 4: two one-tick Fire presses during the Aim lean (were quick_draw taps).
+	await tick(Vector2.ZERO, true, true)
 	await ticks(6, Vector2.ZERO, true)
-	pawn.cover.quick_draw(true)
-	await tick(Vector2.ZERO, true)
-	pawn.cover.quick_draw(false)
+	await tick(Vector2.ZERO, true, true)
 	var before := shots
 	var ammo := weapon.ammo_in_mag
 	pawn.rotation.y = PI / 4.0

@@ -132,11 +132,11 @@ func set_frame(frame: InputFrame) -> void:
 ## M2 C1b stage 2 (decision 7, fix 4): "crouch" is ignored. In cover the crouch is automatic (low vs high cover, see
 ## CoverController._update_crouch); outside cover the press never did anything (the old toggle only acted in cover).
 ## The InputFrame bit, the router entry and this entry point stay.
+## M2 C1b stage 4 (fix 4): "cover_fire" is a no-op (Fire in cover is the frame's fire bit, see _apply_weapon); its
+## router entry stays.
 func handle_action_press(action: String) -> void:
-	if action == "crouch":
+	if action == "crouch" or action == "cover_fire":
 		return
-	elif action == "cover_fire" and cover != null and is_alive():
-		cover.quick_draw(true)
 	elif action == "cover" and cover_button_available():
 		# M2 C1b: the Cover button. The main probe samples at the button's own reach (cover.json cover_button_range_m),
 		# so on entry it already holds the wall for the locked samples that follow.
@@ -145,17 +145,16 @@ func handle_action_press(action: String) -> void:
 		cover.request_cover(probe)
 
 
-## D2: end of the held cover FIRE press. No alive gate: the UI releases on death. cancel drops the
-## buffered round (hide, menu, suspend, death, exit). Stateless: sent even when no press was held.
-func handle_action_release(action: String, cancel: bool) -> void:
-	if action == "cover_fire" and cover != null:
-		cover.quick_draw(false, cancel)
+## D2: end of a held non-frame action (InputRouter.action_released via MatchRoot). M2 C1b stage 4 (fix 4): no action
+## uses it now (the old cover FIRE release is gone); the entry point stays for the router plumbing.
+func handle_action_release(_action: String, _cancel: bool) -> void:
+	pass
 
 
-## D2: cover FIRE look-hold state, sent by the UI every refresh. No alive gate, so false always lands.
-func handle_action_look(action: String, active: bool) -> void:
-	if action == "cover_fire" and cover != null:
-		cover.set_look_active(active)
+## D2: look-hold state of a non-frame action (InputRouter.action_look_changed via MatchRoot). M2 C1b stage 4 (fix 4):
+## no action uses it now (the old cover FIRE look-hold lean is gone; in cover the look zone only turns the view).
+func handle_action_look(_action: String, _active: bool) -> void:
+	pass
 
 
 ## Pawn simulation clock (s); the time base of Weapon reload progress.
@@ -312,7 +311,11 @@ func show_shot_fx(origin: Vector3, end: Vector3) -> void:
 
 ## Path A phase 2: camera knockback for this pawn's own ranged shot. Only the local player's pawn carries a CameraRig
 ## (bots, host-side remote pawns and replicas have none). View only: the next aim point ignores it.
+## M2 C1b stage 4 (decision 6, fix 15): no camera knockback in cover (any non-FREE state); the view model's and the
+## soldier's visual kick (driven by the fired / shot signals) stay.
 func _kick_camera() -> void:
+	if in_cover():
+		return
 	var rig := get_node_or_null("CameraRig") as CameraRig
 	if rig != null:
 		rig.apply_knockback()
@@ -682,7 +685,11 @@ func _apply_weapon() -> void:
 	if _frame.fire_just_pressed and not w.has_ammo() and not w.reloading:
 		fire_empty.emit()
 	var in_cover := cover != null and cover.state != CoverController.State.FREE
-	var trigger := (cover.quick_draw_trigger() if in_cover else _frame.fire_pressed) and not (cover != null and cover.blocks_fire())
+	# M2 C1b stage 4 (decisions 3, 5; fix 9): in cover the frame's fire bit (the Fire buttons, mouse, keyboard, gamepad)
+	# leans or rises out through CoverController.tick and fires as a normal weapon trigger once the out pose is complete
+	# and the wall ray is clear (CoverController.fire_trigger / blocks_fire); a press buffered through ENTERING, EXITING
+	# or the move out counts as held until a round answers it.
+	var trigger := cover.fire_trigger(_frame.fire_pressed) if cover != null else _frame.fire_pressed
 	# A locked semi/burst may finish with a false trigger. Preserve its round while the
 	# ray is blocked, but still update every tick so reload completion remains unchanged.
 	var pending: Array = [w.ammo_in_mag, w._semi_armed, w._burst_left, w._next_fire_time, w._next_burst_time, w._last_mode_shot]
@@ -695,11 +702,11 @@ func _apply_weapon() -> void:
 		w._next_burst_time = pending[4]
 		w._last_mode_shot = pending[5]
 		shots = 0
-	if in_cover and shots > 0:
+	if cover != null and shots > 0:
 		cover.round_fired()
 	for i in shots:
 		fire_shot()
-	# Shibi, Nov 10 2026: no recoil on the quick shot from cover (every in-cover shot goes through the cover trigger).
+	# Shibi, Nov 10 2026 and M2 C1b decision 6: no recoil on any shot from cover (lean or rise).
 	if shots > 0 and not w.def.is_melee() and not in_cover:
 		_apply_recoil(w.def, shots)
 	# G1: a gun that just ran dry with reserve left reloads by itself (stats.json combat.auto_reload_on_empty).
@@ -769,6 +776,12 @@ func cover_button_available() -> bool:
 ## M2 C1b stage 1, read-only for the HUD: true while the local pawn is in any cover state (the Cover button's active look).
 func in_cover() -> bool:
 	return cover != null and cover.state != CoverController.State.FREE
+
+
+## M2 C1b stage 4 (fix 7), read-only for the HUD: false only behind HIGH cover away from an open edge (no lean or rise
+## possible, CoverController.fire_available), where Fire does nothing; the touch HUD dims the Fire buttons on it.
+func cover_fire_available() -> bool:
+	return cover == null or cover.fire_available()
 
 
 ## M2 C1b stage 1, read-only for the HUD highlight: a Cover press now would enter cover. Samples a separate probe at

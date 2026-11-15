@@ -435,12 +435,13 @@ func test_auto_crouch_behind_low_cover_and_standing_behind_high_cover() -> void:
 		assert_true(absf((_pawn.get_node("Head") as Node3D).position.y - want_head) < EPS, "height %s: the head hitbox follows" % height)
 		if low:
 			assert_true(absf(_rig.position.y - _cover_cam("crouch_height_m")) < 0.02, "the camera pivot is lower behind low cover (%s)" % _rig.position.y)
-		# The old toggle and the crouch press do nothing in cover.
+		# The crouch press does nothing in cover. M2 C1b stage 4: CoverController.toggle_crouch is deleted (was also
+		# called here and asserted ignored).
 		_pawn.handle_action_press("crouch")
-		_pawn.cover.toggle_crouch()
 		for i in ceili(float(cfg["crouch_blend_s"]) / DT) + 2:
 			await _tick()
-		assert_eq(_pawn.cover.crouched, low, "height %s: the crouch press and toggle_crouch are ignored in cover" % height)
+		assert_eq(_pawn.cover.crouched, low, "height %s: the crouch press is ignored in cover" % height)
+		assert_true(not _pawn.cover.has_method("toggle_crouch"), "the old crouch toggle is gone")
 		# Leaving cover stands up.
 		_pawn.handle_action_press("cover")
 		assert_true(await _settle_free(), "height %s: exit" % height)
