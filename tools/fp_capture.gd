@@ -17,7 +17,7 @@ extends SceneTree
 ##                        local body from the first-person camera by render layer (camera.json first_person.body_layer)
 ## States:
 ##   standing, walk (4 frames across one bob cycle), fire (a frame with the view-model tracer), reload (mid motion),
-##   switch (mid motion), blade (idle), blade_swing (mid swing), wall (walked into the nearest wall), look_down,
+##   switch (switch_0..3 across the motion), blade (idle), blade_swing (blade_swing_0..3 across the swing), wall (walked into the nearest wall), look_down,
 ##   ads_mid (the first frame at or past half the aim blend), ads (full ADS: the red dot on the centre, no crosshair),
 ##   ads_fire (a full-ADS frame with the view-model tracer), ads_walk (full ADS while walking: damped bob).
 ##   The ADS states use the class's gun: --class=hastati (Pilum) or --class=sagittarii (Sagittarii rifle).
@@ -103,7 +103,11 @@ func _save(state: String) -> void:
 	var err := _svp.get_texture().get_image().save_png(path)
 	var vm := _rig.get_view_model()
 	var cam := _rig.get_camera()
-	var muzzle_px := cam.unproject_position(vm.get_muzzle_position()) if vm != null else Vector2.ZERO
+	# With the blade the "muzzle" is the pawn's muzzle height, straight below the eye: not projectable, so (0, 0).
+	var muzzle_px := Vector2.ZERO
+	if vm != null and not cam.is_position_behind(vm.get_muzzle_position()) \
+			and absf(cam.global_transform.basis.z.dot(vm.get_muzzle_position() - cam.global_position)) > 0.001:
+		muzzle_px = cam.unproject_position(vm.get_muzzle_position())
 	var dot := vm.get_red_dot() if vm != null else null
 	var dot_px := cam.unproject_position(dot.global_position) if dot != null else Vector2(-1, -1)
 	var hud := _match.get_node_or_null("Hud/GameHud") as GameHud
@@ -270,8 +274,12 @@ func _state_switch() -> void:
 	_press("swap_weapon")
 	await _step(1)
 	var swap_s := float(DataRegistry.new().get_camera_cfg()["first_person"]["view_model"]["swap_s"]["value"])
-	await _step(maxi(1, roundi(swap_s * 60.0 * 0.4)))
-	await _save("switch")
+	# Four frames across the motion (about 20, 40, 60 and 80 %): the gun drops out of view around the middle, so one
+	# mid frame alone can show no weapon at all.
+	var swap_step := maxi(1, roundi(swap_s * 60.0 * 0.2))
+	for i in 4:
+		await _step(swap_step)
+		await _save("switch_%d" % i)
 	await _step(40)
 
 
@@ -293,8 +301,11 @@ func _state_blade_swing() -> void:
 	_press("fire")
 	await _step(1)
 	var swing_s := float(DataRegistry.new().get_camera_cfg()["first_person"]["view_model"]["swing_s"]["value"])
-	await _step(maxi(1, roundi(swing_s * 60.0 * 0.4)))
-	await _save("blade_swing")
+	# Four frames across the swing (about 20, 40, 60 and 80 %): the blade can leave the view mid swing.
+	var swing_step := maxi(1, roundi(swing_s * 60.0 * 0.2))
+	for i in 4:
+		await _step(swing_step)
+		await _save("blade_swing_%d" % i)
 	await _step(40)
 
 

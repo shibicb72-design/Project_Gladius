@@ -17,7 +17,22 @@ All feedback numbers are placeholders in `data/ui.json` (`shot_fx`, `feedback`);
 | Aim | Tap toggle (default, `aim_toggle_enabled`, OQ-AIM): a tap zooms the camera FOV (`aim_fov_mult`, eased by `aim_zoom_s`) and tightens spread (`aim_spread_mult`); the zoom stays after release until Aim is tapped again. Fire does not cancel it. `aim_toggle_enabled` false = hold-to-aim. | FOV change. Aim state is read from `InputFrame.aim_pressed` (the router's tap-toggle latch) in `pawn.gd`; the host takes aim from the client's latest `InputFrame` (`net_match_bridge.gd` `host_note_input` stores it, the shot's spread reads it) and ignores the client-sent aim flag. |
 | Jump | Jumps when on the floor. | Camera hop. |
 
-A placeholder weapon box is drawn on the pawn (the camera is third-person).
+## Camera: first person walking, third person in cover (M2 C1a, Shibi Nov 14 2026)
+
+- First person while the local player is alive, on the ground and out of cover: the camera at eye height, arms and
+  the held weapon at the bottom right (the view model), with its own tracer and muzzle flash. The player's own
+  third-person body is not drawn by this camera (a render layer); everyone else, the spectator camera and other
+  players still see the full soldier.
+- Third person in cover (including entering and leaving it), on the carrier, falling, downed and spectating. The
+  switch blends over `data/camera.json` `first_person.blend_s`; body and arms swap on the same frame.
+- Aim (ADS) in first person raises the gun to a red-dot sight on the screen centre (the Sagittarii rifle through a
+  hollow scope); the centre crosshair hides at `first_person.crosshair_hide_aim_blend` and returns when Aim ends.
+  Third person and the blade keep the crosshair.
+- Shoulder button: hidden in first person (`data/ui.json` `first_person_touch.shoulder_visible`). Its slot stays
+  reserved and swallows taps (no swap, no look, no tap-to-fire); C1b will put a Cover button there. In third person
+  it works as before (and stays hidden in cover, below). The keyboard/gamepad shoulder swap is ignored in first
+  person.
+- All numbers are guesses for Shibi (OQ-FIRST-PERSON). Tests: `tests/test_first_person_camera.gd`.
 
 Touch debug overlay: set `data/ui.json` `touch_debug_overlay.enabled` to `true` to list each held touch with its
 index, position and the button/stick it hit (OQ-DEVICE-TOUCH). Default off.
