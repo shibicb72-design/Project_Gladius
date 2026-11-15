@@ -159,7 +159,7 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1, use_drop: bool = false
 ## ---- Ground loot (S4; LootField + data/loot.json). Set by MatchRoot before start(); null = no loot,
 ## and pawns keep their class loadouts (tests that do not opt in). ----
 var loot: LootField
-## M2 L1b: the match's breakables (and later chests): state and seeded loot (WorldProps, set by MatchRoot.begin
+## M2 L1b: the match's breakables and loot chests: state and seeded loot (WorldProps, set by MatchRoot.begin
 ## before start(); null in tests that build no match root).
 var props: WorldProps
 
@@ -213,6 +213,24 @@ func try_pickup(player_id: int, bot_rules: bool = false) -> bool:
 	return true
 
 
+## M2 L1b: the closed chest `player_id` could open now (WorldProps.chest_near from its feet), with pickup's
+## conditions (a running match, an alive pawn that is not dropping; a DOWNED or dead pawn is not alive); "" if none.
+func chest_target_for(player_id: int) -> String:
+	var pawn: Pawn = _players.get(player_id)
+	if props == null or not running or pawn == null or not pawn.is_alive() or pawn.is_dropping():
+		return ""
+	return props.chest_near(pawn.global_position)
+
+
+## M2 L1b: opens the current chest target on the authority (WorldProps.open_chest spills its seeded roll). False
+## on a client or when no chest is in range.
+func try_open_chest(player_id: int) -> bool:
+	if not authoritative:
+		return false
+	var id := chest_target_for(player_id)
+	return id != "" and props.open_chest(id)
+
+
 func _bot_pickups() -> void:
 	if loot == null:
 		return
@@ -220,6 +238,17 @@ func _bot_pickups() -> void:
 		var pawn: Pawn = _players[id]
 		if pawn.has_node("Brain") and pawn.is_alive() and not pawn.is_dropping():
 			try_pickup(id, true)
+	_bot_chests()
+
+
+## M2 L1b: after every bot's pickup, a bot opens any closed chest in range (no chest goal in the brain,
+## OQ-PROPS-CHEST). A separate pass, so this tick's pickups are exactly what they were before chests.
+func _bot_chests() -> void:
+	if props == null or props.chests.is_empty():
+		return
+	for id in _players:
+		if (_players[id] as Pawn).has_node("Brain"):
+			try_open_chest(id)
 
 
 ## ---- Drop from the sky (br.json "drop", placeholders, OQ-BR-DROP) ----

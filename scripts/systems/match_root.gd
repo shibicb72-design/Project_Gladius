@@ -58,7 +58,7 @@ var drop_from_sky: bool = false
 ## pawns keep their class loadouts.
 var ground_loot: bool = false
 var loot: LootField
-## M2 L1b: the map's breakables (and later chests), made for every match by begin(); also director.props.
+## M2 L1b: the map's breakables and loot chests, made for every match by begin(); also director.props.
 var world_props: WorldProps
 
 @onready var director: MatchDirector = $Director
@@ -341,9 +341,11 @@ func _on_action_triggered(action: String) -> void:
 	if menu_open or local_player == null or not is_instance_valid(local_player):
 		return
 	if action == "interact":
-		# Interact: revive a DOWNED squad mate in range first, else pick up the nearest usable loot item.
+		# Interact: revive a DOWNED squad mate in range first, else pick up the nearest usable loot item, else (M2 L1b)
+		# open a closed chest in range. A press that picked something up never also opens a chest.
 		if director.authoritative and not director.begin_revive(local_player.player_id):
-			director.try_pickup(local_player.player_id)
+			if not director.try_pickup(local_player.player_id):
+				director.try_open_chest(local_player.player_id)
 		return
 	local_player.handle_action_press(action)
 

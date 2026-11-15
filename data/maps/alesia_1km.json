@@ -384,6 +384,19 @@
 					"breakable_barrel"
 				]
 			},
+			"chests": {
+				"_note": "M2 L1b (OQ-PROPS-CHEST): loot chests, placed after the breakables (tools/gen_alesia.gd _chests) into alesia_1km_cover.json \"chests\" {id, at, size, yaw}. camps is per camp (inside the block, extra_cover.lane_gap_m to every footprint), arx inside arx_radius_m, fields on the fields annulus. size is the collider box (x wide, z deep), yaw a multiple of 90; front_clear_m of free ground in front of the chest (its local -z turned by the yaw, the side it opens towards) is kept as part of its footprint, so the spill (data/props.json chest.spill_*) lands on open ground. Permanent bodies under Nav, baked into the navigation; never cover walls.",
+				"arx": 1.0,
+				"arx_radius_m": 20.0,
+				"camps": 1.0,
+				"fields": 4.0,
+				"front_clear_m": 2.5,
+				"size": [
+					1.4,
+					0.9,
+					0.9
+				]
+			},
 			"types": {
 				"breakable_barrel": {
 					"size": [

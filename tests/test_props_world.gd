@@ -46,7 +46,8 @@ func test_props_json_and_the_1km_cover_file_validate() -> void:
 	assert_true((cfg["breakables"] as Dictionary).has("breakable_crate") and (cfg["breakables"] as Dictionary).has("breakable_barrel"), "both breakable types")
 	var km := DataRegistry.parse_quiet(KM_COVER)
 	assert_true((km.get("breakables", []) as Array).size() > 0, "nonvacuous: the 1 km cover file has breakables")
-	assert_eq(WorldProps.problems(km, cfg), PackedStringArray(), "the committed 1 km cover file's breakables validate")
+	assert_true((km.get("chests", []) as Array).size() > 0, "nonvacuous: the 1 km cover file has chests")
+	assert_eq(WorldProps.problems(km, cfg), PackedStringArray(), "the committed 1 km cover file's breakables and chests validate")
 
 
 func test_problems_reports_bad_entries() -> void:
@@ -163,6 +164,7 @@ func test_collect_finds_breakables_under_a_map() -> void:
 func test_every_match_has_world_props_and_the_fixtures_have_none() -> void:
 	for path: String in ["res://data/maps/alesia_cover.json", "res://data/maps/test_300_cover.json"]:
 		assert_true(not DataRegistry.parse_quiet(path).has("breakables"), path + ": no breakables")
+		assert_true(not DataRegistry.parse_quiet(path).has("chests"), path + ": no chests")
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = false
@@ -177,6 +179,8 @@ func test_every_match_has_world_props_and_the_fixtures_have_none() -> void:
 	assert_true(m.world_props.authority, "offline is the authority")
 	assert_eq(m.world_props.match_seed, 777, "seeded from the match seed")
 	assert_true(m.world_props.breakables.is_empty(), "no breakables on the fixture")
+	assert_true(m.world_props.chests.is_empty(), "no chests on the fixture")
+	assert_eq(_tree().get_nodes_in_group(LootChest.GROUP).size(), 0, "no chest in the tree")
 	assert_true(m.map.get_node_or_null("ArtBuilder/Props") == null, "no Props node on the fixture")
 	assert_eq(_tree().get_nodes_in_group(Breakable.GROUP).size(), 0, "no breakable in the tree")
 	m.queue_free()

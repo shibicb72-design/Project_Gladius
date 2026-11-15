@@ -55,10 +55,12 @@ func _initialize() -> void:
 		float(out["max_joint_gap_m"]), int(out["ground_rejects"]), gen_ms, paint_ms])
 	var extra: Dictionary = out["extra"]["counts"]
 	var bk: Dictionary = out["breakables"]
-	print("GEN_ALESIA extra: camps=%d inner=%d outer=%d arx=%d fields=%d breakables=%d (camps=%d inner_gates=%d outer_gates=%d arx=%d fields=%d) cover_wall=%d" % [
+	var ch: Dictionary = out["chests"]
+	print("GEN_ALESIA extra: camps=%d inner=%d outer=%d arx=%d fields=%d breakables=%d (camps=%d inner_gates=%d outer_gates=%d arx=%d fields=%d) cover_wall=%d chests=%d (camps=%d arx=%d fields=%d)" % [
 		int(extra["camps"]), int(extra["inner"]), int(extra["outer"]), int(extra["arx"]), int(extra["fields"]),
 		int(bk["camps"]) + int(bk["inner_gates"]) + int(bk["outer_gates"]) + int(bk["arx"]) + int(bk["fields"]),
-		int(bk["camps"]), int(bk["inner_gates"]), int(bk["outer_gates"]), int(bk["arx"]), int(bk["fields"]), int(out["cover_walls"])])
+		int(bk["camps"]), int(bk["inner_gates"]), int(bk["outer_gates"]), int(bk["arx"]), int(bk["fields"]), int(out["cover_walls"]),
+		int(ch["camps"]) + int(ch["arx"]) + int(ch["fields"]), int(ch["camps"]), int(ch["arx"]), int(ch["fields"])])
 	for line: String in out["shortfalls"]:
 		print("GEN_ALESIA short: ", line)
 	for p in problems:
@@ -157,7 +159,8 @@ static func terrain_of(map_def: Dictionary) -> MapTerrain:
 
 ## Everything except the paint, in memory: {cover, structures, landmarks (the three files), spawns,
 ## reserved_spots, terrain, problems, shortfalls, max_joint_gap_m, ground_rejects, extra (_extra_cover's result),
-## breakables (_breakables' counts), cover_walls (coverable cover and ring pieces plus breakables)}. Touches no file
+## breakables (_breakables' counts), chests (_chests' counts), cover_walls (coverable cover and ring pieces plus
+## breakables)}. Touches no file
 ## except the type files it reads.
 static func generate(map_def: Dictionary) -> Dictionary:
 	var gen: Dictionary = map_def["generator"]
@@ -275,9 +278,14 @@ static func generate(map_def: Dictionary) -> Dictionary:
 				walls += 1
 	if walls > int(gen["max_cover_walls"]):
 		(state["problems"] as PackedStringArray).append("%d cover walls exceed max_cover_walls %d" % [walls, int(gen["max_cover_walls"])])
+	# 6. M2 L1b: the loot chests ("props.chests"), appended after the breakables. Permanent bodies under Nav, never
+	# cover walls (so not counted against max_cover_walls).
+	var chest_pass := _chests(state, camp_centres)
 	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
 	if gen.has("props"):
 		cover_file["breakables"] = breakables
+		if (gen["props"] as Dictionary).has("chests"):
+			cover_file["chests"] = chest_pass["entries"]
 	var structure_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": structures}
 	var landmark_file := {
 		"version": 1,
@@ -300,6 +308,7 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		"ground_rejects": int(state["ground_rejects"]),
 		"extra": extra,
 		"breakables": props["counts"],
+		"chests": chest_pass["counts"],
 		"cover_walls": walls,
 	}
 
@@ -752,6 +761,70 @@ static func _breakables(state: Dictionary, camp_centres: Array[Vector2], inner: 
 	_breakable(state, out, names, sizes, int(cfg["fields"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field breakables")
 	counts["fields"] = out.size() - fields_first
 	return {"entries": out, "counts": counts}
+
+
+const CHEST_AREAS := ["camps", "arx", "fields"]
+
+
+## M2 L1b: the loot chests of generator "props.chests" (OQ-PROPS-CHEST), in a fixed order after the breakables: each
+## camp (inside its block, extra_cover.lane_gap_m to every footprint), the Arx top, the fields. A chest's footprint
+## is its box (turned by a seeded multiple of 90 degrees) plus front_clear_m of ground in front of it (chest_rect),
+## so its spill lands on open ground. Entries {id "Chest_%03d", at [x, h/2, z], size, yaw}. Returns {entries,
+## counts: {area: placed}} over CHEST_AREAS (nothing without the block).
+static func _chests(state: Dictionary, camp_centres: Array[Vector2]) -> Dictionary:
+	var gen: Dictionary = state["gen"]
+	var out: Array = []
+	var counts := {}
+	for area: String in CHEST_AREAS:
+		counts[area] = 0
+	if not gen.has("props") or not (gen["props"] as Dictionary).has("chests"):
+		return {"entries": out, "counts": counts}
+	var cfg: Dictionary = gen["props"]["chests"]
+	var size_list: Array = cfg["size"]
+	var clear := float(cfg["front_clear_m"])
+	var half := float(gen["camps"]["half_size_m"])
+	for c in camp_centres.size():
+		var block := Rect2(camp_centres[c] - Vector2(half, half), Vector2(half, half) * 2.0)
+		var first := out.size()
+		_chest(state, out, size_list, clear, int(cfg["camps"]), _rect_sampler(block), "camp %d chests" % (c + 1), block, float(gen["extra_cover"]["lane_gap_m"]))
+		counts["camps"] = int(counts["camps"]) + out.size() - first
+	var arx_first := out.size()
+	_chest(state, out, size_list, clear, int(cfg["arx"]), _annulus(0.0, float(cfg["arx_radius_m"])), "arx chests")
+	counts["arx"] = out.size() - arx_first
+	var fields_first := out.size()
+	_chest(state, out, size_list, clear, int(cfg["fields"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field chests")
+	counts["fields"] = out.size() - fields_first
+	return {"entries": out, "counts": counts}
+
+
+static func _chest(state: Dictionary, out: Array, size_list: Array, clear: float, count: int, sampler: Callable, label: String, inside := Rect2(), gap_m := -1.0) -> void:
+	var size := LowpolyKit.vec(size_list)
+	var placed := 0
+	for i in count:
+		var spot: Variant = _place(state, sampler, func(at: Vector2, yaw: float) -> Rect2: return chest_rect(at, size, yaw, clear), 90.0, inside, gap_m)
+		if spot != null:
+			out.append({"id": "Chest_%03d" % out.size(), "at": [spot[0].x, float(size_list[1]) * 0.5, spot[0].y], "size": size_list.duplicate(), "yaw": spot[1]})
+			placed += 1
+	if placed < count:
+		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+
+
+## The ground a chest keeps: its box at `at` turned by `yaw` (a multiple of 90 degrees) grown by `clear` metres on
+## its front side, the side it opens towards (local -z turned by the yaw: 0 -> -z, 90 -> -x, 180 -> +z, 270 -> +x).
+static func chest_rect(at: Vector2, size: Vector3, yaw: float, clear: float) -> Rect2:
+	var r := _box_rect(at, size, yaw)
+	match posmod(roundi(yaw / 90.0), 4):
+		0:
+			r.position.y -= clear
+			r.size.y += clear
+		1:
+			r.position.x -= clear
+			r.size.x += clear
+		2:
+			r.size.y += clear
+		3:
+			r.size.x += clear
+	return r
 
 
 ## Breakable entries (unturned boxes, like cover pieces), the type by the entry's index round-robin.

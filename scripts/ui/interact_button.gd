@@ -1,7 +1,7 @@
 class_name InteractButton
 extends Control
 ## S1b: the contextual Interact touch button. Labelled "Revive" and visible only while the local pawn is ALIVE
-## and a DOWNED squad mate is within revive range (S4 reuses it for pickups). A held press goes through the
+## and a DOWNED squad mate is within revive range (S4 reuses it for pickups, M2 L1b for chests). A held press goes through the
 ## input layer like the D2 cover FIRE control: TouchProvider trigger_action / release_action "interact" ->
 ## InputRouter -> MatchRoot -> MatchDirector, which owns the revive pairs. This script never mutates pawn,
 ## cover or director state; it only reads them to decide visibility.
@@ -66,10 +66,12 @@ func _available() -> bool:
 		return false
 	if not director.authoritative:
 		return false
-	return director.revive_target_for(pawn.player_id) >= 0 or director.pickup_target_for(pawn.player_id) >= 0
+	return director.revive_target_for(pawn.player_id) >= 0 or director.pickup_target_for(pawn.player_id) >= 0 \
+			or director.chest_target_for(pawn.player_id) != ""
 
 
-## "Revive" (cfg label) when a DOWNED squad mate is in range, else "Pick up <item>". Placeholder text (S6).
+## "Revive" (cfg label) when a DOWNED squad mate is in range, else "Pick up <item>", else (M2 L1b) "Open chest" when
+## a closed chest is in range. Placeholder text (S6).
 func _label_text() -> String:
 	if not is_instance_valid(director) or not is_instance_valid(pawn):
 		return str(cfg["label"])
@@ -78,6 +80,8 @@ func _label_text() -> String:
 	var item := director.pickup_target_for(pawn.player_id)
 	if item >= 0 and director.loot != null:
 		return "Pick up\n%s" % director.loot.display_name(item)
+	if director.chest_target_for(pawn.player_id) != "":
+		return "Open chest"
 	return str(cfg["label"])
 
 

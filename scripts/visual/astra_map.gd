@@ -4,6 +4,7 @@ var cover_bodies: Array[StaticBody3D] = []
 var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
 var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
 var ring_bodies: Array[StaticBody3D] = []  # W3 cover of the outer ring (groups "ring_cover" and "cover_wall")
+var chest_bodies: Array[StaticBody3D] = []  # M2 L1b loot chests under Nav (group "loot_chest", never cover_wall)
 var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and decor, batched per chunk (node "Chunks")
 ## M2P1A: decor id -> its batch type in source "decor" ("<kind>_<n>", n = the index of the entry's size among
 ## its kind's distinct sizes, first seen first). A decor look is chunks.batch_of("decor", decor_types[id], xform).
@@ -111,7 +112,12 @@ func _ready() -> void:
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
 			decor_bodies.append(solid)
+	# M2 L1b: the loot chests (the cover file's "chests"), after the wall loop above (a chest has no "Mesh" child).
+	if placed.has("chests"):
+		_build_chests(nav, placed["chests"])
 	chunks.build()
+	for body in chest_bodies:
+		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
 	_paint_ground(nav)
 	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
@@ -158,6 +164,49 @@ func _build_breakables(entries: Array) -> void:
 		body.on_removed = _on_breakable_removed
 		root.add_child(body)
 		cover_bodies.append(body)
+
+
+## M2 L1b: the loot chests, permanent StaticBody3D (LootChest) under Nav: the navigation bake parses them, so bots
+## path around them. Group "loot_chest" only (never cover_wall, never in cover_bodies, so the paint's trodden points
+## and the cover index are unchanged), layer 1, meta cover_palette, a "Shape" box. Looks: two named pieces in
+## source "cover" per chest, the closed one (type "loot_chest", id = the chest id) and the open one (type
+## "loot_chest_open", id LootChest.open_id), both at the body's transform; _ready hides the open one after build().
+## The data/props.json looks are authored for chest.look_size and scaled to each entry's box.
+func _build_chests(nav: Node, entries: Array) -> void:
+	var chest_cfg: Dictionary = WorldProps.config().get("chest", {})
+	var palette := String(chest_cfg.get("palette", "citadel"))
+	var material := WorldSurface.palette_material(palette)
+	var look_size := LowpolyKit.vec(chest_cfg.get("look_size", [1, 1, 1]))
+	var meshes := {}
+	for entry: Dictionary in entries:
+		var body := LootChest.make(entry, palette)
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
+		var key := str(entry["size"])
+		if not meshes.has(key):
+			var k := LowpolyKit.vec(entry["size"]) / look_size
+			meshes[key] = [
+				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_closed", {}) as Dictionary).get("parts", []), k)}),
+				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_open", {}) as Dictionary).get("parts", []), k)}),
+			]
+		chunks.add("cover", "loot_chest", meshes[key][0], material, body.transform, true, body.prop_id)
+		chunks.add("cover", "loot_chest_open", meshes[key][1], material, body.transform, true, LootChest.open_id(body.prop_id))
+		body.chunks = chunks
+		nav.add_child(body)
+		chest_bodies.append(body)
+
+
+## Look parts with every size and position scaled per axis by `k` (a chest look authored for look_size, fitted to a
+## box).
+static func scaled_parts(parts: Array, k: Vector3) -> Array:
+	var out: Array = []
+	for part: Dictionary in parts:
+		var p := part.duplicate(true)
+		var s := LowpolyKit.vec(p["size"]) * k
+		var a := LowpolyKit.vec(p["at"]) * k
+		p["size"] = [s.x, s.y, s.z]
+		p["at"] = [a.x, a.y, a.z]
+		out.append(p)
+	return out
 
 
 ## M2 L1b: a breakable left the world (Breakable._leave).

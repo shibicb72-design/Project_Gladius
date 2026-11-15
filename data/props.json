@@ -25,6 +25,31 @@
 			"loot": {"count_min": 0, "count_max": 1, "item_kinds": ["ammo"]}
 		}
 	},
+	"chest": {
+		"_todo": "OQ-PROPS-CHEST: every number, look and the loot roll are first guesses for Shibi (M2 L1b). Placement and the box size live in the map's cover file (\"chests\", tools/gen_alesia.gd from the generator block props.chests, which also keeps front_clear_m of free ground in front of each chest for the spill).",
+		"_note": "interact_range_m: flat distance from the chest's centre within which Interact (or a bot) opens it; height_limit_m: the most the opener's feet may lie above or below the chest's bottom (LootField.nearest's 2 m). palette: the impact sound and tint. look_closed / look_open: LowpolyKit parts authored for look_size (scaled to the cover file's box). spill: the loot lands on a ring of spill_radius_m around a point spill_offset_m in front of the chest's front face (the side it opens towards, local -z turned by its yaw), at its ground height. loot: count_min..count_max items from the match's loot table (item_kinds empty = every kind).",
+		"interact_range_m": 2.5,
+		"height_limit_m": 2.0,
+		"palette": "camp",
+		"look_size": [1.4, 0.9, 0.9],
+		"look_closed": {
+			"parts": [
+				{"size": [1.4, 0.6, 0.9], "at": [0, -0.15, 0], "color": "dark"},
+				{"size": [1.44, 0.3, 0.94], "at": [0, 0.3, 0], "color": "trim"},
+				{"size": [0.2, 0.2, 0.06], "at": [0, 0.12, -0.46], "color": "bronze"}
+			]
+		},
+		"look_open": {
+			"parts": [
+				{"size": [1.4, 0.6, 0.9], "at": [0, -0.15, 0], "color": "dark"},
+				{"size": [1.2, 0.06, 0.7], "at": [0, 0.17, 0], "color": "gold"},
+				{"size": [1.44, 0.94, 0.1], "at": [0, 0.62, 0.47], "color": "trim"}
+			]
+		},
+		"spill_offset_m": 1.0,
+		"spill_radius_m": 0.6,
+		"loot": {"count_min": 2, "count_max": 3, "item_kinds": []}
+	},
 	"break_fx": {
 		"pieces": 8,
 		"life_s": 0.6,
