@@ -22,6 +22,7 @@
     "fov_mult": {"_placeholder": true, "value": 1.0, "unit": "x", "note": "guess: first-person multiplier on the aspect-table FOV (base_fov), before the ADS aim_fov_mult; 1.0 = same FOV as third person"},
     "smooth_max_step_m": {"_placeholder": true, "value": 0.35, "unit": "m", "note": "guess (spec placeholder): most the camera may move per physics frame during the mode blend; tests/test_first_person_camera.gd"},
     "smooth_max_step_deg": {"_placeholder": true, "value": 12.0, "unit": "deg", "note": "guess (spec placeholder): most the camera may turn per physics frame during the mode blend; tests/test_first_person_camera.gd"},
+    "crosshair_hide_aim_blend": {"_placeholder": true, "value": 0.5, "unit": "0-1", "note": "guess (stage 3, fix 8): in first person with a gun, the HUD crosshair hides while the local pawn's aim_blend is at or above this (the red dot takes over) and returns below it; third person and the blade keep today's crosshair"},
     "view_model": {
       "_placeholder": true,
       "_todo": "OQ-FIRST-PERSON (M2 C1a stage 2): the first-person view model (scripts/visual/view_model.gd): forearms and the held weapon from the art_astra.json soldier arms, rifle and blade parts. Every value here is a guess for Shibi, not a DESIGN.md value. Positions are view-model metres in the camera's frame (+x right, +y up, -z ahead) BEFORE scale; weapon arm points are in that weapon's hold frame, whose origin is the right hand.",
@@ -54,21 +55,35 @@
       "tracer_width_m": {"_placeholder": true, "value": 0.012, "unit": "m", "note": "guess: first-person tracer width in world metres (it starts at the eye, so thinner than the third-person 0.08)"},
       "flash_s": {"_placeholder": true, "value": 0.05, "unit": "s", "note": "guess: first-person muzzle flash life"},
       "flash_size_m": {"_placeholder": true, "value": 0.12, "unit": "m", "note": "guess: first-person flash star size, view-model metres (before scale); colour and arms from ui.json shot_fx"},
+      "ads_motion_mult": {"_placeholder": true, "value": 0.15, "unit": "x", "note": "guess (stage 3): bob and look sway at full ADS, times their hip size; eases with the aim blend"},
+      "ads_kick_mult": {"_placeholder": true, "value": 0.5, "unit": "x", "note": "guess (stage 3): view-model gun kick at full ADS, times the hip kick (presentation only; the real recoil is stats.json recoil)"},
+      "dot_radius_m": {"_placeholder": true, "value": 0.0024, "unit": "m", "note": "guess (fix 8): red-dot radius, view-model metres before scale"},
+      "dot_color": {"_placeholder": true, "value": [1.0, 0.12, 0.08, 1.0], "unit": "rgba", "note": "guess (fix 8): the unshaded red dot's colour"},
       "default_gun": "pilum_br",
       "default_melee": "gladius_lux",
       "weapons": {
         "pilum_br": {"_placeholder": true, "note": "guess: hold_m and hold_rot_deg place the right hand (the rifle grip) in the camera frame; arm points in the hold frame; extra_parts add a red-dot hood (stage 3 sights through it; SightAnchor)", "model": "rifle", "hold_m": [0.22, -0.26, -0.34], "hold_rot_deg": [2.0, 6.0, 0.0], "right_hand_m": [0.0, 0.0, 0.0], "right_elbow_m": [0.12, -0.22, 0.3], "left_hand_m": [0.0, 0.03, -0.2], "left_elbow_m": [-0.25, -0.22, 0.12], "barrel_extra_m": 0.0,
+          "dot_m": [0.0, 0.122, 0.0], "ads_dot_m": [0.0, 0.0, -0.4], "ads_rot_deg": [0.0, 0.0, 0.0], "_ads_note": "guess (stage 3, fix 8): dot_m is the red dot in the hood window (rifle parts' frame); at full ADS the dot sits at ads_dot_m in the camera frame (on the centre ray) and the gun turns by ads_rot_deg (0 = straight ahead)",
           "extra_parts": [
             {"name": "dot_post_l", "size": [0.01, 0.045, 0.035], "at": [-0.022, 0.122, 0.015], "color": "dark"},
             {"name": "dot_post_r", "size": [0.01, 0.045, 0.035], "at": [0.022, 0.122, 0.015], "color": "dark"},
-            {"name": "dot_hood", "size": [0.054, 0.01, 0.035], "at": [0.0, 0.149, 0.015], "color": "dark"},
-            {"name": "dot", "size": [0.008, 0.008, 0.004], "at": [0.0, 0.122, 0.0], "color": "ember"}
+            {"name": "dot_hood", "size": [0.054, 0.01, 0.035], "at": [0.0, 0.149, 0.015], "color": "dark"}
           ]},
         "sagittarii_rifle": {"_placeholder": true, "note": "guess: the same rifle with a longer barrel and a scope tube, so it reads as the long gun", "model": "rifle", "hold_m": [0.22, -0.26, -0.34], "hold_rot_deg": [2.0, 6.0, 0.0], "right_hand_m": [0.0, 0.0, 0.0], "right_elbow_m": [0.12, -0.22, 0.3], "left_hand_m": [0.0, 0.03, -0.2], "left_elbow_m": [-0.25, -0.22, 0.12], "barrel_extra_m": 0.1,
+          "dot_m": [0.0, 0.128, -0.08], "ads_dot_m": [0.0, 0.0, -0.48], "ads_rot_deg": [0.0, 0.0, 0.0], "_ads_note": "guess (stage 3, fix 8): the scope is a hollow tube (four walls and two rings) so ADS looks through it; dot_m is the red dot at its front ring (rifle parts' frame); at full ADS the dot sits at ads_dot_m in the camera frame, farther out than the Pilum's so the rear ring stays clear of the near plane",
           "extra_parts": [
-            {"name": "scope_tube", "size": [0.05, 0.05, 0.2], "at": [0.0, 0.13, 0.015], "color": "dark"},
-            {"name": "scope_front", "size": [0.058, 0.058, 0.02], "at": [0.0, 0.13, -0.09], "color": "accent"},
-            {"name": "scope_rear", "size": [0.058, 0.058, 0.02], "at": [0.0, 0.13, 0.11], "color": "plate_dark"}
+            {"name": "scope_top", "size": [0.056, 0.006, 0.18], "at": [0.0, 0.153, 0.015], "color": "dark"},
+            {"name": "scope_bottom", "size": [0.056, 0.006, 0.18], "at": [0.0, 0.103, 0.015], "color": "dark"},
+            {"name": "scope_left", "size": [0.006, 0.044, 0.18], "at": [-0.025, 0.128, 0.015], "color": "dark"},
+            {"name": "scope_right", "size": [0.006, 0.044, 0.18], "at": [0.025, 0.128, 0.015], "color": "dark"},
+            {"name": "scope_front_top", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.155, -0.085], "color": "accent"},
+            {"name": "scope_front_bottom", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.101, -0.085], "color": "accent"},
+            {"name": "scope_front_left", "size": [0.01, 0.044, 0.02], "at": [-0.027, 0.128, -0.085], "color": "accent"},
+            {"name": "scope_front_right", "size": [0.01, 0.044, 0.02], "at": [0.027, 0.128, -0.085], "color": "accent"},
+            {"name": "scope_rear_top", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.155, 0.115], "color": "plate_dark"},
+            {"name": "scope_rear_bottom", "size": [0.064, 0.01, 0.02], "at": [0.0, 0.101, 0.115], "color": "plate_dark"},
+            {"name": "scope_rear_left", "size": [0.01, 0.044, 0.02], "at": [-0.027, 0.128, 0.115], "color": "plate_dark"},
+            {"name": "scope_rear_right", "size": [0.01, 0.044, 0.02], "at": [0.027, 0.128, 0.115], "color": "plate_dark"}
           ]},
         "gladius_lux": {"_placeholder": true, "note": "guess: the Gladius Lux in the right hand, tip up and ahead, right of the screen centre; size_mult shrinks it to stay inside max_reach_m", "model": "blade", "hold_m": [0.27, -0.25, -0.3], "hold_rot_deg": [-55.0, 0.0, -15.0], "size_mult": 0.65, "right_hand_m": [0.0, 0.0, 0.0], "right_elbow_m": [0.05, -0.3, 0.15]}
       }

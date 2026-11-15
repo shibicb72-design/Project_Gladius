@@ -293,6 +293,9 @@ func set_aim_blend(blend: float, fov_mult: float) -> void:
 	_aim_fov_mult = fov_mult
 	_apply_zoom()
 	_apply_arm_length()
+	var vm := get_view_model()
+	if vm != null:
+		vm.set_aim_blend(_aim_blend)  # M2 C1a stage 3: the view model raises the gun to the sight
 
 
 ## Sync SpringArm + AimRayCast exclusions (GDQuest add_excluded_object / add_exception_rid pattern).

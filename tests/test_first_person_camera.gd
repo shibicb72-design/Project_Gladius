@@ -26,9 +26,9 @@ func _fp(key: String) -> float:
 
 
 ## Floor, a cover wall whose face is at z = 0 (as in test_cover_pawn.gd), a pawn in front of it facing it.
-func _fixture(with_rig: bool = true, with_brain: bool = false, with_cover: bool = true) -> void:
+func _fixture(with_rig: bool = true, with_brain: bool = false, with_cover: bool = true, parent: Node = null) -> void:
 	_root = Node3D.new()
-	_tree().root.add_child(_root)
+	(parent if parent != null else _tree().root).add_child(_root)
 	var floor_body := StaticBody3D.new()
 	var floor_shape := CollisionShape3D.new()
 	var floor_box := BoxShape3D.new()
@@ -520,3 +520,276 @@ func test_view_model_stays_inside_the_capsule() -> void:
 			_pawn.loadout.swap()
 			_pawn.weapon_switched.emit(_pawn.loadout.active)
 		await _cleanup()
+
+
+# --- stage 3: aiming and ADS in first person (spec item 4, fix 8) ---------------------------------------------------
+
+## The Fold cover / phone row, a 4:3 tablet row and the Fold inner row of camera.json fov_table.
+const ADS_SIZES: Array[Vector2i] = [Vector2i(2520, 1080), Vector2i(2048, 1536), Vector2i(2176, 1812)]
+const DOT_TOL_PX := 2.0
+
+
+func _aim_cfg() -> Dictionary:
+	return DataRegistry.new().load_file(DataRegistry.STATS_PATH)["aim"]
+
+
+## Physics ticks for aim_blend to go all the way (stats.json aim.aim_zoom_s) plus a margin.
+func _aim_ticks() -> int:
+	return ceili(float(_aim_cfg()["aim_zoom_s"]) / DT) + 3
+
+
+## One manual pawn tick with ADS held (InputFrame.aim_pressed, as AimToggle resolves the tap toggle), optionally with
+## the trigger pulled this tick.
+func _tick_aim(aim: bool, fire: bool = false) -> void:
+	var frame := InputFrame.new()
+	frame.aim_pressed = aim
+	frame.fire_pressed = fire
+	frame.fire_just_pressed = fire
+	_pawn.set_frame(frame)
+	_pawn._physics_process(DT)
+	await _tree().physics_frame
+
+
+func _aim_down(aim: bool) -> void:
+	for i in _aim_ticks():
+		await _tick_aim(aim)
+
+
+## At full ADS in first person the red dot projects to the screen centre (within DOT_TOL_PX) in front of the near plane,
+## the gun points straight ahead, the FOV is zoomed by aim_fov_mult and spread is aim_spread_mult; ADS off restores
+## them. Each size runs in a SubViewport of that size (test only), so the rig takes that size's fov_table row.
+func test_full_ads_puts_the_red_dot_on_the_screen_centre() -> void:
+	var aim := _aim_cfg()
+	for sz in ADS_SIZES:
+		for class_id in ["hastati", "sagittarii"]:
+			var svp := SubViewport.new()
+			svp.size = sz
+			_tree().root.add_child(svp)
+			await _fixture(true, false, false, svp)
+			if class_id != "hastati":
+				_pawn.setup(class_id, 0)
+				await _frames(2)
+			var cam := _rig.get_camera()
+			var vm := _rig.get_view_model()
+			var id := vm.get_shown_weapon_id()
+			var tag := "%s %dx%d" % [id, sz.x, sz.y]
+			var centre := Vector2(sz) * 0.5
+			assert_true(absf(_rig.base_fov - CameraRig.fov_for_aspect(_cam_cfg(), float(sz.x) / sz.y)) < EPS,
+					"%s: the rig uses this size's fov row (%s)" % [tag, _rig.base_fov])
+			var hip_fov := cam.fov
+			assert_true(vm.get_red_dot() != null and vm.get_ads_weight() == 0.0, "%s: a gun with a red dot, at the hip" % tag)
+			await _tick_aim(true)
+			var mid_px := cam.unproject_position(vm.get_red_dot().global_position).distance_to(centre)
+			await _aim_down(true)
+			assert_true(_pawn.aiming and _pawn.aim_blend == 1.0 and vm.get_ads_weight() == 1.0, "%s: full ADS" % tag)
+			var dot := vm.get_red_dot()
+			var px := cam.unproject_position(dot.global_position)
+			var depth := -(cam.global_transform.affine_inverse() * dot.global_position).z
+			var gun := dot.get_parent().get_parent() as Node3D
+			var turn := rad_to_deg((-gun.global_basis.z).angle_to(-cam.global_basis.z))
+			print("FP ADS DOT %s fov=%.1f->%.1f dot_px=%s err_px=%.3f (first ADS tick %.1f px) depth_m=%.4f near=%.3f gun_turn_deg=%.4f" % [
+					tag, hip_fov, cam.fov, px, px.distance_to(centre), mid_px, depth, cam.near, turn])
+			assert_true(dot.is_visible_in_tree(), "%s: the red dot is shown" % tag)
+			assert_true(px.distance_to(centre) <= DOT_TOL_PX, "%s: dot %s on the screen centre %s" % [tag, px, centre])
+			assert_true(depth > cam.near, "%s: dot depth %.4f in front of the near plane %.3f" % [tag, depth, cam.near])
+			assert_true(turn < 0.5, "%s: the gun points straight ahead (%.3f deg off)" % [tag, turn])
+			assert_true(absf(cam.fov - hip_fov * float(aim["aim_fov_mult"])) < 1e-3, "%s: FOV zoomed by aim_fov_mult" % tag)
+			assert_true(absf(_pawn.get_spread_mult() - float(aim["aim_spread_mult"])) < EPS, "%s: aim_spread_mult while aiming" % tag)
+			await _aim_down(false)
+			assert_true(vm.get_ads_weight() == 0.0 and absf(cam.fov - hip_fov) < 1e-3, "%s: ADS off: hip pose and FOV" % tag)
+			assert_eq(_pawn.get_spread_mult(), 1.0, "%s: ADS off: hip spread" % tag)
+			await _cleanup()
+			svp.queue_free()
+			await _tree().process_frame
+
+
+## Item 4 in first person: the aim point is on the camera's centre ray from the eye; a real ADS shot moves the real aim
+## (stats.json recoil) as today, while the view-model kick and the camera knockback leave get_aim_point on the
+## un-kicked look ray.
+func test_first_person_ads_aim_point_recoil_and_kick() -> void:
+	await _fixture(true, false, false)
+	var cam := _rig.get_camera()
+	var vm := _rig.get_view_model()
+	var exclude: Array[RID] = _pawn.hitscan_exclude()
+	await _aim_down(true)
+	assert_true(vm.get_ads_weight() == 1.0, "full ADS")
+	assert_true(cam.global_position.distance_to(_eye()) < 1e-3, "the camera is at the eye (%s vs %s)" % [cam.global_position, _eye()])
+	var aim := _rig.get_aim_point(exclude)
+	var off := rad_to_deg((aim - cam.global_position).angle_to(-cam.global_basis.z))
+	assert_true(off < 0.05, "aim point on the camera's centre ray (%.4f deg off)" % off)
+	var w := _pawn.loadout.get_active()
+	var recoil: Dictionary = DataRegistry.new().load_file(DataRegistry.STATS_PATH)["weapons"][w.def.id]["recoil"]
+	var pitch_before := _pawn.pitch
+	var yaw_before := _pawn.global_rotation.y
+	var ammo_before := w.ammo_in_mag
+	await _tick_aim(true, true)
+	assert_eq(w.ammo_in_mag, ammo_before - 1, "a real shot was fired while aiming")
+	var climb := rad_to_deg(_pawn.pitch - pitch_before)
+	var drift := rad_to_deg(absf(wrapf(_pawn.global_rotation.y - yaw_before, -PI, PI)))
+	print("FP ADS RECOIL %s climb_deg=%.4f drift_deg=%.4f knockback=%s vm_kick=%s" % [w.def.id, climb, drift, _rig.get_knockback(), vm.is_recoiling()])
+	assert_true(absf(climb - float(recoil["pitch_deg"])) < 1e-3, "real recoil climbs pawn.pitch by pitch_deg (%.4f)" % climb)
+	assert_true(drift <= float(recoil["yaw_deg"]) + 1e-3, "real recoil drifts the yaw by at most yaw_deg (%.4f)" % drift)
+	assert_true(vm.is_recoiling() and _rig.get_knockback() != Vector2.ZERO, "the view-model kick and the camera knockback run")
+	var look_dir := _pawn.global_basis * Basis.from_euler(Vector3(_pawn.pitch, 0.0, 0.0)) * Vector3.FORWARD
+	var kicked := rad_to_deg((-cam.global_basis.z).angle_to(look_dir))
+	var aim_after := _rig.get_aim_point(exclude)
+	var aim_off := rad_to_deg((aim_after - _eye()).angle_to(look_dir))
+	assert_true(kicked > 0.5, "the view is kicked off the look ray (%.3f deg)" % kicked)
+	assert_true(aim_off < 0.05, "the aim point stays on the un-kicked look ray from the eye (%.4f deg off)" % aim_off)
+	await _cleanup()
+
+
+## Fix 8: the HUD crosshair hides at full ADS in first person with a gun and returns after ADS off; the threshold is
+## camera.json first_person.crosshair_hide_aim_blend. Third person (falling), the blade and a HUD whose pawn has no rig
+## keep today's crosshair, ADS included.
+func test_crosshair_hides_at_full_ads_in_first_person_only() -> void:
+	await _fixture(true, false, false)
+	if _pawn.bridge == null:
+		_pawn.setup("hastati", 0)
+	var game: GameHud = load("res://scenes/ui/hud.tscn").instantiate()
+	_tree().root.add_child(game)
+	game.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	game.size = Vector2(1512, 648)
+	var director := MatchDirector.new()
+	game.bind(director, _pawn)
+	game.refresh_pawn()
+	assert_true(game.crosshair.is_visible_in_tree(), "first person at the hip: shown")
+	await _aim_down(true)
+	game.refresh_pawn()
+	assert_true(_rig.is_first_person() and _pawn.aim_blend == 1.0, "full ADS in first person")
+	assert_true(not game.crosshair.is_visible_in_tree(), "full ADS in first person: hidden (the red dot takes over)")
+	await _aim_down(false)
+	game.refresh_pawn()
+	assert_true(game.crosshair.is_visible_in_tree(), "ADS off: shown again")
+	var at := _fp("crosshair_hide_aim_blend")
+	_pawn.aim_blend = at - 0.01
+	game.refresh_pawn()
+	assert_true(game.crosshair.is_visible_in_tree(), "aim_blend just under %s: shown" % at)
+	_pawn.aim_blend = at
+	game.refresh_pawn()
+	assert_true(not game.crosshair.is_visible_in_tree(), "aim_blend at %s: hidden" % at)
+	# Third person (falling: CameraRig.is_first_person false) with full ADS: exactly as today.
+	_pawn.drop_state = Pawn.Drop.FALLING
+	_pawn.aim_blend = 1.0
+	game.refresh_pawn()
+	assert_true(game.crosshair.is_visible_in_tree(), "third person with full ADS: shown as today")
+	_pawn.drop_state = Pawn.Drop.NONE
+	game.refresh_pawn()
+	assert_true(not game.crosshair.is_visible_in_tree(), "back in first person with full ADS: hidden")
+	# The blade: ADS still zooms (the game aims with any weapon) but keeps the crosshair and the hip pose.
+	assert_true(_pawn.loadout.swap() and _pawn.loadout.get_active().def.is_melee(), "the blade is out")
+	await _aim_down(true)
+	game.refresh_pawn()
+	assert_true(game.crosshair.is_visible_in_tree(), "blade with full ADS: shown as today")
+	assert_eq(_rig.get_view_model().get_ads_weight(), 0.0, "blade: no ADS pose, the hip pose stays")
+	assert_true(_rig.get_view_model().get_red_dot() == null, "blade: no red dot")
+	game.free()
+	director.free()
+	# No rig (HUD tests bind pawns without one): ADS never hides the crosshair.
+	var lone := Pawn.new()
+	lone.setup("hastati", 0)
+	var game2: GameHud = load("res://scenes/ui/hud.tscn").instantiate()
+	_tree().root.add_child(game2)
+	var director2 := MatchDirector.new()
+	game2.bind(director2, lone)
+	lone.aiming = true
+	lone.aim_blend = 1.0
+	game2.refresh_pawn()
+	assert_true(game2.crosshair.is_visible_in_tree(), "no rig with full ADS: shown as today")
+	game2.free()
+	lone.free()
+	director2.free()
+	await _cleanup()
+
+
+## Fix 12 in the ADS pose: at aim blends 0..1 and at every fov_table row, every view-model vertex of both guns stays
+## inside max_reach_m (under the capsule radius) and beyond the near plane, and no triangle crosses the near plane
+## inside the view (no visible near-plane cut).
+func test_ads_pose_stays_inside_the_capsule_and_past_the_near_plane() -> void:
+	var reach := _vm_f("max_reach_m")
+	var fov_mult := float(_aim_cfg()["aim_fov_mult"])
+	for class_id in ["hastati", "sagittarii"]:
+		await _fixture(true, false, false)
+		if class_id != "hastati":
+			_pawn.setup(class_id, 0)
+		await _frames(3)
+		var capsule := (_pawn.get_node("CollisionShape3D") as CollisionShape3D).shape as CapsuleShape3D
+		var cam := _rig.get_camera()
+		var vm := _rig.get_view_model()
+		var id := vm.get_shown_weapon_id()
+		assert_true(vm.get_red_dot() != null, "%s: a gun with a red dot" % id)
+		for blend: float in [0.0, 0.25, 0.5, 0.75, 1.0]:
+			for sz in ADS_SIZES:
+				var aspect := float(sz.x) / sz.y
+				_rig.base_fov = CameraRig.fov_for_aspect(_cam_cfg(), aspect)
+				_rig.set_aim_blend(blend, fov_mult)
+				await _tree().physics_frame
+				var m := _measure_view_model(cam, vm, aspect)
+				var tag := "%s blend %.2f fov %.1f" % [id, blend, cam.fov]
+				print("FP ADS REACH %s reach_m=%.4f nearest_m=%.4f nearest_depth_in_view_m=%.4f near_cuts=%d (limit %.2f, capsule %.2f, near %.3f)" % [
+						tag, m["far"], m["nearest"], m["min_depth"], m["cuts"], reach, capsule.radius, cam.near])
+				assert_true(m["far"] < reach and reach < capsule.radius, "%s: reach %.4f < %.2f < capsule %.2f" % [tag, m["far"], reach, capsule.radius])
+				assert_true(m["nearest"] > cam.near, "%s: nearest vertex %.4f beyond the near plane" % [tag, m["nearest"]])
+				assert_eq(m["cuts"], 0, "%s: no triangle cut by the near plane inside the view" % tag)
+		await _cleanup()
+
+
+## Reach, nearest vertex, nearest in-view depth and near-plane cuts of the shown view model in camera space.
+func _measure_view_model(cam: Camera3D, vm: ViewModel, aspect: float) -> Dictionary:
+	var to_cam := cam.global_transform.affine_inverse()
+	var near := cam.near
+	var tan_h := tan(deg_to_rad(cam.fov) * 0.5)
+	var tan_w := tan_h * aspect
+	var out := {"far": 0.0, "nearest": INF, "min_depth": INF, "cuts": 0}
+	for mi in vm.mesh_instances():
+		if mi == vm.tracer or mi == vm.flash or not mi.is_visible_in_tree():
+			continue
+		var xf := to_cam * mi.global_transform
+		var faces := mi.mesh.get_faces()
+		for t in range(0, faces.size(), 3):
+			var tri: Array[Vector3] = [xf * faces[t], xf * faces[t + 1], xf * faces[t + 2]]
+			for v in tri:
+				out["far"] = maxf(out["far"], v.length())
+				out["nearest"] = minf(out["nearest"], v.length())
+				var d := -v.z
+				if d > 0.0 and absf(v.x) <= d * tan_w and absf(v.y) <= d * tan_h:
+					out["min_depth"] = minf(out["min_depth"], d)
+					if d < near:
+						out["cuts"] += 1
+			if _crosses_near_rect(tri, near, near * tan_w, near * tan_h):
+				out["cuts"] += 1
+	return out
+
+
+## True iff the triangle (camera space) crosses the plane at depth `near` inside the near rectangle.
+static func _crosses_near_rect(tri: Array[Vector3], near: float, half_w: float, half_h: float) -> bool:
+	var pts: Array[Vector2] = []
+	for i in 3:
+		var a := tri[i]
+		var b := tri[(i + 1) % 3]
+		var da := -a.z - near
+		var db := -b.z - near
+		if (da < 0.0) != (db < 0.0):
+			var q := a.lerp(b, da / (da - db))
+			pts.append(Vector2(q.x, q.y))
+	if pts.size() < 2:
+		return false
+	# Liang-Barsky: does the segment pts[0]..pts[1] meet the rectangle [-half_w, half_w] x [-half_h, half_h]?
+	var d := pts[1] - pts[0]
+	var p := [-d.x, d.x, -d.y, d.y]
+	var q := [pts[0].x + half_w, half_w - pts[0].x, pts[0].y + half_h, half_h - pts[0].y]
+	var t0 := 0.0
+	var t1 := 1.0
+	for i in 4:
+		if absf(p[i]) < 1e-12:
+			if q[i] < 0.0:
+				return false
+		else:
+			var r: float = q[i] / p[i]
+			if p[i] < 0.0:
+				t0 = maxf(t0, r)
+			else:
+				t1 = minf(t1, r)
+			if t0 > t1:
+				return false
+	return true

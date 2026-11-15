@@ -10,7 +10,8 @@ extends Node3D
 ## Clipping (fix 12, option a): the whole model is built at natural size and then scaled down toward the eye
 ## (scale), which keeps its screen image and keeps every vertex inside max_reach_m (less than the 0.4 m body capsule
 ## radius), so the capsule holds walls farther away than the model reaches. No second camera, no SubViewport.
-## Seams: set_aim_blend (stage 3 raises the gun to the sight; SightAnchor marks the sight), and stage 4 hides the
+## ADS (stage 3): set_aim_blend raises a gun from its hold pose to its ADS pose, where the RedDot (under SightAnchor,
+## the base of the sight window) sits on the camera's centre ray; bob, sway and kick are damped. Stage 4 hides the
 ## third-person body by layer; the view model itself stays on the default layer.
 
 const NODE_NAME := "ViewModel"
@@ -91,6 +92,8 @@ func _ready() -> void:
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.fired.connect(_on_fired)
 	_bind_shot_fx()
+	if rig != null:
+		_aim_blend = rig.get_aim_blend()
 	_update(0.0)
 
 
@@ -98,13 +101,29 @@ func _physics_process(delta: float) -> void:
 	_update(delta)
 
 
-## Stage 3 seam: ADS weight (0 hip .. 1 sight). Stored only; stage 3 moves the gun to SightAnchor with it.
+## ADS weight (0 hip .. 1 sight), the pawn's aim_blend, forwarded by CameraRig.set_aim_blend every physics frame. A gun
+## with an ADS pose (camera.json weapons.<id>.ads_dot_m) moves from its hold pose to it: at 1 its red dot sits on the
+## camera's centre ray, the gun pointing straight ahead. The blade has no ADS pose and keeps its hold pose.
 func set_aim_blend(weight: float) -> void:
 	_aim_blend = clampf(weight, 0.0, 1.0)
 
 
 func get_aim_blend() -> float:
 	return _aim_blend
+
+
+## 0..1: how far the shown gun is toward its ADS pose (smoothstep of the aim blend; 0 for the blade or no weapon).
+func get_ads_weight() -> float:
+	if _shown == null or not _shown.has_meta(&"ads"):
+		return 0.0
+	return smoothstep(0.0, 1.0, _aim_blend)
+
+
+## The shown gun's red dot (fix 8), or null for the blade or no weapon.
+func get_red_dot() -> MeshInstance3D:
+	if _shown == null:
+		return null
+	return _shown.get_node_or_null("SightAnchor/RedDot") as MeshInstance3D
 
 
 ## Weapon id whose model is shown ("" when none).
@@ -286,11 +305,14 @@ func _swing_rot() -> Vector3:
 
 
 func _apply_pose(raise: float) -> void:
+	# ADS damps the bob, the look sway and the gun kick (ads_motion_mult, ads_kick_mult).
+	var ads := get_ads_weight()
+	var calm := lerpf(1.0, _f("ads_motion_mult"), ads)
 	# About the eye: raise from below, bob, look sway, the blade swing.
-	var bob := _v("bob_m") * _bob_amount
+	var bob := _v("bob_m") * _bob_amount * calm
 	var pos := Vector3(sin(_bob_phase) * bob.x, (cos(_bob_phase * 2.0) - 1.0) * 0.5 * bob.y, 0.0)
 	pos.y -= _f("raise_drop_m") * (1.0 - raise)
-	var rot := Vector3(_sway.x, _sway.y, 0.0) + _swing_rot()
+	var rot := Vector3(_sway.x, _sway.y, 0.0) * calm + _swing_rot()
 	_pivot.transform = Transform3D(_deg(rot), pos)
 	if _shown == null:
 		return
@@ -306,10 +328,12 @@ func _apply_pose(raise: float) -> void:
 		hand_pos.y -= _f("reload_drop_m") * r
 		hand_rot += _v("reload_tilt_deg") * r
 	if _recoil_left > 0.0 and _f("recoil_s") > 0.0:
-		var k := pow(_recoil_left / _f("recoil_s"), 2.0)
+		var k := pow(_recoil_left / _f("recoil_s"), 2.0) * lerpf(1.0, _f("ads_kick_mult"), ads)
 		hand_pos += _v("recoil_kick_m") * k
 		hand_rot.x += _f("recoil_pitch_deg") * k
 	var base: Transform3D = _shown.get_meta(&"hold")
+	if ads > 0.0:
+		base = base.interpolate_with(_shown.get_meta(&"ads"), ads)
 	_shown.transform = base * Transform3D(_deg(hand_rot), hand_pos)
 	if flash.visible and _muzzle != null:
 		flash.global_transform = _muzzle.global_transform * Transform3D(Basis(Vector3.FORWARD, flash.get_meta(&"spin", 0.0)), Vector3.ZERO)
@@ -491,6 +515,25 @@ static func _along_y(dir: Vector3) -> Basis:
 	return Basis(x, y, x.cross(y))
 
 
+## A small unshaded, glowing disc (a low sphere, the same from every side) for the sight; colour and size are data.
+func _add_red_dot(anchor: Node3D, at: Vector3) -> void:
+	var sphere := SphereMesh.new()
+	var r := _f("dot_radius_m")
+	sphere.radius = r
+	sphere.height = r * 2.0
+	sphere.radial_segments = 10
+	sphere.rings = 5
+	var mat := StandardMaterial3D.new()
+	var color := _color(_entry("dot_color"))
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	sphere.material = mat
+	var dot := _mesh_node("RedDot", sphere, anchor)
+	dot.position = at
+
+
 func _add_arm(parent: Node3D, side: String, hand: Vector3, elbow: Vector3) -> void:
 	var arm := _mesh_node("RightArm" if side == "r" else "LeftArm", _forearm_mesh(side), parent)
 	arm.transform = Transform3D(_along_y(elbow - hand), hand)
@@ -530,6 +573,13 @@ func _build_weapon(id: String, melee: bool) -> Node3D:
 		anchor.name = "SightAnchor"
 		anchor.position = LowpolyKit.vec(sight["at"]) - grip + Vector3.UP * float(sight["size"][1]) * 0.5
 		node.add_child(anchor)
+		# Fix 8: the red dot in the sight window (dot_m, in the rifle parts' frame), and the ADS pose that puts it on
+		# the camera's centre ray at ads_dot_m (camera frame) with the gun turned by ads_rot_deg (0 = straight ahead).
+		var dot_at: Vector3 = (LowpolyKit.vec(wc["dot_m"]) - grip) if wc.has("dot_m") else anchor.position
+		_add_red_dot(anchor, dot_at - anchor.position)
+		if wc.has("ads_dot_m"):
+			var ads_basis := _deg(LowpolyKit.vec(wc.get("ads_rot_deg", [0.0, 0.0, 0.0])))
+			node.set_meta(&"ads", Transform3D(ads_basis, LowpolyKit.vec(wc["ads_dot_m"]) - ads_basis * dot_at))
 		_add_arm(node, "l", LowpolyKit.vec(wc["left_hand_m"]), LowpolyKit.vec(wc["left_elbow_m"]))
 	_add_arm(node, "r", LowpolyKit.vec(wc["right_hand_m"]), LowpolyKit.vec(wc["right_elbow_m"]))
 	node.visible = false

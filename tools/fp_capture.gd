@@ -14,11 +14,15 @@ extends SceneTree
 ##   --class=<class id>   the local pawn's class (default hastati: Pilum + Gladius Lux; sagittarii: Sagittarii rifle)
 ##   --hide-body          LOOK-DEV ONLY: hides the local third-person body, its ShotFx weapon box, tracer and flash
 ##                        (stage 4 will hide them by render layer in the game; until then they are drawn)
-## States (later stages add ADS and the cover switch to this table):
+## States (later stages add the cover switch to this table):
 ##   standing, walk (4 frames across one bob cycle), fire (a frame with the view-model tracer), reload (mid motion),
-##   switch (mid motion), blade (idle), blade_swing (mid swing), wall (walked into the nearest wall), look_down.
+##   switch (mid motion), blade (idle), blade_swing (mid swing), wall (walked into the nearest wall), look_down,
+##   ads_mid (the first frame at or past half the aim blend), ads (full ADS: the red dot on the centre, no crosshair),
+##   ads_fire (a full-ADS frame with the view-model tracer), ads_walk (full ADS while walking: damped bob).
+##   The ADS states use the class's gun: --class=hastati (Pilum) or --class=sagittarii (Sagittarii rifle).
 
-const STATES: Array[String] = ["standing", "walk", "fire", "reload", "switch", "blade", "blade_swing", "wall", "look_down"]
+const STATES: Array[String] = ["standing", "walk", "fire", "reload", "switch", "blade", "blade_swing", "wall", "look_down",
+		"ads_mid", "ads", "ads_fire", "ads_walk"]
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
 var _out := "build/shots"
@@ -74,6 +78,7 @@ func _step(n: int = 1) -> void:
 		_frame.move = held.move
 		_frame.fire_pressed = held.fire_pressed and not held.fire_just_pressed
 		_frame.sprint = held.sprint
+		_frame.aim_pressed = held.aim_pressed  # ADS is held like AimToggle's resolved state
 
 
 func _press(field: String) -> void:
@@ -88,10 +93,14 @@ func _save(state: String) -> void:
 	var vm := _rig.get_view_model()
 	var cam := _rig.get_camera()
 	var muzzle_px := cam.unproject_position(vm.get_muzzle_position()) if vm != null else Vector2.ZERO
-	_log("SAVE %s -> %s | weight=%.2f shown=%s visible=%s muzzle_px=%s swap=%s reload=%s swing=%s tracer=%s" % [
+	var dot := vm.get_red_dot() if vm != null else null
+	var dot_px := cam.unproject_position(dot.global_position) if dot != null else Vector2(-1, -1)
+	var hud := _match.get_node_or_null("Hud/GameHud") as GameHud
+	_log("SAVE %s -> %s | weight=%.2f shown=%s visible=%s muzzle_px=%s swap=%s reload=%s swing=%s tracer=%s aim=%.2f fov=%.1f dot_px=%s dot_err_px=%.2f crosshair=%s" % [
 			state, error_string(err), _rig.get_first_person_weight(), vm.get_shown_weapon_id() if vm else "-",
 			vm.visible if vm else false, muzzle_px, vm.is_swapping() if vm else false, vm.is_reloading() if vm else false,
-			vm.is_swinging() if vm else false, vm.is_tracer_visible() if vm else false])
+			vm.is_swinging() if vm else false, vm.is_tracer_visible() if vm else false, _pawn.aim_blend, cam.fov,
+			dot_px, dot_px.distance_to(Vector2(_size) * 0.5), hud.crosshair.visible if hud != null else "?"])
 	if err != OK:
 		_failed += 1
 
@@ -151,6 +160,14 @@ func _run() -> void:
 				await _state_wall()
 			"look_down":
 				await _state_look_down()
+			"ads_mid":
+				await _state_ads_mid()
+			"ads":
+				await _state_ads()
+			"ads_fire":
+				await _state_ads_fire()
+			"ads_walk":
+				await _state_ads_walk()
 	_log("RESULT failed=%d" % _failed)
 	quit(1 if _failed > 0 else 0)
 
@@ -250,6 +267,61 @@ func _state_look_down() -> void:
 	_frame.look = Vector2(0.0, -0.35)
 	await _step(1)
 	await _step(10)
+
+
+func _ads_off() -> void:
+	_frame.aim_pressed = false
+	_frame.move = Vector2.ZERO
+	await _step(30)
+
+
+func _state_ads_mid() -> void:
+	await _gun_out()
+	_frame.aim_pressed = true
+	for i in 60:
+		await _step()
+		if _pawn.aim_blend >= 0.5:
+			break
+	_pawn.set_physics_process(false)  # hold the blend still while the frame renders
+	await _save("ads_mid")
+	_pawn.set_physics_process(true)
+	await _ads_off()
+
+
+func _state_ads() -> void:
+	await _gun_out()
+	_frame.aim_pressed = true
+	await _step(30)
+	await _save("ads")
+	await _ads_off()
+
+
+func _state_ads_fire() -> void:
+	await _gun_out()
+	_frame.aim_pressed = true
+	await _step(30)
+	var vm := _rig.get_view_model()
+	_press("fire")
+	for i in 30:
+		await _step()
+		if vm.is_tracer_visible():
+			var ep := vm.get_tracer_endpoints()
+			var cam := _rig.get_camera()
+			_log("ADS TRACER start=%s end=%s px_start=%s px_dot=%s" % [ep[0], ep[1], cam.unproject_position(ep[0]),
+					cam.unproject_position(vm.get_red_dot().global_position)])
+			await _save("ads_fire")
+			break
+	await _step(40)
+	await _ads_off()
+
+
+func _state_ads_walk() -> void:
+	await _gun_out()
+	_frame.aim_pressed = true
+	_frame.move = Vector2(0, -1)
+	await _step(45)
+	await _save("ads_walk")
+	await _ads_off()
 
 
 ## Turns to the nearest wall around the eye (16 rays, 25 m) and walks into it for three seconds.
