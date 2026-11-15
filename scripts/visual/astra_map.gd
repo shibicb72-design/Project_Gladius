@@ -70,7 +70,7 @@ func _ready() -> void:
 	if placed.has("breakables"):
 		_build_breakables(placed["breakables"])
 	for body in nav.get_children():
-		if body in cover_bodies or body.name == &"Ground":
+		if body in cover_bodies or body.name == &"Ground" or body is LootChest:  # a chest is never a wall, whatever the build order
 			continue
 		body.add_to_group(&"cover_wall")
 		var mesh := body.get_node("Mesh") as MeshInstance3D
