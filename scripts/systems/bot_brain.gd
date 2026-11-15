@@ -446,9 +446,10 @@ func _move_direction(enemy: Pawn, melee_only: bool, delta: float) -> Vector3:
 		_stuck_t = 0.0  # strafing in the band on purpose: never an unstick (as hold)
 	else:
 		_track_stuck(delta)
-	# A kept fight goal is not handed to the agent again (setting target_position re-queries the path even when
-	# it is unchanged); every other goal, and every goal on a small map, is set every think as before.
-	if goal_kind != "fight" or _agent.target_position != goal:
+	# On a big map an unchanged goal is not handed to the agent again (setting target_position re-queries the
+	# path even when it is unchanged; the agent still re-paths by itself when the pawn strays from the path).
+	# On a small map every goal is set every think, as before M2B1.
+	if not _big_map or _agent.target_position != goal:
 		_agent.target_position = goal
 	var next := _agent.get_next_path_position()
 	var dir := next - pawn.global_position
