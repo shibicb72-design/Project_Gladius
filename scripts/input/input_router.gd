@@ -147,6 +147,11 @@ func update_frame(delta: float = 1.0 / float(Engine.physics_ticks_per_second)) -
 	_pending.clear()
 	# The Aim tap toggle remaps aim_pressed to the latched ADS state (aim_just_pressed stays the raw edge).
 	f.aim_pressed = aim_toggle.resolve(f.aim_pressed)
+	# M2 H1a hold-to-ADS: a touch Fire hold past shooting.hold_to_ads.hold_s also raises the sight. ORed in after the
+	# toggle resolve, so the latch never sees it (no double toggle) and aim_just_pressed stays the raw Aim-button edge.
+	for p in providers:
+		if p is TouchProvider and (p as TouchProvider).hold_ads:
+			f.aim_pressed = true
 	_frame = f
 	return f
 

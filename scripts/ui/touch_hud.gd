@@ -211,7 +211,10 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for action in _layout["buttons"]:
+		if action == RIGHT_FIRE_KEY and shooting_mode() == SIMPLE_MODE:
+			continue  # M2 H1a: no right Fire button in Simple (refresh_shooting_mode)
 		_add_button(action, String(_layout["buttons"][action].get("label", action)))
+	_applied_shooting_mode = shooting_mode()
 	if left_fire_enabled():
 		_add_button(LEFT_FIRE_KEY, LEFT_FIRE_LABEL)
 	if bool(_DataRegistry.new().load_file("res://data/ui.json")["touch_debug_overlay"]["enabled"]):
@@ -273,11 +276,47 @@ func refresh_left_fire() -> void:
 		relayout()
 
 
+## M2 H1a: the touch shooting mode (data/input.json shooting, OQ-SHOOT-MODE). The profile's shooting_mode ("advanced" |
+## "simple", Settings "Shooting mode") wins; a missing or unknown value is the data default_mode.
+const ADVANCED_MODE := "advanced"
+const SIMPLE_MODE := "simple"
+
+
+func shooting_mode() -> String:
+	var shooting: Dictionary = cfg["shooting"]
+	var m: Variant = AppFlow.profile.get("shooting_mode", null)
+	return str(m) if m is String and (shooting["modes"] as Array).has(m) else str(shooting["default_mode"])
+
+
+## M2 H1a: Simple has no right Fire button: it is removed (not drawn, not hit-tested, so its rect is look area) and comes
+## back in Advanced. A touch held on it is dropped, and "fire" stays down only while another source holds it. A mode
+## change also drops the hold-to-ADS and Simple auto-fire state. Live toggle (Settings) and tests.
+func refresh_shooting_mode() -> void:
+	var simple := shooting_mode() == SIMPLE_MODE
+	if simple and _buttons.has(RIGHT_FIRE_KEY):
+		for idx in _button_touch.keys():
+			if _button_touch[idx] == RIGHT_FIRE_KEY:
+				_button_touch.erase(idx)
+		var b: Button = _buttons[RIGHT_FIRE_KEY]
+		_buttons.erase(RIGHT_FIRE_KEY)
+		remove_child(b)
+		b.free()
+	elif not simple and not _buttons.has(RIGHT_FIRE_KEY):
+		_add_button(RIGHT_FIRE_KEY, String(_layout["buttons"][RIGHT_FIRE_KEY].get("label", RIGHT_FIRE_KEY)))
+	if shooting_mode() != _applied_shooting_mode:
+		_applied_shooting_mode = shooting_mode()
+		_reset_shooting_state()
+	_sync_fire_action()
+	if is_inside_tree() and move_stick != null:
+		relayout()
+
+
 ## G2e: applies the profile's active layout slot over the data defaults.
 func reload_profile_layout() -> void:
 	apply_slot_layout(HudLayoutModel.from_dict(AppFlow.profile.get("hud_layouts", null)).active_slot())
 	if move_stick != null:
 		refresh_left_fire()  # G3e: a Settings toggle made while the HUD is live
+		refresh_shooting_mode()  # M2 H1a: likewise for the Shooting mode row
 
 
 ## Applies a layout slot (also used live by the layout editor) and re-places everything.
@@ -471,6 +510,7 @@ func _exit_tree() -> void:
 	for idx in _button_touch:
 		Input.action_release(_action_of(_button_touch[idx]))
 	_button_touch.clear()
+	_reset_shooting_state()
 	_hud_fire_down = false
 	Input.action_release("fire")
 
@@ -547,6 +587,8 @@ func _process(delta: float) -> void:
 	if move_mode == "virtual":
 		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3], 0.0)
 	_place_sprint_elements()
+	_update_hold_to_ads(delta)
+	_update_simple_fire(delta)
 	_sync_fire_action()
 	if _shoulder_pulse_left_s > 0.0:
 		_shoulder_pulse_left_s = maxf(0.0, _shoulder_pulse_left_s - delta)
@@ -778,6 +820,7 @@ func set_suspended(on: bool) -> void:
 		Input.action_release(action)
 	Input.action_release("fire")
 	_hud_fire_down = false
+	_reset_shooting_state()  # M2 H1a: no hold-to-ADS and no Simple auto-fire behind the menu
 	_shoulder_pulse_left_s = 0.0
 	_apply_shoulder_pulse()
 	_lock_btn_touch = -1
@@ -892,19 +935,135 @@ func _on_up(idx: int) -> void:
 		_update_sticks()
 
 
-## The general fire action is the union of the Fire buttons (right Fire and the optional Left Fire).
+## The general fire action is the union of the Fire buttons (right Fire and the optional Left Fire) and, in the Simple
+## shooting mode, the HUD's auto-fire (_update_simple_fire). Every touch shot goes through this one "fire" action, so it
+## reaches the InputFrame and the normal fire path (ammo, spread, recoil, host checks).
 ## M2 H1a: a look-area touch only turns the view, in and out of cover; it never presses "fire" (was: a look tap sent a
 ## short fire pulse and a still look hold latched fire, outside cover only).
 func _sync_fire_action() -> void:
-	var held := false
-	for key in _button_touch.values():
-		held = held or _action_of(key) == "fire"
-	if held and not suspended:
+	var held := _fire_button_held()
+	if not held:
+		_fire_hold_s = 0.0  # hold-to-ADS: a release lowers the sight at once (the Aim toggle latch is separate)
+		provider.hold_ads = false
+	if (held or _simple_fire_down) and not suspended:
 		Input.action_press("fire")
 		_hud_fire_down = true
 	elif _hud_fire_down:
 		Input.action_release("fire")
 		_hud_fire_down = false
+
+
+# ---- M2 H1a: shooting modes (data/input.json shooting, OQ-SHOOT-MODE) --------------------------------------------------
+
+## Hold-to-ADS: seconds the Fire buttons have been held without a break.
+var _fire_hold_s: float = 0.0
+## Simple auto-fire: its share of the fire union, the target it waits on, how long the crosshair has stayed on it, and
+## the pawn clock (one step per physics tick) of its last semi press and release.
+var _simple_fire_down := false
+var _simple_target_id: int = 0  # instance id, so a freed target is never touched
+var _simple_on_target_s: float = 0.0
+var _simple_press_clock: float = -INF
+var _simple_release_clock: float = -INF
+var _applied_shooting_mode := ""
+
+
+func _fire_button_held() -> bool:
+	for key in _button_touch.values():
+		if _action_of(key) == "fire":
+			return true
+	return false
+
+
+func _reset_shooting_state() -> void:
+	_fire_hold_s = 0.0
+	provider.hold_ads = false
+	_simple_fire_down = false
+	_simple_target_id = 0
+	_simple_on_target_s = 0.0
+
+
+## Advanced only, off unless shooting.hold_to_ads.enabled: a Fire button (right or Left Fire) held for hold_s sets
+## TouchProvider.hold_ads, which InputRouter ORs into aim_pressed after the Aim toggle; any release clears it
+## (_sync_fire_action). The Aim toggle latch is never touched, so with Aim on a release keeps the sight up.
+func _update_hold_to_ads(delta: float) -> void:
+	var h: Dictionary = cfg["shooting"]["hold_to_ads"]
+	if suspended or not bool(h["enabled"]) or shooting_mode() != ADVANCED_MODE or not _fire_button_held():
+		_fire_hold_s = 0.0
+		provider.hold_ads = false
+		return
+	_fire_hold_s += delta
+	provider.hold_ads = _fire_hold_s >= float(h["hold_s"])
+
+
+## Why Simple auto-fire is off right now, "" when it may fire. All read-only facts, checked in this order:
+## "mode" (not Simple), "hidden" (HUD not shown: not a touch device), "suspended" (in-match menu open), "no_pawn" (no
+## GameHud sibling or it has no live pawn), "spectating" (the local pawn is DEAD, or GameHud.spectate_text is set by
+## MatchRoot), "drop" (Pawn.drop_state ABOARD or FALLING), "downed" (not Pawn.is_alive: DOWNED or 0 health),
+## "lan" (Pawn.in_lan_session: MatchRoot.networked_match), "sight_down" (Pawn.aiming false: the sight is not up).
+func simple_fire_block_reason() -> String:
+	if shooting_mode() != SIMPLE_MODE:
+		return "mode"
+	if not visible:
+		return "hidden"
+	if suspended:
+		return "suspended"
+	var pawn := _hud_pawn()
+	if pawn == null:
+		return "no_pawn"
+	var game_hud := get_node_or_null("../GameHud")
+	var spectate: Variant = game_hud.get("spectate_text") if game_hud != null else null
+	if pawn.life == Pawn.Life.DEAD or (spectate is String and spectate != ""):
+		return "spectating"
+	if pawn.drop_state != Pawn.Drop.NONE:
+		return "drop"
+	if not pawn.is_alive():
+		return "downed"
+	if pawn.in_lan_session():
+		return "lan"
+	if not pawn.aiming:
+		return "sight_down"
+	return ""
+
+
+## Simple: decides only WHEN the HUD presses "fire", never where the gun points (no aim change anywhere). While
+## simple_fire_block_reason() is "" and Pawn.simple_fire_target() names the same enemy for shooting.simple.first_shot_delay_s,
+## fire is held (auto and the legacy burst repeat on their own); a semi weapon gets one press per round: pressed when the
+## weapon can take its next round on the coming physics tick (pawn clock + one tick >= its next fire time), released once
+## a physics tick has seen the press (the pawn clock moved), so every round is a new edge at the weapon's own interval
+## and no round is armed more than one tick ahead. Off target, reloading or empty: not pressed.
+func _update_simple_fire(delta: float) -> void:
+	var was_down := _simple_fire_down
+	var pawn := _hud_pawn()
+	var target: Pawn = pawn.simple_fire_target() if simple_fire_block_reason() == "" else null
+	if target == null:
+		_simple_target_id = 0
+		_simple_on_target_s = 0.0
+		_simple_fire_down = false
+	else:
+		if target.get_instance_id() != _simple_target_id:
+			_simple_target_id = target.get_instance_id()
+			_simple_on_target_s = 0.0
+		else:
+			_simple_on_target_s += delta
+		var w := pawn.loadout.get_active()
+		if _simple_on_target_s < float(cfg["shooting"]["simple"]["first_shot_delay_s"]) or w == null or w.reloading or not w.has_ammo():
+			_simple_fire_down = false
+		elif w.fire_mode != "semi":
+			_simple_fire_down = true
+		elif _simple_fire_down:
+			if pawn.get_clock() > _simple_press_clock:
+				_simple_fire_down = false
+		elif pawn.get_clock() > _simple_release_clock and pawn.get_clock() + _physics_tick_s() >= w._next_fire_time - 0.0001:
+			_simple_fire_down = true
+			_simple_press_clock = pawn.get_clock()
+	if was_down and not _simple_fire_down and pawn != null:
+		_simple_release_clock = pawn.get_clock()
+
+
+## One physics tick in seconds: the next tick's weapon update sees a press made now, so a semi press goes in one tick
+## before the weapon's next fire time (the round then fires exactly on its interval, never armed earlier than that).
+func _physics_tick_s() -> float:
+	return 1.0 / float(maxi(Engine.physics_ticks_per_second, 1))
 
 
 func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:

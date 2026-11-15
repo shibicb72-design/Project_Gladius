@@ -370,6 +370,34 @@ func hitscan_exclude() -> Array[RID]:
 	return out
 
 
+# --- M2 H1a: Simple shooting mode query (read-only) ---
+## Read-only, for the touch HUD's Simple shooting mode: the live enemy pawn the active gun's real shot would hit right
+## now, else null. Same origin and direction as fire_shot (get_muzzle_position, get_aim_direction from this pawn's
+## current InputFrame); no spread is drawn (no RNG is used). Checks, in order: a ranged active weapon (melee or none ->
+## null); the host's wall rule (NetMatchBridge.host_handle_fire): when the frame carries an aim point,
+## AimMath.validate_aim(muzzle -> aim point, camera.json aim_validate_epsilon_m) must pass, else null ("aim_blocked");
+## the first thing the muzzle ray meets within the weapon's range_m (Hitscan.cast: world, body, head) must be a pawn;
+## that pawn is not this pawn, is ALIVE (not downed, not dead) and is in another squad. No state changes, no signals.
+func simple_fire_target() -> Pawn:
+	if not is_inside_tree() or loadout == null:
+		return null
+	var w := loadout.get_active()
+	if w == null or w.def == null or w.def.is_melee():
+		return null
+	var space := get_world_3d().direct_space_state
+	var muzzle := get_muzzle_position()
+	if _frame.has_aim_point:
+		var epsilon := float(_camera["aim_validate_epsilon_m"]["value"])
+		if not AimMath.validate_aim(space, muzzle, _frame.aim_point, epsilon, hitscan_exclude())["ok"]:
+			return null
+	var res := Hitscan.cast(space, muzzle, get_aim_direction(), w.def, hitscan_exclude())
+	var target: Pawn = res.get("target", null) as Pawn
+	if target == null or target == self or not target.is_alive() or target.squad_id == squad_id:
+		return null
+	return target
+# --- end M2 H1a ---
+
+
 func _local_authority(attacker: Node, target: Node, weapon_def: WeaponDef, is_headshot: bool) -> void:
 	if weapon_def.is_melee() and attacker is Pawn and target.has_method("receive_melee"):
 		target.receive_melee(attacker)

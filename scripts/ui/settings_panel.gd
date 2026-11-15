@@ -30,6 +30,9 @@ var haptics_layer: CanvasLayer
 var left_fire_button: Button
 var left_fire_enabled: bool = false
 var sprint_lock_pos: Array = []  # kept so saving does not drop the layout editor's value
+## M2 H1a: the touch shooting mode ("advanced" | "simple", data/input.json shooting, OQ-SHOOT-MODE).
+var shooting_mode_button: Button
+var shooting_mode: String = "advanced"
 
 
 func _ready() -> void:
@@ -56,6 +59,9 @@ func _ready() -> void:
 	left_fire_enabled = bool(profile["left_fire_enabled"])
 	left_fire_button = _button("", toggle_left_fire, "target")  # G3e
 	_refresh_left_fire_text()
+	shooting_mode = SaveService.shooting_mode(profile.get("shooting_mode", null))
+	shooting_mode_button = _button("", toggle_shooting_mode, "target")  # M2 H1a: Advanced / Simple (touch)
+	_refresh_shooting_mode_text()
 	layout_button = _button("HUD layout", open_layout_editor, "layout")  # G2e
 	add_child(MenuStyle.caption("VIBRATION"))
 	haptics_button = _button("Haptics", open_haptics, "vibrate")  # G2f
@@ -192,6 +198,18 @@ func _refresh_left_fire_text() -> void:
 	left_fire_button.text = "Left Fire button: %s" % ("On" if left_fire_enabled else "Off")
 
 
+## M2 H1a: the touch shooting mode, cycling through data/input.json shooting.modes (Advanced -> Simple -> ...).
+func toggle_shooting_mode() -> void:
+	var modes: Array = DataRegistry.new().load_file("res://data/input.json")["shooting"]["modes"]
+	shooting_mode = str(modes[(modes.find(shooting_mode) + 1) % modes.size()])
+	_refresh_shooting_mode_text()
+	persist()
+
+
+func _refresh_shooting_mode_text() -> void:
+	shooting_mode_button.text = "Shooting mode: %s" % shooting_mode.capitalize()
+
+
 func _refresh_stick_text() -> void:
 	move_stick_button.text = "Move stick: %s" % move_stick_mode.capitalize()
 	stick_layout_button.text = "Stick: %s" % vjoy_layout.capitalize()
@@ -227,7 +245,7 @@ func _refresh_sprint_text() -> void:
 func fields() -> Dictionary:
 	return {"move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
 			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos,
-			"left_fire_enabled": left_fire_enabled}
+			"left_fire_enabled": left_fire_enabled, "shooting_mode": shooting_mode}
 
 
 ## Writes the stored profile + the host screen's extra keys + this panel's keys, then reloads AppFlow.profile.

@@ -32,6 +32,10 @@ var sprint_locked: bool = false
 ## no pawn reference). While true the stick's forward-extreme gesture does not sprint (a hard push in cover slides);
 ## the Sprint lock and its target (lock_target_visible) are unchanged, so the lock stays the sprint exit.
 var cover_suppress_sprint: bool = false
+## M2 H1a hold-to-ADS (data/input.json shooting.hold_to_ads, off by default, OQ-SHOOT-MODE): set by the touch HUD while a
+## Fire button has been held for hold_s, cleared on release. InputRouter ORs it into InputFrame.aim_pressed AFTER the Aim
+## tap-toggle resolve, so the toggle latch is never touched: with Aim toggled on, a release keeps the sight up.
+var hold_ads: bool = false
 
 
 func configure(cfg: Dictionary) -> void:

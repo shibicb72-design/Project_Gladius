@@ -60,6 +60,15 @@
 		"stick_rate_deg_s": 180.0,
 		"drag_rad_per_screen_height": 3.14
 	},
+	"_shooting_todo": "OQ-SHOOT-MODE (M2 H1a): the touch shooting mode. Every value below is a placeholder, not a design value: the default mode (advanced vs simple is Shibi's call), the hold-to-ADS switch (off by default) and its hold time, and the Simple first-shot delay. The player profile key shooting_mode (Settings, 'Shooting mode') overrides default_mode; an unknown or missing value means default_mode. See docs/CONTROLS.md Shooting mode.",
+	"shooting": {
+		"_placeholder": true,
+		"modes": ["advanced", "simple"],
+		"default_mode": "advanced",
+		"_modes_note": "advanced: the right Fire button fires from the hip at once and its drag aims; Aim is a separate toggle. simple: no right Fire button (its area is look area); while the sight is up (Aim) and the crosshair is on a live enemy in the held gun's range and in clear sight, the touch HUD presses fire after simple.first_shot_delay_s. The optional Left Fire button is unchanged in both modes. Touch only: keyboard, mouse and gamepad fire as before.",
+		"hold_to_ads": {"_placeholder": true, "enabled": false, "hold_s": 0.25, "unit": "s", "note": "Advanced only: a Fire button (right or Left Fire) held for hold_s raises the sight while it fires; release lowers it, unless the Aim toggle was on."},
+		"simple": {"_placeholder": true, "first_shot_delay_s": 0.15, "unit": "s", "note": "time the crosshair must stay on the same target before Simple presses fire"}
+	},
 	"_move_feel_todo": "OQ-VJOY: move-stick feel. Every entry is a NEUTRAL placeholder (not a design value, not tuned). Applies to the VirtualJoystick move stick only; the custom stick keeps dead_zones.touch_move.",
 	"sprint_sensitivity": {"min": 0, "max": 100, "default": 50, "step": 5, "_source": "HT Tech report of BGMI 1.6 notes, single unofficial source; Shibi chose it as the starting point Oct 22 2026"},
 	"sprint": {

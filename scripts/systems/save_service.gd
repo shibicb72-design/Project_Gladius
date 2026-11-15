@@ -22,7 +22,20 @@ static func defaults() -> Dictionary:
 			"sprint_lock_pos": [],  # [] = data/input.json touch_layout.sprint_lock_pos; G2e's layout editor writes [x, y] (fractions)
 				"hud_layouts": HudLayoutModel.new().to_dict(),  # G2e: 3 saved touch-HUD layouts + the active slot
 				"haptics": HapticsService.default_settings(),  # G2f: master switch, category toggles, High/Low quality
-				"left_fire_enabled": _left_fire_default()}  # G3e: optional left Fire button, default from data (false)
+				"left_fire_enabled": _left_fire_default(),  # G3e: optional left Fire button, default from data (false)
+				"shooting_mode": shooting_mode_default()}  # M2 H1a: "advanced" | "simple", default from data (OQ-SHOOT-MODE)
+
+
+## M2 H1a: data/input.json shooting.default_mode (OQ-SHOOT-MODE placeholder, "advanced").
+static func shooting_mode_default() -> String:
+	return str(DataRegistry.new().load_file("res://data/input.json")["shooting"]["default_mode"])
+
+
+## M2 H1a: a shooting mode from a file or menu; only data/input.json shooting.modes are kept, anything else (missing,
+## unknown, not a string) means the data default.
+static func shooting_mode(value: Variant) -> String:
+	var modes: Array = DataRegistry.new().load_file("res://data/input.json")["shooting"]["modes"]
+	return str(value) if value is String and modes.has(value) else shooting_mode_default()
 
 
 static func _left_fire_default() -> bool:
@@ -91,6 +104,7 @@ func load_profile() -> Dictionary:
 	profile["hud_layouts"] = HudLayoutModel.from_dict(data.get("hud_layouts", null)).to_dict()
 	profile["haptics"] = HapticsService.sanitize(data.get("haptics", null))
 	profile["left_fire_enabled"] = _left_fire(data.get("left_fire_enabled", null))
+	profile["shooting_mode"] = shooting_mode(data.get("shooting_mode", null))
 	return profile
 
 
@@ -109,5 +123,6 @@ func save_profile(profile: Dictionary) -> bool:
 	out["hud_layouts"] = HudLayoutModel.from_dict(profile.get("hud_layouts", null)).to_dict()
 	out["haptics"] = HapticsService.sanitize(profile.get("haptics", null))
 	out["left_fire_enabled"] = _left_fire(profile.get("left_fire_enabled", null))
+	out["shooting_mode"] = shooting_mode(profile.get("shooting_mode", null))
 	f.store_string(JSON.stringify(out, "\t"))
 	return true
