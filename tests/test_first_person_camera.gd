@@ -880,14 +880,16 @@ func test_local_body_on_the_layer_and_the_camera_mask_follows_the_mode() -> void
 		await _tick(Vector2(0, -1))
 		if _cam_draws_body() == vm.visible:
 			mismatches += 1
-		if _pawn.cover.state == CoverController.State.ENTERING and _cam_draws_body():
+		# M2 C1b stage 1: ENTERING is capped at cover.json input_lock_max_s (0.15 s), shorter than the 0.35 s blend, so
+		# the body now appears during the entry blend just after ENTERING settles; the check is "during the blend".
+		if _pawn.cover.state != CoverController.State.FREE and _rig.get_first_person_weight() > 0.0 and _cam_draws_body():
 			drawn_entering = true
 		if swap_weight < 0.0 and _cam_draws_body():
 			swap_weight = _rig.get_first_person_weight()
 		if _pawn.cover.state == CoverController.State.IN_COVER and _rig.get_first_person_weight() == 0.0:
 			break
 	assert_true(_cam_draws_body(), "in cover: the rig camera draws the soldier")
-	assert_true(drawn_entering, "ENTERING (third person blend): drawn before IN_COVER")
+	assert_true(drawn_entering, "entry blend (third person): drawn before the blend completes")
 	assert_true(swap_weight >= 0.0 and swap_weight < _vm_f("show_weight"), "the body appears below show_weight (at %s)" % swap_weight)
 	for i in 30:
 		await _tick(Vector2.ZERO)
@@ -985,7 +987,9 @@ func test_body_layer_follows_new_meshes_shots_and_swings() -> void:
 ## Spec item 5, fix 2, in the real match HUD (tests/button_rig.gd): in first person the Shoulder button is hidden and
 ## a tap at its slot centre does nothing (no swap, no shot, no ammo spent, no look turn, no look touch); in third person
 ## (DOWNED) it is back and presses swap_shoulder as today; back in first person it hides again.
-func test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps() -> void:
+## M2 C1b stage 1 (fixes 8, 20, 30): C1a hid the Shoulder button in first person and its slot swallowed taps; on the
+## ground the slot is now the visible Cover button (it presses "cover", never a look, a shot or a swap).
+func test_shoulder_slot_is_the_cover_button_in_first_person() -> void:
 	for sz in _ButtonRig.SIZES:
 		var ctx: Dictionary = await _ButtonRig.setup(sz, "virtual")
 		var tag: String = ctx["tag"]
@@ -995,7 +999,7 @@ func test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps() -> void:
 		var b: Button = touch._buttons["swap_shoulder"]
 		assert_true(rig.is_first_person(), "%s: the match pawn walks in first person" % tag)
 		assert_true((rig.get_camera().cull_mask & _body_bit()) == 0, "%s: the match camera leaves the body layer out" % tag)
-		assert_true(not b.visible and touch.is_first_person_slot_hidden("swap_shoulder"), "%s: Shoulder hidden in first person" % tag)
+		assert_true(b.visible and not touch.is_first_person_slot_hidden("swap_shoulder") and touch._action_of("swap_shoulder") == "cover", "%s: first person on the ground: the slot is the visible Cover button" % tag)
 		var c: Vector2 = touch.get_button_rect("swap_shoulder").get_center()
 		assert_true(touch.get_button_rect("swap_shoulder").size.x > 0.0, "%s: its slot rect stays reserved" % tag)
 		var w := pawn.loadout.get_active()
@@ -1009,10 +1013,10 @@ func test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps() -> void:
 		print("FP SHOULDER %s slot=%s in_look_zone=%s" % [tag, c, touch._zone_hit_rect("look_zone").has_point(c)])
 		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, true)
 		await _ButtonRig.frames(2)
-		# The hidden slot still hit-tests as the Shoulder button and presses swap_shoulder (tests/test_fold_window_coords.gd
-		# needs that); the rig ignores the action in first person, so the tap does nothing and is not a look touch.
-		assert_eq(touch._button_at(c), "swap_shoulder", "%s: the hidden slot still takes the tap" % tag)
-		assert_true(Input.is_action_pressed("swap_shoulder"), "%s: the hidden slot presses the (ignored) swap_shoulder action" % tag)
+		# The slot hit-tests as its element key and presses "cover" (tests/test_fold_window_coords.gd needs a pressed
+		# action); it is not a look touch.
+		assert_eq(touch._button_at(c), "swap_shoulder", "%s: the slot takes the tap" % tag)
+		assert_true(Input.is_action_pressed("cover") and not Input.is_action_pressed("swap_shoulder"), "%s: the slot presses cover, not swap_shoulder" % tag)
 		assert_eq(touch._look_touch, -1, "%s: the tap does not reach the look area" % tag)
 		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, false)
 		await _ButtonRig.frames(12)
@@ -1020,7 +1024,7 @@ func test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps() -> void:
 		assert_eq(w.ammo_in_mag, ammo, "%s: ammo unchanged" % tag)
 		assert_true(absf(pawn.rotation.y - yaw) < 1e-6 and absf(pawn.pitch - pitch) < 1e-6, "%s: the look did not turn" % tag)
 		assert_eq(rig.shoulder_side, side, "%s: no swap" % tag)
-		assert_true(is_equal_approx(b.scale.x, 1.0), "%s: no press pulse on the hidden button" % tag)
+		assert_true(is_equal_approx(b.scale.x, 1.0), "%s: no Shoulder press pulse on the Cover button" % tag)
 		# Third person (DOWNED): the button is back and presses as today.
 		pawn.life = Pawn.Life.DOWNED
 		await _ButtonRig.frames(3)
@@ -1033,6 +1037,6 @@ func test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps() -> void:
 		assert_true(not Input.is_action_pressed("swap_shoulder"), "%s: released" % tag)
 		pawn.life = Pawn.Life.ALIVE
 		await _ButtonRig.frames(3)
-		assert_true(rig.is_first_person() and not b.visible, "%s: back in first person: hidden again" % tag)
+		assert_true(rig.is_first_person() and b.visible and touch._action_of("swap_shoulder") == "cover", "%s: back in first person: the Cover button again" % tag)
 		pawn.shot.disconnect(count)
 		await _ButtonRig.teardown(ctx)

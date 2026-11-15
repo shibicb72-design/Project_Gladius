@@ -7,12 +7,12 @@ const NET_DIR := "res://scripts/net"
 const COVER_PATH := "res://scripts/systems/cover_controller.gd"
 
 ## Read-only CoverController API that UI may call. Field reads and null checks are also allowed.
-const READ_ONLY_METHODS: Array[String] = ["state_name", "blocks_fire", "can_quick_draw"]
+const READ_ONLY_METHODS: Array[String] = ["state_name", "blocks_fire", "can_quick_draw", "enter_duration", "can_enter_by_button"]
 ## Every other func in cover_controller.gd, written out (derived from its `func` lines; the test fails when a
 ## new func appears so it must be classified here). UI may call none of them.
 const MUTATORS: Array[String] = ["_init", "reset", "toggle_crouch", "set_look_active", "quick_draw",
 	"quick_draw_trigger", "round_fired", "refresh_shot_clear", "refresh_completed_pose", "tick", "_update_crouch",
-	"_tick_draw", "_try_snap", "_plane_position", "_begin_exit", "movement_velocity"]
+	"_tick_draw", "_try_snap", "_plane_position", "_begin_exit", "movement_velocity", "request_cover", "_enter"]
 ## Crouch mutators: forbidden anywhere in scripts/ui, with no exception.
 const CROUCH_METHODS: Array[String] = ["toggle_crouch", "_update_crouch"]
 const CROUCH_FIELDS: Array[String] = ["crouched", "crouch_amount"]

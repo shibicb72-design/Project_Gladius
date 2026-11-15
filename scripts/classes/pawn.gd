@@ -134,6 +134,12 @@ func handle_action_press(action: String) -> void:
 		cover.toggle_crouch()
 	elif action == "cover_fire" and cover != null and is_alive():
 		cover.quick_draw(true)
+	elif action == "cover" and cover_button_available():
+		# M2 C1b: the Cover button. The main probe samples at the button's own reach (cover.json cover_button_range_m),
+		# so on entry it already holds the wall for the locked samples that follow.
+		var probe := _cover_probe.sample(self, cover.config, false, float(cover.config["cover_button_range_m"])) \
+				if cover.state == CoverController.State.FREE else {}
+		cover.request_cover(probe)
 
 
 ## D2: end of the held cover FIRE press. No alive gate: the UI releases on death. cancel drops the
@@ -623,7 +629,7 @@ func _apply_movement(delta: float) -> void:
 			var probe := _cover_probe.sample(self, cover.config, cover.state != CoverController.State.FREE)
 			if sprint_pressed and (cover.state == CoverController.State.IN_COVER or cover.state == CoverController.State.PEEK_LEFT or cover.state == CoverController.State.PEEK_RIGHT):
 				cover._begin_exit()
-			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming)
+			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming, _frame.sprint)
 			_apply_cover_shapes()
 			if cover.state != CoverController.State.FREE:
 				var cover_velocity := cover.movement_velocity(global_position, wish, get_max_move_speed(), delta)
@@ -697,9 +703,10 @@ func _apply_weapon() -> void:
 
 ## Explicit test seam; normal play uses the first-physics-tick CameraRig/no-Brain gate.
 func enable_cover(cfg: Dictionary) -> void:
-	if cfg.is_empty() or net_mode != NetMode.LOCAL:
+	if cfg.is_empty() or net_mode != NetMode.LOCAL or in_lan_session():
 		return
 	cover = CoverController.new(cfg)
+	cover.entered.connect(_on_cover_entered)
 	_init_cover_shapes()
 	_cover_probe.reset()
 	_cover_auto_disabled = false
@@ -732,8 +739,57 @@ func ensure_local_body_layer(layer: int) -> void:
 var _local_body: LocalBodyLayer
 
 
+## M2 C1b stage 1 (fix 1): cover is offline-only until M3. A LAN host's and a LAN client's own pawn both stay
+## NetMode.LOCAL (MatchRoster.build sets net_mode only on the other pawns), so net_mode alone does not tell; the
+## signal is MatchRoot.networked_match (read-only, set in MatchRoot.begin before the CameraRig is attached) of the
+## MatchRoot this pawn lives under. No MatchRoot ancestor (unit fixtures) = offline.
+func in_lan_session() -> bool:
+	var node := get_parent()
+	while node != null:
+		if node is MatchRoot:
+			return (node as MatchRoot).networked_match
+		node = node.get_parent()
+	return false
+
+
+## M2 C1b stage 1, read-only for the HUD: the Shoulder slot shows the Cover button (on the ground, FREE or in cover).
+## False with no controller (bots, replicas, LAN), when not ALIVE (downed) and on the carrier or falling.
+func cover_button_available() -> bool:
+	return cover != null and is_alive() and drop_state == Drop.NONE and not in_lan_session()
+
+
+## M2 C1b stage 1, read-only for the HUD: true while the local pawn is in any cover state (the Cover button's active look).
+func in_cover() -> bool:
+	return cover != null and cover.state != CoverController.State.FREE
+
+
+## M2 C1b stage 1, read-only for the HUD highlight: a Cover press now would enter cover. Samples a separate probe at
+## cover_button_range_m at most once per physics frame, so the gameplay probe is never disturbed.
+func cover_button_valid() -> bool:
+	if not cover_button_available() or cover.state != CoverController.State.FREE:
+		return false
+	var frame := Engine.get_physics_frames()
+	if frame != _cover_button_frame:
+		_cover_button_frame = frame
+		if _cover_button_probe == null:
+			_cover_button_probe = CoverProbe.new()  # lazy: bots and replicas never build it
+		var probe := _cover_button_probe.sample(self, cover.config, false, float(cover.config["cover_button_range_m"]))
+		_cover_button_ok = cover.can_enter_by_button(probe)
+	return _cover_button_ok
+
+
+var _cover_button_probe: CoverProbe
+var _cover_button_frame := -1
+var _cover_button_ok := false
+
+
+## M2 C1b stage 1 (fix 13): one haptic tick on every cover entry, the Cover button or the auto-snap.
+func _on_cover_entered() -> void:
+	Haptics.play("cover_snap")
+
+
 func _ensure_cover() -> void:
-	if cover != null or _cover_auto_disabled or net_mode != NetMode.LOCAL or not is_alive():
+	if cover != null or _cover_auto_disabled or net_mode != NetMode.LOCAL or not is_alive() or in_lan_session():
 		return
 	# MatchRoot/BotSpawner attach these children after Pawn._ready().
 	if not has_node("CameraRig") or has_node("Brain"):

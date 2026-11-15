@@ -216,7 +216,8 @@
 	"cover_buttons": {
 		"_placeholder": true,
 		"_todo": "OQ-COVER Path A2: live Jump -> FIRE, Sprint lock -> Crouch; Shoulder is hidden too. Largest clear square at each slot, floor from input.touch_layout.button_min_dp. Reserved old label regions are exclusion zones only, never drawn. Styling/clearance values remain placeholders.",
-		"hidden_slots": ["jump", "sprint_lock", "swap_shoulder"],
+		"_c1b_todo": "OQ-COVER M2 C1b stage 1: swap_shoulder left the list, so the Cover button in that slot stays reachable in cover and exits it. jump and sprint_lock stay hidden until C1b stage 3.",
+		"hidden_slots": ["jump", "sprint_lock"],
 		"_thumb_reach_todo": "OQ-COVER Oct 30 2026: auto-move only conflicting slots; thumb_reach_min x/y fractions 0.5/0.5 are placeholders needing Shibi's ok, not design values.",
 		"thumb_reach_min": [0.5, 0.5],
 		"clearance_dp": 0.1,
@@ -232,6 +233,18 @@
 		"_placeholder": true,
 		"_todo": "OQ-FIRST-PERSON (M2 C1a stage 4, spec item 5, fix 2): guess for Shibi, not a DESIGN.md value. In first person (the local CameraRig's is_first_person) the Shoulder button has no meaning: false hides it, and its slot stays reserved and swallows taps (no swap, no look, no tap-to-fire) until C1b puts the Cover button there. Third person keeps today's Shoulder button and the cover_buttons hidden_slots rule.",
 		"shoulder_visible": false
+	},
+	"cover_button": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER (M2 C1b stage 1): the Cover button takes the Shoulder slot (input.json touch_layout.buttons.swap_shoulder, same size, floor touch_layout.button_min_dp 48) while the local pawn can use cover on the ground (FREE or in cover; offline only). The carrier, falling and downed keep Shoulder swap. Label, alphas and colours are placeholders: idle when no cover is in reach, highlighted when a press would enter, active while in cover.",
+		"label": "Cover",
+		"idle_alpha": 0.4,
+		"valid_alpha": 0.55,
+		"active_alpha": 0.8,
+		"idle_border_color": [1.0, 1.0, 1.0, 0.6],
+		"valid_border_color": [0.3, 1.0, 0.4, 1.0],
+		"active_border_color": [1.0, 0.85, 0.2, 1.0],
+		"border_px": 3
 	},
 	"interact_button": {
 		"_placeholder": true,

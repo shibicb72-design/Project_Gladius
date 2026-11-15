@@ -156,7 +156,14 @@ func test_lazy_gate_excludes_bots_remote_and_replicas() -> void:
 
 func test_sprint_lock_forward_intent_snaps_and_stays_in_cover() -> void:
 	await _fixture()
-	await _enter(true)
+	# M2 C1b stage 1: no auto-snap while sprinting; the Cover button enters with the lock held (not a new Sprint press).
+	for i in 60:
+		await _tick(Vector2(0, -1), false, false, true)
+	assert_eq(_pawn.cover.state, CoverController.State.FREE, "a held sprint never auto-snaps")
+	_pawn.handle_action_press("cover")
+	for i in 60:
+		await _tick(Vector2(0, -1), false, false, true)
+	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "the Cover button enters with sprint held")
 	var start := _pawn.global_position
 	for i in 60:
 		await _tick(Vector2(0, -1), false, false, true)

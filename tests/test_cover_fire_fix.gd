@@ -70,7 +70,8 @@ func setup(screen: Dictionary, edge: float = 0.25, enter: bool = true) -> void:
 			first_shot_s = pawn.get_clock()
 	)
 	if enter:
-		touch.provider.move_value = Vector2(0, -1)
+		# M2 C1b stage 1: a full forward touch push is the sprint gesture, which no longer auto-snaps; enter by Cover.
+		pawn.handle_action_press("cover")
 		await frames(60)
 	touch.provider.move_value = Vector2.ZERO
 	touch.provider.cancel_sprint_lock()
@@ -286,7 +287,9 @@ func test_l_reload_fixture_remaps_only_conflicting_crouch() -> void:
 func test_l_default_layout_matches_measured_baseline() -> void:
 	var expected := [
 		[Rect2(1188.862, 136.9424, 132.1952, 132.1952), Rect2(779.2424, 204.6825, 134.955, 134.955)],
-		[Rect2(870.1431, 397.2591, 149.1378, 149.1378), Rect2(533.22, 290.88, 223.8, 223.8)]
+		# M2 C1b stage 1: the unfolded FIRE square now also clears the Cover button in the Shoulder slot (no longer hidden
+		# in cover, fix 26); was Rect2(870.1431, 397.2591, 149.1378, 149.1378). Still above the 48 dp floor (59 dp).
+		[Rect2(875.8972, 403.0132, 137.6297, 137.6297), Rect2(533.22, 290.88, 223.8, 223.8)]
 	]
 	for i in SCREENS.size():
 		await setup(SCREENS[i])
@@ -347,7 +350,11 @@ func test_s_lock_already_on_enters_and_stays_in_cover() -> void:
 	await tap(touch.lock_button.get_global_rect().get_center())
 	assert_true(touch.provider.sprint_locked, "real free Sprint lock button locks")
 	await frames(60)
-	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "existing forward lock snaps into cover")
+	# M2 C1b stage 1: no auto-snap while sprinting; the Cover button enters and the held lock is not a new Sprint press.
+	assert_eq(pawn.cover.state, CoverController.State.FREE, "a forward sprint lock never auto-snaps")
+	await tap(touch.get_button_rect(touch.SHOULDER_KEY).get_center())
+	await frames(60)
+	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "the Cover button enters with the lock on")
 	await frames(60)
 	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "existing lock stays in cover sixty more ticks")
 	assert_true(touch.provider.sprint_locked, "cover entry preserves existing lock")

@@ -23,6 +23,8 @@
 		"death": {"_placeholder": true, "category": "status",
 			"high": {"duration_ms": 400, "amplitude": 1.0}, "low": {"duration_ms": 200, "amplitude": 0.6}},
 		"sound_cue": {"_placeholder": true, "category": "sound_cues",
-			"high": {"duration_ms": 30, "amplitude": 0.5}, "low": {"duration_ms": 15, "amplitude": 0.25}}
+			"high": {"duration_ms": 30, "amplitude": 0.5}, "low": {"duration_ms": 15, "amplitude": 0.25}},
+		"cover_snap": {"_placeholder": true, "_todo": "OQ-COVER (M2 C1b): a short tick when the local player enters cover (Cover button or auto-snap); category, duration and amplitude are guesses.", "category": "status",
+			"high": {"duration_ms": 20, "amplitude": 0.45}, "low": {"duration_ms": 10, "amplitude": 0.25}}
 	}
 }

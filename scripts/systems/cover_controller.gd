@@ -38,6 +38,11 @@ var _draw_anchor := Vector3.ZERO
 var _draw_target := Vector3.ZERO
 var _round_hold := 0.0
 var _trigger_held := false
+## M2 C1b stage 1: seconds left in the re-entry cooldown (cover.json reentry_cooldown_s, auto-snap only).
+var _cooldown_left := 0.0
+## M2 C1b stage 1: the snap lerp clock (cover.json snap_lerp_s): last tick's and this tick's time since entry.
+var _snap_prev := 0.0
+var _snap_t := 0.0
 
 func _init(cfg: Dictionary) -> void:
 	config = cfg.duplicate(true)
@@ -69,7 +74,10 @@ func reset() -> void:
 	_round_hold = 0.0
 	_trigger_held = false
 	_facts.clear()
+	_snap_prev = 0.0
+	_snap_t = 0.0
 	if was_cover:
+		_cooldown_left = float(config["reentry_cooldown_s"])
 		exited.emit()
 
 func blocks_fire() -> bool:
@@ -130,7 +138,8 @@ func refresh_shot_clear(clear: bool) -> void:
 func refresh_completed_pose(position: Vector3) -> void:
 	aimed_out = _draw_active and not _draw_returning and aim_out_amount >= 1.0 and crouch_amount == 0.0 and position.distance_to(_draw_target) <= float(config["motion_epsilon_m"])
 
-func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary, aiming: bool = false) -> void:
+## M2 C1b stage 1: fire_pressed and sprinting (InputFrame.fire_pressed / sprint) only gate the auto-snap.
+func tick(delta: float, move: Vector2, fire_pressed: bool, probe: Dictionary, aiming: bool = false, sprinting: bool = false) -> void:
 	_facts = probe.duplicate()
 	_round_hold = maxf(0.0, _round_hold - delta)
 	var basis: Basis = probe.get("basis", Basis.IDENTITY)
@@ -139,8 +148,11 @@ func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary, a
 	wish = wish.limit_length(1.0)
 	var position: Vector3 = probe.get("position", Vector3.ZERO)
 	if state == State.FREE:
-		_try_snap(delta, move, wish, probe, position, basis)
+		_cooldown_left = maxf(0.0, _cooldown_left - delta)
+		_try_snap(delta, wish, probe, position, basis, fire_pressed, sprinting)
 		return
+	_snap_prev = _snap_t
+	_snap_t = minf(_snap_t + delta, float(config["snap_lerp_s"]))
 	if state != State.EXITING:
 		var same_wall: bool = bool(probe.get("hit", false)) and probe.get("wall_key") == wall_key
 		_lost_ticks = 0 if same_wall else _lost_ticks + 1
@@ -154,7 +166,7 @@ func tick(delta: float, move: Vector2, _fire_pressed: bool, probe: Dictionary, a
 	_update_crouch(delta, false)
 	match state:
 		State.ENTERING:
-			if _phase + 0.000001 >= float(config["enter_s"]):
+			if _phase + 0.000001 >= enter_duration():
 				state = State.IN_COVER
 				_phase = 0.0
 		State.IN_COVER:
@@ -254,15 +266,26 @@ func _tick_draw(delta: float, position: Vector3, aiming: bool) -> bool:
 		return false
 	return true
 
-func _try_snap(delta: float, move: Vector2, wish: Vector3, probe: Dictionary, position: Vector3, basis: Basis) -> void:
+## M2 C1b stage 1: how long ENTERING ignores the stick: min(enter_s, input_lock_max_s). The move onto the wall
+## plane keeps easing over snap_lerp_s after the state has settled (movement_velocity).
+func enter_duration() -> float:
+	return minf(float(config["enter_s"]), float(config["input_lock_max_s"]))
+
+## Auto-snap anti-sticky rules (OQ-COVER, cover.json): the stick pushed into the wall (length >= enter_stick_min, its
+## direction within max_wall_angle_deg of the wall normal), the facing within the same angle, the wall within probe_m
+## and at least min_cover_height_m tall, held snap_hold_s on the same wall, not while sprinting, not while Fire is
+## held and not within reentry_cooldown_s after an exit.
+func _try_snap(delta: float, wish: Vector3, probe: Dictionary, position: Vector3, basis: Basis, fire_pressed: bool, sprinting: bool) -> void:
 	var wall_normal: Vector3 = probe.get("normal", Vector3.ZERO)
 	var facing := -basis.z
 	facing.y = 0
 	facing = facing.normalized()
-	var valid := bool(probe.get("hit", false)) and float(probe.get("distance_m", INF)) <= float(config["probe_m"])
+	var min_dot := cos(deg_to_rad(float(config["max_wall_angle_deg"])))
+	var valid := not fire_pressed and not sprinting and _cooldown_left <= 0.0
+	valid = valid and bool(probe.get("hit", false)) and float(probe.get("distance_m", INF)) <= float(config["probe_m"])
 	valid = valid and float(probe.get("height_m", 0)) + 0.000001 >= float(config["min_cover_height_m"])
-	valid = valid and -move.y >= float(config["enter_stick_min"]) and wish.dot(-wall_normal) >= float(config["enter_stick_min"])
-	valid = valid and facing.dot(-wall_normal) >= cos(deg_to_rad(float(config["max_wall_angle_deg"])))
+	valid = valid and wish.length() >= float(config["enter_stick_min"]) and wish.normalized().dot(-wall_normal) + 0.000001 >= min_dot
+	valid = valid and facing.dot(-wall_normal) + 0.000001 >= min_dot
 	if not valid:
 		_hold = 0.0
 		_candidate = null
@@ -273,7 +296,36 @@ func _try_snap(delta: float, move: Vector2, wish: Vector3, probe: Dictionary, po
 	_hold += delta
 	if _hold + 0.000001 < float(config["snap_hold_s"]):
 		return
-	normal = wall_normal
+	_enter(probe, position, wish)
+
+## M2 C1b stage 1: true when a Cover button press in FREE would enter with these probe facts (the pawn samples them
+## with the cover_button_range_m ray): a cover_wall within that range, at least min_cover_height_m tall. No stick,
+## angle, sprint, Fire or cooldown rule applies to the button.
+func can_enter_by_button(probe: Dictionary) -> bool:
+	if state != State.FREE or not bool(probe.get("hit", false)):
+		return false
+	if float(probe.get("distance_m", INF)) > float(config["cover_button_range_m"]) + 0.000001:
+		return false
+	return float(probe.get("height_m", 0)) + 0.000001 >= float(config["min_cover_height_m"])
+
+## M2 C1b stage 1: the Cover button press (Pawn.handle_action_press("cover") is the only caller in the game). From FREE
+## it enters when can_enter_by_button(probe), ignoring the re-entry cooldown; in IN_COVER / PEEK_LEFT / PEEK_RIGHT it
+## begins the exit. ENTERING and EXITING ignore it. Returns true when the state changed.
+func request_cover(probe: Dictionary) -> bool:
+	match state:
+		State.FREE:
+			if not can_enter_by_button(probe):
+				return false
+			_facts = probe.duplicate()
+			_enter(probe, probe.get("position", Vector3.ZERO), Vector3.ZERO)
+			return true
+		State.IN_COVER, State.PEEK_LEFT, State.PEEK_RIGHT:
+			_begin_exit()
+			return true
+	return false
+
+func _enter(probe: Dictionary, position: Vector3, wish: Vector3) -> void:
+	normal = probe["normal"]
 	tangent = Vector3.UP.cross(normal).normalized()
 	wall_point = probe["point"]
 	wall_key = probe.get("wall_key")
@@ -282,6 +334,11 @@ func _try_snap(delta: float, move: Vector2, wish: Vector3, probe: Dictionary, po
 		side = -1 if wish.dot(tangent) < 0 else 1
 	state = State.ENTERING
 	_phase = 0.0
+	_hold = 0.0
+	_candidate = null
+	_lost_ticks = 0
+	_snap_prev = 0.0
+	_snap_t = 0.0
 	target_position = _plane_position(position)
 	target_offset = target_position - position
 	entered.emit()
@@ -302,6 +359,17 @@ func _begin_exit() -> void:
 func movement_velocity(position: Vector3, free_wish: Vector3, max_speed: float, delta: float) -> Vector3:
 	if state == State.FREE or state == State.EXITING:
 		return free_wish.limit_length(max_speed)
+	if delta <= 0:
+		return Vector3.ZERO
 	var offset := target_position - position
 	offset.y = 0
-	return (offset / delta).limit_length(max_speed) if delta > 0 else Vector3.ZERO
+	# M2 C1b stage 1: during the first snap_lerp_s after entry the wall-normal part of the move eases (smoothstep)
+	# instead of arriving in one tick; the along-wall part is unchanged. Still speed bounded below.
+	var lerp_s := float(config["snap_lerp_s"])
+	if lerp_s > 0.0 and _snap_prev < lerp_s:
+		var s0 := smoothstep(0.0, 1.0, _snap_prev / lerp_s)
+		var s1 := smoothstep(0.0, 1.0, _snap_t / lerp_s)
+		var frac := 1.0 if s0 >= 1.0 else clampf((s1 - s0) / (1.0 - s0), 0.0, 1.0)
+		var along_normal := normal * offset.dot(normal)
+		offset += along_normal * (frac - 1.0)
+	return (offset / delta).limit_length(max_speed)

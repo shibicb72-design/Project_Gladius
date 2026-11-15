@@ -72,7 +72,8 @@ func setup(window: Vector2i, dpi: float, height: float = 2.2, edge: float = 0.25
 			first_shot_s = pawn.get_clock()
 	)
 	if enter:
-		touch.provider.move_value = Vector2(0, -1)
+		# M2 C1b stage 1: a full forward touch push is the sprint gesture, which no longer auto-snaps; enter by Cover.
+		pawn.handle_action_press("cover")
 		await frames(60)
 	touch.provider.move_value = Vector2.ZERO
 	touch.provider.cancel_sprint_lock()
@@ -160,7 +161,8 @@ func test_fb_round_slot_geometry_fold_and_moved_layout() -> void:
 				assert_true(not button._accept_point(rect.position + Vector2.ONE), "corner outside circle is not a hit")
 				print("A2 SIZE %s moved=%s %s dp=%s rect=%s" % [screen["size"], moved, button.name, dp, rect])
 			assert_true(not fire.get_touch_rect().intersects(crouch.get_touch_rect()), "round controls clear each other")
-			assert_true(not touch._buttons["jump"].visible and not touch._buttons["swap_shoulder"].visible and not touch.lock_button.visible, "movement-only controls hidden")
+			# M2 C1b stage 1 (fix 26): the Shoulder slot is the Cover button and stays in cover so it can exit.
+			assert_true(not touch._buttons["jump"].visible and touch._buttons["swap_shoulder"].visible and touch._action_of("swap_shoulder") == "cover" and not touch.lock_button.visible, "movement-only controls hidden, the Cover button stays")
 		await cleanup()
 
 func hold_tap(point: Vector2, singleton: bool = false) -> void:
@@ -279,7 +281,8 @@ func test_cover_slots_do_not_jump_lock_or_swap_and_ten_reliable_taps() -> void:
 	await setup(Vector2i(2520, 1080), 420.0)
 	var rig := pawn.get_node("CameraRig") as CameraRig
 	var shoulder := rig.shoulder_side
-	for key in ["jump", "sprint_lock", "swap_shoulder"]:
+	# M2 C1b stage 1 (fix 26): swap_shoulder left the hidden list; that slot is the Cover button, which exits cover.
+	for key in ["jump", "sprint_lock"]:
 		var rect: Rect2 = touch.get_element_rect(key)
 		# Corners of each old square, including points outside the new circles.
 		for point in [rect.position + Vector2.ONE, rect.end - Vector2.ONE]:
@@ -327,8 +330,8 @@ func test_free_controls_restore_and_cover_buttons_are_not_hittable() -> void:
 		assert_eq(shots, before, "tap on former FIRE slot does not use FIRE")
 	touch.provider.move_value = Vector2.ZERO
 	await frames(45)
-	# M2 C1a stage 4: outside cover the view is first person, where the Shoulder button is hidden (fix 2).
-	assert_true(touch._buttons["jump"].visible and not touch._buttons["swap_shoulder"].visible and touch.lock_button.visible, "normal controls visible again, Shoulder hidden in first person")
+	# M2 C1b stage 1: on the ground the Shoulder slot is the visible Cover button (C1a hid the Shoulder there).
+	assert_true(touch._buttons["jump"].visible and touch._buttons["swap_shoulder"].visible and touch._action_of("swap_shoulder") == "cover" and touch.lock_button.visible, "normal controls visible again, the slot is the Cover button")
 	event_at(touch._buttons["jump"].get_global_rect().get_center(), true)
 	await frames(3)
 	assert_true(pawn.velocity.y > 0, "restored Jump jumps")
@@ -338,8 +341,8 @@ func test_free_controls_restore_and_cover_buttons_are_not_hittable() -> void:
 	var side := rig.shoulder_side
 	var shots_before := shots
 	await hold_tap(touch._buttons["swap_shoulder"].get_global_rect().get_center())
-	# M2 C1a: outside cover the view is first person, where the Shoulder slot is hidden and swallows the tap (fix 2).
-	assert_true(rig.is_first_person() and rig.shoulder_side == side and shots == shots_before, "hidden Shoulder slot does nothing in first person")
+	# M2 C1b stage 1: the slot is the Cover button; out of its reach a press does nothing (no swap, no shot, no entry).
+	assert_true(rig.is_first_person() and rig.shoulder_side == side and shots == shots_before and pawn.cover.state == CoverController.State.FREE, "Cover slot out of reach does nothing")
 	touch.provider.move_value = Vector2(0, -0.3)
 	await hold_tap(touch.lock_button.get_global_rect().get_center())
 	assert_true(touch.provider.sprint_locked, "restored Sprint lock locks")
@@ -544,8 +547,8 @@ func test_vf_camera_damped_in_cover_and_free_follow_restored() -> void:
 func test_normal_buttons_work_before_first_cover_entry() -> void:
 	await setup(Vector2i(2520, 1080), 420.0, 2.2, 0.25, false)
 	assert_true(not fire.is_visible_in_tree() and not crouch.is_visible_in_tree(), "context controls hidden before entry")
-	# M2 C1a stage 4: before cover entry the view is first person, where the Shoulder button is hidden (fix 2).
-	assert_true(touch._buttons["jump"].visible and not touch._buttons["swap_shoulder"].visible and touch.lock_button.visible, "normal slots visible before entry, Shoulder hidden in first person")
+	# M2 C1b stage 1: before cover entry (first person, on the ground) the Shoulder slot is the visible Cover button.
+	assert_true(touch._buttons["jump"].visible and touch._buttons["swap_shoulder"].visible and touch._action_of("swap_shoulder") == "cover" and touch.lock_button.visible, "normal slots visible before entry, the slot is the Cover button")
 	assert_true("jump" in touch.get_element_keys() and "sprint_lock" in touch.get_element_keys() and "swap_shoulder" in touch.get_element_keys(), "all layout keys restored outside cover")
 	event_at(touch._buttons["jump"].get_global_rect().get_center(), true)
 	await frames(3)
@@ -554,13 +557,14 @@ func test_normal_buttons_work_before_first_cover_entry() -> void:
 	await frames(45)
 	var rig := pawn.get_node("CameraRig") as CameraRig
 	var side := rig.shoulder_side
-	await hold_tap(touch._buttons["swap_shoulder"].get_global_rect().get_center())
-	# M2 C1a: before cover entry the view is first person, where the Shoulder slot is hidden and swallows the tap (fix 2).
-	assert_true(rig.is_first_person() and rig.shoulder_side == side, "hidden Shoulder slot does nothing in first person before cover entry")
 	touch.provider.move_value = Vector2(0, -0.3)
 	await hold_tap(touch.lock_button.get_global_rect().get_center())
 	assert_true(touch.provider.sprint_locked, "Sprint lock works before entry")
 	await hold_tap(touch.lock_button.get_global_rect().get_center())
 	assert_true(not touch.provider.sprint_locked, "Sprint unlock works before entry")
+	touch.provider.move_value = Vector2.ZERO
+	# M2 C1b stage 1: the slot is the Cover button (C1a swallowed this tap in first person); the wall is in reach.
+	await hold_tap(touch._buttons["swap_shoulder"].get_global_rect().get_center())
+	assert_true(pawn.cover.state != CoverController.State.FREE and rig.shoulder_side == side, "the Cover slot enters cover and never swaps shoulder")
 	assert_eq(shots, 0, "normal movement controls do not fire")
 	await cleanup()

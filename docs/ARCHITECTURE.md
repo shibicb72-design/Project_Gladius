@@ -601,6 +601,55 @@ android/              debug.keystore (shared debug key only)
     the map scene with the match's Light and WorldEnvironment (GreyboxArt) and saves six ground
     shots at 2520 x 1080 (`shot_points`). Its data pass is tested in test_alesia_1km_data.gd.
 
+### 4.21 Cover
+
+Owner-only contextual cover: `CoverController` (`scripts/systems/cover_controller.gd`, a pure state machine
+FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`cover_probe.gd`, the
+`cover_wall` contract: a StaticBody3D in group `cover_wall` with a "Shape" BoxShape3D on layer 1) and
+`CoverIndex`. `Pawn._ensure_cover` builds it only for the local player (CameraRig child, no Brain,
+`net_mode` LOCAL, offline). All numbers are placeholders in `data/cover.json` (OQ-COVER).
+
+#### C1b cover as built (kept current per stage; stage 1 = the Cover button and auto-snap)
+- **Entry by button.** Touch only in C1b. The touch HUD's Shoulder slot (`swap_shoulder` element) is the
+  Cover button while `Pawn.cover_button_available()` (controller present, ALIVE, `drop_state` NONE, not
+  LAN): on the ground, FREE or in cover. Carrier, falling and downed show Shoulder swap as C1a left it.
+  A press calls `Input.action_press("cover")` (project.godot action `cover`, no key or pad events) and
+  `TouchProvider.trigger_action("cover")`; `"cover"` is in `InputRouter.NON_FRAME_ACTIONS` (no InputFrame
+  bit), MatchRoot forwards it to `Pawn.handle_action_press("cover")`, which samples the main probe at
+  `cover_button_range_m` and calls `CoverController.request_cover(probe)`. UI never calls the controller.
+- **Controller API (stage 1).** `request_cover(probe) -> bool`: FREE enters when
+  `can_enter_by_button(probe)` (hit, `distance_m` <= `cover_button_range_m`, `height_m` >=
+  `min_cover_height_m`; no stick, angle, sprint, Fire or cooldown rule); IN_COVER / PEEK_* begin the exit;
+  ENTERING / EXITING ignore it. `enter_duration()` = min(`enter_s`, `input_lock_max_s`). `tick(delta, move,
+  fire_pressed, probe, aiming, sprinting)`; the last two inputs only gate auto-snap. Both entries go
+  through `_enter()`, which emits `entered`.
+- **Probe distance.** `CoverProbe.sample(pawn, cfg, locked, distance_m = -1)`: the unlocked ray reaches
+  `distance_m`, else `probe_m`. The button press samples the pawn's main probe (so it holds the wall for
+  the locked samples that follow); the HUD highlight uses `Pawn.cover_button_valid()`, a second lazily
+  built probe sampled at most once per physics frame. `Pawn.in_cover()` drives the active look.
+- **Auto-snap anti-sticky rules** (`_try_snap`): stick length >= `enter_stick_min` and its direction within
+  `max_wall_angle_deg` of the wall normal, facing within the same angle, wall within `probe_m`, at least
+  `min_cover_height_m`, held `snap_hold_s` on the same wall, not while `InputFrame.sprint` (a full forward
+  touch push is the sprint gesture, so it does not snap), not while Fire is held, not within
+  `reentry_cooldown_s` after an exit (the cooldown starts when an exit reaches FREE via `reset()`).
+- **Input lock and snap lerp.** ENTERING (the stick-ignoring state) lasts `enter_duration()`; the move onto
+  the wall plane keeps easing (smoothstep on the wall-normal part, speed bounded) over `snap_lerp_s` from
+  entry, also after the state has settled to IN_COVER (`movement_velocity`).
+- **Data keys (stage 1):** `snap_hold_s` 0.25, `max_wall_angle_deg` 45, `probe_m` 0.7, `enter_s` 0.15,
+  `input_lock_max_s` 0.15, `snap_lerp_s` 0.25, `reentry_cooldown_s` 0.4, `cover_button_range_m` 1.5
+  (cover.json); `ui.json cover_button` (label and idle / valid / active alphas and border colours);
+  `ui.json cover_buttons.hidden_slots` is now jump and sprint_lock (swap_shoulder removed so the Cover
+  button can exit cover; stage 3 empties it); `haptics.json events.cover_snap` (category status).
+- **LAN signal.** A LAN host's and a LAN client's own pawn both stay `NetMode.LOCAL`, so the gate is
+  `MatchRoot.networked_match` (read-only, set in `begin` before the rig is attached), read by
+  `Pawn.in_lan_session()` from the pawn's MatchRoot ancestor. On LAN `_ensure_cover` and `enable_cover`
+  refuse, so there is no auto-snap and no Cover button (the slot keeps C1a's hidden Shoulder behaviour).
+- **Haptic.** `Pawn._on_cover_entered` (connected to `entered` in `enable_cover`) plays
+  `Haptics.play("cover_snap")` for both entries.
+- **HUD mode source.** The touch HUD finds the pawn through the sibling `../GameHud` node's `pawn`
+  (`_hud_pawn`); no GameHud or pawn = no Cover button (the slot stays Shoulder).
+- Tests: `tests/test_cover_entry_c1b.gd`.
+
 ## 5. Testing
 
 - `tests/run_tests.gd` (`extends SceneTree`) finds `tests/test_*.gd` and runs every `test_*` method

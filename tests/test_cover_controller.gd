@@ -22,20 +22,23 @@ func _step(c: CoverController, pos: Vector3, move: Vector2, basis: Basis = Basis
 	return next
 
 func test_snap_timing_breaks_and_data_override() -> void:
+	# M2 C1b stage 1: the hold comes from data (snap_hold_s 0.25 s, was a fixed 30 ticks for 0.5 s).
+	var hold := ceili(float(_cfg()["snap_hold_s"]) / DT - 0.0001)
 	var c := CoverController.new(_cfg())
-	for i in 29:
+	for i in hold - 1:
 		c.tick(DT, Vector2(0, -1), false, _probe())
-	assert_eq(c.state, CoverController.State.FREE, "still free before half second")
+	assert_eq(c.state, CoverController.State.FREE, "still free before snap_hold_s")
 	c.tick(DT, Vector2(0, -1), false, _probe())
 	assert_eq(c.state, CoverController.State.ENTERING, "snap within one tick")
 	for i in 15:
 		c.tick(DT, Vector2.ZERO, false, _probe())
 	assert_eq(c.state, CoverController.State.IN_COVER, "enter duration")
-	c.reset()
-	for i in 18:
+	# A fresh controller: reset() after cover now starts the re-entry cooldown, which would mask the hold reset.
+	c = CoverController.new(_cfg())
+	for i in hold - 2:
 		c.tick(DT, Vector2(0, -1), false, _probe())
 	c.tick(DT, Vector2.ZERO, false, _probe())
-	for i in 29:
+	for i in hold - 1:
 		c.tick(DT, Vector2(0, -1), false, _probe())
 	assert_eq(c.state, CoverController.State.FREE, "release reset hold")
 	var cfg := _cfg()

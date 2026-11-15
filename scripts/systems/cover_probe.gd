@@ -9,7 +9,9 @@ func reset() -> void:
 	_wall = null
 	_normal = Vector3.ZERO
 
-func sample(pawn: Pawn, cfg: Dictionary, locked: bool) -> Dictionary:
+## distance_m < 0 = the auto-snap reach cfg probe_m. M2 C1b: the Cover button passes cfg cover_button_range_m for
+## its own longer unlocked ray; the cover_wall contract and every later check are the same.
+func sample(pawn: Pawn, cfg: Dictionary, locked: bool, distance_m: float = -1.0) -> Dictionary:
 	var out := {"hit": false, "position": pawn.global_position, "basis": pawn.global_basis, "slide_speed_mps": pawn.get_move_speed() * float(_movement["strafe_back_ratio"]["value"])}
 	out["shot_clear"] = shot_clear(pawn)
 	out["stand_clear"] = standing_clear(pawn)
@@ -24,7 +26,8 @@ func sample(pawn: Pawn, cfg: Dictionary, locked: bool) -> Dictionary:
 		var from := pawn.global_position + Vector3.UP * float(cfg["probe_height_m"])
 		var ahead := -pawn.global_basis.z
 		ahead.y = 0
-		var query := PhysicsRayQueryParameters3D.create(from, from + ahead.normalized() * float(cfg["probe_m"]), 1, [pawn.get_rid()])
+		var reach := float(cfg["probe_m"]) if distance_m < 0.0 else distance_m
+		var query := PhysicsRayQueryParameters3D.create(from, from + ahead.normalized() * reach, 1, [pawn.get_rid()])
 		var hit := pawn.get_world_3d().direct_space_state.intersect_ray(query)
 		if hit.is_empty() or not hit["collider"] is StaticBody3D or not hit["collider"].is_in_group(&"cover_wall"):
 			return out
