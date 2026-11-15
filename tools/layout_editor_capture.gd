@@ -69,7 +69,7 @@ func _one(size: Vector2i, name: String, scene: String) -> bool:
 			ed.move_selected_to(Vector2(0.45, 0.5))
 			ed.alpha_slider.value = 60.0
 		"default":
-			ed.select_element("look_stick")
+			ed.select_element("fire_right")  # M2 H1a: no look stick element in look mode "drag" (the default)
 		"left_fire":
 			ed.select_element("fire_left")
 		"offscreen":

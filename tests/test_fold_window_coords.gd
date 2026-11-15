@@ -118,7 +118,7 @@ func _buttons(size: Vector2i) -> void:
 	var pawn: Pawn = ctx["pawn"]
 	var actions: Array = touch.get_button_actions()
 	assert_true(actions.size() > 0, "%s: HUD has action buttons" % ctx["tag"])
-	var look_point: Vector2 = touch.get_element_rect("look_stick").get_center()
+	var look_point: Vector2 = touch.get_look_point()  # M2 H1a: the look area centre (no look stick in drag mode)
 	var look_ammo := pawn.loadout.get_active().ammo_in_mag
 	_touch(2, look_point, true)
 	assert_eq(touch._look_touch, 2, "%s: the window-coordinate tap reached the look area" % ctx["tag"])
@@ -270,6 +270,8 @@ func test_contrast_data_above_pre_p0_values() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var hud: Control = load("res://scenes/ui/touch_hud.tscn").instantiate()
 	tree.root.add_child(hud)
+	hud.provider.look_mode = "stick"  # M2 H1a: the look ring is drawn only in look mode "stick"
+	hud.refresh_look_stick()
 	var layout: Dictionary = hud.cfg["touch_layout"]
 	assert_true(float(layout["button_idle_alpha"]) > OLD_BUTTON_IDLE_ALPHA, "button idle alpha > 0.22")
 	assert_true(float(layout["ring_alpha"]) > OLD_RING_ALPHA, "stick ring alpha > 0.35")

@@ -201,7 +201,7 @@ func test_advanced_aim_alone_and_look_touches_never_fire_on_an_enemy() -> void:
 	assert_true(pawn.simple_fire_target() == enemy, "fixture: the enemy is under the crosshair")
 	step(90)
 	assert_true(not fire_seen and shots == 0, "Advanced: Aim alone never fires, even on an enemy")
-	var look: Vector2 = hud.get_element_rect("look_stick").get_center()
+	var look: Vector2 = hud.get_look_point()  # M2 H1a: no look stick element in drag mode
 	hud._on_down(7, look)
 	hud._on_up(7)
 	step(20)

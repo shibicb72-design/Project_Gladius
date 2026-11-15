@@ -20,7 +20,8 @@ static func defaults() -> Dictionary:
 				"move_stick": "", "vjoy_layout": "",  # "" = use data/input.json touch_layout (see docs/CONTROLS.md)
 			"sprint_sensitivity": DataRegistry.new().load_file("res://data/input.json")["sprint_sensitivity"]["default"],
 			"sprint_lock_pos": [],  # [] = data/input.json touch_layout.sprint_lock_pos; G2e's layout editor writes [x, y] (fractions)
-				"hud_layouts": HudLayoutModel.new().to_dict(),  # G2e: 3 saved touch-HUD layouts + the active slot
+				"hud_layouts": HudLayoutModel.new().to_dict(),  # G2e: 3 saved touch-HUD layouts + the active slot (+ M2 H1a version)
+				"layout_notice_pending": false,  # M2 H1a: true once a layout migration reset an edited layout; the touch HUD clears it
 				"haptics": HapticsService.default_settings(),  # G2f: master switch, category toggles, High/Low quality
 				"left_fire_enabled": _left_fire_default(),  # G3e: optional left Fire button, default from data (false)
 				"shooting_mode": shooting_mode_default()}  # M2 H1a: "advanced" | "simple", default from data (OQ-SHOOT-MODE)
@@ -101,10 +102,22 @@ func load_profile() -> Dictionary:
 	profile["vjoy_layout"] = _choice(data.get("vjoy_layout", ""), ["floating", "fixed"])
 	profile["sprint_sensitivity"] = _sensitivity(data.get("sprint_sensitivity", null))
 	profile["sprint_lock_pos"] = _lock_pos(data.get("sprint_lock_pos", null))
-	profile["hud_layouts"] = HudLayoutModel.from_dict(data.get("hud_layouts", null)).to_dict()
+	var layouts := HudLayoutModel.from_dict(data.get("hud_layouts", null))
+	profile["hud_layouts"] = layouts.to_dict()
+	profile["layout_notice_pending"] = data.get("layout_notice_pending", false) == true
 	profile["haptics"] = HapticsService.sanitize(data.get("haptics", null))
 	profile["left_fire_enabled"] = _left_fire(data.get("left_fire_enabled", null))
 	profile["shooting_mode"] = shooting_mode(data.get("shooting_mode", null))
+	# M2 H1a layout migration (OQ-H1A-LAYOUT): saved layouts without the current layout version (or a pre-G2e file with
+	# only the legacy sprint_lock_pos) were made for the old placement. They are reset to the new defaults once, the
+	# legacy sprint_lock_pos with them, the touch HUD shows a one-time notice when something was discarded, and the
+	# result is written back at once so the next load sees the new format and never resets again.
+	var legacy_lock: bool = not data.has("hud_layouts") and not profile["sprint_lock_pos"].is_empty()
+	if layouts.migrated or legacy_lock:
+		if layouts.discarded or not profile["sprint_lock_pos"].is_empty():
+			profile["layout_notice_pending"] = true
+		profile["sprint_lock_pos"] = []
+		save_profile(profile)
 	return profile
 
 
@@ -121,6 +134,7 @@ func save_profile(profile: Dictionary) -> bool:
 	out["sprint_sensitivity"] = _sensitivity(profile.get("sprint_sensitivity", null))
 	out["sprint_lock_pos"] = _lock_pos(profile.get("sprint_lock_pos", null))
 	out["hud_layouts"] = HudLayoutModel.from_dict(profile.get("hud_layouts", null)).to_dict()
+	out["layout_notice_pending"] = profile.get("layout_notice_pending", false) == true
 	out["haptics"] = HapticsService.sanitize(profile.get("haptics", null))
 	out["left_fire_enabled"] = _left_fire(profile.get("left_fire_enabled", null))
 	out["shooting_mode"] = shooting_mode(profile.get("shooting_mode", null))

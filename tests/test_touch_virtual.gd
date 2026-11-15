@@ -300,12 +300,13 @@ func _check_hud_clear(sz: Vector2, layout: String) -> void:
 		"ammo_label": game.ammo_label, "alive_label": game.alive_label, "zone_label": game.zone_label,
 		"downed_label": game.downed_label}
 	var move_rect: Rect2 = touch.get_move_visual_rect()
-	var look_rect: Rect2 = touch.look_stick.get_global_rect()
-	var touch_items := {"move_stick": move_rect, "look_stick": look_rect}
+	# M2 H1a: no drawn look stick in look mode "drag"; the move stick must stay out of the main look area instead.
+	var look_rect: Rect2 = touch.get_look_area_rect()
+	var touch_items := {"move_stick": move_rect}
 	for action in touch.get_button_actions():
 		touch_items["button_" + action] = touch.get_button_rect(action)
 	var view := Rect2(Vector2.ZERO, sz)
-	assert_true(not move_rect.intersects(look_rect), "%s: move and look sticks overlap at %s" % [layout, sz])
+	assert_true(not move_rect.intersects(look_rect), "%s: move stick and look area overlap at %s" % [layout, sz])
 	if layout == "fixed":
 		assert_true(touch.move_stick.get_global_rect().is_equal_approx(move_rect), "fixed: the Control is exactly the stick at %s" % sz)
 	for hname in hud_items:

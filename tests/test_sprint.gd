@@ -467,7 +467,7 @@ func _check_lock_layout(sz: Vector2) -> void:
 		"shield_bar": game.shield_bar, "health_bar": game.health_bar, "weapon_label": game.weapon_label,
 		"ammo_label": game.ammo_label, "alive_label": game.alive_label, "zone_label": game.zone_label,
 		"downed_label": game.downed_label}
-	var others := {"move_stick": touch.move_stick.get_global_rect(), "look_stick": touch.look_stick.get_global_rect()}
+	var others := {"move_stick": touch.move_stick.get_global_rect(), "look_area": touch.get_look_area_rect()}  # M2 H1a: was the drawn look stick
 	for action in touch.get_button_actions():
 		others["button_" + action] = touch.get_button_rect(action)
 	var mine := {"lock_button": touch.get_lock_button_rect(), "lock_target_at_rest": touch.get_lock_target_rect()}

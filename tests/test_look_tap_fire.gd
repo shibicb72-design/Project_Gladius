@@ -59,7 +59,7 @@ func step(count: int = 1) -> void:
 		pawn._apply_weapon()
 
 func look_down() -> void:
-	hud._on_down(7, hud.get_element_rect("look_stick").get_center())
+	hud._on_down(7, hud.get_look_point())  # M2 H1a: the look area centre (no look stick element in drag mode)
 	assert_eq(hud._look_touch, 7, "look touch captured")
 	fire_seen = fire_seen or Input.is_action_pressed("fire")
 
