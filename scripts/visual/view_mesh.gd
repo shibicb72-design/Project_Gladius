@@ -16,11 +16,22 @@ const _EPS := 0.0000001  # zero-area guard, not a tunable
 
 const _OPAQUE_SHADER := """shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
+uniform vec3 fill_dir = vec3(-0.4, 0.75, 0.55);
+uniform vec3 fill_color : source_color = vec3(1.0, 0.95, 0.88);
+uniform float fill = 0.3;
+uniform float lift = 0.04;
+uniform float rim = 0.35;
+uniform float rim_tint = 0.65;
 void fragment() {
 	ALBEDO = COLOR.rgb;
 	METALLIC = UV2.x;
 	ROUGHNESS = UV2.y;
-	EMISSION = COLOR.rgb * UV.x;
+	// M2 AN1 3b: a view-model fill light fixed to the camera (NORMAL is view space), so the facets of the gun and
+	// the arms separate and the gunmetal stays neutral grey whatever the map's sky tints the ambient light.
+	float facing = max(dot(NORMAL, normalize(fill_dir)), 0.0);
+	EMISSION = COLOR.rgb * UV.x + COLOR.rgb * fill_color * (fill * facing + lift);
+	RIM = rim;
+	RIM_TINT = rim_tint;
 }
 """
 const _GLASS_SHADER := """shader_type spatial;
@@ -30,7 +41,7 @@ void fragment() {
 	ALPHA = COLOR.a;
 	METALLIC = 0.0;
 	ROUGHNESS = UV2.y;
-	SPECULAR = 0.9;
+	SPECULAR = 0.25;
 }
 """
 const _GLOW_SHADER := """shader_type spatial;
@@ -58,6 +69,16 @@ static func material(pass_name: String) -> ShaderMaterial:
 			mat.render_priority = 1
 		elif pass_name == "glow":
 			mat.render_priority = 2
+		else:
+			# The view-model fill and rim (art_soldier.json lighting): presentation presets, data not code.
+			var l: Dictionary = config().get("lighting", {})
+			for key in ["fill", "lift", "rim", "rim_tint"]:
+				if l.has(key):
+					mat.set_shader_parameter(key, float(l[key]))
+			if l.has("fill_dir"):
+				mat.set_shader_parameter("fill_dir", vec(l["fill_dir"]))
+			if l.has("fill_color"):
+				mat.set_shader_parameter("fill_color", vec(l["fill_color"]))
 		_materials[pass_name] = mat
 	return _materials[pass_name]
 

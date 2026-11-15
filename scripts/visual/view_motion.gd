@@ -349,6 +349,13 @@ func left_hand() -> Dictionary:
 	return {"target": "rest", "weight": 0.0, "pose": "", "pose_from": "", "pose_t": 0.0}
 
 
+## The swing alone as an eye-space transform (part of pivot_xf): the blade's free left hand undoes it so it keeps its
+## guard while the sword arm cuts.
+func swing_xf() -> Transform3D:
+	var s := _swing_pose()
+	return Transform3D(_deg(s[1]), s[0])
+
+
 ## The swing keys (anim.json swing.keys over swing_s): [pos, rot_deg] at the current time.
 func _swing_pose() -> Array:
 	if swing_total <= 0.0:

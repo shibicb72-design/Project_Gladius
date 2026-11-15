@@ -36,6 +36,11 @@ static func build_weapon(id: String, wc: Dictionary, fallback: String, dot_radiu
 			arm.set_meta(&"elbow_view", elbow)
 			xf = hold.affine_inverse() * xf
 			elbow = hold.affine_inverse() * elbow
+		if h.has("elbow_view") and String(h.get("frame", "weapon")) != "view":
+			# M2 AN1 3b: the elbow belongs to the body, not the gun: kept in the pivot (camera) frame, so a tilted or
+			# raised gun (reload, sprint, ADS) swings the forearm about a fixed elbow instead of carrying the elbow along.
+			arm.set_meta(&"elbow_pivot", ViewMesh.vec(h["elbow_view"]))
+			elbow = hold.affine_inverse() * ViewMesh.vec(h["elbow_view"])
 		arm.transform = xf
 		arm.set_meta(&"rest", xf)
 		arm.set_meta(&"elbow", elbow)
@@ -79,17 +84,23 @@ static func apply_parts(weapon: Node3D, motion: ViewMotion, pivot_xf: Transform3
 	if charge != null:
 		var crest: Transform3D = charge.get_meta(&"rest")
 		charge.transform = Transform3D(crest.basis, crest.origin + motion.charge_offset())
+	var right := weapon.get_node_or_null("RightArm") as Node3D
+	if right != null and right.has_meta(&"elbow_pivot"):
+		var r_elbow := weapon.transform.affine_inverse() * (right.get_meta(&"elbow_pivot") as Vector3)
+		ViewHands.aim_forearm(right, right.transform.affine_inverse() * r_elbow)
 	var arm := weapon.get_node_or_null("LeftArm") as Node3D
 	if arm == null:
 		return
 	var rest_xf: Transform3D = arm.get_meta(&"rest")
 	var elbow: Vector3 = arm.get_meta(&"elbow")
+	if arm.has_meta(&"elbow_pivot"):
+		elbow = weapon.transform.affine_inverse() * (arm.get_meta(&"elbow_pivot") as Vector3)
 	if arm.has_meta(&"view_xf"):
 		# A camera-frame hand (the blade's free left hand) stays put while the weapon swings and turns; it only follows
 		# the weapon's lowering.
 		var hold: Transform3D = weapon.get_meta(&"hold")
 		var drop := Transform3D(Basis.IDENTITY, Vector3(0.0, minf(weapon.transform.origin.y - hold.origin.y, 0.0), 0.0))
-		var to_weapon := weapon.transform.affine_inverse() * drop
+		var to_weapon := weapon.transform.affine_inverse() * drop * motion.swing_xf().affine_inverse()
 		rest_xf = to_weapon * (arm.get_meta(&"view_xf") as Transform3D)
 		elbow = to_weapon * (arm.get_meta(&"elbow_view") as Vector3)
 	var lh := motion.left_hand()
@@ -98,6 +109,11 @@ static func apply_parts(weapon: Node3D, motion: ViewMotion, pivot_xf: Transform3
 	var target: Variant = _left_target(weapon, String(lh["target"]), cell, charge, motion, pivot_xf)
 	if w > 0.0 and target != null:
 		xf = rest_xf.interpolate_with(target, w)
+		# M2 AN1 3b: a reach anchor may carry its own elbow, so the forearm swings down and out with the hand instead
+		# of pointing from the cell back at the eye.
+		var reach_elbow: Variant = _left_elbow(weapon, String(lh["target"]), motion, pivot_xf)
+		if reach_elbow != null:
+			elbow = elbow.lerp(reach_elbow, clampf(w, 0.0, 1.0))
 	arm.transform = xf
 	var rest_pose := String(arm.get_meta(&"pose"))
 	var pose := ViewHands.pose(rest_pose)
@@ -107,6 +123,25 @@ static func apply_parts(weapon: Node3D, motion: ViewMotion, pivot_xf: Transform3
 		pose = ViewHands.blend_poses(ViewHands.pose(rest_pose), pose, clampf(w, 0.0, 1.0))
 	ViewHands.apply_pose(arm, pose)
 	ViewHands.aim_forearm(arm, xf.affine_inverse() * elbow)
+
+
+## The elbow (weapon frame) that goes with a reach target: art_soldier.json hands.l_cell / l_charge "elbow" (weapon
+## frame), anim.json pickup "reach_elbow_view_m" (camera frame); null = keep the resting elbow.
+static func _left_elbow(weapon: Node3D, target: String, motion: ViewMotion, pivot_xf: Transform3D) -> Variant:
+	var hands: Dictionary = ViewWeapons.art(String(weapon.get_meta(&"art_id"))).get("hands", {})
+	match target:
+		"cell", "charge":
+			var key := "l_" + target
+			var h: Dictionary = hands.get(key, {})
+			if h.has("elbow_view"):  # camera frame: the elbow stays low whatever the gun's tilt
+				return weapon.transform.affine_inverse() * pivot_xf.affine_inverse() * ViewMesh.vec(h["elbow_view"])
+			if h.has("elbow"):
+				return ViewMesh.vec(h["elbow"])
+		"reach":
+			var p: Dictionary = motion.cfg["pickup"]
+			if p.has("reach_elbow_view_m"):
+				return weapon.transform.affine_inverse() * pivot_xf.affine_inverse() * ViewMesh.vec(p["reach_elbow_view_m"])
+	return null
 
 
 ## The left hand's reach target in the weapon frame: on the cell (follows it out and in), on the charging handle, or

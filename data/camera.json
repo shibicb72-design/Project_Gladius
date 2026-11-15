@@ -39,11 +39,11 @@
       "sway_smooth_s": {"_placeholder": true, "value": 0.1, "unit": "s", "note": "guess: time constant of the look sway"},
       "swap_s": {"_placeholder": true, "value": 0.45, "unit": "s", "note": "guess: weapon_switched plays lower, swap at the half, raise (shape: anim.json first_person.switch); 0 = instant"},
       "recoil_s": {"_placeholder": true, "value": 0.25, "unit": "s", "note": "guess: the view-model kick timer per shot (is_recoiling); the kick itself is a spring, anim.json first_person.kick, settled within this (presentation only; the real recoil is stats.json recoil)"},
-      "swing_s": {"_placeholder": true, "value": 0.36, "unit": "s", "note": "guess: the blade swing motion on fired (fix 9; keys: anim.json first_person.swing)"},
+      "swing_s": {"_placeholder": true, "value": 0.46, "unit": "s", "note": "guess: the blade swing motion on fired (fix 9; keys: anim.json first_person.swing)"},
       "tracer_s": {"_placeholder": true, "value": 0.08, "unit": "s", "note": "guess: first-person tracer life (fix 1); colour from ui.json shot_fx"},
       "tracer_width_m": {"_placeholder": true, "value": 0.012, "unit": "m", "note": "guess: first-person tracer width in world metres (it starts at the eye, so thinner than the third-person 0.08)"},
       "flash_s": {"_placeholder": true, "value": 0.05, "unit": "s", "note": "guess: first-person muzzle flash life"},
-      "flash_size_m": {"_placeholder": true, "value": 0.12, "unit": "m", "note": "guess: first-person flash star size, view-model metres (before scale); colour and arms from ui.json shot_fx"},
+      "flash_size_m": {"_placeholder": true, "value": 0.2, "unit": "m", "note": "guess: first-person flash star size, view-model metres (before scale); colour and arms from ui.json shot_fx"},
       "ads_motion_mult": {"_placeholder": true, "value": 0.15, "unit": "x", "note": "guess (stage 3): bob and look sway at full ADS, times their hip size; eases with the aim blend"},
       "ads_kick_mult": {"_placeholder": true, "value": 0.5, "unit": "x", "note": "guess (stage 3): view-model gun kick at full ADS, times the hip kick (presentation only; the real recoil is stats.json recoil)"},
       "dot_radius_m": {"_placeholder": true, "value": 0.0024, "unit": "m", "note": "guess (fix 8): red-dot radius, view-model metres before scale"},
@@ -52,8 +52,8 @@
       "default_melee": "gladius_lux",
       "weapons": {
         "_weapons_note": "M2 AN1: the models, hands and red-dot positions are data/art_soldier.json weapons.<id> (OQ-ART-SOLDIER); here only the hold and ADS poses. hold_m and hold_rot_deg place the weapon's origin (the right hand's grip point; the blade: the hilt's middle) in the camera frame; at full ADS the red dot sits at ads_dot_m in the camera frame (on the centre ray) and the gun turns by ads_rot_deg (0 = straight ahead).",
-        "pilum_br": {"_placeholder": true, "note": "guess (M2 AN1): the Pilum low in the lower-right quarter, its reflex sight toward the centre line; at ADS the open sight's dot is ads_dot_m away so the stock stays past the near plane", "hold_m": [0.14, -0.19, -0.27], "hold_rot_deg": [1.0, 8.0, -3.0], "ads_dot_m": [0.0, 0.0, -0.325], "ads_rot_deg": [0.0, 0.0, 0.0]},
-        "sagittarii_rifle": {"_placeholder": true, "note": "guess (M2 AN1): the long rifle; at ADS the eye looks through the hollow scope (the dot at its objective lens), the rear bell clear of the near plane", "hold_m": [0.14, -0.19, -0.315], "hold_rot_deg": [1.0, 8.0, -3.0], "ads_dot_m": [0.0, 0.0, -0.325], "ads_rot_deg": [0.0, 0.0, 0.0]},
+        "pilum_br": {"_placeholder": true, "note": "guess (M2 AN1): the Pilum low in the lower-right quarter, its reflex sight toward the centre line; at ADS the open sight's dot is ads_dot_m away so the stock stays past the near plane", "hold_m": [0.165, -0.145, -0.27], "hold_rot_deg": [1.0, 6.0, -10.0], "ads_dot_m": [0.0, 0.0, -0.325], "ads_rot_deg": [0.0, 0.0, 0.0]},
+        "sagittarii_rifle": {"_placeholder": true, "note": "guess (M2 AN1): the long rifle; at ADS the eye looks through the hollow scope (the dot at its objective lens), the rear bell clear of the near plane", "hold_m": [0.165, -0.15, -0.31], "hold_rot_deg": [1.0, 6.0, -10.0], "ads_dot_m": [0.0, 0.0, -0.21], "ads_rot_deg": [0.0, 0.0, 0.0]},
         "gladius_lux": {"_placeholder": true, "note": "guess: the Gladius Lux in the right hand, tip up and ahead, right of the screen centre", "hold_m": [0.19, -0.17, -0.24], "hold_rot_deg": [-55.0, 0.0, -15.0]}
       }
     }
