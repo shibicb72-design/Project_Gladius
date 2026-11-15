@@ -14,6 +14,10 @@ const BIG := "res://data/maps/alesia_1km.json"
 const TMP_MAP := "res://data/maps/_overrides_test_tmp.json"
 ## The edge of a shrinking zone may move at most this fast (m/s) on alesia_1km (its overrides' _todo note).
 const EDGE_MPS := 4.0
+## M2 Z1 drop rule on alesia_1km (OQ-BR-DROP, guesses for Shibi): a dropping soldier can glide at least this far
+## sideways (m), and the carrier flies no higher than DROP_MAX_ALT_M.
+const DROP_REACH_M := 120.0
+const DROP_MAX_ALT_M := 200.0
 
 
 func _tree() -> SceneTree:
@@ -60,44 +64,73 @@ func test_flat_maps_get_the_plain_files() -> void:
 		assert_eq(cfg["loot"], plain["loot"], map_path + ": loot config equals the plain file")
 
 
-func test_alesia_1km_overrides_are_the_minimum() -> void:
+func test_alesia_1km_overrides_follow_the_rules() -> void:
 	var plain := _cfg()
 	var big := _cfg(BIG)
 	var over: Dictionary = MatchDirector.map_overrides(BIG)
 	for block: Array in [[over["br"]["zone"], "OQ-BR-ZONE"], [over["br"]["drop"], "OQ-BR-DROP"], [over["loot"], "OQ-BR-LOOT"]]:
 		var b: Dictionary = block[0]
 		assert_true(bool(b.get("_placeholder", false)) and String(b.get("_todo", "")).contains(String(block[1])) and String(b["_todo"]).contains("guess"), "%s: a placeholder, labelled a guess" % block[1])
-	# Zone: covers the play circle, br.json's radius fractions, phase count, waits and damage; shrinks only slowed.
+	# Zone: covers the play circle; the phases follow tools/gen_zone.gd's rules for the map's "zone_gen" inputs
+	# (tests/test_zone_gen.gd checks they are exactly the tool's output).
 	var zone: Dictionary = big["br"]["zone"]
 	var base: Dictionary = plain["br"]["zone"]
-	var play := float(DataRegistry.parse_quiet(BIG)["play_radius_m"])
+	var def := DataRegistry.parse_quiet(BIG)
+	var play := float(def["play_radius_m"])
+	var zg: Dictionary = def["zone_gen"]
+	var min_shrink := float(zg["min_shrink_s"])
 	assert_eq(float(zone["start_radius_m"]), play, "the zone starts on the play circle")
 	assert_eq(zone["start_center"], base["start_center"], "the zone starts at the centre")
-	assert_eq((zone["phases"] as Array).size(), (base["phases"] as Array).size(), "the phase count is br.json's")
+	assert_eq((zone["phases"] as Array).size(), (zg["phases"] as Array).size(), "one phase per zone_gen entry")
+	assert_eq(float(zg["edge_speed_cap_mps"]), EDGE_MPS, "the edge cap is zone_gen's")
 	var prev := float(zone["start_radius_m"])
+	var prev_damage := -INF
 	var nominal := 0.0
 	for i in (zone["phases"] as Array).size():
 		var ph: Dictionary = zone["phases"][i]
-		var bp: Dictionary = base["phases"][i]
-		assert_eq(float(ph["damage_per_s"]), float(bp["damage_per_s"]), "phase %d damage is br.json's" % i)
-		assert_eq(float(ph["wait_s"]), float(bp["wait_s"]), "phase %d wait is br.json's" % i)
-		assert_true(absf(float(ph["radius_m"]) - float(bp["radius_m"]) / float(base["start_radius_m"]) * play) < 0.01, "phase %d radius is br.json's fraction of the start" % i)
-		assert_true(float(ph["shrink_s"]) >= float(bp["shrink_s"]), "phase %d shrink is never faster than br.json's" % i)
+		for key: String in ["wait_s", "shrink_s"]:
+			assert_true(float(ph[key]) > 0.0 and float(ph[key]) == floorf(float(ph[key])), "phase %d %s is a whole number of seconds (%s)" % [i, key, ph[key]])
+		assert_true(float(ph["radius_m"]) < prev, "phase %d circle is strictly smaller than the one before (with the centre move limit, inside it)" % i)
+		assert_true(float(ph["damage_per_s"]) > prev_damage, "phase %d damage is higher than the one before" % i)
+		assert_true(float(ph["shrink_s"]) >= min_shrink, "phase %d shrink is at least zone_gen.min_shrink_s" % i)
 		var edge := 2.0 * (prev - float(ph["radius_m"])) / float(ph["shrink_s"])
 		assert_true(edge <= EDGE_MPS + 0.001, "phase %d: the edge moves at most %.1f m/s (%.2f)" % [i, EDGE_MPS, edge])
-		# Only as slow as needed: one second less would break the rule, or the shrink is br.json's own.
-		assert_true(float(ph["shrink_s"]) == float(bp["shrink_s"]) or 2.0 * (prev - float(ph["radius_m"])) / (float(ph["shrink_s"]) - 1.0) > EDGE_MPS, "phase %d shrink is the minimum" % i)
+		# Only as slow as needed: one second less would break the cap, or the shrink is the minimum.
+		assert_true(float(ph["shrink_s"]) == min_shrink or 2.0 * (prev - float(ph["radius_m"])) / (float(ph["shrink_s"]) - 1.0) > EDGE_MPS, "phase %d shrink is the shortest the cap allows" % i)
 		nominal += float(ph["wait_s"]) + float(ph["shrink_s"])
 		prev = float(ph["radius_m"])
+		prev_damage = float(ph["damage_per_s"])
 	assert_eq(prev, 0.0, "the last phase ends at radius 0")
+	# The reach rule, with the merged drop: the last forced drop lands, then runs across to the first circle
+	# (2 x (play radius - first radius) at zone_gen.run_speed_mps) before the first shrink ends.
+	var merged_drop: Dictionary = big["br"]["drop"]
+	var first: Dictionary = zone["phases"][0]
+	var t_land := float(merged_drop["carrier_s"]) + float(merged_drop["altitude_m"]) / float(merged_drop["max_fall_mps"])
+	var reach_s := t_land + 2.0 * (play - float(first["radius_m"])) / float(zg["run_speed_mps"])
+	assert_true(reach_s <= float(first["wait_s"]) + float(first["shrink_s"]), "the last lander can reach the first circle before its shrink ends (%.1f s <= %d s)" % [reach_s, int(float(first["wait_s"]) + float(first["shrink_s"]))])
 	var rules := ModeRegistry.create(MatchDirector.MODE_ID, {MatchDirector.MODE_ID: big["br"]}) as BrRules
 	assert_true(rules != null and rules.config_problems().is_empty(), "BrRules accepts the merged 1 km config")
+	# Nested for real: on a few seeds every seeded target circle lies inside the one before.
+	for seed_value in (20 if rules != null else 0):
+		rules.set_seed(seed_value)
+		var outer_c := Vector2(float(zone["start_center"][0]), float(zone["start_center"][1]))
+		var outer_r := play
+		for circle: Dictionary in rules.get("_circles"):
+			var c: Vector2 = circle["center"]
+			assert_true(c.distance_to(outer_c) + float(circle["radius"]) <= outer_r + 0.001, "seed %d: each zone circle lies inside the one before" % seed_value)
+			outer_c = c
+			outer_r = float(circle["radius"])
 	for key: String in ["teams", "downed", "end", "default_seed"]:
 		assert_eq(big["br"][key], plain["br"][key], key + " is br.json's")
-	# Drop: crosses the play circle; altitude, glide and fall stay br.json's.
+	# Drop (M2 Z1): crosses the play circle; a falling soldier can glide at least DROP_REACH_M sideways
+	# (altitude / max fall speed x glide speed, the simple rule; the real fall is a little longer, see
+	# test_measured_drop_reach), from no higher than DROP_MAX_ALT_M. "enabled" and the bot jump window stay br.json's.
 	var drop: Dictionary = big["br"]["drop"]
-	for key: String in ["enabled", "altitude_m", "glide_speed_mps", "max_fall_mps", "bot_jump_window"]:
+	for key: String in ["enabled", "bot_jump_window"]:
 		assert_eq(drop[key], plain["br"]["drop"][key], "drop " + key + " is br.json's")
+	var side_reach := float(drop["altitude_m"]) / float(drop["max_fall_mps"]) * float(drop["glide_speed_mps"])
+	assert_true(side_reach >= DROP_REACH_M, "the side reach is at least %.0f m (%.1f m)" % [DROP_REACH_M, side_reach])
+	assert_true(float(drop["altitude_m"]) <= DROP_MAX_ALT_M, "the carrier flies at most %.0f m up (%.0f m)" % [DROP_MAX_ALT_M, float(drop["altitude_m"])])
 	assert_true(float(drop["path_length_m"]) >= 2.0 * play, "the carrier line spans the play circle")
 	assert_true(float(drop["map_half_m"]) >= play and float(drop["map_half_m"]) < 500.0, "the drop clamp holds the play circle, inside the 1000 m ground")
 	var fall_s := float(drop["altitude_m"]) / float(drop["max_fall_mps"])
@@ -115,9 +148,66 @@ func test_alesia_1km_overrides_are_the_minimum() -> void:
 		clustered += int(cluster["items"])
 	assert_true(ids.is_empty(), "every landmark gets a cluster (left: %s)" % [ids.keys()])
 	assert_true(clustered < int(loot["count"]), "clusters take part of the count")
+	# M2Z1 (binding fix 13): the first-tick placement cost grows with the count, so it is capped.
+	assert_true(int(loot["count"]) <= 900, "the loot count is at most 900 (%d)" % int(loot["count"]))
 	for key: String in ["max_ground_y_m", "zone_edge_margin_m", "items", "start_kit", "pickup_range_m", "colors"]:
 		assert_eq(loot[key], plain["loot"][key], "loot " + key + " is loot.json's")
 	print("MAP_OVERRIDES alesia_1km zone_nominal_s=", nominal, " carrier_s=", drop["carrier_s"], " loot_count=", loot["count"], " clustered=", clustered)
+
+
+## M2 Z1: one real pawn falls the 1 km map's drop (its merged altitude, glide and fall speeds) onto a flat test
+## floor, gliding straight at full stick. Its sideways travel matches the real fall (it starts at 0 m/s and
+## speeds up at the movement gravity to max_fall_mps: t = altitude / max_fall + max_fall / (2 g)) within 2 m, and
+## is at least DROP_REACH_M. On the small alesia map with a floor above every building, so nothing is in the way.
+func test_measured_drop_reach() -> void:
+	var drop: Dictionary = _cfg(BIG)["br"]["drop"]
+	var m: MatchRoot = _MatchScene.instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.seed_override = 777
+	_tree().root.add_child(m)
+	await _tree().physics_frame
+	m.director.load_config()
+	assert_true(m.begin(), "begin")
+	var floor_y := 100.0
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(600.0, 2.0, 600.0)
+	shape.shape = box
+	floor_body.add_child(shape)
+	floor_body.position = Vector3(0.0, floor_y - 1.0, 0.0)
+	m.add_child(floor_body)
+	var bot: Pawn = m.bots[0]
+	bot.get_node("Brain").set_physics_process(false)
+	bot.drop_glide_mps = float(drop["glide_speed_mps"])
+	bot.drop_max_fall_mps = float(drop["max_fall_mps"])
+	await _tree().physics_frame
+	var f := InputFrame.new()
+	f.move = Vector2(0.0, -1.0)  # straight ahead, full stick
+	bot.set_frame(f)
+	var start := Vector3(0.0, floor_y + float(drop["altitude_m"]), 0.0)
+	bot.start_fall(start)
+	var frames := 0
+	while bot.drop_state == Pawn.Drop.FALLING and frames < 3000:
+		await _tree().physics_frame
+		frames += 1
+	assert_eq(bot.drop_state, Pawn.Drop.NONE, "the pawn landed")
+	var fallen_s := frames / float(Engine.physics_ticks_per_second)
+	var travel := Vector2(bot.global_position.x - start.x, bot.global_position.z - start.z).length()
+	var g := float(bot._movement.get("gravity", 20.0))
+	var v := float(drop["max_fall_mps"])
+	var h := start.y - bot.global_position.y
+	var t_real := h / v + v / (2.0 * g)
+	var expect := float(drop["glide_speed_mps"]) * t_real
+	assert_true(absf(fallen_s - t_real) < 0.15, "the fall takes altitude / max_fall + max_fall / 2g (%.2f s, measured %.2f s)" % [t_real, fallen_s])
+	assert_true(absf(travel - expect) < 2.0, "the sideways travel is glide x fall time (%.1f m, measured %.1f m)" % [expect, travel])
+	assert_true(travel >= DROP_REACH_M, "the measured side reach is at least %.0f m (%.1f m)" % [DROP_REACH_M, travel])
+	print("MAP_OVERRIDES measured_drop alesia_1km fall_s=%.2f formula_s=%.2f simple_s=%.2f reach_m=%.1f formula_m=%.1f simple_m=%.1f" % [fallen_s, t_real,
+			float(drop["altitude_m"]) / v, travel, expect, float(drop["altitude_m"]) / v * float(drop["glide_speed_mps"])])
+	m.queue_free()
+	await _tree().process_frame
 
 
 func test_overrides_may_not_touch_what_the_lobby_reads() -> void:

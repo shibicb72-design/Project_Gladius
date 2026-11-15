@@ -497,8 +497,23 @@ android/              debug.keystore (shared debug key only)
     replace, `_` keys are notes). `begin()` calls it once, after the map choice, only while
     `mode_cfg` is empty, so a caller's later changes (the sim's scaling) survive. `overrides.br` may
     not set `teams` (the lobby reads it first; `DataRegistry.overrides_problems`). alesia_1km: zone
-    start 480 m and phases, drop path 960 m and carrier 40 s, loot over 480 m, 540 items, 12 at each
-    landmark (OQ-BR-ZONE, -DROP, -LOOT guesses).
+    start 480 m and phases, drop path 960 m and carrier 40 s, altitude 150 m, fall 12 m/s, glide
+    10 m/s, loot over 480 m, 540 items, 12 at each landmark (OQ-BR-ZONE, -DROP, -LOOT guesses).
+  - The zone generator (M2 Z1): the phases in `overrides.br.zone` are written by `tools/gen_zone.gd`
+    from the map's top-level `"zone_gen"` block (run speed, edge speed cap, shortest shrink, and per
+    phase a radius fraction, a wait and a damage), never by hand. Rules: each radius is smaller than
+    the one before and the last is 0; shrink = the shortest whole second with the edge speed
+    2 (r_prev - r) / shrink at or under the cap; damage rises; the first wait is lengthened until the
+    last forced drop (carrier_s + altitude / max fall, read from the merged drop) can land and run
+    2 (R0 - r1) to the first circle before it closes. Same inputs, same file (gen_alesia's writer).
+    After any change to the map json: run `gen_zone.gd` (if zone_gen or the drop changed), then
+    `bake_nav.gd` (the saved-nav manifest hashes the map json). `tests/test_zone_gen.gd` is the
+    drift test; `tests/test_map_overrides.gd` holds the zone, drop and loot rules.
+  - `tests/sim/test_sim_match_length.gd` (on demand): one real-timing match per process on
+    alesia_1km (`--ml-mode=solo|squads --ml-seed=N`, run with `--fixed-fps 60`: same result as real
+    time, about 2.5 times faster); prints `ML` lines: length, kills and alive per phase, bots
+    outside the zone at each shrink, and per pawn the landing and the seconds to its first armour,
+    ammo, heal and second gun (found by polling; gameplay code has no pickup signal).
   - Loot height: `LootField.setup` takes an optional terrain height callable (passed by `MatchRoot`);
     `max_ground_y_m` is measured above the terrain at the item, so loot lands on the hill. On flat
     maps identical.
