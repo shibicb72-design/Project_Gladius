@@ -18,10 +18,26 @@ static func pick_target(origin: Vector3, my_squad: int, candidates: Array, max_r
 	return best
 
 
-## Random (yaw, pitch) error in radians. accuracy 1.0 gives zero error.
-static func aim_error(accuracy: float, max_error_deg: float, rng: RandomNumberGenerator) -> Vector2:
-	var limit := deg_to_rad(max_error_deg) * (1.0 - clampf(accuracy, 0.0, 1.0))
+## Random (yaw, pitch) error in radians. accuracy 1.0 gives zero error. `scale` multiplies the limit at the draw
+## (the M2B2 aim settle); 1.0 gives the same floats as before, and the two draws are the same whatever the scale.
+static func aim_error(accuracy: float, max_error_deg: float, rng: RandomNumberGenerator, scale: float = 1.0) -> Vector2:
+	var limit := deg_to_rad(max_error_deg) * (1.0 - clampf(accuracy, 0.0, 1.0)) * scale
 	return Vector2(rng.randf_range(-limit, limit), rng.randf_range(-limit, limit))
+
+
+## M2B2 aim settle (big maps; brain.fight placeholders, OQ-BOT-FIGHT): the aim-error scale after keeping the same
+## visible target for settle_s seconds. full_s <= 0: no settle (1.0). The scale falls linearly from 1.0 toward the
+## floor over full_s; a target at speed_ref_mps or faster does not settle (its floor is 1.0); the settle only fully
+## applies at range_ref_m or farther (a nearer target settles in proportion; range_ref_m <= 0: always full).
+static func settle_scale(settle_s: float, target_speed_mps: float, dist_m: float, full_s: float, floor_frac: float,
+		speed_ref_mps: float, range_ref_m: float) -> float:
+	if full_s <= 0.0:
+		return 1.0
+	var t := clampf(settle_s / full_s, 0.0, 1.0)
+	var moving := clampf(target_speed_mps / speed_ref_mps, 0.0, 1.0) if speed_ref_mps > 0.0 else 0.0
+	var floor_eff := lerpf(floor_frac, 1.0, moving)
+	var reach := clampf(dist_m / range_ref_m, 0.0, 1.0) if range_ref_m > 0.0 else 1.0
+	return lerpf(1.0, floor_eff, t * reach)
 
 
 ## Yaw of a world direction as the Y rotation that makes a node's -Z face it.

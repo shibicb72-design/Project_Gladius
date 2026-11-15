@@ -121,6 +121,24 @@ static func _top(counts: Dictionary, n: int) -> String:
 	return "{" + ", ".join(parts) + "}"
 
 
+## M2B2 SIM_UNSTICK_GOALS: the bot with the most unstick events as <id>:<count>:<its most frequent goal_kind>:<its
+## most frequent area> (ties: the lower id, then the name first in sort order); "-" when no bot unstuck.
+static func _first_of(counts: Dictionary) -> String:
+	var keys: Array = counts.keys()
+	keys.sort_custom(func(a: Variant, b: Variant) -> bool: return int(counts[a]) > int(counts[b]) or (int(counts[a]) == int(counts[b]) and str(a) < str(b)))
+	return str(keys[0]) if not keys.is_empty() else "-"
+
+
+static func _worst_unstick(per_bot: Dictionary, bot_goals: Dictionary, bot_areas: Dictionary) -> String:
+	var best := -1
+	for id in per_bot:
+		if best < 0 or int(per_bot[id]) > int(per_bot[best]) or (int(per_bot[id]) == int(per_bot[best]) and int(id) < best):
+			best = int(id)
+	if best < 0:
+		return "-"
+	return "%d:%d:%s:%s" % [best, int(per_bot[best]), _first_of(bot_goals.get(best, {})), _first_of(bot_areas.get(best, {}))]
+
+
 func _run(mode: String, seed_value: int) -> Dictionary:
 	var tree := _tree()
 	var def := DataRegistry.parse_quiet(MAP)
@@ -210,6 +228,11 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var unstick_per_bot := {}
 	var unstick_areas := {}
 	var unstick_bands := {}
+	var unstick_goals := {}  # M2B2: brain goal_kind at the unstick start -> events
+	var unstick_bot_goals := {}  # bot player id -> {goal_kind: events}
+	var unstick_bot_areas := {}  # bot player id -> {area: events}
+	# M2B2 commit 3: the brain's NavigationAgent3D at each unstick start (finished is counted in addition).
+	var unstick_nav := {"reachable": 0, "unreachable": 0, "finished": 0}
 	var reached_inner := {}
 	var reached_hill := {}
 	var n := 0
@@ -235,6 +258,18 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 				unstick_areas[area] = int(unstick_areas.get(area, 0)) + 1
 				var band := area.get_slice(" ", 0)
 				unstick_bands[band] = int(unstick_bands.get(band, 0)) + 1
+				var gk := String(brain.goal_kind)
+				unstick_goals[gk] = int(unstick_goals.get(gk, 0)) + 1
+				var bg: Dictionary = unstick_bot_goals.get_or_add(b.player_id, {})
+				bg[gk] = int(bg.get(gk, 0)) + 1
+				var ba: Dictionary = unstick_bot_areas.get_or_add(b.player_id, {})
+				ba[area] = int(ba.get(area, 0)) + 1
+				var agent: NavigationAgent3D = brain.get("_agent")
+				if agent != null:
+					var nk := "reachable" if agent.is_target_reachable() else "unreachable"
+					unstick_nav[nk] = int(unstick_nav[nk]) + 1
+					if agent.is_navigation_finished():
+						unstick_nav["finished"] = int(unstick_nav["finished"]) + 1
 			unstick_prev[b.player_id] = left
 			var r := Vector2(b.global_position.x, b.global_position.z).length()
 			if r < 140.0:
@@ -261,6 +296,8 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			metrics.shot_fields(), metrics.loot_fields(), unstick_total, reached_inner.size(), reached_hill.size(), shares,
 			route_fields(m.bots, landmarks), metrics.prop_fields()]
 	print(line + " | scale=%.2f wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s %s" % [scale, wall_s, begin_ms, carrier_s, capped, metrics.cpu_fields()])
+	var bands := metrics.bands_fields()
+	print("SIM_BANDS map=alesia_1km mode=%s seed=%d %s" % [mode, seed_value, bands])
 	if over:
 		print("SIM result map=alesia_1km mode=%s winner=%s draw=%s" % [mode, results[0]["winner"], results[0]["draw"]])
 	else:
@@ -269,37 +306,42 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 				m.director.rules.zone_phase(), m.director.rules.phase_count(), m.director.rules.zone_state(), m.director.rules.zone_radius()])
 	print("SIM_UNSTICK map=alesia_1km mode=%s seed=%d total=%d bots_with_any=%d by_band=%s by_area=%s per_bot=%s" % [
 			mode, seed_value, unstick_total, unstick_per_bot.size(), _top(unstick_bands, 12), _top(unstick_areas, 14), unstick_per_bot])
+	print("SIM_UNSTICK_GOALS map=alesia_1km mode=%s seed=%d by_goal=%s worst=%s nav={reachable:%d, unreachable:%d, finished:%d}" % [
+			mode, seed_value, _top(unstick_goals, 20), _worst_unstick(unstick_per_bot, unstick_bot_goals, unstick_bot_areas),
+			int(unstick_nav["reachable"]), int(unstick_nav["unreachable"]), int(unstick_nav["finished"])])
 	m.queue_free()
 	await tree.process_frame
-	return {"line": line, "over": over}
+	return {"line": line, "over": over, "bands": bands}
 
 
 func test_match_solo() -> void:
-	var a := await _run("solo", SOLO_SEED)
+	var a := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
 	assert_true(bool(a["over"]), "the solo match on alesia_1km ended within the wall cap")
 
 
 func test_match_squads() -> void:
-	var s := await _run("squads", SQUADS_SEED)
+	var s := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
 	assert_true(bool(s["over"]), "the squads match on alesia_1km ended within the wall cap")
 
 
 ## The repeat check, as test_sim_bot_match.gd does it: the same seed twice in one process, the same SIM line
 ## (the deterministic part, before " | ").
 func test_repeat_solo() -> void:
-	var a := await _run("solo", SOLO_SEED)
-	var b := await _run("solo", SOLO_SEED)
+	var a := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
+	var b := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
 	print("SIM map=alesia_1km repeat_identical=%s" % (a["line"] == b["line"]))
 	assert_true(bool(a["over"]) and bool(b["over"]), "both solo matches ended")
 	assert_eq(a["line"], b["line"], "same seed, same match")
+	assert_eq(a["bands"], b["bands"], "same seed, same distance bands")
 
 
 func test_repeat_squads() -> void:
-	var a := await _run("squads", SQUADS_SEED)
-	var b := await _run("squads", SQUADS_SEED)
+	var a := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
+	var b := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
 	print("SIM map=alesia_1km mode=squads repeat_identical=%s" % (a["line"] == b["line"]))
 	assert_true(bool(a["over"]) and bool(b["over"]), "both squads matches ended")
 	assert_eq(a["line"], b["line"], "same seed, same match")
+	assert_eq(a["bands"], b["bands"], "same seed, same distance bands")
 
 
 # --- Proxies (report only, binding fix 10: alesia_1km is in no limits test) ---

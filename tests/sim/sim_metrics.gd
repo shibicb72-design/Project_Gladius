@@ -36,6 +36,14 @@ var _placed_ids := {}
 var _known := {}  # id -> pos, for every item on the ground at the last read
 var _size := -1
 var _next := -1
+## M2B2 distance bands: band -> gun rounds / hits. A gun round's band is the shooter's flat (x,z) distance to its
+## Brain's target_id pawn at the `fired` signal; "none" without a Brain, without a target or with the target pawn
+## missing. A hit (shot_resolved, emitted later in the same Pawn.fire_shot call) counts in the band of that
+## shooter's latest gun round.
+const BANDS: Array[String] = ["0-15", "15-40", "40-80", "80+", "none"]
+var band_shots := {}  # band -> gun rounds
+var band_hits := {}  # band -> hitscan rays that hit a pawn
+var _last_band := {}  # player id -> band of its latest gun round
 
 
 ## The --sim-profile=<name> user argument (after `--`), "" when absent.
@@ -66,6 +74,38 @@ static func cli_scale(fallback: float) -> float:
 		if a.begins_with("--sim-scale="):
 			return float(a.substr(12))
 	return fallback
+
+
+## --sim-seed=<n> (after `--`): the match seed of the 1 km sim; `fallback` when absent.
+static func cli_seed(fallback: int) -> int:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--sim-seed="):
+			return int(a.substr(11))
+	return fallback
+
+
+## The distance band of a flat distance in metres.
+static func band_of(dist_m: float) -> String:
+	if dist_m < 15.0:
+		return "0-15"
+	if dist_m < 40.0:
+		return "15-40"
+	if dist_m < 80.0:
+		return "40-80"
+	return "80+"
+
+
+## The band of pawn `p`'s current shot: its flat distance to the pawn its Brain targets, "none" without one.
+func _shot_band(p: Pawn) -> String:
+	var brain := p.get_node_or_null("Brain") as BotBrain
+	if brain == null or brain.target_id < 0:
+		return "none"
+	var t = m.director.all_players().get(brain.target_id)
+	if t == null or not is_instance_valid(t) or not t is Pawn:
+		return "none"
+	var a: Vector3 = p.global_position
+	var b: Vector3 = (t as Pawn).global_position
+	return band_of(Vector2(a.x - b.x, a.z - b.z).length())
 
 
 ## Call right after m.begin() (before the first physics tick). Applies --sim-profile to every bot Brain (the
@@ -117,6 +157,17 @@ func bind(match_root: MatchRoot) -> String:
 		p.shot_resolved.connect(func(_o: Vector3, _e: Vector3, hit: Dictionary) -> void:
 			if not hit.is_empty() and hit.get("target") is Pawn:
 				hits[id] = int(hits.get(id, 0)) + 1)
+		p.fired.connect(func() -> void:
+			var w := p.loadout.get_active() if p.loadout != null else null
+			if w == null or w.def.is_melee():
+				return
+			var band := _shot_band(p)
+			_last_band[id] = band
+			band_shots[band] = int(band_shots.get(band, 0)) + 1)
+		p.shot_resolved.connect(func(_o: Vector3, _e: Vector3, hit: Dictionary) -> void:
+			if not hit.is_empty() and hit.get("target") is Pawn:
+				var band: String = _last_band.get(id, "none")
+				band_hits[band] = int(band_hits.get(band, 0)) + 1)
 	return profile_name
 
 
@@ -254,6 +305,16 @@ func prop_fields() -> String:
 func shot_fields() -> String:
 	return "shots=%d swings=%d gun_shots=%d hits=%d gun_hit_rate=%.3f" % [
 			total_shots(), total_swings(), total_shots() - total_swings(), total_hits(), gun_hit_rate()]
+
+
+## The deterministic distance-band fields of the SIM_BANDS line: band:gun_rounds/hits/hit_rate for each band.
+func bands_fields() -> String:
+	var parts: Array[String] = []
+	for band in BANDS:
+		var s := int(band_shots.get(band, 0))
+		var h := int(band_hits.get(band, 0))
+		parts.append("%s:%d/%d/%.3f" % [band, s, h, float(h) / float(s) if s > 0 else 0.0])
+	return "bands=" + " ".join(parts)
 
 
 ## The wall-clock CPU proxy (after " | " only): microseconds per think tick, coasts included, over the bots.

@@ -207,11 +207,28 @@ android/              debug.keystore (shared debug key only)
     within `hearing_radius_m` (or an enemy in sight) sets a memory point. With nothing in sight a
     geared bot walks to a memory younger than `hunt_memory_s`, else toward the next circle's
     centre, until within `hunt_arrive_m`.
+  - Hunt pace (M2 B2; each key's off value gives the B1 hunt exactly; no random draws):
+    `hunt_edge_frac` > 0 replaces the centre by a rim patrol (centre + unit(angle) x next radius
+    x frac; the angle starts at the bot's `_spot_dir` and steps `hunt_patrol_step_deg` on each
+    arrival, + for even player ids, - for odd), which never falls through to hold.
+    `hunt_delay_s`: for that long after the first grounded think and after the last think with
+    an enemy in sight the memory is not used and the goal kind is "regroup" (same rim point).
+    `hunt_speed_scale` (clamped 0.3-1): `frame.move` is scaled while the goal is hunt or regroup,
+    in `build_frame` and on coast ticks; the unstick sidestep keeps full speed.
   - Sight and band: sight is `fight.sight_by_weapon[gun]` clamped to the gun's `range_m`
     (otherwise `sight_range_m`). A gun bot with a standing enemy in sight closes in while farther
-    than `band_far_frac` x sight (the goal moves only when the enemy is `repath_m` from it), and
-    inside strafes to a point `strafe_step_m` to the side, fixed for a seeded period, then flips.
-    In the band the stuck window is off (as in hold). Downed targets keep today's goals.
+    than `band_far_frac` x sight (the goal moves only when the enemy is `repath_m` from it). At
+    or inside `band_near_frac` x sight it strafes in place: a point `strafe_step_m` to the side,
+    fixed for a seeded period, then flips. Between the two edges (M2 B2) the strafe point also
+    carries `strafe_step_m` x `band_push_frac` toward the enemy. In both strafe zones the stuck
+    window is off (as in hold). Downed targets keep today's goals.
+  - Aim settle (M2 B2): `_settle_s` counts the time on the same `target_id` (reset on any change
+    or loss; advanced identically on coast ticks). At each aim-error draw the limit is multiplied
+    by `BotTargeting.settle_scale`: lerp(1, floor_eff, t x reach), t = settle time / `settle_s`,
+    floor_eff = lerp(`settle_floor_frac`, 1, target flat speed / `settle_speed_ref_mps`), reach =
+    distance / `settle_range_ref_m` (all clamped to 0-1; speed and distance sampled at the last
+    think). Exactly 1.0 on a small map. Same two draws per refresh, so the aim stream's order
+    is unchanged.
   - Route RNG: every new seeded draw uses `_route_rng` (hash of match seed, player id, "route"),
     never the aim stream `_rng`, so aim is unchanged by route decisions.
   - Path queries: on a big map a goal that did not change is not handed to the NavigationAgent3D
@@ -223,7 +240,13 @@ android/              debug.keystore (shared debug key only)
   distances, gun hit rate, zone deaths, loot taken (placed / dropped), goal shares, unstick
   events, landmark landings. Args after `--`: `--sim-profile=<name>` (every bot's profile),
   `--sim-brain=<path>=<n>,...` (sim-local `brain` overrides, shown in `profile=`), and
-  `--sim-scale=<n>` (the 1 km sim's zone and carrier time scale, default 0.4). CPU proxy, printed
+  `--sim-scale=<n>` (the 1 km sim's zone and carrier time scale, default 0.4), `--sim-seed=<n>`
+  (the 1 km match seed, default 99 solo / 199 squads). M2 B2 lines, separate from the `SIM` line:
+  `SIM_BANDS` (gun rounds / hits / hit rate by the shooter's flat distance to its target at
+  `fired`: 0-15, 15-40, 40-80, 80+ m, none) in both sims; `SIM_UNSTICK_GOALS` (unstick events by
+  goal kind and whether the nav target was reachable) in the 1 km sim. On demand:
+  `test_sim_bot_ttd.gd` (`SIM_TTD`: seconds for one bot to down a standing target at set
+  distances, per gun and profile, 10 seeded trials). CPU proxy, printed
   after " | " and never compared: "us per think tick (incl. coast)" = sum of `BotBrain.brain_usec`
   over bots / sum of `think_ticks`.
 - Commands (later): a `BotCommand` id (follow, attack, hold, rush_hill; page 2: guard, rush,

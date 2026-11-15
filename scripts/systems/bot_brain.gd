@@ -19,7 +19,7 @@ var profile: Dictionary = {}
 var cfg: Dictionary = {}
 var target_id: int = -1
 ## Last goal kind, for tests and debugging: "revive", "zone", "loot", "hold", "chase" or ""; on a big map also
-## "fight", "gear" and "hunt" (M2B1).
+## "fight", "gear" and "hunt" (M2B1) and "regroup" (M2B2, route.hunt_delay_s).
 var goal_kind: String = ""
 
 var _agent: NavigationAgent3D
@@ -90,12 +90,25 @@ var _strafe_side: float = 0.0  # 0 = not drawn yet; then +1 / -1 (route stream, 
 var _strafe_period_ticks: int = 0
 var _strafe_flip_tick: int = 0
 ## Stage 6 revision (CPU): the fight goal is kept between thinks so the NavigationAgent is not re-asked each think.
-var _fight_mode: String = ""  # the fight goal of the last think: "close", "band" or "" (no fight goal)
+var _fight_mode: String = ""  # the fight goal of the last think: "close", "band", "near" (M2B2) or "" (none)
 var _prev_fight_mode: String = ""  # _fight_mode of the think before (read by _fight_goal)
 var _strafe_point := Vector3.ZERO  # the strafe target, fixed for the strafe period
 var _strafe_enemy: int = -1  # the enemy the strafe point was computed against
 var _close_goal := Vector3.ZERO  # the close-in goal, moved only when the enemy is fight.repath_m from it
 var _close_enemy: int = -1
+## M2B2 aim settle (brain.fight settle_*, placeholders OQ-BOT-FIGHT): seconds this bot has kept the same visible
+## target (reset to 0 on any target change and when no target is in sight), and the target's id, flat speed and
+## flat distance at the last think (a coast tick advances the clock and reuses them). The clock runs on every map;
+## only a big map scales the aim error by it (BotTargeting.settle_scale), so small maps draw as before.
+var _settle_s: float = 0.0
+var _settle_id: int = -1
+var _settle_speed: float = 0.0
+var _settle_dist: float = 0.0
+## M2B2 hunt pace (brain.route hunt_speed_scale / hunt_edge_frac / hunt_patrol_step_deg / hunt_delay_s, big maps
+## only, placeholders OQ-BOT-ROUTE; see _hunt_goal). No draws on either stream.
+var _move_scale: float = 1.0  # move input scale chosen at the last think (hunt / regroup); coast ticks reuse it
+var _patrol_steps: int = 0  # rim patrol: waypoints reached so far
+var _regroup_tick: int = -1  # director tick of the first grounded think and of the last think with an enemy in sight
 
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
@@ -228,24 +241,26 @@ func _coast_frame(delta: float) -> InputFrame:
 	var frame := InputFrame.new()
 	if _last_enemy:
 		_seen_for_s += delta
+		_settle_s += delta  # the same target as the last think (it is chosen on think ticks only)
 		_error_age_s -= delta
 		if _error_age_s <= 0.0:
 			var old := _error
 			_error = BotTargeting.aim_error(float(profile.get("accuracy", 0.3)),
-					float(cfg.get("max_aim_error_deg", 12.0)), _rng)
+					float(cfg.get("max_aim_error_deg", 12.0)), _rng, _aim_scale())
 			_error_age_s = float(cfg.get("aim_error_refresh_s", 0.5))
 			_last_yaw += _error.x - old.x
 			_last_pitch += _error.y - old.y
 	_swap_cooldown = maxf(_swap_cooldown - delta, 0.0)
 	var move_dir := _follow_path(delta)
-	if _unstick_left > 0.0:
+	var unsticking := _unstick_left > 0.0  # the sidestep walks at full speed
+	if unsticking:
 		_unstick_left -= delta
 		var side := pawn.global_transform.basis.x * _unstick_side
 		move_dir = (move_dir + side).normalized() if move_dir != Vector3.ZERO else side
 		frame.jump_pressed = true
 	if move_dir != Vector3.ZERO:
 		var local := pawn.global_transform.basis.inverse() * move_dir
-		frame.move = Vector2(local.x, local.z).limit_length(1.0)
+		frame.move = Vector2(local.x, local.z).limit_length(1.0) * (1.0 if unsticking else _move_scale)
 	if _last_look:
 		var turn: float = float(cfg.get("turn_rate_rad_s", 6.0)) * delta
 		frame.look = BotTargeting.look_toward(pawn.rotation.y, pawn.pitch, _last_yaw, _last_pitch, turn)
@@ -303,14 +318,16 @@ func build_frame(delta: float) -> InputFrame:
 	var enemy := _find_target()
 	if _big_map and enemy != null:
 		_remember_enemy(enemy.global_position)
+		_regroup_tick = director.tick_count  # the last fight: route.hunt_delay_s counts from here
 	var melee_only := _melee_only()
 	var want_dir := Vector3.ZERO
 	if enemy != null:
 		_seen_for_s += delta
+		_track_settle(enemy, delta)
 		_error_age_s -= delta
 		if _error_age_s <= 0.0:
 			_error = BotTargeting.aim_error(float(profile.get("accuracy", 0.3)),
-					float(cfg.get("max_aim_error_deg", 12.0)), _rng)
+					float(cfg.get("max_aim_error_deg", 12.0)), _rng, _aim_scale())
 			_error_age_s = float(cfg.get("aim_error_refresh_s", 0.5))
 		var aim_pt: Vector3 = enemy.global_position + Vector3(0.0, _target_height(), 0.0)
 		want_dir = (aim_pt - (pawn.global_position + Vector3(0.0, _eye_height(), 0.0))).normalized()
@@ -318,10 +335,14 @@ func build_frame(delta: float) -> InputFrame:
 		_seen_for_s = 0.0
 		_error_age_s = 0.0
 		_error = Vector2.ZERO
+		_settle_s = 0.0
+		_settle_id = -1
 
 	_manage_weapon(frame, delta)
 	var move_dir := _move_direction(enemy, melee_only, delta)
-	if _unstick_left > 0.0:
+	_move_scale = _hunt_move_scale()
+	var unsticking := _unstick_left > 0.0  # the sidestep walks at full speed
+	if unsticking:
 		_unstick_left -= delta
 		var side := pawn.global_transform.basis.x * _unstick_side
 		move_dir = (move_dir + side).normalized() if move_dir != Vector3.ZERO else side
@@ -329,7 +350,7 @@ func build_frame(delta: float) -> InputFrame:
 		frame.jump_just_pressed = _unstick_left > float(cfg.get("unstick_s", 1.0)) - delta * 1.5
 	if move_dir != Vector3.ZERO:
 		var local := pawn.global_transform.basis.inverse() * move_dir
-		frame.move = Vector2(local.x, local.z).limit_length(1.0)
+		frame.move = Vector2(local.x, local.z).limit_length(1.0) * (1.0 if unsticking else _move_scale)
 		if enemy == null:
 			want_dir = move_dir
 
@@ -514,7 +535,7 @@ func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 		if enemy == null and (_geared() or not bool(cfg.get("route", {}).get("hunt_requires_gear", false))):
 			var hunt := _hunt_goal()
 			if hunt != Vector3.INF:
-				goal_kind = "hunt"
+				goal_kind = "regroup" if _regrouping() else "hunt"
 				return hunt
 	goal_kind = "zone"
 	if _inside_target():
@@ -735,6 +756,8 @@ func _route_think() -> void:
 			route_landed_in_pick = Vector2(c.x - route_landed_at.x, c.z - route_landed_at.z).length() <= float(_landmark.get("radius_m", 0.0))
 	if not route_geared_ever and _geared():
 		route_geared_ever = true
+	if _regroup_tick < 0:
+		_regroup_tick = director.tick_count  # landing (first grounded think): route.hunt_delay_s counts from here
 	_listen()
 
 
@@ -774,6 +797,15 @@ func landmark_id() -> String:
 ## Never net_match_bridge.shot_event. Hunt goal (after gear, before spot/hold; no target in sight): walk to the
 ## memory while it is younger than route.hunt_memory_s, else toward the next circle's centre; within
 ## route.hunt_arrive_m of that point it falls through to today's spot / hold (a reached memory is forgotten).
+## Hunt pace (M2B2, placeholders OQ-BOT-ROUTE; each key's off value gives the M2B1 goals exactly):
+##   hunt_edge_frac (off 0): above 0 the no-memory point is a rim patrol instead of the centre: next circle centre +
+##     unit(angle) x its radius x hunt_edge_frac, the angle starting at _spot_dir's and stepping by
+##     hunt_patrol_step_deg (+ for an even player id, - for an odd one) each time the bot arrives; it never falls
+##     through. Recomputed from the current circle each think, so it changes only with the circle or the angle.
+##   hunt_delay_s (off 0): for this long after landing (first grounded think) and after the last think with an
+##     enemy in sight, the memory is not used: goal_kind "regroup" toward the same point (centre or rim).
+##   hunt_speed_scale (off 1, clamped to [0.3, 1]): frame.move is scaled by it while goal_kind is "hunt" or
+##     "regroup" (build_frame and the coast ticks); never the unstick sidestep.
 
 func _remember_enemy(at: Vector3) -> void:
 	_enemy_mem = at
@@ -813,14 +845,42 @@ func _hunt_goal() -> Vector3:
 	var arrive := _route_f("hunt_arrive_m", 15.0)
 	var here := pawn.global_position
 	var max_age := int(_route_f("hunt_memory_s", 20.0) * float(Engine.physics_ticks_per_second))
-	if _enemy_mem_tick >= 0 and director.tick_count - _enemy_mem_tick <= max_age:
+	if not _regrouping() and _enemy_mem_tick >= 0 and director.tick_count - _enemy_mem_tick <= max_age:
 		if Vector2(_enemy_mem.x - here.x, _enemy_mem.z - here.z).length() > arrive:
 			return _enemy_mem
 		_enemy_mem_tick = -1  # reached: forget it
 	var c := director.zone_target_center()
-	if Vector2(c.x - here.x, c.z - here.z).length() > arrive:
-		return c
-	return Vector3.INF
+	var frac := _route_f("hunt_edge_frac", 0.0)
+	if frac <= 0.0:
+		if Vector2(c.x - here.x, c.z - here.z).length() > arrive:
+			return c
+		return Vector3.INF
+	var p := _patrol_point(c, frac)
+	if Vector2(p.x - here.x, p.z - here.z).length() <= arrive:
+		_patrol_steps += 1  # arrived: the next waypoint along the rim (one step per think)
+		p = _patrol_point(c, frac)
+	return p
+
+
+## The rim patrol waypoint for the current next circle (centre c) and patrol angle.
+func _patrol_point(c: Vector3, frac: float) -> Vector3:
+	var step := deg_to_rad(_route_f("hunt_patrol_step_deg", 45.0)) * (1.0 if posmod(pawn.player_id, 2) == 0 else -1.0)
+	var a := atan2(_spot_dir.y, _spot_dir.x) + step * float(_patrol_steps)
+	return c + Vector3(cos(a), 0.0, sin(a)) * director.zone_target_radius() * frac
+
+
+## True while route.hunt_delay_s (director ticks) has not passed since landing or the last enemy in sight.
+func _regrouping() -> bool:
+	var delay := int(_route_f("hunt_delay_s", 0.0) * float(Engine.physics_ticks_per_second))
+	return delay > 0 and _regroup_tick >= 0 and director.tick_count - _regroup_tick < delay
+
+
+## The move input scale for this think's goal: route.hunt_speed_scale (clamped to [0.3, 1] so the scale alone
+## cannot trip the stuck check) for "hunt" / "regroup" on a big map, else 1.
+func _hunt_move_scale() -> float:
+	if not _big_map or (goal_kind != "hunt" and goal_kind != "regroup"):
+		return 1.0
+	return clampf(_route_f("hunt_speed_scale", 1.0), 0.3, 1.0)
 
 
 ## ---- Fighting at range (M2B1 stage 6, big maps only; brain.fight placeholders, OQ-BOT-FIGHT) ----
@@ -859,13 +919,20 @@ func sight_m() -> float:
 ## Revision (CPU, no new draws): both goals are kept between thinks so the path is not re-queried every think.
 ## Close in: the last close-in goal is kept while the last think also closed in on the same enemy and that enemy
 ## is within fight.repath_m of it; otherwise the goal moves to the enemy's position. Strafe: the point is computed
-## when the side is drawn or flipped, when the enemy changes, or when the last think was not in the band, and is
-## returned unchanged until then (a bot that reaches it early stands; _fight_hold keeps the stuck logic off).
+## when the side is drawn or flipped, when the enemy changes, or when the last think was not in the same strafe
+## mode, and is returned unchanged until then (a bot that reaches it early stands; _fight_hold keeps the stuck
+## logic off).
+## M2B2 zones by flat distance d: d <= band_near_frac x sight -> "near" (strafe in place: the pure sideways point,
+## as the M2B1 band); else d > band_far_frac x sight -> "close"; else "band": the sideways point plus a forward
+## part of strafe_step_m x band_push_frac toward the enemy (0 = pure sideways), so the bot works its way in. The
+## near zone is tested first, so band_near_frac >= band_far_frac makes the whole sight "near" (near wins).
+## A switch between "band" and "near" recomputes the point (fresh) but draws nothing.
 func _fight_goal(enemy: Pawn) -> Vector3:
 	var sight := _sight()
 	var d := _flat_dist(enemy)
 	var ep := enemy.global_position
-	if d > sight * _fight_f("band_far_frac", 0.25):
+	var near := d <= sight * _fight_f("band_near_frac", 0.0)
+	if not near and d > sight * _fight_f("band_far_frac", 0.25):
 		_fight_mode = "close"
 		var keep := _prev_fight_mode == "close" and _close_enemy == enemy.player_id \
 				and Vector2(ep.x - _close_goal.x, ep.z - _close_goal.z).length() <= _fight_f("repath_m", 3.0)
@@ -874,11 +941,11 @@ func _fight_goal(enemy: Pawn) -> Vector3:
 			_close_enemy = enemy.player_id
 		return _close_goal
 	_fight_hold = true
-	_fight_mode = "band"
+	_fight_mode = "near" if near else "band"
 	var step := _fight_f("strafe_step_m", 3.0)
 	if step <= 0.0:
 		return pawn.global_position
-	var fresh := _prev_fight_mode != "band" or _strafe_enemy != enemy.player_id
+	var fresh := _prev_fight_mode != _fight_mode or _strafe_enemy != enemy.player_id
 	if _strafe_side == 0.0:
 		_strafe_side = 1.0 if _route_rng.randf() < 0.5 else -1.0
 		var jitter := _fight_f("strafe_jitter_frac", 0.25)
@@ -895,5 +962,29 @@ func _fight_goal(enemy: Pawn) -> Vector3:
 		to.y = 0.0
 		var side := Vector3(-to.z, 0.0, to.x).normalized() * _strafe_side
 		_strafe_point = pawn.global_position + side * step
+		if not near:
+			_strafe_point += to.normalized() * (step * _fight_f("band_push_frac", 0.0))
 		_strafe_enemy = enemy.player_id
 	return _strafe_point
+
+
+## ---- Aim settle (M2B2, see the settle block of the vars; brain.fight settle_*, placeholders OQ-BOT-FIGHT) ----
+## Called on think ticks with a target in sight: the clock advances while target_id stays the same and resets to 0
+## on any change (the first draw against a new target is unscaled); the target's flat speed and distance are kept
+## for the coast ticks.
+func _track_settle(enemy: Pawn, delta: float) -> void:
+	if target_id == _settle_id:
+		_settle_s += delta
+	else:
+		_settle_s = 0.0
+		_settle_id = target_id
+	_settle_speed = Vector2(enemy.velocity.x, enemy.velocity.z).length()
+	_settle_dist = _flat_dist(enemy)
+
+
+## The aim-error scale for the draw now: exactly 1.0 on a small map (nothing computed), else settle_scale.
+func _aim_scale() -> float:
+	if not _big_map:
+		return 1.0
+	return BotTargeting.settle_scale(_settle_s, _settle_speed, _settle_dist, _fight_f("settle_s", 0.0),
+			_fight_f("settle_floor_frac", 1.0), _fight_f("settle_speed_ref_mps", 0.0), _fight_f("settle_range_ref_m", 0.0))
