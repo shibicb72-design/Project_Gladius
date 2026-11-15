@@ -559,11 +559,14 @@ func test_fight_band_closes_in_then_strafes_without_unsticking() -> void:
 	var b := add_brain(bot)
 	b._ensure_seeded()
 	var far_edge := b.sight_m() * float(base_cfg()["fight"]["band_far_frac"])
+	# M2B2: the strafe checks below stand well inside the near edge (pure sideways); the band zone with its forward
+	# part is tested in tests/test_bot_settle.gd.
+	var inside := b.sight_m() * float(base_cfg()["fight"]["band_near_frac"]) * 0.5
 	enemy.global_position = Vector3(far_edge + 10.0, 0.2, 0.0)
 	var g := b._goal(enemy, false)
 	assert_eq(b.goal_kind, "fight", "a standing enemy beyond the band: fight")
 	assert_true(g.distance_to(enemy.global_position) < 0.01 and not b._fight_hold, "closes in on the enemy")
-	enemy.global_position = Vector3(far_edge * 0.5, 0.2, 0.0)
+	enemy.global_position = Vector3(inside, 0.2, 0.0)
 	g = b._goal(enemy, false)
 	assert_true(b.goal_kind == "fight" and b._fight_hold, "inside the band: hold the band")
 	var off := g - bot.global_position
@@ -572,7 +575,7 @@ func test_fight_band_closes_in_then_strafes_without_unsticking() -> void:
 	var side := b._strafe_side
 	# The strafe point is fixed for the period: the pawn and the enemy move, the goal does not.
 	bot.global_position = Vector3(0.5, 0.2, 0.4)
-	enemy.global_position = Vector3(far_edge * 0.5, 0.2, 1.0)
+	enemy.global_position = Vector3(inside, 0.2, 1.0)
 	var g2 := b._goal(enemy, false)
 	assert_eq(b._strafe_side, side, "same side until the period ends")
 	assert_true(g2.is_equal_approx(g), "same strafe point until the period ends (%s vs %s)" % [g2, g])
@@ -583,7 +586,7 @@ func test_fight_band_closes_in_then_strafes_without_unsticking() -> void:
 	assert_true(not g3.is_equal_approx(g) and absf(off3.length() - step) < 0.01, "a new point from here at the flip (%s)" % off3)
 	# A different enemy: the point is recomputed at once (same side, same flip tick).
 	var other: Pawn = m.bots[2]
-	other.global_position = Vector3(0.5, 0.2, far_edge * 0.5)
+	other.global_position = Vector3(0.5, 0.2, inside)
 	var flip_tick := b._strafe_flip_tick
 	var g4 := b._goal(other, false)
 	var to_other := other.global_position - bot.global_position
@@ -594,7 +597,7 @@ func test_fight_band_closes_in_then_strafes_without_unsticking() -> void:
 	b._goal(enemy, false)
 	assert_true(not b._fight_hold, "out of the band: closing in")
 	bot.global_position = Vector3(0.0, 0.2, 0.0)
-	enemy.global_position = Vector3(far_edge * 0.5, 0.2, 0.0)
+	enemy.global_position = Vector3(inside, 0.2, 0.0)
 	var g5 := b._goal(enemy, false)
 	assert_true(absf(g5.x) < 0.01 and absf((g5 - bot.global_position).length() - step) < 0.01, "back in the band: a fresh point from here (%s)" % g5)
 	b._strafe_flip_tick = m.director.tick_count + 1000  # no flip during the rest of the test

@@ -226,7 +226,9 @@ func test_timers_advance_every_tick() -> void:
 		max_dev = maxf(max_dev, absf(sub._error_age_s - ref._error_age_s))
 		max_dev = maxf(max_dev, absf(sub._seen_for_s - ref._seen_for_s))
 		max_dev = maxf(max_dev, absf(sub._swap_cooldown - ref._swap_cooldown))
+		max_dev = maxf(max_dev, absf(sub._settle_s - ref._settle_s))  # M2B2: the aim settle clock
 	assert_true(sub.think_ticks < 40, "the far brain coasted (%d thinks)" % sub.think_ticks)
+	assert_true(ref._settle_s > 1.0 and sub._settle_id == ref._settle_id and sub._settle_id >= 0, "the settle clock ran on the same target (%.2f s)" % sub._settle_s)
 	assert_true(ref._seen_for_s > 1.0, "the enemy stayed in sight (%.2f s)" % ref._seen_for_s)
 	assert_true(max_dev <= dt() + 1e-6, "timers within one tick: max deviation %.4f s" % max_dev)
 	assert_true(sub._error.is_equal_approx(ref._error), "same aim error draw on the same tick")
