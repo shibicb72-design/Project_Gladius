@@ -58,6 +58,8 @@ var drop_from_sky: bool = false
 ## pawns keep their class loadouts.
 var ground_loot: bool = false
 var loot: LootField
+## M2 L1b: the map's breakables (and later chests), made for every match by begin(); also director.props.
+var world_props: WorldProps
 
 @onready var director: MatchDirector = $Director
 @onready var hud: GameHud = $Hud/GameHud
@@ -260,6 +262,14 @@ func begin() -> bool:
 		loot.setup(loot_cfg, seed_value, director.mode_cfg.get("zone", {}), landmarks, ground_height)
 		add_child(loot)
 		director.loot = loot
+	# M2 L1b: every match gets its WorldProps (empty on maps without breakables): the breakables' state and their
+	# seeded loot roll on the authority (host or offline); a client applies the host's states (commit 5).
+	world_props = WorldProps.new()
+	world_props.name = "WorldProps"
+	world_props.setup(WorldProps.config(), seed_value, director.authoritative, loot)
+	world_props.collect(map)
+	add_child(world_props)
+	director.props = world_props
 	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))
 	var started := director.start(xforms, seed_value, use_drop)
 	if started:

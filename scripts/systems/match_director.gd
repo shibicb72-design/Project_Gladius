@@ -159,6 +159,9 @@ func start(spawn_xforms: Dictionary, seed_value: int = 1, use_drop: bool = false
 ## ---- Ground loot (S4; LootField + data/loot.json). Set by MatchRoot before start(); null = no loot,
 ## and pawns keep their class loadouts (tests that do not opt in). ----
 var loot: LootField
+## M2 L1b: the match's breakables (and later chests): state and seeded loot (WorldProps, set by MatchRoot.begin
+## before start(); null in tests that build no match root).
+var props: WorldProps
 
 
 func _pickup_range() -> float:

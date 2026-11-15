@@ -59,7 +59,7 @@ func test_the_scene_builds_on_its_terrain() -> void:
 	# Pieces stand on the terrain: every body's y is its file y plus the ground under its origin.
 	var cover := DataRegistry.parse_quiet(String(def["cover_data"]))
 	var structures := DataRegistry.parse_quiet(String(def["structure_data"]))
-	var lists := {"cover_bodies": cover["pieces"], "ring_bodies": cover["ring_pieces"], "structure_bodies": structures["pieces"]}
+	var lists := {"cover_bodies": cover["pieces"] + cover.get("breakables", []), "ring_bodies": cover["ring_pieces"], "structure_bodies": structures["pieces"]}
 	var on_hill := 0
 	for list: String in lists:
 		var bodies: Array = builder.get(list)
@@ -113,6 +113,49 @@ func test_counts_density_and_proxies() -> void:
 		" structures=", builder.structure_bodies.size(), " walls_inner=", inner, " walls_outer=", outer, " cover_wall=", walls, " static_bodies=", statics)
 	# Report only (binding fix 10): no limit is checked for this map.
 	print("ALESIA_1KM_PROXY ", MapChunks.proxies(map))
+
+
+## M2 L1b: the cover file's breakables are built under ArtBuilder/Props (outside Nav: the bake never parses them),
+## one Breakable per entry in file order right after the pieces in cover_bodies, each a named, drawn piece of the
+## chunk batches; the builder's trodden points are the generator's (trodden_of), so the baked paint is not stale
+## (no "painting the ground at load").
+func test_breakables_are_built_under_props_and_the_paint_is_fresh() -> void:
+	var map := _map()
+	var builder := map.get_node("ArtBuilder")
+	var def := _def()
+	var cover := DataRegistry.parse_quiet(String(def["cover_data"]))
+	var structures := DataRegistry.parse_quiet(String(def["structure_data"]))
+	var entries: Array = cover.get("breakables", [])
+	assert_eq(entries.size(), 26, "26 breakables in the cover file")
+	var props := map.get_node_or_null("ArtBuilder/Props")
+	assert_true(props != null, "ArtBuilder/Props exists")
+	if props == null:
+		return
+	var nav := map.get_node("Nav")
+	var pieces := (cover["pieces"] as Array).size()
+	var chunks: MapChunks = builder.chunks
+	for i in entries.size():
+		var e: Dictionary = entries[i]
+		var body := props.get_node_or_null(String(e["id"])) as Breakable
+		assert_true(body != null, "%s is built under Props" % e["id"])
+		if body == null:
+			continue
+		assert_true(not nav.is_ancestor_of(body), "%s is outside Nav" % e["id"])
+		assert_true(pieces + i < builder.cover_bodies.size() and builder.cover_bodies[pieces + i] == body, "%s follows the pieces in cover_bodies" % e["id"])
+		assert_true(body.is_in_group(&"cover_wall") and body.is_in_group(Breakable.GROUP), "%s: groups cover_wall and breakable" % e["id"])
+		assert_true(chunks.has_piece(String(e["id"])) and not chunks.is_piece_hidden(String(e["id"])), "%s: a drawn piece of the batches" % e["id"])
+	assert_eq(builder.breakable_bodies().size(), entries.size(), "breakable_bodies lists them all")
+	var want := Gen.trodden_of(cover, structures)
+	var have := PackedVector2Array()
+	for group: Array in [builder.cover_bodies, builder.ring_bodies, builder.structure_bodies]:
+		for body: StaticBody3D in group:
+			have.append(Vector2(body.position.x, body.position.z))
+	assert_eq(have, want, "the builder's trodden points are the generator's, in order")
+	var settings := GroundPaint.settings_for(def)
+	var landmarks: Array = DataRegistry.parse_quiet(String(def["landmarks"])).get("landmarks", [])
+	var px := GroundPaint.px_for(float(builder.ground_size_m), settings)
+	var hash := GroundPaint.inputs_hash(float(builder.ground_size_m), landmarks, have, settings)
+	assert_eq(GroundPaint.baked_problem(String(settings["baked"]), px, hash), "", "the baked paint matches the built map (no paint at load)")
 
 
 func test_validates_and_has_no_backdrop() -> void:

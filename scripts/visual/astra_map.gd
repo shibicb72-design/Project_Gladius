@@ -64,6 +64,10 @@ func _ready() -> void:
 		body.add_child(shape)
 		nav.add_child(body)
 		cover_bodies.append(body)
+	# M2 L1b: breakables (the cover file's "breakables"; a map without the key gets no Props node). In cover_bodies
+	# right after the pieces: the order of the paint's trodden points (tools/gen_alesia.gd trodden_of).
+	if placed.has("breakables"):
+		_build_breakables(placed["breakables"])
 	for body in nav.get_children():
 		if body in cover_bodies or body.name == &"Ground":
 			continue
@@ -122,6 +126,52 @@ func _ready() -> void:
 	ambient.name = "Ambient"
 	add_child(ambient)  # before configure: the tufts ask this builder (their parent) where the grass is
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
+
+
+## M2 L1b: the breakable crates and barrels under ArtBuilder/Props: OUTSIDE Nav, so the navigation bake never
+## parses them (bots path as if they were not there; Lanista's binding). Each is a Breakable (the cover contract,
+## groups cover_wall and breakable, behaviour from data/props.json) standing on the terrain, appended to
+## cover_bodies; its look is a named piece of the chunk batches (source "cover", type = the breakable type), hidden
+## when it breaks; breaking takes it out of cover_bodies (_on_breakable_removed). Attached below this builder:
+## never a sibling while the map root is in _ready.
+func _build_breakables(entries: Array) -> void:
+	var props_cfg := WorldProps.config()
+	var types: Dictionary = props_cfg.get("breakables", {})
+	var root := Node3D.new()
+	root.name = "Props"
+	add_child(root)
+	var meshes := {}
+	for entry: Dictionary in entries:
+		var type := String(entry["type"])
+		var type_cfg: Dictionary = types.get(type, {})
+		var body := Breakable.make(entry, type_cfg)
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
+		var key := type + str(entry["size"])
+		if not meshes.has(key):
+			var look: Dictionary = (type_cfg.get("look", {}) as Dictionary).duplicate()
+			look["size"] = entry["size"]  # a "kind" look is sized by the collider box; "parts" carry their own sizes
+			meshes[key] = LowpolyKit.build_cover(look)
+		chunks.add("cover", type, meshes[key], WorldSurface.palette_material(body.palette), body.transform, true, body.prop_id)
+		body.chunks = chunks
+		body.fx_parent = self
+		body.fx_cfg = props_cfg.get("break_fx", {})
+		body.on_removed = _on_breakable_removed
+		root.add_child(body)
+		cover_bodies.append(body)
+
+
+## M2 L1b: a breakable left the world (Breakable._leave).
+func _on_breakable_removed(body: StaticBody3D) -> void:
+	cover_bodies.erase(body)
+
+
+## M2 L1b: the cover bodies that are breakables (group "breakable"), in build order.
+func breakable_bodies() -> Array[StaticBody3D]:
+	var out: Array[StaticBody3D] = []
+	for body in cover_bodies:
+		if body.is_in_group(Breakable.GROUP):
+			out.append(body)
+	return out
 
 
 ## M2P1C: the map leaves the tree (match end, a test or tool freeing it): MapTerrain's cache drops its terrain

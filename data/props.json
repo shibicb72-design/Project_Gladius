@@ -1,0 +1,35 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-PROPS-BREAK: every number, look and loot roll here is a first guess for Shibi (M2 L1b). Behaviour and looks only: placement and box sizes live in the map's cover file (data/maps/alesia_1km_cover.json \"breakables\", written by tools/gen_alesia.gd from the generator block \"props\"), because the saved navigation hashes that file. This file is never a navigation input.",
+	"_note": "breakables.<type>: health (gun damage is the WeaponDef damage per ray), melee_damage (what one blade swing does; at or above health = one swing breaks it), palette (the impact sound and the tint, data/art_materials.json tints), look (LowpolyKit.build_cover: kind, sized by the cover file's entry, or parts), loot (count_min..count_max items, 0 allowed, from the match's loot table; item_kinds empty = every kind). break_fx: the one-shot debris (CPUParticles3D, skipped headless).",
+	"breakables": {
+		"breakable_crate": {
+			"health": 60.0,
+			"melee_damage": 1000.0,
+			"palette": "camp",
+			"look": {"kind": "crate"},
+			"loot": {"count_min": 0, "count_max": 1, "item_kinds": ["ammo", "heal"]}
+		},
+		"breakable_barrel": {
+			"health": 40.0,
+			"melee_damage": 1000.0,
+			"palette": "camp",
+			"look": {
+				"parts": [
+					{"shape": "lathe", "segments": 8, "size": [0.9, 1.2, 0.9], "at": [0, 0, 0], "color": "dark"},
+					{"shape": "lathe", "segments": 8, "size": [0.94, 0.08, 0.94], "at": [0, 0.35, 0], "color": "trim"},
+					{"shape": "lathe", "segments": 8, "size": [0.94, 0.08, 0.94], "at": [0, -0.35, 0], "color": "trim"}
+				]
+			},
+			"loot": {"count_min": 0, "count_max": 1, "item_kinds": ["ammo"]}
+		}
+	},
+	"break_fx": {
+		"pieces": 8,
+		"life_s": 0.6,
+		"speed_mps": 3.0,
+		"spread_deg": 60.0,
+		"piece_m": 0.25
+	}
+}

@@ -50,10 +50,38 @@ static func targets(space: PhysicsDirectSpaceState3D, attacker: Pawn, origin: Ve
 
 
 ## Swings once: every reachable pawn goes to the authority. Returns the pawns reached.
+## M2 L1b: on the authority only, every breakable the swing reaches (breakables_in_swing) takes a melee hit; the
+## returned pawns and every pawn rule are unchanged.
 static func swing(space: PhysicsDirectSpaceState3D, attacker: Pawn, origin: Vector3, forward: Vector3,
 		def: WeaponDef, candidates: Array, authority: Callable) -> Array[Pawn]:
 	var hit := targets(space, attacker, origin, forward, def, candidates)
 	if authority.is_valid():
 		for t in hit:
 			authority.call(attacker, t, def, false)
+		for b in breakables_in_swing(space, attacker, origin, forward, def):
+			b.call(&"take_hit", def.damage, true)
 	return hit
+
+
+## M2 L1b: the unbroken breakables (group "breakable") a swing from `origin` reaches: the box point nearest the
+## origin (Breakable.closest_point) lies within def's range and arc (in_swing), and a world ray to it hits nothing
+## or that same breakable (its own box is no cover against itself). Needs the attacker in a tree; space may be
+## null (no line-of-sight test, as targets()).
+static func breakables_in_swing(space: PhysicsDirectSpaceState3D, attacker: Node, origin: Vector3, forward: Vector3,
+		def: WeaponDef) -> Array[Node]:
+	var out: Array[Node] = []
+	if attacker == null or not attacker.is_inside_tree():
+		return out
+	for node: Node in attacker.get_tree().get_nodes_in_group(&"breakable"):
+		if not node.has_method(&"closest_point") or bool(node.get(&"is_broken")):
+			continue
+		var point: Vector3 = node.call(&"closest_point", origin)
+		if not in_swing(origin, forward, point, def):
+			continue
+		if space != null:
+			var q := PhysicsRayQueryParameters3D.create(origin, point, Hitscan.MASK_WORLD)
+			var ray := space.intersect_ray(q)
+			if not ray.is_empty() and ray["collider"] != node:
+				continue
+		out.append(node)
+	return out
