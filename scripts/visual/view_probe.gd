@@ -40,14 +40,18 @@ static func measure(vm: ViewModel, cam: Camera3D, aspect: float) -> Dictionary:
 
 ## How many posed vertices of the visible model (0 when the view model is hidden) project inside the view, in front of
 ## the near plane: > 0 means the arms or the weapon are on screen this frame.
-static func on_screen_vertices(vm: ViewModel, cam: Camera3D, aspect: float) -> int:
+## With `weapon_only` only the shown weapon's own meshes count (not the arms).
+static func on_screen_vertices(vm: ViewModel, cam: Camera3D, aspect: float, weapon_only: bool = false) -> int:
 	if not vm.is_visible_in_tree():
 		return 0
 	var to_cam := cam.global_transform.affine_inverse()
 	var tan_h := tan(deg_to_rad(cam.fov) * 0.5)
 	var tan_w := tan_h * aspect
 	var n := 0
+	var weapon := vm.get_shown_weapon()
 	for mi in vm.model_meshes():
+		if weapon_only and (weapon == null or mi.get_parent() != weapon and mi.get_parent().get_parent() != weapon):
+			continue
 		var xf := to_cam * mi.global_transform
 		for v in vm.posed_faces(mi):
 			var p := xf * v

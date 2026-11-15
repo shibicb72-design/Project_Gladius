@@ -307,9 +307,10 @@ func test_pickup_is_derived_from_the_loadout() -> void:
 	await _cleanup()
 
 
-## Cover-exit fix: on every physics frame of a real cover entry and Cover-button exit, the rig camera draws the body
-## or the view model has vertices on screen: never neither (the frame at show_weight used to show the model
-## raise_drop_m below the view).
+## Cover-exit fix: on every physics frame of a real Cover-button exit, the rig camera draws the body or the shown
+## weapon has vertices on screen: never neither (the frame at show_weight used to show the model raise_drop_m below
+## the view). Note: with the AN1 geometry this fixture shows the gun on screen even with raise_start 0 (checked by
+## hand), so this test guards the outcome, not the raise_start value alone.
 func test_cover_exit_never_shows_neither_body_nor_view_model() -> void:
 	await _fixture("hastati", true)
 	var vm := _rig.get_view_model()
@@ -337,7 +338,8 @@ func test_cover_exit_never_shows_neither_body_nor_view_model() -> void:
 		_pawn._physics_process(DT)
 		await _tree().physics_frame
 		var body := (cam.cull_mask & bit) != 0
-		var on_screen := ViewProbe.on_screen_vertices(vm, cam, aspect)
+		# The weapon itself must be on screen (an arm poking in from the edge is not enough).
+		var on_screen := ViewProbe.on_screen_vertices(vm, cam, aspect, true)
 		if not body and on_screen == 0:
 			empty += 1
 			print("FP COVER EXIT empty frame %d weight=%.3f vm_visible=%s" % [i, _rig.get_first_person_weight(), vm.visible])

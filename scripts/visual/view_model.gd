@@ -283,10 +283,22 @@ func _raise(weight: float, show_from: float) -> float:
 func _tick_motions(delta: float) -> void:
 	var flat := Vector2(pawn.velocity.x, pawn.velocity.z).length()
 	var run := maxf(pawn.get_move_speed(), 0.01)
-	var max_mult := maxf(pawn.get_max_move_speed() / run, 1.0001)
-	var sprint := clampf((pawn.sprint_factor - 1.0) / (max_mult - 1.0), 0.0, 1.0)
+	# Sprint weight from the pawn's sprint_factor (1 run .. sprint_speed_multiplier). The multiplier is read from
+	# stats.json here, not via Pawn.get_max_move_speed, which fails on pawns whose movement config omits it.
+	var sprint := clampf((pawn.sprint_factor - 1.0) / (_sprint_mult() - 1.0), 0.0, 1.0)
 	_motion.tick(delta, flat, run, sprint, get_ads_weight(), pawn.is_on_floor(), pawn.velocity.y)
 	_recoil_left = maxf(0.0, _recoil_left - delta)
+
+
+var _sprint_mult_cache := -1.0
+
+
+func _sprint_mult() -> float:
+	if _sprint_mult_cache < 0.0:
+		var entry: Variant = DataRegistry.new().get_movement_cfg().get("sprint_speed_multiplier", 1.0)
+		var v := float((entry as Dictionary).get("value", 1.0)) if entry is Dictionary else float(entry)
+		_sprint_mult_cache = maxf(v, 1.0001)
+	return _sprint_mult_cache
 
 
 ## Shows the active weapon; during a switch the old one stays until the lowest point (half the switch), during a
