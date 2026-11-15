@@ -17,6 +17,11 @@ func test_own_arms_and_rifle_clear_crosshair_cpu_poses() -> void:
 		tree.root.add_child(pawn)
 		pawn.set_physics_process(false)
 		pawn.shot_fx.set_physics_process(false)
+		# M2 C1a: this rule is about the third-person view (cover, until C1b); a walking local pawn is first person with
+		# the camera inside its own hidden body, so a Brain child keeps this rig on today's third-person view.
+		var third_person := Node.new()
+		third_person.name = "Brain"
+		pawn.add_child(third_person)
 		var rig: CameraRig = load("res://scenes/player/camera_rig.tscn").instantiate()
 		pawn.add_child(rig)
 		assert_true(rig.ensure_current(), "own third-person camera current")

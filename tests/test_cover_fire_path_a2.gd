@@ -336,7 +336,8 @@ func test_free_controls_restore_and_cover_buttons_are_not_hittable() -> void:
 	var rig := pawn.get_node("CameraRig") as CameraRig
 	var side := rig.shoulder_side
 	await hold_tap(touch._buttons["swap_shoulder"].get_global_rect().get_center())
-	assert_true(rig.shoulder_side != side, "restored Shoulder swaps")
+	# M2 C1a: outside cover the view is first person, where the Shoulder input is ignored (fix 2).
+	assert_true(rig.is_first_person() and rig.shoulder_side == side, "restored Shoulder is ignored in first person")
 	touch.provider.move_value = Vector2(0, -0.3)
 	await hold_tap(touch.lock_button.get_global_rect().get_center())
 	assert_true(touch.provider.sprint_locked, "restored Sprint lock locks")
@@ -551,7 +552,8 @@ func test_normal_buttons_work_before_first_cover_entry() -> void:
 	var rig := pawn.get_node("CameraRig") as CameraRig
 	var side := rig.shoulder_side
 	await hold_tap(touch._buttons["swap_shoulder"].get_global_rect().get_center())
-	assert_true(rig.shoulder_side != side, "Shoulder works before cover entry")
+	# M2 C1a: before cover entry the view is first person, where the Shoulder input is ignored (fix 2).
+	assert_true(rig.is_first_person() and rig.shoulder_side == side, "Shoulder is ignored in first person before cover entry")
 	touch.provider.move_value = Vector2(0, -0.3)
 	await hold_tap(touch.lock_button.get_global_rect().get_center())
 	assert_true(touch.provider.sprint_locked, "Sprint lock works before entry")

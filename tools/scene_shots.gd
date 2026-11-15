@@ -314,7 +314,7 @@ func _ground_views() -> void:
 
 
 ## S0: what a player sees. The local pawn stands at "at" facing "look_at" and the shot is taken through the
-## match's own third-person CameraRig (its framing, not the capture camera's); "others" are inert soldiers in
+## match's own CameraRig (its framing, not the capture camera's; first person since M2 C1a); "others" are inert soldiers in
 ## view for scale and squad colours. Saves <tag>_in_match_<name>.png. The HUD stays hidden: this is the art view.
 func _in_match() -> void:
 	var c: Dictionary = _cfg["in_match"]
@@ -344,7 +344,9 @@ func _in_match() -> void:
 		rig.ensure_current()
 		await _tool.get_tree().physics_frame
 		await _tool.get_tree().physics_frame  # the rig's spring arm settles against the world
-		await _finish("in_match_" + String(view["name"]), "third-person rig at (%s, %s)" % [view["at"][0], view["at"][1]])
+		# M2 C1a: a walking local pawn is first person (camera at the eye); the label records which view was taken.
+		var mode := "first-person" if rig.is_first_person() else "third-person"
+		await _finish("in_match_" + String(view["name"]), "%s rig at (%s, %s)" % [mode, view["at"][0], view["at"][1]])
 		pawn.visible = false
 	_camera.make_current()
 

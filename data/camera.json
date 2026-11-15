@@ -14,6 +14,15 @@
   "camera_knockback_pitch_deg": {"value": 2.0, "unit": "deg", "note": "view kick up per ranged shot; Shibi-approved industry default 2026-10-28 (Shibi's mid-ish pick, not a DESIGN.md value) in Kenney Starter-Kit-FPS weapons/blaster.tres pitch kick min_knockback.x-max_knockback.x 0.025-0.045 rad (1.4-2.6 deg; x = pitch, weapon.gd:18-19), which never recovers there"},
   "camera_knockback_yaw_deg": {"value": 1.2, "unit": "deg", "note": "sideways view kick per shot, random sign each shot (Kenney random_vec2); Shibi-approved industry default 2026-10-28 (Shibi's pick, not a DESIGN.md value): softer for third person than Kenney Starter-Kit-FPS weapons/blaster.tres min yaw kick, range min_knockback.y-max_knockback.y 0.025-0.04 rad (1.4-2.3 deg; y = yaw, weapon.gd:18-19)"},
   "camera_knockback_recover_s": {"value": 0.22, "unit": "s", "note": "ease-out (quadratic f*f on the remaining fraction) return to rest after the latest kick; 0 turns the knockback off; Shibi-approved industry default 2026-10-28 (Shibi's pick, not a DESIGN.md value) inside a ~0.2-0.35 s snappy recover band (no single named source); recover_s remains 0.22 (already locked, a220d05). Curve: Shibi-approved industry default 2026-10-28; quadratic f*f is the EL's concrete form of Shibi's ease-out lock, not a Shibi number or DESIGN.md value"},
+  "first_person": {
+    "_placeholder": true,
+    "_todo": "OQ-FIRST-PERSON (M2 C1a): first person for the local player walking (ALIVE, on the ground, cover FREE), today's third person in cover, on the carrier, falling and downed. Every value here is a guess for Shibi, not a DESIGN.md value.",
+    "eye_height_m": {"_placeholder": true, "value": 1.65, "unit": "m", "note": "guess: rig pivot (camera) height above the pawn origin in first person; head sphere centre is 1.75 m (pawn.tscn Head), muzzle about 1.3 m"},
+    "blend_s": {"_placeholder": true, "value": 0.35, "unit": "s", "note": "guess: smoothstep blend between third and first person (spring length, side offset, rig height, FOV); restarts from the current pose; 0 = cut"},
+    "fov_mult": {"_placeholder": true, "value": 1.0, "unit": "x", "note": "guess: first-person multiplier on the aspect-table FOV (base_fov), before the ADS aim_fov_mult; 1.0 = same FOV as third person"},
+    "smooth_max_step_m": {"_placeholder": true, "value": 0.35, "unit": "m", "note": "guess (spec placeholder): most the camera may move per physics frame during the mode blend; tests/test_first_person_camera.gd"},
+    "smooth_max_step_deg": {"_placeholder": true, "value": 12.0, "unit": "deg", "note": "guess (spec placeholder): most the camera may turn per physics frame during the mode blend; tests/test_first_person_camera.gd"}
+  },
   "height_m": 1.6,
   "pitch_min_deg": -70.0,
   "pitch_max_deg": 70.0,

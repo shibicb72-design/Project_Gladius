@@ -1,6 +1,8 @@
 class_name CameraRig
 extends Node3D
 ## Third-person SpringArm3D + Camera3D. FOV comes from data/camera.json by viewport aspect ratio.
+## M2 C1a: a first-person mode for the local player walking (spring length 0, rig at eye height), blended from and to
+## the third-person view (cover, carrier, falling, downed); see is_first_person and data/camera.json first_person.
 ## Path A: AMSG shoulder swap + GDQuest-style ADS over-shoulder pivot (code only; no NC art).
 ## Path A phase 2: Kenney-style camera knockback on fire (CameraKnockback). It is view only: it turns the rig, but
 ## get_aim_point casts from the un-kicked camera, so shots, Hitscan and the host's aim check never see it.
@@ -31,6 +33,17 @@ var _shoulder_elapsed_s: float = 0.0
 var _shoulder_duration_s: float = 0.0
 var _cover_follow_active := false
 var _cover_follow_position := Vector3.ZERO
+## Shoulder pose x (lateral arm offset) before the first-person weight scales it away.
+var _shoulder_x: float = 0.0
+## M2 C1a first-person mode (data/camera.json first_person, OQ-FIRST-PERSON). Weight 0 = third person (today's
+## numbers), 1 = first person (spring 0, no side offset, rig at eye height). Decided per physics frame, never cached.
+var _fp_cfg: Dictionary = {}
+var _fp_weight: float = 0.0
+var _fp_from: float = 0.0
+var _fp_target: float = 0.0
+var _fp_elapsed_s: float = 0.0
+var _fp_duration_s: float = 0.0
+var _fp_evaluated := false
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -45,6 +58,7 @@ static func fov_for_aspect(cfg: Dictionary, aspect: float) -> float:
 
 func _ready() -> void:
 	_cfg = DataRegistry.new().get_camera_cfg()
+	_fp_cfg = _cfg.get("first_person", {})
 	shoulder_side = str(_cfg.get("shoulder_side", "right"))
 	position.y = float(_cfg.get("height_m", 1.6))
 	knockback.configure(_cfg)
@@ -52,17 +66,91 @@ func _ready() -> void:
 	_ensure_aim_ray()
 	get_viewport().size_changed.connect(apply_fov)
 	apply_fov()
+	# The first evaluation snaps, so a rig attached to a walking local pawn starts in first person (no blend).
+	_tick_first_person(0.0)
 
 
 ## Recovers the knockback. The pawn (this rig's parent) runs first in a physics frame and may kick during it, so a
 ## kick from the current frame is left whole for one frame.
 func _physics_process(delta: float) -> void:
+	_tick_first_person(delta)
 	_tick_cover_follow(delta)
 	_tick_shoulder(delta)
 	if knockback.offset == Vector2.ZERO or Engine.get_physics_frames() == _kick_frame:
 		return
 	knockback.tick(delta)
 	_apply_rotation()
+
+
+## First person is wanted iff the parent is the local player's pawn (a Pawn with no Brain, the pawn.gd cover-gate
+## check), ALIVE, on the ground (not aboard the carrier or falling) and with cover FREE or absent. Everything else,
+## including a rig with no Pawn parent, is today's third person.
+func is_first_person() -> bool:
+	var pawn := get_parent() as Pawn
+	if pawn == null or pawn.has_node("Brain"):
+		return false
+	if pawn.life != Pawn.Life.ALIVE or pawn.drop_state != Pawn.Drop.NONE:
+		return false
+	return pawn.cover == null or pawn.cover.state == CoverController.State.FREE
+
+
+## 0 = third person, 1 = first person; between them while the mode blend runs.
+func get_first_person_weight() -> float:
+	return _fp_weight
+
+
+func _fp_value(key: String, fallback: float) -> float:
+	var entry: Variant = _fp_cfg.get(key, {})
+	if entry is Dictionary:
+		return float((entry as Dictionary).get("value", fallback))
+	return float(entry) if entry != null else fallback
+
+
+## Smoothstep from the current weight to the wanted mode; a change mid-blend restarts from the current pose (like
+## _tick_shoulder). The first evaluation snaps.
+func _tick_first_person(delta: float) -> void:
+	var target := 1.0 if is_first_person() else 0.0
+	if not _fp_evaluated:
+		_fp_evaluated = true
+		_fp_target = target
+		_fp_duration_s = 0.0
+		_set_fp_weight(target)
+		return
+	if target != _fp_target:
+		_fp_from = _fp_weight
+		_fp_target = target
+		_fp_elapsed_s = 0.0
+		_fp_duration_s = maxf(0.0, _fp_value("blend_s", 0.0))
+		if _fp_duration_s <= 0.0:
+			_set_fp_weight(target)
+			return
+	if _fp_duration_s <= 0.0:
+		return
+	_fp_elapsed_s = minf(_fp_elapsed_s + maxf(delta, 0.0), _fp_duration_s)
+	var weight := lerpf(_fp_from, _fp_target, smoothstep(0.0, 1.0, _fp_elapsed_s / _fp_duration_s))
+	if _fp_elapsed_s >= _fp_duration_s:
+		weight = _fp_target
+		_fp_duration_s = 0.0
+	_set_fp_weight(weight)
+
+
+## Applies the weight to the spring length, the side offset, the FOV and (outside the cover follow) the rig height.
+func _set_fp_weight(weight: float) -> void:
+	var changed := weight != _fp_weight
+	_fp_weight = weight
+	if _arm != null:
+		_arm.position.x = _shoulder_x * (1.0 - _fp_weight)
+	_apply_arm_length()
+	if _camera != null:
+		_apply_zoom()
+	if changed and not _cover_follow_active:
+		position.y = _rig_height()
+
+
+## Rig pivot height: today's height_m in third person, the eye in first person.
+func _rig_height() -> float:
+	var third := float(_cfg.get("height_m", 1.6))
+	return lerpf(third, _fp_value("eye_height_m", third), _fp_weight)
 
 ## Presentation-only translation damping. FREE follows the original parent exactly.
 func _tick_cover_follow(delta: float) -> void:
@@ -71,10 +159,10 @@ func _tick_cover_follow(delta: float) -> void:
 		if _cover_follow_active:
 			position.x = 0.0
 			position.z = 0.0
-			position.y = float(_cfg.get("height_m", 1.6))
+			position.y = _rig_height()
 		_cover_follow_active = false
 		return
-	var desired := pawn.global_transform * Vector3(0, float(_cfg.get("height_m", 1.6)), 0)
+	var desired := pawn.global_transform * Vector3(0, _rig_height(), 0)
 	if not _cover_follow_active:
 		_cover_follow_position = desired
 		_cover_follow_active = true
@@ -105,15 +193,21 @@ func _apply_shoulder(ease_motion: bool = false) -> void:
 	var use_left := shoulder_side == "left"
 	# SpringArm3D rewrites its child camera's transform every physics frame (measured: tools/measure_shoulder.gd),
 	# so the shoulder offset goes on the arm itself.
-	_shoulder_from = Vector2(_arm.position.x, _shoulder_hip_length)
+	_shoulder_from = Vector2(_shoulder_x, _shoulder_hip_length)
 	_shoulder_target = Vector2(left_x if use_left else right_x, _hip_arm_length())
 	_shoulder_elapsed_s = 0.0
 	var entry: Dictionary = _cfg.get("shoulder_ease_s", {})
 	_shoulder_duration_s = maxf(0.0, float(entry.get("value", 0.0))) if ease_motion else 0.0
 	if _shoulder_duration_s <= 0.0:
-		_arm.position.x = _shoulder_target.x
+		_set_shoulder_x(_shoulder_target.x)
 		_shoulder_hip_length = _shoulder_target.y
 	_apply_arm_length()
+
+
+## The side offset does not apply in first person: the first-person weight scales it to 0.
+func _set_shoulder_x(x: float) -> void:
+	_shoulder_x = x
+	_arm.position.x = _shoulder_x * (1.0 - _fp_weight)
 
 
 ## Smoothstep between the current pose and the new side; rapid swaps restart from that pose.
@@ -127,7 +221,7 @@ func _tick_shoulder(delta: float) -> void:
 	if _shoulder_elapsed_s >= _shoulder_duration_s:
 		pose = _shoulder_target
 		_shoulder_duration_s = 0.0
-	_arm.position.x = pose.x
+	_set_shoulder_x(pose.x)
 	_shoulder_hip_length = pose.y
 	_apply_arm_length()
 
@@ -145,15 +239,19 @@ func _aim_arm_length() -> float:
 	return _shoulder_hip_length
 
 
-## GDQuest OVER_SHOULDER vs THIRD_PERSON: blend spring_length between hip and ADS lengths.
+## GDQuest OVER_SHOULDER vs THIRD_PERSON: blend spring_length between hip and ADS lengths. The first-person weight
+## then pulls it to 0, so ADS in first person never moves the camera off the eye.
 func _apply_arm_length() -> void:
 	if _arm == null:
 		return
-	_arm.spring_length = lerpf(_shoulder_hip_length, _aim_arm_length(), _aim_blend)
+	_arm.spring_length = lerpf(lerpf(_shoulder_hip_length, _aim_arm_length(), _aim_blend), 0.0, _fp_weight)
 
 
-## AMSG-style right/left shoulder swap. Unknown sides fall back to right.
+## AMSG-style right/left shoulder swap. Unknown sides fall back to right. Ignored in first person (M2 C1a: the
+## shoulder has no meaning there); the third-person cover view keeps it.
 func set_shoulder_side(side: String) -> void:
+	if is_first_person():
+		return
 	var next_side := "left" if side == "left" else "right"
 	if next_side == shoulder_side:
 		return
@@ -236,7 +334,7 @@ func get_spring_length() -> float:
 
 
 func _apply_zoom() -> void:
-	_camera.fov = base_fov * lerpf(1.0, _aim_fov_mult, _aim_blend)
+	_camera.fov = base_fov * lerpf(1.0, _fp_value("fov_mult", 1.0), _fp_weight) * lerpf(1.0, _aim_fov_mult, _aim_blend)
 
 
 ## Orients the rig; pitch in radians, clamped by data. Any knockback in progress is added on top.
