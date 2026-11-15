@@ -77,17 +77,19 @@ static func _named_pieces(def: Dictionary) -> Array:
 
 ## M2B1 report fields (deterministic, appended at the end of the SIM line's deterministic part): bots that landed
 ## (first grounded think after the drop) inside any landmark's radius, inside the landmark they picked, and bots
-## that were ever geared (armour + ammo, BotBrain._geared).
+## that were ever geared (armour + ammo, BotBrain._geared); enemy gun shots heard (summed over the bots).
 static func route_fields(bots: Array, landmarks: Array) -> String:
 	var landed := 0
 	var landed_pick := 0
 	var geared := 0
+	var heard := 0
 	for b: Pawn in bots:
 		var brain := b.get_node_or_null("Brain")
 		if brain == null:
 			continue
 		if bool(brain.get("route_geared_ever")):
 			geared += 1
+		heard += int(brain.get("heard_count"))
 		var at: Vector3 = brain.get("route_landed_at")
 		if at == Vector3.INF:
 			continue
@@ -98,7 +100,7 @@ static func route_fields(bots: Array, landmarks: Array) -> String:
 				break
 		if bool(brain.get("route_landed_in_pick")):
 			landed_pick += 1
-	return " landed_in_landmark=%d landed_in_pick=%d geared_ever=%d" % [landed, landed_pick, geared]
+	return " landed_in_landmark=%d landed_in_pick=%d geared_ever=%d heard=%d" % [landed, landed_pick, geared, heard]
 
 
 static func _mean(values: Array) -> float:

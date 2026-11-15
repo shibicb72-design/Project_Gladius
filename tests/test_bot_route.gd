@@ -422,3 +422,89 @@ func test_small_map_keeps_the_fixed_margin() -> void:
 	assert_true(not b._inside_target(), "outside the next circle")
 	assert_true(not b._zone_pressure(), "big map: a 16 s walk with 20 s left is not late")
 	m.queue_free()
+
+
+# ---- Stage 5: hearing and the hunt goal ----
+
+func test_hearing_remembers_enemy_gun_shots_only() -> void:
+	await start(big_zone(), false, "squads")
+	var bot: Pawn = m.bots[0]
+	var mate: Pawn = null
+	var enemy: Pawn = null
+	for p in m.bots:
+		if p == bot:
+			continue
+		if p.squad_id == bot.squad_id and mate == null:
+			mate = p
+		elif p.squad_id != bot.squad_id and enemy == null:
+			enemy = p
+	assert_true(mate != null and enemy != null, "a mate and an enemy")
+	bot.global_position = Vector3(0.0, 0.2, 0.0)
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	b._listen()
+	var near := Vector3(40.0, 1.4, 20.0)
+	enemy.shot.emit(near, Vector3.FORWARD, "pilum_br")
+	assert_eq(b.heard_count, 1, "an enemy gun shot 45 m away is heard")
+	assert_true(b._enemy_mem.distance_to(near) < 0.01 and b._enemy_mem_tick == m.director.tick_count, "remembered where and when")
+	enemy.shot.emit(Vector3(10.0, 1.4, 0.0), Vector3.FORWARD, "gladius_lux")
+	assert_eq(b.heard_count, 1, "a blade swing is not heard")
+	mate.shot.emit(Vector3(10.0, 1.4, 0.0), Vector3.FORWARD, "pilum_br")
+	assert_eq(b.heard_count, 1, "a squad mate's shot is not an enemy")
+	var radius := float(base_cfg()["route"]["hearing_radius_m"])
+	enemy.shot.emit(Vector3(radius + 5.0, 1.4, 0.0), Vector3.FORWARD, "sagittarii_rifle")
+	assert_eq(b.heard_count, 1, "out of the hearing radius")
+	bot.life = Pawn.Life.DEAD
+	enemy.shot.emit(near, Vector3.FORWARD, "pilum_br")
+	assert_eq(b.heard_count, 1, "a dead listener does not react")
+	bot.life = Pawn.Life.ALIVE
+	b._listen()
+	enemy.shot.emit(near, Vector3.FORWARD, "pilum_br")
+	assert_eq(b.heard_count, 2, "wired once: one shot, one count")
+	b.free()
+	enemy.shot.emit(near, Vector3.FORWARD, "pilum_br")  # the connection died with the brain (no error)
+	var left := 0
+	for c in enemy.shot.get_connections():
+		if not is_instance_valid((c["callable"] as Callable).get_object()):
+			left += 1
+	assert_eq(left, 0, "no connection to a freed brain remains")
+	m.queue_free()
+
+
+func test_small_map_does_not_listen() -> void:
+	await start(small_zone(), false, "squads")
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	b._goal(null, false)
+	assert_eq(b._listen_count, -1, "small map: no shot wiring")
+	m.queue_free()
+
+
+## A geared bot with nothing in sight: hunts toward the next circle's centre, a fresh memory first, a stale one
+## is ignored, and close to the point it falls through to today's spot / hold.
+func test_hunt_goal() -> void:
+	await start(big_zone())
+	var bot: Pawn = m.bots[0]
+	var gun := bot.loadout.get_active()
+	bot.armor_tier = 1
+	gun.reserve = int(ceil(gun.def.magazine * m.director.bot_ammo_low_magazines())) + 5
+	var c := m.director.zone_target_center()
+	bot.global_position = c + Vector3(30.0, 0.2, 0.0)
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	assert_true(b.is_geared(), "geared")
+	var g := b._goal(null, false)
+	assert_eq(b.goal_kind, "hunt", "geared, nothing seen: hunt")
+	assert_true(Vector2(g.x - c.x, g.z - c.z).length() < 0.01, "toward the next circle's centre")
+	var mem := c + Vector3(-40.0, 0.0, 10.0)
+	b._remember_enemy(mem)
+	g = b._goal(null, false)
+	assert_true(b.goal_kind == "hunt" and g.distance_to(mem) < 0.01, "a fresh memory comes first")
+	b._enemy_mem_tick = m.director.tick_count - int(float(base_cfg()["route"]["hunt_memory_s"]) * Engine.physics_ticks_per_second) - 1
+	g = b._goal(null, false)
+	assert_true(Vector2(g.x - c.x, g.z - c.z).length() < 0.01, "a stale memory is ignored")
+	bot.global_position = c + Vector3(3.0, 0.2, 0.0)
+	b._goal(null, false)
+	assert_true(b.goal_kind == "hold" or b.goal_kind == "zone", "arrived: today's spot or hold (%s)" % b.goal_kind)
+	m.queue_free()

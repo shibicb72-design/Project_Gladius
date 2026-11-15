@@ -78,6 +78,12 @@ var _gear_check_tick: int = 0  # director.tick_count at or after which the chose
 var route_landed_at := Vector3.INF  # position at the first grounded think after the drop
 var route_geared_ever: bool = false
 var route_landed_in_pick: bool = false  # route_landed_at lies inside the landmark held at that moment
+## Stage 5 (hunt): the last place this bot saw or heard an enemy, and the director tick of it (-1 = never).
+var _enemy_mem := Vector3.ZERO
+var _enemy_mem_tick: int = -1
+var _listen_count: int = -1  # director player count when the shot signals were last wired
+var _listening: Dictionary = {}  # player id -> true: that pawn's shot signal is connected to this brain
+var heard_count: int = 0  # report: enemy gun shots heard within the radius
 
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
@@ -281,6 +287,8 @@ func build_frame(delta: float) -> InputFrame:
 		_route_think()
 	var turn: float = float(cfg.get("turn_rate_rad_s", 6.0)) * delta
 	var enemy := _find_target()
+	if _big_map and enemy != null:
+		_remember_enemy(enemy.global_position)
 	var melee_only := _melee_only()
 	var want_dir := Vector3.ZERO
 	if enemy != null:
@@ -471,6 +479,12 @@ func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 		if gear != Vector3.INF:
 			goal_kind = "gear"
 			return gear
+		# Geared (or no landmark with loot) and nothing in sight: go looking for a fight.
+		if enemy == null:
+			var hunt := _hunt_goal()
+			if hunt != Vector3.INF:
+				goal_kind = "hunt"
+				return hunt
 	goal_kind = "zone"
 	if _inside_target():
 		goal_kind = "hold"
@@ -690,6 +704,7 @@ func _route_think() -> void:
 			route_landed_in_pick = Vector2(c.x - route_landed_at.x, c.z - route_landed_at.z).length() <= float(_landmark.get("radius_m", 0.0))
 	if not route_geared_ever and _geared():
 		route_geared_ever = true
+	_listen()
 
 
 func _gear_recheck_ticks() -> int:
@@ -717,3 +732,61 @@ func _gear_goal() -> Vector3:
 ## The chosen landmark's id ("" when none), for tests and the sims.
 func landmark_id() -> String:
 	return str(_landmark.get("id", ""))
+
+
+## ---- Looking for fights (M2B1 stage 5, big maps only; brain.route hearing/hunt placeholders, OQ-BOT-ROUTE) ----
+## Memory: the last place an enemy was seen (every think with a target) or heard (an enemy's gun shot within
+## route.hearing_radius_m), with the director tick. Hearing: this brain connects its own method to each enemy
+## pawn's `shot` signal, lazily on grounded thinks when the director's player count changed (pawns spawn after
+## the brain). The connection is to a method of this node, so it dies with the brain; a dead, downed or dropping
+## listener ignores shots; squad mates' shots and blade swings (the weapon def is melee) are skipped.
+## Never net_match_bridge.shot_event. Hunt goal (after gear, before spot/hold; no target in sight): walk to the
+## memory while it is younger than route.hunt_memory_s, else toward the next circle's centre; within
+## route.hunt_arrive_m of that point it falls through to today's spot / hold (a reached memory is forgotten).
+
+func _remember_enemy(at: Vector3) -> void:
+	_enemy_mem = at
+	_enemy_mem_tick = director.tick_count
+
+
+func _listen() -> void:
+	var players := director.all_players()
+	if players.size() == _listen_count:
+		return
+	_listen_count = players.size()
+	var ids: Array = players.keys()
+	ids.sort()
+	for id in ids:
+		var p: Pawn = players[id]
+		if p == pawn or _listening.has(id) or not is_instance_valid(p):
+			continue
+		_listening[id] = true
+		p.shot.connect(_on_shot_heard.bind(p))
+
+
+func _on_shot_heard(origin: Vector3, _direction: Vector3, weapon_id: String, shooter: Pawn) -> void:
+	if not _big_map or pawn == null or not is_instance_valid(pawn) or not pawn.is_alive() or pawn.is_dropping():
+		return
+	if not is_instance_valid(shooter) or shooter.squad_id == pawn.squad_id:
+		return
+	var wd: WeaponDef = pawn.registry.get_weapon_def(weapon_id) if pawn.registry != null else null
+	if wd == null or wd.is_melee():
+		return
+	if Vector2(origin.x - pawn.global_position.x, origin.z - pawn.global_position.z).length() > _route_f("hearing_radius_m", 120.0):
+		return
+	heard_count += 1
+	_remember_enemy(origin)
+
+
+func _hunt_goal() -> Vector3:
+	var arrive := _route_f("hunt_arrive_m", 15.0)
+	var here := pawn.global_position
+	var max_age := int(_route_f("hunt_memory_s", 20.0) * float(Engine.physics_ticks_per_second))
+	if _enemy_mem_tick >= 0 and director.tick_count - _enemy_mem_tick <= max_age:
+		if Vector2(_enemy_mem.x - here.x, _enemy_mem.z - here.z).length() > arrive:
+			return _enemy_mem
+		_enemy_mem_tick = -1  # reached: forget it
+	var c := director.zone_target_center()
+	if Vector2(c.x - here.x, c.z - here.z).length() > arrive:
+		return c
+	return Vector3.INF
