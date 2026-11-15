@@ -188,10 +188,23 @@ func show_shot(origin: Vector3, end: Vector3) -> void:
 		impact.scale = Vector3.ONE * _rng.randf_range(0.7, 1.2)
 		impact.visible = true
 		_impact_left_s = float(_cfg.get("impact_duration_s", 0.12))
+		# M2 AN1 commit 5 (visuals only): the burst follows the surface hit (sparks on stone and metal, dust on the
+		# ground, an energy splash on a soldier) from the shared, capped pool (ShotImpacts); the impact flash takes the
+		# burst's colour. The old per-pawn sparks and dust still mark the end point and only play when no pool exists.
+		var pool := ShotImpacts.for_node(self)
+		var kind := ""
+		if pool != null:
+			var hit := pool.classify(get_world_3d(), origin, end)
+			kind = String(hit["kind"])
+			pool.spawn(kind, end, hit["normal"])
+		var imat := (impact.mesh as SphereMesh).material as StandardMaterial3D
+		if imat != null:
+			imat.albedo_color = ShotImpacts.flash_color(kind, _color_or("impact_color", Color(1.0, 0.85, 0.4, 1.0)))
 		for burst in [sparks, dust]:
 			burst.global_position = end
-			burst.emitting = true
-			burst.restart()
+			if pool == null:
+				burst.emitting = true
+				burst.restart()
 	# Viewmodel recoil kick (eases back in _physics_process).
 	if weapon_mesh != null and _cfg.has("viewmodel_recoil_m"):
 		var kick: Array = _cfg["viewmodel_recoil_m"]

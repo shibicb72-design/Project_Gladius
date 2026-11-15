@@ -40,6 +40,16 @@ var _recoil_left := 0.0  # the kick timer (camera.json recoil_s) behind is_recoi
 var _slots: Array = []  # the loadout's Weapon objects last seen: a slot whose object changed was picked up
 var _slots_of: Loadout  # the Loadout object _slots was read from
 
+# M2 AN1 commit 5: the spent energy cell (art_soldier.json fx.spent_cell): a copy of the Cell dropped when the reload
+# goes from cell_out to cell_in (the hand now holds the fresh one); it falls in world space, tumbles and shrinks away.
+var _spent: Node3D
+var _spent_t := 0.0
+var _spent_vel := Vector3.ZERO
+var _spent_spin := Vector3.ZERO
+var _spent_scale := Vector3.ONE
+var _last_stage := ""
+var _dt := 0.0
+
 # Look sway state.
 var _sway := Vector2.ZERO  # x = pitch lag, y = yaw lag (degrees)
 var _last_look := Vector2.ZERO
@@ -186,6 +196,26 @@ func is_flash_visible() -> bool:
 	return flash.is_visible_in_tree()
 
 
+## The muzzle light (M2 AN1 commit 5): an OmniLight3D without shadows on the flash, lit only while the flash shows.
+func get_muzzle_light() -> OmniLight3D:
+	return _view_fx.light
+
+
+func is_muzzle_light_on() -> bool:
+	return _view_fx.is_light_on()
+
+
+## Measuring hook: holds the shown gun's flash and muzzle light on (true) or off (false); no effect without a muzzle.
+func hold_muzzle_flash(on: bool) -> void:
+	if _muzzle != null:
+		_view_fx.hold(_muzzle, on)
+
+
+## The falling spent cell of the last reload (null when none is falling).
+func get_spent_cell() -> Node3D:
+	return _spent if _spent != null and is_instance_valid(_spent) else null
+
+
 ## Every MeshInstance3D of the view model (tests measure its reach and count its nodes).
 func mesh_instances() -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
@@ -194,11 +224,26 @@ func mesh_instances() -> Array[MeshInstance3D]:
 	return out
 
 
-## The visible model meshes (the tracer and flash left out): what the budget counts.
+## The visible model meshes (the tracer, the flash and a falling spent cell left out): what reach and near-plane
+## checks measure. The budget (view_triangle_count, view_draw_calls) also counts the flash, its light and the spent
+## cell while they show.
 func model_meshes() -> Array[MeshInstance3D]:
 	var out: Array[MeshInstance3D] = []
 	for mi in mesh_instances():
-		if mi != tracer and mi != flash and mi.is_visible_in_tree():
+		if mi != tracer and mi != flash and mi.is_visible_in_tree() and not _is_spent(mi):
+			out.append(mi)
+	return out
+
+
+func _is_spent(mi: Node) -> bool:
+	return _spent != null and is_instance_valid(_spent) and (mi == _spent or _spent.is_ancestor_of(mi))
+
+
+## Every visible mesh the budget counts: the model, the flash and the spent cell.
+func _budget_meshes() -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for mi in mesh_instances():
+		if mi != tracer and mi.is_visible_in_tree():
 			out.append(mi)
 	return out
 
@@ -215,14 +260,15 @@ func posed_faces(mi: MeshInstance3D) -> PackedVector3Array:
 ## Triangles and draw calls (one per mesh surface) of the visible model meshes.
 func view_triangle_count() -> int:
 	var n := 0
-	for mi in model_meshes():
+	for mi in _budget_meshes():
 		n += ViewMesh.triangle_count(mi.mesh)
 	return n
 
 
+## One per mesh surface, plus one for the muzzle light while it is lit (counted as a pass against the budget).
 func view_draw_calls() -> int:
-	var n := 0
-	for mi in model_meshes():
+	var n := 1 if is_muzzle_light_on() else 0
+	for mi in _budget_meshes():
 		n += mi.mesh.get_surface_count()
 	return n
 
@@ -259,6 +305,7 @@ func _update(delta: float) -> void:
 	if pawn == null or not is_instance_valid(pawn) or rig == null:
 		return
 	_bind_shot_fx()
+	_dt = delta
 	var weight := rig.get_first_person_weight()
 	var show_from := _f("show_weight")
 	var showing := weight >= show_from and weight > 0.0
@@ -316,6 +363,7 @@ func _sync_weapon() -> void:
 
 
 func _show_weapon(id: String, melee: bool) -> void:
+	_view_fx.park()  # the flash rides the old gun's muzzle: take it off before that gun hides
 	if _shown != null:
 		_shown.visible = false
 	_shown_id = id
@@ -359,8 +407,62 @@ func _apply_pose(raise: float) -> void:
 		base = base.interpolate_with(_shown.get_meta(&"ads"), ads)
 	_shown.transform = base * _motion.weapon_xf(lerpf(1.0, _f("ads_kick_mult"), ads), not _shown.has_node("Muzzle"))
 	ViewRig.apply_parts(_shown, _motion, _pivot.transform)  # cell, charging handle, left-hand reach
-	if _muzzle != null:
-		_view_fx.follow(_muzzle.global_transform)
+	_tick_spent_cell()
+
+
+## Drops a spent cell when the reload passes from cell_out to cell_in, and moves a falling one (presentation only).
+func _tick_spent_cell() -> void:
+	var stage := _motion.reload_stage()
+	if _last_stage == "cell_out" and stage == "cell_in" and _shown != null and visible:
+		_drop_spent_cell(_shown.get_node_or_null("Cell") as Node3D)
+	_last_stage = stage
+	if _spent == null or not is_instance_valid(_spent):
+		return
+	var c: Dictionary = (ViewMesh.config().get("fx", {}) as Dictionary).get("spent_cell", {})
+	var life := maxf(float(c.get("life_s", 0.6)), 0.01)
+	_spent_t += _dt
+	if _spent_t >= life:
+		_spent.queue_free()
+		_spent = null
+		return
+	_spent_vel += ViewMesh.vec(c.get("gravity_mps2", [0.0, -9.8, 0.0])) * _dt
+	var xf := _spent.global_transform
+	var b := Basis.from_euler(_spent_spin * _dt) * xf.basis.orthonormalized()
+	var shrink := 1.0 - smoothstep(float(c.get("shrink_from", 0.55)), 1.0, _spent_t / life)
+	_spent.global_transform = Transform3D(b.scaled(_spent_scale * maxf(shrink, 0.01)), xf.origin + _spent_vel * _dt)
+
+
+func _drop_spent_cell(cell: Node3D) -> void:
+	if cell == null:
+		return
+	var c: Dictionary = (ViewMesh.config().get("fx", {}) as Dictionary).get("spent_cell", {})
+	if not bool(c.get("enabled", true)):
+		return
+	if _spent != null and is_instance_valid(_spent):
+		_spent.queue_free()
+	var mesh := cell.get_node_or_null("Mesh") as MeshInstance3D
+	if mesh == null:
+		return
+	_spent = Node3D.new()
+	_spent.name = "SpentCell"
+	add_child(_spent)
+	_spent.top_level = true
+	var copy := MeshInstance3D.new()
+	copy.name = "Mesh"
+	copy.mesh = mesh.mesh
+	copy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	copy.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	_spent.add_child(copy)
+	var g := cell.global_transform
+	_spent_scale = g.basis.get_scale()
+	_spent.global_transform = g
+	# Out of the well (the cell's own -y), a little toward the left of the view, then gravity.
+	var cam := get_parent() as Node3D
+	var left := -cam.global_transform.basis.x if cam != null else Vector3.LEFT
+	_spent_vel = (-g.basis.y.normalized() * float(c.get("speed_mps", 0.8)) + left * float(c.get("side_mps", 0.4)))
+	var spin := deg_to_rad(float(c.get("spin_deg_s", 400.0)))
+	_spent_spin = Vector3(spin, spin * 0.4, spin * 0.7)
+	_spent_t = 0.0
 
 
 # --- signals ------------------------------------------------------------------------------------------------------
@@ -438,7 +540,7 @@ func _bind_shot_fx() -> void:
 func _on_shot_shown(_origin: Vector3, end: Vector3) -> void:
 	if not visible or _muzzle == null:
 		return
-	_view_fx.show_shot(_muzzle.global_transform, end)
+	_view_fx.show_shot(_muzzle, end)
 
 
 # --- building -----------------------------------------------------------------------------------------------------
