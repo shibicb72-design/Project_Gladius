@@ -14,6 +14,10 @@ const BIG := "res://data/maps/alesia_1km.json"
 const TMP_MAP := "res://data/maps/_overrides_test_tmp.json"
 ## The edge of a shrinking zone may move at most this fast (m/s) on alesia_1km (its overrides' _todo note).
 const EDGE_MPS := 4.0
+## M2 Z1 drop rule on alesia_1km (OQ-BR-DROP, guesses for Shibi): a dropping soldier can glide at least this far
+## sideways (m), and the carrier flies no higher than DROP_MAX_ALT_M.
+const DROP_REACH_M := 120.0
+const DROP_MAX_ALT_M := 200.0
 
 
 func _tree() -> SceneTree:
@@ -118,10 +122,15 @@ func test_alesia_1km_overrides_follow_the_rules() -> void:
 			outer_r = float(circle["radius"])
 	for key: String in ["teams", "downed", "end", "default_seed"]:
 		assert_eq(big["br"][key], plain["br"][key], key + " is br.json's")
-	# Drop: crosses the play circle; altitude, glide and fall stay br.json's.
+	# Drop (M2 Z1): crosses the play circle; a falling soldier can glide at least DROP_REACH_M sideways
+	# (altitude / max fall speed x glide speed, the simple rule; the real fall is a little longer, see
+	# test_measured_drop_reach), from no higher than DROP_MAX_ALT_M. "enabled" and the bot jump window stay br.json's.
 	var drop: Dictionary = big["br"]["drop"]
-	for key: String in ["enabled", "altitude_m", "glide_speed_mps", "max_fall_mps", "bot_jump_window"]:
+	for key: String in ["enabled", "bot_jump_window"]:
 		assert_eq(drop[key], plain["br"]["drop"][key], "drop " + key + " is br.json's")
+	var side_reach := float(drop["altitude_m"]) / float(drop["max_fall_mps"]) * float(drop["glide_speed_mps"])
+	assert_true(side_reach >= DROP_REACH_M, "the side reach is at least %.0f m (%.1f m)" % [DROP_REACH_M, side_reach])
+	assert_true(float(drop["altitude_m"]) <= DROP_MAX_ALT_M, "the carrier flies at most %.0f m up (%.0f m)" % [DROP_MAX_ALT_M, float(drop["altitude_m"])])
 	assert_true(float(drop["path_length_m"]) >= 2.0 * play, "the carrier line spans the play circle")
 	assert_true(float(drop["map_half_m"]) >= play and float(drop["map_half_m"]) < 500.0, "the drop clamp holds the play circle, inside the 1000 m ground")
 	var fall_s := float(drop["altitude_m"]) / float(drop["max_fall_mps"])
@@ -142,6 +151,61 @@ func test_alesia_1km_overrides_follow_the_rules() -> void:
 	for key: String in ["max_ground_y_m", "zone_edge_margin_m", "items", "start_kit", "pickup_range_m", "colors"]:
 		assert_eq(loot[key], plain["loot"][key], "loot " + key + " is loot.json's")
 	print("MAP_OVERRIDES alesia_1km zone_nominal_s=", nominal, " carrier_s=", drop["carrier_s"], " loot_count=", loot["count"], " clustered=", clustered)
+
+
+## M2 Z1: one real pawn falls the 1 km map's drop (its merged altitude, glide and fall speeds) onto a flat test
+## floor, gliding straight at full stick. Its sideways travel matches the real fall (it starts at 0 m/s and
+## speeds up at the movement gravity to max_fall_mps: t = altitude / max_fall + max_fall / (2 g)) within 2 m, and
+## is at least DROP_REACH_M. On the small alesia map with a floor above every building, so nothing is in the way.
+func test_measured_drop_reach() -> void:
+	var drop: Dictionary = _cfg(BIG)["br"]["drop"]
+	var m: MatchRoot = _MatchScene.instantiate()
+	m.auto_start = false
+	m.bake_navmesh = false
+	m.seed_override = 777
+	_tree().root.add_child(m)
+	await _tree().physics_frame
+	m.director.load_config()
+	assert_true(m.begin(), "begin")
+	var floor_y := 100.0
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(600.0, 2.0, 600.0)
+	shape.shape = box
+	floor_body.add_child(shape)
+	floor_body.position = Vector3(0.0, floor_y - 1.0, 0.0)
+	m.add_child(floor_body)
+	var bot: Pawn = m.bots[0]
+	bot.get_node("Brain").set_physics_process(false)
+	bot.drop_glide_mps = float(drop["glide_speed_mps"])
+	bot.drop_max_fall_mps = float(drop["max_fall_mps"])
+	await _tree().physics_frame
+	var f := InputFrame.new()
+	f.move = Vector2(0.0, -1.0)  # straight ahead, full stick
+	bot.set_frame(f)
+	var start := Vector3(0.0, floor_y + float(drop["altitude_m"]), 0.0)
+	bot.start_fall(start)
+	var frames := 0
+	while bot.drop_state == Pawn.Drop.FALLING and frames < 3000:
+		await _tree().physics_frame
+		frames += 1
+	assert_eq(bot.drop_state, Pawn.Drop.NONE, "the pawn landed")
+	var fallen_s := frames / float(Engine.physics_ticks_per_second)
+	var travel := Vector2(bot.global_position.x - start.x, bot.global_position.z - start.z).length()
+	var g := float(bot._movement.get("gravity", 20.0))
+	var v := float(drop["max_fall_mps"])
+	var h := start.y - bot.global_position.y
+	var t_real := h / v + v / (2.0 * g)
+	var expect := float(drop["glide_speed_mps"]) * t_real
+	assert_true(absf(fallen_s - t_real) < 0.15, "the fall takes altitude / max_fall + max_fall / 2g (%.2f s, measured %.2f s)" % [t_real, fallen_s])
+	assert_true(absf(travel - expect) < 2.0, "the sideways travel is glide x fall time (%.1f m, measured %.1f m)" % [expect, travel])
+	assert_true(travel >= DROP_REACH_M, "the measured side reach is at least %.0f m (%.1f m)" % [DROP_REACH_M, travel])
+	print("MAP_OVERRIDES measured_drop alesia_1km fall_s=%.2f formula_s=%.2f simple_s=%.2f reach_m=%.1f formula_m=%.1f simple_m=%.1f" % [fallen_s, t_real,
+			float(drop["altitude_m"]) / v, travel, expect, float(drop["altitude_m"]) / v * float(drop["glide_speed_mps"])])
+	m.queue_free()
+	await _tree().process_frame
 
 
 func test_overrides_may_not_touch_what_the_lobby_reads() -> void:

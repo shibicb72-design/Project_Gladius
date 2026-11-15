@@ -43,8 +43,11 @@ func test_committed_phases_are_the_generators_output() -> void:
 	# The drop is the one the match sees: br.json's with the map's overrides.br.drop on top.
 	var br_drop: Dictionary = DataRegistry.new().load_file("res://data/br.json")["drop"]
 	assert_eq(float(drop["carrier_s"]), float(def["overrides"]["br"]["drop"]["carrier_s"]), "the map's carrier_s override is in the merged drop")
-	assert_eq(float(drop["altitude_m"]), float(br_drop["altitude_m"]), "altitude_m is br.json's")
-	assert_eq(float(drop["max_fall_mps"]), float(br_drop["max_fall_mps"]), "max_fall_mps is br.json's")
+	# M2 Z1: the map overrides altitude_m and max_fall_mps too; anything it leaves out stays br.json's.
+	var map_drop: Dictionary = def["overrides"]["br"]["drop"]
+	for key: String in ["altitude_m", "max_fall_mps"]:
+		var want := float(map_drop[key]) if map_drop.has(key) else float(br_drop[key])
+		assert_eq(float(drop[key]), want, key + " is the map's override, else br.json's")
 	var out: Dictionary = _Tool.generate(def, drop)
 	assert_true((out["problems"] as PackedStringArray).is_empty(), "the committed inputs are accepted: " + ", ".join(out["problems"]))
 	assert_eq(out["phases"], def["overrides"]["br"]["zone"]["phases"], "overrides.br.zone.phases are the generator's output (re-run tools/gen_zone.gd)")

@@ -403,9 +403,12 @@
 		"br": {
 			"drop": {
 				"_placeholder": true,
-				"_todo": "OQ-BR-DROP: guesses for Shibi. The carrier flies through the zone start centre (0, 0); path_length_m 960 = twice the play radius 480, so it enters and leaves the play circle on every bearing. carrier_s 40 = 24 m/s: the last forced drop leaves at 40 s and lands (120 m at 15 m/s, about 9 s) before the first zone wait (60 s) ends. map_half_m 498 = the 500 m ground half less 2 m, as br.json's 78 on alesia's 80. altitude_m, glide and fall speeds stay br.json's (120 m clears the 25 m hill and every tower).",
+				"_todo": "OQ-BR-DROP: guesses for Shibi; the drop is a choice for Shibi among options (Z1 report), this is the default we ship. The carrier flies through the zone start centre (0, 0); path_length_m 960 = twice the play radius 480, so it enters and leaves the play circle on every bearing. carrier_s 40 = 24 m/s along the line. map_half_m 498 = the 500 m ground half less 2 m, as br.json's 78 on alesia's 80. altitude_m 150 (at most 200; clears the 25 m hill and every tower). max_fall_mps 12: a falling soldier starts at 0 m/s, speeds up at the stats.json gravity (20 m/s2) to 12 m/s and stays there, and cannot slow down, so a fall to flat ground takes 150 / 12 + 12 / 40 = 12.8 s. glide_speed_mps 10: the sideways speed at full stick (it does not keep the carrier's speed), so the side reach is about 10 x 12.8 = 128 m (the rule asks altitude / max_fall x glide = 125 m >= 120 m). The last forced drop leaves at 40 s and lands at about 40 + 12.5 = 52.5 s, well before the first zone wait (90 s) ends. bot_jump_window and enabled stay br.json's.",
+				"altitude_m": 150.0,
 				"carrier_s": 40.0,
+				"glide_speed_mps": 10.0,
 				"map_half_m": 498.0,
+				"max_fall_mps": 12.0,
 				"path_length_m": 960.0
 			},
 			"zone": {
