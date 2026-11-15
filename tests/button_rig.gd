@@ -60,13 +60,10 @@ static func teardown(ctx: Dictionary) -> void:
 
 
 static func press(ctx: Dictionary, action: String, pressed: bool) -> void:
-	if action == "fire":
-		if pressed:
-			var point: Vector2 = ctx["touch"].get_element_rect("look_stick").get_center()
-			touch(BUTTON_TOUCH, point, true)
-			touch(BUTTON_TOUCH, point, false)
-		return
-	touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(action).get_center(), pressed)
+	# M2 H1a: "fire" holds the right Fire button (element key fire_right) until released (was a look-stick tap and its
+	# release pulse; a look touch no longer fires).
+	var key: String = ctx["touch"].RIGHT_FIRE_KEY if action == "fire" else action
+	touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(key).get_center(), pressed)
 
 
 ## Adds an inert enemy-squad pawn `dist_m` along the shooter's aim (negative = behind it); returns it.

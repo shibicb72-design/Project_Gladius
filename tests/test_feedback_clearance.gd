@@ -44,7 +44,8 @@ func _check(sz: Vector2, mode: String) -> void:
 	var widgets := {"reload_box": game.reload_box, "cue_label": game.cue_label, "toast_label": game.toast_label,
 			"hit_marker": game.hit_marker, "crosshair": game.crosshair, "banner_label": game.banner_label,
 			"own_death_label": game.own_death_label}
-	var touch_items := {"move_stick": touch.get_move_visual_rect(), "look_stick": touch.look_stick.get_global_rect()}
+	# M2 H1a: no look stick is drawn in look mode "drag" (the default), so there is no look stick rect to keep clear.
+	var touch_items := {"move_stick": touch.get_move_visual_rect()}
 	for action in ACTIONS:
 		touch_items["button_" + action] = touch.get_button_rect(action)
 	var view := Rect2(Vector2.ZERO, sz)

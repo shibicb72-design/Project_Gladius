@@ -307,8 +307,9 @@ android/              debug.keystore (shared debug key only)
   clients) and the local pawn. Classic Halo layout, red/gold theme (`theme.tres`), Roman numerals via
   `roman_numerals.gd`. Later: radar (25 m, crouch/prone hide, jammer blanking, smoke animation),
   streak/deployable slots, killfeed, Latin medal popups, bad-trait banner.
-- `touch_hud.tscn`: a separate CanvasLayer above the HUD. Left stick; right side backup aim stick
-  where a tap fires; quick-tap command buttons above fire (later, pages 1/2). Hidden when
+- `touch_hud.tscn`: a separate CanvasLayer above the HUD. Floating move stick bottom left; a look
+  area (right half, no control in it by default) where a touch only turns the view; action buttons hung off
+  data-defined anchors at the bottom right and bottom centre (M2 H1a, below). Hidden when
   `PlatformServices.is_touch_device()` is false, unless forced on by a setting.
 - Layouts use anchors and containers only, and scale with DPI/aspect (S24/S25 Ultra, Fold7
   outer/inner).
@@ -317,6 +318,31 @@ android/              debug.keystore (shared debug key only)
   `MenuBackdrop`, `MenuLogo`), numbers in `data/ui.json` `menu_style` / `menu_type_scale`. `UiScale`
   sizes touch targets and applies the kit's sizes on every resize. Rules: `docs/UI_STYLE.md`. Proof
   shots: `tools/menu_shots.tscn` (every screen at six phone sizes).
+
+#### M2 H1a: shooting modes and touch layout
+- Fire sources: the right Fire button, the optional Left Fire button, keys and gamepad (their providers), and in Simple
+  mode the HUD auto-fire. A look-area touch never fires. Touch sources all go through the one "fire" action in
+  `TouchHud._sync_fire_action`, so the shot takes the normal InputFrame / host path.
+- Mode: profile key `shooting_mode` ("advanced" | "simple"; unknown or missing = `data/input.json` `shooting.default_mode`),
+  Settings row "Shooting mode", applied live by `TouchHud.refresh_shooting_mode()`. Simple removes the right Fire button
+  (not drawn, not hit-tested); Left Fire and the Aim button stay.
+- Simple auto-fire is decided in `TouchHud._update_simple_fire`: `simple_fire_block_reason()` must be "" (mode, hidden,
+  suspended, no pawn, spectating, drop, downed, LAN session, sight down) and the read-only `Pawn.simple_fire_target()`
+  must name the same enemy for `shooting.simple.first_shot_delay_s`. It only decides when to press "fire"; it never
+  changes the aim direction. Semi weapons get one press per round.
+- Hold-to-ADS (`shooting.hold_to_ads`, off by default, Advanced only): a Fire button held for `hold_s` sets
+  `TouchProvider.hold_ads`; `InputRouter` ORs it into `aim_pressed` after the Aim toggle resolve, so a release never
+  lowers a toggled sight.
+- Look area and anchors are data (`input.json` `touch_layout.look_area`, `button_anchor`, `bottom_centre_anchor`, per-button
+  `offset` / `anchor` / `ring`); read the rects with `TouchHud.get_look_area_rect()` and `get_button_rect(key)`. The drawn
+  look stick exists only in look mode "stick" (`look_stick_rest` is used only there).
+- Layout version: `layout_editor.layout_version` (2) is stored as `hud_layouts.version`. On load `SaveService` resets an
+  older or unversioned layout and the legacy `sprint_lock_pos` once, writes the profile back, and sets
+  `layout_notice_pending` when something edited was discarded; the touch HUD shows a one-time notice and clears it.
+  The layout editor only warns when a control sits in the look area.
+- Tools: `tools/layout_probe.gd` (headless; prints every control rect per size and dpi and any overlap, off-screen or
+  under-48-dp problem) and `tools/h1a_capture.tscn` (windowed; advanced, simple, cover, editor and look-area shots plus a
+  contact sheet per size: 2176x1812, 2520x1080, 3120x1440).
 
 ### 4.16 Camera and FOV per aspect ratio
 - `CameraRig` (SpringArm3D + Camera3D, third person). FOV and offset come from `camera.json`: a table
@@ -860,10 +886,10 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
 - **No recoil, no camera knockback in cover** (decision 6, fix 15): the recoil skip in `_apply_weapon` stays;
   `Pawn._kick_camera` returns while `in_cover()`. The `fired` / `shot` signals (view model and soldier visual kick)
   are unchanged. Outside cover the knockback is unchanged (`tests/test_camera_knockback.gd`).
-- **HUD** (decision 5, fixes 7, 9). `TouchHud._sync_fire_action`: while the GameHud pawn is in cover
-  (`_fire_from_buttons_only`, read-only `Pawn.in_cover()`) only the right Fire and Left Fire buttons press "fire"; a
-  look hold or tap pulse is dropped, and a look touch that was down in cover (`_look_no_fire`) never latches fire or
-  pulses, even after an exit. `TouchHud.set_fire_dimmed` (from `_refresh_cover_slot`: in cover and not
+- **HUD** (decision 5, fixes 7, 9). `TouchHud._sync_fire_action` presses "fire" for the right Fire and Left Fire
+  buttons (and, in Simple mode, the HUD auto-fire), in and out of cover alike; since M2 H1a a look-area touch never
+  fires, so there is no cover special case in it (see "M2 H1a: shooting modes and touch layout" in 4.15).
+  `TouchHud.set_fire_dimmed` (from `_refresh_cover_slot`: in cover and not
   `Pawn.cover_fire_available()`) restyles both Fire buttons with `ui.json cover_fire_dim`; they stay pressable.
 - **Removed:** `CoverController.quick_draw`, `quick_draw_trigger`, `can_quick_draw`, `set_look_active`,
   `toggle_crouch`, `_tick_draw`, `_quick_held`, `_buffered_round`, `_look_active`, `_round_hold`, `_trigger_held`,

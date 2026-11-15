@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"gamertag": "OldLayout",
+	"last_ip": "",
+	"move_stick": "",
+	"vjoy_layout": "",
+	"sprint_sensitivity": 50,
+	"sprint_lock_pos": [0.56, 0.42],
+	"hud_layouts": {
+		"active": 1,
+		"slots": [
+			{"jump": {"pos": [0.7, 0.4], "size_pct": 120, "alpha_pct": 80}},
+			{"fire_right": {"pos": [0.8, 0.75]}, "sprint_lock": {"pos": [0.56, 0.42]}, "reload": {"size_pct": 110}},
+			{}
+		]
+	},
+	"left_fire_enabled": false,
+	"shooting_mode": "advanced"
+}

@@ -1,6 +1,6 @@
 extends Control
 ## Touch HUD: always-visible move stick (bottom-left, re-centres under the thumb) and look stick (bottom
-## centre-right, drag with tap-to-fire), plus action buttons.
+## centre-right, drag to turn; M2 H1a: a look touch never fires), plus action buttons.
 ## Feeds TouchProvider; buttons press InputMap actions. Layout comes from data/input.json.
 
 const _DataRegistry := preload("res://scripts/systems/data_registry.gd")
@@ -18,13 +18,7 @@ var _move_pos: Vector2 = Vector2.ZERO
 var _look_origin: Vector2 = Vector2.ZERO
 var _look_pos: Vector2 = Vector2.ZERO
 var _look_travel: float = 0.0
-var _look_down_s: float = 0.0
 var _look_moved: bool = false
-var _fire_pulse_s: float = 0.0
-var _look_hold_fire := false
-## M2 C1b stage 4 (fix 9): the current look touch was down while the pawn was in cover: it never latches fire or sends
-## the tap pulse, even if the pawn leaves cover before it lifts.
-var _look_no_fire := false
 var _hud_fire_down := false
 var _shoulder_pulse_left_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> element key (an action, or LEFT_FIRE_KEY)
@@ -58,7 +52,7 @@ func _refresh_button_visibility() -> void:
 
 ## M2 C1a stage 4 (spec item 5, fix 2): true while the local pawn's CameraRig wants first person
 ## (CameraRig.is_first_person). The Shoulder button is then hidden (data/ui.json first_person_touch.shoulder_visible,
-## OQ-FIRST-PERSON) and its slot stays reserved and swallows taps (no swap, no look, no tap-to-fire) until C1b puts the
+## OQ-FIRST-PERSON) and its slot stays reserved and swallows taps (no swap, no look) until C1b puts the
 ## Cover button there. Third person (cover, carrier, falling, downed, no rig) keeps today's Shoulder button.
 const SHOULDER_KEY := "swap_shoulder"
 var first_person_active := false
@@ -124,12 +118,6 @@ func _refresh_cover_slot() -> void:
 	if provider != null:
 		provider.cover_suppress_sprint = pawn != null and pawn.in_cover()
 	set_fire_dimmed(pawn != null and pawn.in_cover() and not pawn.cover_fire_available())
-
-## M2 C1b stage 4 (decision 5, fix 9): true while the local pawn is in any cover state (read-only, through the GameHud
-## pawn). Then only the right Fire and Left Fire buttons press "fire"; look-zone taps and holds only turn the view.
-func _fire_from_buttons_only() -> bool:
-	var pawn := _hud_pawn()
-	return pawn != null and pawn.in_cover()
 
 ## M2 C1b stage 4 (fix 7, [Shibi default]): the right Fire and Left Fire buttons dim behind HIGH cover away from an
 ## edge, where no lean or rise is possible and Fire does nothing (Pawn.cover_fire_available). Style: data/ui.json
@@ -223,7 +211,10 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for action in _layout["buttons"]:
+		if action == RIGHT_FIRE_KEY and shooting_mode() == SIMPLE_MODE:
+			continue  # M2 H1a: no right Fire button in Simple (refresh_shooting_mode)
 		_add_button(action, String(_layout["buttons"][action].get("label", action)))
+	_applied_shooting_mode = shooting_mode()
 	if left_fire_enabled():
 		_add_button(LEFT_FIRE_KEY, LEFT_FIRE_LABEL)
 	if bool(_DataRegistry.new().load_file("res://data/ui.json")["touch_debug_overlay"]["enabled"]):
@@ -231,8 +222,7 @@ func _ready() -> void:
 		debug_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		debug_label.position = Vector2(8, 8)
 		add_child(debug_label)
-	look_stick = _make_stick_visual("look_stick")
-	add_child(look_stick)
+	refresh_look_stick()
 	_make_sprint_elements()
 	rebuild_move_stick()
 	resized.connect(relayout)
@@ -285,11 +275,47 @@ func refresh_left_fire() -> void:
 		relayout()
 
 
+## M2 H1a: the touch shooting mode (data/input.json shooting, OQ-SHOOT-MODE). The profile's shooting_mode ("advanced" |
+## "simple", Settings "Shooting mode") wins; a missing or unknown value is the data default_mode.
+const ADVANCED_MODE := "advanced"
+const SIMPLE_MODE := "simple"
+
+
+func shooting_mode() -> String:
+	var shooting: Dictionary = cfg["shooting"]
+	var m: Variant = AppFlow.profile.get("shooting_mode", null)
+	return str(m) if m is String and (shooting["modes"] as Array).has(m) else str(shooting["default_mode"])
+
+
+## M2 H1a: Simple has no right Fire button: it is removed (not drawn, not hit-tested, so its rect is look area) and comes
+## back in Advanced. A touch held on it is dropped, and "fire" stays down only while another source holds it. A mode
+## change also drops the hold-to-ADS and Simple auto-fire state. Live toggle (Settings) and tests.
+func refresh_shooting_mode() -> void:
+	var simple := shooting_mode() == SIMPLE_MODE
+	if simple and _buttons.has(RIGHT_FIRE_KEY):
+		for idx in _button_touch.keys():
+			if _button_touch[idx] == RIGHT_FIRE_KEY:
+				_button_touch.erase(idx)
+		var b: Button = _buttons[RIGHT_FIRE_KEY]
+		_buttons.erase(RIGHT_FIRE_KEY)
+		remove_child(b)
+		b.free()
+	elif not simple and not _buttons.has(RIGHT_FIRE_KEY):
+		_add_button(RIGHT_FIRE_KEY, String(_layout["buttons"][RIGHT_FIRE_KEY].get("label", RIGHT_FIRE_KEY)))
+	if shooting_mode() != _applied_shooting_mode:
+		_applied_shooting_mode = shooting_mode()
+		_reset_shooting_state()
+	_sync_fire_action()
+	if is_inside_tree() and move_stick != null:
+		relayout()
+
+
 ## G2e: applies the profile's active layout slot over the data defaults.
 func reload_profile_layout() -> void:
 	apply_slot_layout(HudLayoutModel.from_dict(AppFlow.profile.get("hud_layouts", null)).active_slot())
 	if move_stick != null:
 		refresh_left_fire()  # G3e: a Settings toggle made while the HUD is live
+		refresh_shooting_mode()  # M2 H1a: likewise for the Shooting mode row
 
 
 ## Applies a layout slot (also used live by the layout editor) and re-places everything.
@@ -319,11 +345,34 @@ func _center_px(key: String, default_px: Vector2) -> Vector2:
 	return Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y)
 
 
-## Element keys the layout editor can edit: the two sticks, the Sprint lock button and every action button.
+## Element keys the layout editor can edit: the move stick, the look stick (only in look mode "stick", M2 H1a), the
+## Sprint lock button and every action button.
 func get_element_keys() -> Array:
-	var keys: Array = ["move_stick", "look_stick", LOCK_KEY]
+	var keys: Array = ["move_stick"]
+	if look_stick != null:
+		keys.append("look_stick")
+	keys.append(LOCK_KEY)
 	keys.append_array(_buttons.keys())
 	return keys
+
+
+## M2 H1a: the drawn look stick exists only in look mode "stick" (data/input.json look.mode, TouchProvider.look_mode).
+## In "drag" (the default) a look touch turns the view anywhere in the look zone and nothing is drawn for it.
+func look_stick_wanted() -> bool:
+	return provider.look_mode == "stick"
+
+
+## Builds or removes the look stick to match the look mode (also the hook for tests that change provider.look_mode).
+func refresh_look_stick() -> void:
+	if look_stick_wanted() and look_stick == null:
+		look_stick = _make_stick_visual("look_stick")
+		add_child(look_stick)
+	elif not look_stick_wanted() and look_stick != null:
+		remove_child(look_stick)
+		look_stick.free()
+		look_stick = null
+	if is_inside_tree() and move_stick != null:
+		relayout()
 
 
 ## Smallest touch target of an element in px (48 dp at this device's scale, data min_dp / min_target_dp).
@@ -341,7 +390,7 @@ func get_element_base_px(key: String) -> float:
 	if key == LOCK_KEY:
 		return float(cfg["sprint"]["lock_button"]["size_frac_of_height"]) * _area().y
 	if _buttons.has(key):
-		return float(_layout["button_size_frac_of_height"]) * _area().y
+		return float(_layout["button_size_frac_of_height"]) * _area().y * _ring_factor(key)
 	return 2.0 * maxf(1.0, float(_layout.get("stick_radius_frac_of_height", 0.12)) * _area().y)
 
 
@@ -353,6 +402,8 @@ func get_element_rect(key: String) -> Rect2:
 		return get_button_rect(key)
 	if key == "move_stick":
 		return get_move_visual_rect()
+	if key == "look_stick" and look_stick == null:
+		return Rect2()  # M2 H1a: no look stick element in look mode "drag"
 	var r := _radius(key)
 	return _to_global_rect(Rect2(get_look_rest() - Vector2.ONE * r, Vector2.ONE * r * 2.0))
 
@@ -392,12 +443,23 @@ func _lock_side(key: String) -> float:
 
 
 ## Lock button centre in HUD space: the active layout slot (G2e) wins over the profile's sprint_lock_pos
-## (which the editor mirrors from the slot), which wins over data/input.json.
+## (which the editor mirrors from the slot), which wins over the data default.
 func _lock_button_center() -> Vector2:
 	var p: Array = AppFlow.profile.get("sprint_lock_pos", []) if use_profile_lock_fallback else []
-	if p.size() != 2:
-		p = _layout["sprint_lock_pos"]
-	return _center_px(LOCK_KEY, Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y))
+	var default_c := _lock_default_center()
+	if p.size() == 2:
+		default_c = Vector2(float(p[0]) * _area().x, float(p[1]) * _area().y)
+	return _center_px(LOCK_KEY, default_c)
+
+
+## M2 H1a data default of the lock button (touch_layout.sprint_lock_offset, OQ-H1A-LAYOUT): above the move stick, next
+## to its lock target: the target's rest centre (above the move stick rest, as get_lock_target_rect) plus an offset in
+## lock button sides at 100 % (so it keeps its place where the 48 dp floor makes the buttons relatively big).
+func _lock_default_center() -> Vector2:
+	var o: Array = _layout["sprint_lock_offset"]
+	var target_c := get_move_rest() - Vector2(0.0, float(cfg["sprint"]["lock_target"]["distance_radii"]) * _radius())
+	var side := maxf(float(cfg["sprint"]["lock_button"]["size_frac_of_height"]) * _area().y, float(cfg["sprint"]["lock_button"]["min_dp"]) * _Platform.new().get_dp_scale())
+	return target_c + Vector2(float(o[0]), float(o[1])) * side
 
 
 func get_lock_button_rect() -> Rect2:
@@ -483,8 +545,7 @@ func _exit_tree() -> void:
 	for idx in _button_touch:
 		Input.action_release(_action_of(_button_touch[idx]))
 	_button_touch.clear()
-	_look_hold_fire = false
-	_fire_pulse_s = 0.0
+	_reset_shooting_state()
 	_hud_fire_down = false
 	Input.action_release("fire")
 
@@ -555,18 +616,51 @@ func get_move_target_dp() -> float:
 	return px / _Platform.new().get_dp_scale()
 
 
+## M2 H1a layout migration notice (data/ui.json layout_reset_notice): when SaveService reset a saved layout made for the
+## old placement, the profile carries layout_notice_pending. The first time this HUD is shown and live (not the layout
+## editor preview or its checkers, which are suspended) it shows the data text for duration_s and clears the flag in
+## the profile file, so the notice appears once. `save` is the profile it clears (tests point it at a temp file).
+var save := SaveService.new()
+var notice_label: Label
+var _notice_left_s := 0.0
+
+
+func _update_layout_notice(delta: float) -> void:
+	if notice_label != null:
+		_notice_left_s -= delta
+		if _notice_left_s <= 0.0:
+			notice_label.queue_free()
+			notice_label = null
+		return
+	if not visible or suspended or not bool(AppFlow.profile.get("layout_notice_pending", false)):
+		return
+	var c: Dictionary = _DataRegistry.new().load_file("res://data/ui.json")["layout_reset_notice"]
+	notice_label = Label.new()
+	notice_label.name = "LayoutNotice"
+	notice_label.text = str(c["text"])
+	notice_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	notice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notice_label.add_theme_font_size_override("font_size", int(float(c["font_dp"]) * _Platform.new().get_dp_scale()))
+	notice_label.position = Vector2(0.25 * _area().x, float(c["y_frac"]) * _area().y)
+	notice_label.size = Vector2(0.5 * _area().x, 0.0)
+	add_child(notice_label)
+	_notice_left_s = float(c["duration_s"])
+	AppFlow.profile["layout_notice_pending"] = false
+	var p := save.load_profile()
+	p["layout_notice_pending"] = false
+	save.save_profile(p)
+
+
 func _process(delta: float) -> void:
+	_update_layout_notice(delta)
 	_refresh_first_person()
 	_refresh_cover_slot()
 	if move_mode == "virtual":
 		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3], 0.0)
 	_place_sprint_elements()
-	if _look_touch != -1:
-		_look_down_s += delta
-		if not _look_moved and not _look_no_fire and _look_down_s > float(_layout["look_hold_fire"]["hold_min_s"]):
-			_look_hold_fire = true
-	if _fire_pulse_s > 0.0:
-		_fire_pulse_s = maxf(0.0, _fire_pulse_s - delta)
+	_update_hold_to_ads(delta)
+	_update_simple_fire(delta)
 	_sync_fire_action()
 	if _shoulder_pulse_left_s > 0.0:
 		_shoulder_pulse_left_s = maxf(0.0, _shoulder_pulse_left_s - delta)
@@ -636,11 +730,11 @@ func _update_sticks() -> void:
 	if move_stick == null:
 		return
 	var r := _radius()
-	var look_c := get_look_rest()
-	look_stick.place(look_c, _radius("look_stick"))
-	look_stick.modulate.a = _alpha("look_stick")
+	if look_stick != null:
+		look_stick.place(get_look_rest(), _radius("look_stick"))
+		look_stick.modulate.a = _alpha("look_stick")
+		look_stick.set_knob_offset((_look_pos - _look_origin) if _look_touch != -1 else Vector2.ZERO)
 	move_stick.modulate.a = _alpha("move_stick")
-	look_stick.set_knob_offset((_look_pos - _look_origin) if _look_touch != -1 else Vector2.ZERO)
 	if move_mode == "virtual":
 		var vj := move_stick as VirtualJoystick
 		var side := _vjoy_side()
@@ -703,18 +797,27 @@ func _move_grab_rect() -> Rect2:
 	return _zone_hit_rect("move_zone")
 
 
-## Button side in px: its data fraction of the HUD height, never below button_min_dp (touch target floor).
+## Primary button side in px: its data fraction of the HUD height, never below button_min_dp (touch target floor).
+## Also the unit of the button offsets, the look-area insets and the Interact button (data/ui.json interact_button).
 func _button_size() -> float:
 	return maxf(float(_layout["button_size_frac_of_height"]) * _area().y, float(_layout["button_min_dp"]) * _Platform.new().get_dp_scale())
 
 
-## Side of a button in px: its slot scale on the default size, never below button_min_dp.
+## M2 H1a: size factor of a button at 100 %: ring_size_ratio for the outer-ring buttons (data buttons.<key>.ring), 1 for
+## the primary ones (Aim, Fire, Reload) and Left Fire. OQ-H1A-LAYOUT.
+func _ring_factor(action: String) -> float:
+	var spec: Dictionary = _layout["buttons"].get(action, {})
+	return float(_layout["ring_size_ratio"]) if bool(spec.get("ring", false)) else 1.0
+
+
+## Side of a button in px: its slot scale on its default size (ring buttons smaller), never below button_min_dp.
 func _button_side(action: String) -> float:
-	return maxf(float(_layout["button_size_frac_of_height"]) * _area().y * _scale(action), float(_layout["button_min_dp"]) * _Platform.new().get_dp_scale())
+	return maxf(float(_layout["button_size_frac_of_height"]) * _area().y * _ring_factor(action) * _scale(action), float(_layout["button_min_dp"]) * _Platform.new().get_dp_scale())
 
 
-## A button's rect: its slot position, else its data offset (in default button sizes) from the DATA look stick
-## rest centre (so moving the look stick in the editor does not drag the buttons along).
+## A button's rect: its slot position, else its data offset (in primary button sizes, _button_size) from its anchor:
+## a screen point named by buttons.<key>.anchor, default button_anchor (M2 H1a: the bottom-right corner; buttons no
+## longer hang off the look stick rest).
 func _cell_rect(action: String) -> Rect2:
 	var s := _button_size()
 	var default_c: Vector2
@@ -722,11 +825,33 @@ func _cell_rect(action: String) -> Rect2:
 		var lp: Array = _layout["left_fire"]["pos"]
 		default_c = Vector2(float(lp[0]) * _area().x, float(lp[1]) * _area().y)
 	else:
-		var o: Array = _layout["buttons"][action]["offset"]
-		default_c = _rest_center("look_stick_rest") + Vector2(float(o[0]), float(o[1])) * s
+		var spec: Dictionary = _layout["buttons"][action]
+		var o: Array = spec["offset"]
+		default_c = _rest_center(str(spec.get("anchor", "button_anchor"))) + Vector2(float(o[0]), float(o[1])) * s
 	var c := _center_px(action, default_c)
 	var side := _button_side(action)
 	return Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side)
+
+
+## M2 H1a: the main look area (data touch_layout.look_area, OQ-H1A-LAYOUT), viewport space: the part of the screen where
+## the right thumb turns the view and where no control sits by default. Edges are fractions of the HUD, each moved in
+## by an inset in primary button sizes (_button_size, so the 48 dp floor on small screens is followed). A saved layout
+## may put a control into it: the layout editor warns (layout_editor.overlap_policy), nothing blocks it.
+func get_look_area_rect() -> Rect2:
+	var la: Dictionary = _layout["look_area"]
+	var ins: Dictionary = la["inset_buttons"]
+	var s := _button_size()
+	var a := _area()
+	var l := float(la["left_frac"]) * a.x + float(ins["left"]) * s
+	var t := float(la["top_frac"]) * a.y + float(ins["top"]) * s
+	var r := float(la["right_frac"]) * a.x - float(ins["right"]) * s
+	var b := float(la["bottom_frac"]) * a.y - float(ins["bottom"]) * s
+	return _to_global_rect(Rect2(l, t, maxf(0.0, r - l), maxf(0.0, b - t)))
+
+
+## A point where a touch only turns the view (the look area centre); tests and capture tools use it instead of pixels.
+func get_look_point() -> Vector2:
+	return get_look_area_rect().get_center()
 
 
 ## Screen rect of the button for an action (the HUD is full-screen, so this is viewport space).
@@ -783,7 +908,7 @@ func _stick(pos: Vector2, origin: Vector2, dead: float, key: String = "move_stic
 
 
 ## While the in-match menu is open the HUD ignores touches and drops everything it holds (sticks, buttons,
-## fire pulse, sprint lock), so nothing is left pressed behind the menu.
+## fire, sprint lock), so nothing is left pressed behind the menu.
 func set_suspended(on: bool) -> void:
 	suspended = on
 	if not on:
@@ -797,9 +922,8 @@ func set_suspended(on: bool) -> void:
 	for action in _VJOY_ACTIONS:
 		Input.action_release(action)
 	Input.action_release("fire")
-	_fire_pulse_s = 0.0
-	_look_hold_fire = false
 	_hud_fire_down = false
+	_reset_shooting_state()  # M2 H1a: no hold-to-ADS and no Simple auto-fire behind the menu
 	_shoulder_pulse_left_s = 0.0
 	_apply_shoulder_pulse()
 	_lock_btn_touch = -1
@@ -817,6 +941,11 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_on_down(event.index, event.position)
+			# M2 H1a: a press that hit a button or the Sprint lock button is consumed, so it never also reaches the GUI,
+			# where the floating VirtualJoystick (the whole move zone, left half) would spawn under it: Swap, the fire-mode
+			# and Interact neighbours, Left Fire and the lock button sit in that half.
+			if _button_touch.has(event.index) or event.index == _lock_btn_touch:
+				get_viewport().set_input_as_handled()
 		else:
 			_on_up(event.index)
 		_debug_touch(event.index, event.pressed, event.position)
@@ -857,9 +986,6 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_look_touch = idx
 		_look_origin = pos
 		_look_pos = pos
-		_look_down_s = 0.0
-		_look_hold_fire = false
-		_look_no_fire = _fire_from_buttons_only()
 		_look_moved = false
 		_look_travel = 0.0
 		provider.clear_look()
@@ -912,35 +1038,140 @@ func _on_up(idx: int) -> void:
 			provider.lock_sprint()
 		_update_sticks()
 	elif idx == _look_touch:
-		if not _look_hold_fire and not _look_moved and not _look_no_fire and not _fire_from_buttons_only() \
-				and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
-			_fire_pulse_s = float(_layout.get("fire_pulse_s", 0.08))
 		_look_touch = -1
-		_look_hold_fire = false
-		_look_no_fire = false
-		_sync_fire_action()
 		provider.clear_look()
 		_update_sticks()
 
 
-## The general fire action is the union of the Fire buttons, a latched look hold and a tap pulse.
-## M2 C1b stage 4 (decision 5, fix 9): in cover only the right Fire and Left Fire buttons count; a look hold or a tap
-## pulse is dropped there (the look touch is marked so it cannot fire after an exit either).
+## The general fire action is the union of the Fire buttons (right Fire and the optional Left Fire) and, in the Simple
+## shooting mode, the HUD's auto-fire (_update_simple_fire). Every touch shot goes through this one "fire" action, so it
+## reaches the InputFrame and the normal fire path (ammo, spread, recoil, host checks).
+## M2 H1a: a look-area touch only turns the view, in and out of cover; it never presses "fire" (was: a look tap sent a
+## short fire pulse and a still look hold latched fire, outside cover only).
 func _sync_fire_action() -> void:
-	if _fire_from_buttons_only():
-		_look_hold_fire = false
-		_fire_pulse_s = 0.0
-		if _look_touch != -1:
-			_look_no_fire = true
-	var held := _look_hold_fire or _fire_pulse_s > 0.0
-	for key in _button_touch.values():
-		held = held or _action_of(key) == "fire"
-	if held and not suspended:
+	var held := _fire_button_held()
+	if not held:
+		_fire_hold_s = 0.0  # hold-to-ADS: a release lowers the sight at once (the Aim toggle latch is separate)
+		provider.hold_ads = false
+	if (held or _simple_fire_down) and not suspended:
 		Input.action_press("fire")
 		_hud_fire_down = true
 	elif _hud_fire_down:
 		Input.action_release("fire")
 		_hud_fire_down = false
+
+
+# ---- M2 H1a: shooting modes (data/input.json shooting, OQ-SHOOT-MODE) --------------------------------------------------
+
+## Hold-to-ADS: seconds the Fire buttons have been held without a break.
+var _fire_hold_s: float = 0.0
+## Simple auto-fire: its share of the fire union, the target it waits on, how long the crosshair has stayed on it, and
+## the pawn clock (one step per physics tick) of its last semi press and release.
+var _simple_fire_down := false
+var _simple_target_id: int = 0  # instance id, so a freed target is never touched
+var _simple_on_target_s: float = 0.0
+var _simple_press_clock: float = -INF
+var _simple_release_clock: float = -INF
+var _applied_shooting_mode := ""
+
+
+func _fire_button_held() -> bool:
+	for key in _button_touch.values():
+		if _action_of(key) == "fire":
+			return true
+	return false
+
+
+func _reset_shooting_state() -> void:
+	_fire_hold_s = 0.0
+	provider.hold_ads = false
+	_simple_fire_down = false
+	_simple_target_id = 0
+	_simple_on_target_s = 0.0
+
+
+## Advanced only, off unless shooting.hold_to_ads.enabled: a Fire button (right or Left Fire) held for hold_s sets
+## TouchProvider.hold_ads, which InputRouter ORs into aim_pressed after the Aim toggle; any release clears it
+## (_sync_fire_action). The Aim toggle latch is never touched, so with Aim on a release keeps the sight up.
+func _update_hold_to_ads(delta: float) -> void:
+	var h: Dictionary = cfg["shooting"]["hold_to_ads"]
+	if suspended or not bool(h["enabled"]) or shooting_mode() != ADVANCED_MODE or not _fire_button_held():
+		_fire_hold_s = 0.0
+		provider.hold_ads = false
+		return
+	_fire_hold_s += delta
+	provider.hold_ads = _fire_hold_s >= float(h["hold_s"])
+
+
+## Why Simple auto-fire is off right now, "" when it may fire. All read-only facts, checked in this order:
+## "mode" (not Simple), "hidden" (HUD not shown: not a touch device), "suspended" (in-match menu open), "no_pawn" (no
+## GameHud sibling or it has no live pawn), "spectating" (the local pawn is DEAD, or GameHud.spectate_text is set by
+## MatchRoot), "drop" (Pawn.drop_state ABOARD or FALLING), "downed" (not Pawn.is_alive: DOWNED or 0 health),
+## "lan" (Pawn.in_lan_session: MatchRoot.networked_match), "sight_down" (Pawn.aiming false: the sight is not up).
+func simple_fire_block_reason() -> String:
+	if shooting_mode() != SIMPLE_MODE:
+		return "mode"
+	if not visible:
+		return "hidden"
+	if suspended:
+		return "suspended"
+	var pawn := _hud_pawn()
+	if pawn == null:
+		return "no_pawn"
+	var game_hud := get_node_or_null("../GameHud")
+	var spectate: Variant = game_hud.get("spectate_text") if game_hud != null else null
+	if pawn.life == Pawn.Life.DEAD or (spectate is String and spectate != ""):
+		return "spectating"
+	if pawn.drop_state != Pawn.Drop.NONE:
+		return "drop"
+	if not pawn.is_alive():
+		return "downed"
+	if pawn.in_lan_session():
+		return "lan"
+	if not pawn.aiming:
+		return "sight_down"
+	return ""
+
+
+## Simple: decides only WHEN the HUD presses "fire", never where the gun points (no aim change anywhere). While
+## simple_fire_block_reason() is "" and Pawn.simple_fire_target() names the same enemy for shooting.simple.first_shot_delay_s,
+## fire is held (auto and the legacy burst repeat on their own); a semi weapon gets one press per round: pressed when the
+## weapon can take its next round on the coming physics tick (pawn clock + one tick >= its next fire time), released once
+## a physics tick has seen the press (the pawn clock moved), so every round is a new edge at the weapon's own interval
+## and no round is armed more than one tick ahead. Off target, reloading or empty: not pressed.
+func _update_simple_fire(delta: float) -> void:
+	var was_down := _simple_fire_down
+	var pawn := _hud_pawn()
+	var target: Pawn = pawn.simple_fire_target() if simple_fire_block_reason() == "" else null
+	if target == null:
+		_simple_target_id = 0
+		_simple_on_target_s = 0.0
+		_simple_fire_down = false
+	else:
+		if target.get_instance_id() != _simple_target_id:
+			_simple_target_id = target.get_instance_id()
+			_simple_on_target_s = 0.0
+		else:
+			_simple_on_target_s += delta
+		var w := pawn.loadout.get_active()
+		if _simple_on_target_s < float(cfg["shooting"]["simple"]["first_shot_delay_s"]) or w == null or w.reloading or not w.has_ammo():
+			_simple_fire_down = false
+		elif w.fire_mode != "semi":
+			_simple_fire_down = true
+		elif _simple_fire_down:
+			if pawn.get_clock() > _simple_press_clock:
+				_simple_fire_down = false
+		elif pawn.get_clock() > _simple_release_clock and pawn.get_clock() + _physics_tick_s() >= w._next_fire_time - 0.0001:
+			_simple_fire_down = true
+			_simple_press_clock = pawn.get_clock()
+	if was_down and not _simple_fire_down and pawn != null:
+		_simple_release_clock = pawn.get_clock()
+
+
+## One physics tick in seconds: the next tick's weapon update sees a press made now, so a semi press goes in one tick
+## before the weapon's next fire time (the round then fires exactly on its interval, never armed earlier than that).
+func _physics_tick_s() -> float:
+	return 1.0 / float(maxi(Engine.physics_ticks_per_second, 1))
 
 
 func _on_drag(idx: int, pos: Vector2, relative: Vector2) -> void:

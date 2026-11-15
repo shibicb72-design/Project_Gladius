@@ -223,8 +223,9 @@ func test_reset_restores_the_g2l_default_exactly() -> void:
 	var ed := await _editor(COVER)
 	var layout: Dictionary = DataRegistry.new().load_file("res://data/input.json")["touch_layout"]
 	var area := Vector2(COVER)
-	var s: float = maxf(float(layout["button_size_frac_of_height"]) * area.y, float(layout["button_min_dp"]) * PlatformServices.new().get_dp_scale())
-	var look := Vector2(layout["look_stick_rest"][0] * area.x, layout["look_stick_rest"][1] * area.y)
+	var dp := PlatformServices.new().get_dp_scale()
+	var s: float = maxf(float(layout["button_size_frac_of_height"]) * area.y, float(layout["button_min_dp"]) * dp)
+	var input: Dictionary = DataRegistry.new().load_file("res://data/input.json")
 	for key in ed.preview.get_element_keys():
 		ed.select_element(key)
 		ed.move_selected_to(Vector2(0.37, 0.41))
@@ -233,13 +234,19 @@ func test_reset_restores_the_g2l_default_exactly() -> void:
 	assert_true(ed.model.active_slot().size() == ed.preview.get_element_keys().size(), "every element was edited")
 	ed.reset_current()
 	assert_true(ed.model.active_slot().is_empty(), "slot data is empty after Reset")
-	var expect_center := {
-		"move_stick": Vector2(layout["move_stick_rest"][0] * area.x, layout["move_stick_rest"][1] * area.y),
-		"look_stick": look,
-		"sprint_lock": Vector2(layout["sprint_lock_pos"][0] * area.x, layout["sprint_lock_pos"][1] * area.y)}
+	# M2 H1a: buttons hang off their screen anchor (button_anchor or buttons.<key>.anchor); the Sprint lock off its
+	# lock target's rest centre (sprint_lock_offset, in lock sides); no look stick element in look mode "drag".
+	var move_c := Vector2(layout["move_stick_rest"][0] * area.x, layout["move_stick_rest"][1] * area.y)
+	var radius := maxf(float(layout["stick_radius_frac_of_height"]) * area.y, 24.0 * dp)
+	var lock_side := maxf(float(input["sprint"]["lock_button"]["size_frac_of_height"]) * area.y, float(input["sprint"]["lock_button"]["min_dp"]) * dp)
+	var target_c := move_c - Vector2(0.0, float(input["sprint"]["lock_target"]["distance_radii"]) * radius)
+	var lo: Array = layout["sprint_lock_offset"]
+	var expect_center := {"move_stick": move_c, "sprint_lock": target_c + Vector2(lo[0], lo[1]) * lock_side}
 	for action in layout["buttons"]:
-		var o: Array = layout["buttons"][action]["offset"]
-		expect_center[action] = look + Vector2(o[0], o[1]) * s
+		var spec: Dictionary = layout["buttons"][action]
+		var a: Array = layout[str(spec.get("anchor", "button_anchor"))]
+		var o: Array = spec["offset"]
+		expect_center[action] = Vector2(a[0], a[1]) * area + Vector2(o[0], o[1]) * s
 	for key in ed.preview.get_element_keys():
 		var r: Rect2 = ed.preview.get_element_rect(key)
 		assert_true(r.get_center().distance_to(expect_center[key]) < EPS, "%s centre %s is the data default %s" % [key, r.get_center(), expect_center[key]])
@@ -269,7 +276,7 @@ func test_save_load_round_trip() -> void:
 	ed.select_element("reload")
 	ed.move_selected_to(Vector2(0.3, 0.55))
 	ed.size_slider.value = 120.0
-	ed.select_element("look_stick")
+	ed.select_element("move_stick")  # M2 H1a: was look_stick, not an element in look mode "drag"
 	ed.alpha_slider.value = 55.0
 	ed.select_element("sprint_lock")
 	ed.move_selected_to(Vector2(0.62, 0.3))
@@ -309,13 +316,13 @@ func test_save_load_round_trip() -> void:
 
 func test_editor_never_edits_the_data_default_lock_position() -> void:
 	_begin()
-	var before: Array = DataRegistry.new().load_file("res://data/input.json")["touch_layout"]["sprint_lock_pos"].duplicate()
+	var before: Array = DataRegistry.new().load_file("res://data/input.json")["touch_layout"]["sprint_lock_offset"].duplicate()
 	var ed := await _editor(COVER)
 	ed.select_element("sprint_lock")
 	ed.move_selected_to(Vector2(0.62, 0.3))
 	assert_true(ed.save_layout(), "saved")
 	ed.free()
-	assert_eq(DataRegistry.new().load_file("res://data/input.json")["touch_layout"]["sprint_lock_pos"], before, "data default untouched")
+	assert_eq(DataRegistry.new().load_file("res://data/input.json")["touch_layout"]["sprint_lock_offset"], before, "data default untouched")
 	var lock: Array = SaveService.new(TMP).load_profile()["sprint_lock_pos"]
 	assert_true(lock.size() == 2 and absf(lock[0] - 0.62) < 0.0001 and absf(lock[1] - 0.3) < 0.0001, "the profile sprint_lock_pos holds the edit: %s" % [lock])
 	_end()
@@ -363,14 +370,15 @@ func test_overlap_with_hud_bar_warns_and_does_not_block() -> void:
 func test_default_layout_has_no_issues_at_the_four_sizes() -> void:
 	_begin()
 	var ed := await _editor(COVER)
-	for sz in SIZES:
-		assert_true(ed.check_slot(0, sz).is_empty(), "the G2L default layout is clean at %s: %s" % [sz, ed.check_slot(0, sz)])
+	assert_eq(ed.check_sizes().size(), 6, "M2 H1a: the six test sizes are checked")
+	for sz in ed.check_sizes():  # M2 H1a: was the four SIZES; the check now also covers the main look area
+		assert_true(ed.check_slot(0, sz).is_empty(), "the default layout is clean at %s: %s" % [sz, ed.check_slot(0, sz)])
 	ed.free()
 	_end()
 
 
 func test_model_sanitizes_files() -> void:
-	var m := HudLayoutModel.from_dict({"active": 9, "slots": [{"jump": {"pos": [2.0, -1.0], "size_pct": 9999, "alpha_pct": 0}, "": {"pos": [0.5, 0.5]}, "x": 5}, "junk"]})
+	var m := HudLayoutModel.from_dict({"version": HudLayoutModel.current_version(), "active": 9, "slots": [{"jump": {"pos": [2.0, -1.0], "size_pct": 9999, "alpha_pct": 0}, "": {"pos": [0.5, 0.5]}, "x": 5}, "junk"]})
 	assert_eq(m.active, 2, "active clamped to the last slot")
 	assert_eq(m.slots[0]["jump"]["pos"], [1.0, 0.0], "pos clamped to 0..1")
 	assert_eq(m.slots[0]["jump"]["size_pct"], 250.0, "size clamped to the data range")

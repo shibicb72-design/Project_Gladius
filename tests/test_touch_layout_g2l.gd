@@ -1,7 +1,8 @@
 extends "res://tests/test_case.gd"
 
-## G2L: the default touch layout. Look stick bottom-right, the six buttons smaller and north-west of it,
-## one data default for the Sprint lock button (touch_layout.sprint_lock_pos), 48 dp targets, no overlaps.
+## G2L: the default touch layout, as re-arranged by M2 H1a (tests/test_h1a_layout.gd has the six-size checks): the
+## buttons at the screen edges out of the main look area, one data default for the Sprint lock button
+## (touch_layout.sprint_lock_offset), 48 dp targets, no overlaps.
 
 const _TouchScene := preload("res://scenes/ui/touch_hud.tscn")
 const _HudScene := preload("res://scenes/ui/hud.tscn")
@@ -30,16 +31,20 @@ func _modes() -> Array:
 	return ["custom", "virtual"]
 
 
-func test_look_stick_bottom_right_and_buttons_north_west() -> void:
+## M2 H1a: replaces test_look_stick_bottom_right_and_buttons_north_west (the buttons no longer cluster north-west of the
+## look stick, they sit at the screen edges). In look mode "stick" the drawn look stick sits in the main look area,
+## right of the screen centre, and no button covers it.
+func test_look_stick_in_the_look_area_and_clear_of_buttons() -> void:
 	for mode in _modes():
 		_TouchHud.move_stick_override = mode
 		for sz in SIZES:
 			var touch := _new_touch(sz)
-			var look: Vector2 = touch.look_stick.get_global_rect().get_center()
-			assert_true(look.x > 0.5 * sz.x and look.y > 0.5 * sz.y, "%s %s: look stick centre %s in the bottom-right quadrant" % [mode, sz, look])
+			touch.provider.look_mode = "stick"
+			touch.refresh_look_stick()
+			var look: Rect2 = touch.look_stick.get_global_rect()
+			assert_true(look.get_center().x > 0.5 * sz.x and touch.get_look_area_rect().has_point(look.get_center()), "%s %s: look stick centre %s in the look area" % [mode, sz, look.get_center()])
 			for action in touch.get_button_actions():
-				var c: Vector2 = touch.get_button_rect(action).get_center()
-				assert_true(c.x < look.x and c.y < look.y, "%s %s: %s centre %s north-west of look centre %s" % [mode, sz, action, c, look])
+				assert_true(not touch.get_button_rect(action).intersects(look), "%s %s: %s clear of the look stick %s" % [mode, sz, action, look])
 			touch.free()
 	_TouchHud.move_stick_override = ""
 
@@ -59,8 +64,7 @@ func test_targets_at_least_48dp_at_dpi_0_and_420() -> void:
 		var dp := PlatformServices.new().get_dp_scale()
 		for sz in SIZES:
 			var touch := _new_touch(sz)
-			var rects := {"look_stick": touch.look_stick.get_global_rect(), "move_stick": touch.get_move_visual_rect(),
-				"lock_button": touch.get_lock_button_rect()}
+			var rects := {"move_stick": touch.get_move_visual_rect(), "lock_button": touch.get_lock_button_rect()}  # M2 H1a: no look stick in drag mode
 			for action in touch.get_button_actions():
 				rects["button_" + action] = touch.get_button_rect(action)
 			for n in rects:
@@ -88,7 +92,8 @@ func _check_pairwise(sz: Vector2) -> void:
 	pm.size = sz
 	await (Engine.get_main_loop() as SceneTree).process_frame
 	await (Engine.get_main_loop() as SceneTree).process_frame
-	var items := {"move_stick": touch.get_move_visual_rect(), "look_stick": touch.look_stick.get_global_rect(),
+	# M2 H1a: the main look area takes the drawn look stick's place (no look stick in look mode "drag").
+	var items := {"move_stick": touch.get_move_visual_rect(), "look_area": touch.get_look_area_rect(),
 		"lock_button": touch.get_lock_button_rect(), "lock_target": touch.get_lock_target_rect(),
 		"gear": pm.get_gear_touch_rect()}
 	for action in touch.get_button_actions():
@@ -134,18 +139,23 @@ func test_lock_default_only_in_touch_layout_and_profile_overrides() -> void:
 	var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/input.json"))
 	assert_true(not cfg["sprint"]["lock_button"].has("pos"), "no lock default in sprint.lock_button")
 	assert_true(not str(cfg["sprint"]).contains("0.56"), "old lock default value gone from the sprint block")
-	var def: Array = cfg["touch_layout"]["sprint_lock_pos"]
-	assert_eq(def.size(), 2, "touch_layout.sprint_lock_pos is [x, y]")
+	# M2 H1a: the default is touch_layout.sprint_lock_offset (lock sides from the lock target's rest centre); the old
+	# screen-fraction default sprint_lock_pos is gone from the data (the profile key of that name stays the override).
+	assert_true(not cfg["touch_layout"].has("sprint_lock_pos"), "old fraction default removed")
+	var def: Array = cfg["touch_layout"]["sprint_lock_offset"]
+	assert_eq(def.size(), 2, "touch_layout.sprint_lock_offset is [dx, dy]")
 	assert_true(cfg["touch_layout"]["_placeholder"], "touch_layout (incl. the lock default) is placeholder")
-	# The only reader of the default is TouchHud._lock_button_center (git grep lock_button / sprint_lock_pos: the
-	# other readers, save_service.gd, settings_panel.gd, main_menu.gd, only carry the profile value, [] = default).
+	# The only reader of the default is TouchHud._lock_default_center (the other readers, save_service.gd,
+	# settings_panel.gd, main_menu.gd, only carry the profile value, [] = default).
 	var sz := Vector2(1512, 648)
 	var old_profile: Dictionary = AppFlow.profile
 	var prof := old_profile.duplicate()
 	prof["sprint_lock_pos"] = []
 	AppFlow.profile = prof
 	var touch := _new_touch(sz)
-	assert_true(touch.get_lock_button_rect().get_center().is_equal_approx(Vector2(float(def[0]) * sz.x, float(def[1]) * sz.y)), "default comes from touch_layout.sprint_lock_pos")
+	var side: float = touch.get_lock_button_rect().size.x
+	var target_c: Vector2 = touch.get_lock_target_rect().get_center()
+	assert_true(touch.get_lock_button_rect().get_center().is_equal_approx(target_c + Vector2(float(def[0]), float(def[1])) * side), "default comes from touch_layout.sprint_lock_offset")
 	prof["sprint_lock_pos"] = [0.25, 0.5]
 	touch.relayout()
 	assert_true(touch.get_lock_button_rect().get_center().is_equal_approx(Vector2(0.25 * sz.x, 0.5 * sz.y)), "profile value overrides the default")

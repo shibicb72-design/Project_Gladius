@@ -42,9 +42,16 @@ func bind(local_pawn: Pawn, touch: Control, menu: PauseMenu) -> void:
 static func touch_rect(settings: Dictionary, view_size: Vector2) -> Rect2:
 	var scale_dp := PlatformServices.new().get_dp_scale()
 	var side := float(settings["touch_dp"]) * scale_dp
-	var corner := Vector2(float(settings["anchor"][0]) * view_size.x, float(settings["anchor"][1]) * view_size.y)
-	var margin := Vector2(float(settings["margin_dp"][0]), float(settings["margin_dp"][1])) * scale_dp
-	return Rect2(Vector2(corner.x - margin.x - side, corner.y + margin.y), Vector2.ONE * side)
+	# M2 H1a: placed like the touch HUD buttons (was a corner anchor plus a dp margin): the screen point of data/input.json
+	# touch_layout named by touch_anchor, plus offset_buttons primary button sides (touch_layout.button_size_frac_of_height
+	# of the height, at least button_min_dp), so it keeps its slot in the bottom row where the 48 dp floor makes the
+	# buttons relatively big. Static, so layout checks need no TouchHud.
+	var tl: Dictionary = DataRegistry.new().load_file("res://data/input.json")["touch_layout"]
+	var s := maxf(float(tl["button_size_frac_of_height"]) * view_size.y, float(tl["button_min_dp"]) * scale_dp)
+	var a: Array = tl[str(settings["touch_anchor"])]
+	var o: Array = settings["offset_buttons"]
+	var c := Vector2(float(a[0]), float(a[1])) * view_size + Vector2(float(o[0]), float(o[1])) * s
+	return Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side)
 
 
 func get_touch_rect() -> Rect2:

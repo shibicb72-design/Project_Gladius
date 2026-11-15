@@ -639,11 +639,11 @@ func test_hud_only_the_fire_buttons_fire_in_cover_and_they_dim_away_from_an_edge
 	await frames(2)
 	assert_true(not touch.fire_dimmed, "at an edge the Fire buttons are not dimmed")
 	assert_true(_fire_bg_alpha(touch.RIGHT_FIRE_KEY) > float(dim["bg_alpha"]) + 0.01, "normal Fire style at the edge")
-	var hold_s := float(touch._layout["look_hold_fire"]["hold_min_s"])
+	# M2 H1a: the look_hold_fire.hold_min_s data key is gone; a 60-frame hold is well past the old 0.2 s threshold.
 	await _hold(_look_point(), 3)
 	await frames(30)
 	assert_true(not _fire_seen and _shots == 0, "a look-zone tap does not fire in cover")
-	await _hold(_look_point(), ceili(hold_s * 60.0) + 20)
+	await _hold(_look_point(), 60)
 	await frames(30)
 	assert_true(not _fire_seen and _shots == 0, "a look-zone hold does not fire in cover")
 	await _hold(touch.get_button_rect(touch.RIGHT_FIRE_KEY).get_center(), 30)
@@ -654,7 +654,8 @@ func test_hud_only_the_fire_buttons_fire_in_cover_and_they_dim_away_from_an_edge
 	await _hold(touch.get_button_rect(touch.LEFT_FIRE_KEY).get_center(), 30)
 	await frames(40)
 	assert_true(_fire_seen and _shots > after_right, "Left Fire fires in cover")
-	# Outside cover the look-zone tap fires again.
+	# M2 H1a: outside cover the look-zone tap and hold do not fire either (was: outside cover a look-zone tap fired);
+	# the right Fire button still does.
 	await _hold(touch.get_button_rect(touch.SHOULDER_KEY).get_center(), 2)
 	for i in 60:
 		await frames(1)
@@ -666,5 +667,11 @@ func test_hud_only_the_fire_buttons_fire_in_cover_and_they_dim_away_from_an_edge
 	var before := _shots
 	await _hold(_look_point(), 3)
 	await frames(20)
-	assert_true(_shots > before, "outside cover a look-zone tap fires")
+	assert_true(not _fire_seen and _shots == before, "outside cover a look-zone tap does not fire")
+	await _hold(_look_point(), 60)
+	await frames(20)
+	assert_true(not _fire_seen and _shots == before, "outside cover a look-zone hold does not fire")
+	await _hold(touch.get_button_rect(touch.RIGHT_FIRE_KEY).get_center(), 30)
+	await frames(20)
+	assert_true(_fire_seen and _shots > before, "outside cover the right Fire button fires")
 	await _match_cleanup()

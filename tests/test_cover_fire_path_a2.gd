@@ -266,7 +266,8 @@ func test_free_controls_restore_after_cover() -> void:
 	await cleanup()
 
 ## M2 C1b stage 4: was test_look_and_optional_left_fire_general_action_only_outside_cover.
-func test_look_fires_only_outside_cover_and_left_fire_also_in_cover() -> void:
+## M2 H1a: was test_look_fires_only_outside_cover_and_left_fire_also_in_cover; a look-zone hold now never fires.
+func test_look_never_fires_and_left_fire_fires_in_and_out_of_cover() -> void:
 	await setup(Vector2i(2520, 1080), 420.0)
 	AppFlow.profile["left_fire_enabled"] = true
 	touch.refresh_left_fire()
@@ -280,16 +281,16 @@ func test_look_fires_only_outside_cover_and_left_fire_also_in_cover() -> void:
 			var before := shots
 			event_at(point, true)
 			await frames(20)
-			# M2 C1b stage 4 (decision 5, fix 9): in cover only the Fire buttons press "fire"; the look-zone hold does not.
-			# Was (stage 3): the HUD pressed "fire" for both and the pawn ignored it in cover.
+			# M2 H1a: only the Fire buttons press "fire", in and out of cover; the look-zone hold never does.
+			# Was (C1b stage 4): the look-zone hold pressed "fire" outside cover only.
 			var is_look: bool = point != touch._buttons["fire_left"].get_global_rect().get_center()
-			assert_eq(Input.is_action_pressed("fire"), not (covered and is_look), "fire pressed by look=%s covered=%s" % [is_look, covered])
+			assert_eq(Input.is_action_pressed("fire"), not is_look, "fire pressed by look=%s covered=%s" % [is_look, covered])
 			event_at(point, false)
 			await frames(12)
-			if covered and is_look:
-				assert_eq(shots, before, "a look-zone hold never shoots in cover")
+			if is_look:
+				assert_eq(shots, before, "a look-zone hold never shoots (covered=%s)" % covered)
 			else:
-				assert_true(shots > before, "Left Fire shoots in cover, and every fire source outside cover (covered=%s)" % covered)
+				assert_true(shots > before, "Left Fire shoots in and out of cover (covered=%s)" % covered)
 			await frames(30)  # the return from the lean before the next press
 	await cleanup()
 

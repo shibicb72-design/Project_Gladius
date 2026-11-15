@@ -196,9 +196,9 @@
 	},
 	"fire_mode_button": {
 		"_placeholder": true,
-		"_todo": "OQ-FIRE-MODE: every layout/font value in this block is a placeholder, not a design value. Anchor and margin locate the square like pause_gear; target >= 48 dp.",
-		"anchor": [0.8, 0.04],
-		"margin_dp": [8.0, 20.0],
+		"_todo": "OQ-FIRE-MODE, OQ-H1A-LAYOUT: every layout/font value in this block is a placeholder, not a design value. target touch_dp >= 48 dp. M2 H1a: touch_anchor names a screen point of input.json touch_layout and offset_buttons moves the centre in primary touch button sides from it (like interact_button): the bottom edge, left of the Swap button, out of the look area (it was anchor [0.8, 0.04] with margin_dp [8, 20], top right in the look area).",
+		"touch_anchor": "bottom_centre_anchor",
+		"offset_buttons": [-1.75, -0.6],
 		"touch_dp": 48.0,
 		"font_dp": 12.0
 	},
@@ -228,14 +228,22 @@
 	},
 	"interact_button": {
 		"_placeholder": true,
-		"_todo": "OQ-BR-DOWNED: Interact (Revive) button placement, size, label and alpha are placeholders, not design values. Anchor = the touch HUD's data look-stick rest centre (input.json touch_layout.look_stick_rest); offset and size are in default touch button sides (touch_layout.button_size_frac_of_height, floor button_min_dp), the units the other touch buttons use. Centre-right, five button sides left of the look stick (step 3, Nov 9 2026: moved from [-1.65, 0.0] so it no longer covers the right Fire button). The middle of the band clear of every touch button, the Sprint lock and target, gear and fire-mode buttons on the Fold cover and inner sizes at 420, 373 and 0 dpi (probe).",
-		"anchor": "look_stick_rest",
-		"offset_buttons": [-5.0, -1.2],
+		"_todo": "OQ-BR-DOWNED, OQ-H1A-LAYOUT: Interact (Revive) button placement, size, label and alpha are placeholders, not design values. anchor = the name of a touch HUD screen point in input.json touch_layout (M2 H1a: bottom_centre_anchor, the bottom centre; it was the look stick rest); offset and size are in primary touch button sides (touch_layout.button_size_frac_of_height, floor button_min_dp), the units the other touch buttons use. size_buttons stays 1.0: it has no 48 dp floor of its own. M2 H1a: just left of the screen centre, directly above the Swap button, between the thumbs and out of the look area (it was centre-right, in the look area); it only takes touches while shown (a revive, pickup or chest in reach).",
+		"anchor": "bottom_centre_anchor",
+		"offset_buttons": [-0.65, -1.8],
 		"size_buttons": 1.0,
 		"font_dp": 12.0,
 		"label": "Revive",
 		"fill_alpha": 0.55,
 		"pressed_fill_alpha": 0.85
+	},
+	"layout_reset_notice": {
+		"_placeholder": true,
+		"_todo": "OQ-H1A-LAYOUT (M2 H1a): one-time notice the touch HUD shows in the first live match after SaveService reset a saved touch layout made for the old button placement (profile layout_notice_pending). Text, time and placement are placeholders, not design values: y_frac of the HUD height for the top of the label, centred in the middle half of the width.",
+		"text": "New touch controls: your saved button layout was reset to the new default. Change it in Settings > HUD layout.",
+		"duration_s": 6.0,
+		"font_dp": 14.0,
+		"y_frac": 0.22
 	},
 	"pause_menu": {
 		"_placeholder": true,

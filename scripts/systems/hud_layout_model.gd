@@ -11,10 +11,21 @@ const LEFT_FIRE_KEY := "fire_left"  # element key of the optional left Fire butt
 
 var active: int = 0
 var slots: Array = []  # slot index -> {element key -> {pos, size_pct, alpha_pct}}
+## M2 H1a migration: true when from_dict met a stored layout older than data layout_editor.layout_version (no
+## "version" key = the G2e format, made for the old placement) and reset it to the defaults; `discarded` is true when
+## that old layout held any edit (so the player had something to lose and gets the one-time notice).
+var migrated := false
+var discarded := false
 
 
 static func cfg() -> Dictionary:
 	return DataRegistry.new().load_file("res://data/input.json")["layout_editor"]
+
+
+## M2 H1a: the layout format version written by to_dict (data layout_editor.layout_version). A stored layout with a
+## lower or missing version is reset on load: its positions were made for a placement that no longer exists.
+static func current_version() -> int:
+	return int(cfg()["layout_version"])
 
 
 func _init() -> void:
@@ -27,6 +38,13 @@ static func from_dict(d: Variant) -> HudLayoutModel:
 	if not (d is Dictionary):
 		return m
 	var raw: Variant = d.get("slots", [])
+	var v: Variant = d.get("version", 0)
+	if not (_num(v) and int(v) >= current_version()):
+		m.migrated = true
+		if raw is Array:
+			for s in raw:
+				m.discarded = m.discarded or not _sanitize_slot(s).is_empty()
+		return m  # every slot back to the defaults, slot 1 active
 	if raw is Array:
 		for i in mini(raw.size(), m.slots.size()):
 			m.slots[i] = _sanitize_slot(raw[i])
@@ -37,7 +55,7 @@ static func from_dict(d: Variant) -> HudLayoutModel:
 
 
 func to_dict() -> Dictionary:
-	return {"active": active, "slots": slots.duplicate(true)}
+	return {"version": current_version(), "active": active, "slots": slots.duplicate(true)}
 
 
 static func _num(v: Variant) -> bool:

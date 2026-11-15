@@ -130,13 +130,14 @@ func test_fire_button_works_with_virtual_move_finger_held() -> void:
 	var hud := _hud()
 	_touch(0, Vector2(200, 400), true)
 	_drag(0, Vector2(200, 320), Vector2(0, -80))
-	var fire_c: Vector2 = hud.get_element_rect("look_stick").get_center()
+	# M2 H1a: the second finger holds the right Fire button (was a look-stick tap and its timed fire pulse).
+	var fire_c: Vector2 = hud.get_button_rect(hud.RIGHT_FIRE_KEY).get_center()
 	_touch(1, fire_c, true)
-	_touch(1, fire_c, false)
 	await _frames(2)
 	assert_true(Input.is_action_pressed("fire"), "fire pressed by second finger")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still non-zero")
-	await _frames(6)  # look-tap pulse expires, without releasing the move finger
+	_touch(1, fire_c, false)
+	await _frames(2)  # released by the Fire button lift, without releasing the move finger
 	assert_true(not Input.is_action_pressed("fire"), "fire released")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still held")
 	_touch(0, Vector2(200, 320), false)
@@ -299,12 +300,13 @@ func _check_hud_clear(sz: Vector2, layout: String) -> void:
 		"ammo_label": game.ammo_label, "alive_label": game.alive_label, "zone_label": game.zone_label,
 		"downed_label": game.downed_label}
 	var move_rect: Rect2 = touch.get_move_visual_rect()
-	var look_rect: Rect2 = touch.look_stick.get_global_rect()
-	var touch_items := {"move_stick": move_rect, "look_stick": look_rect}
+	# M2 H1a: no drawn look stick in look mode "drag"; the move stick must stay out of the main look area instead.
+	var look_rect: Rect2 = touch.get_look_area_rect()
+	var touch_items := {"move_stick": move_rect}
 	for action in touch.get_button_actions():
 		touch_items["button_" + action] = touch.get_button_rect(action)
 	var view := Rect2(Vector2.ZERO, sz)
-	assert_true(not move_rect.intersects(look_rect), "%s: move and look sticks overlap at %s" % [layout, sz])
+	assert_true(not move_rect.intersects(look_rect), "%s: move stick and look area overlap at %s" % [layout, sz])
 	if layout == "fixed":
 		assert_true(touch.move_stick.get_global_rect().is_equal_approx(move_rect), "fixed: the Control is exactly the stick at %s" % sz)
 	for hname in hud_items:

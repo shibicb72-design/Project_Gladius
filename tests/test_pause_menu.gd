@@ -459,7 +459,7 @@ func _check_gear_clear(sz: Vector2) -> void:
 		"weapon_label": game.weapon_label.get_global_rect(), "ammo_label": game.ammo_label.get_global_rect(),
 		"alive_label": game.alive_label.get_global_rect(), "zone_label": game.zone_label.get_global_rect(),
 		"downed_label": game.downed_label.get_global_rect(), "move_stick": touch.move_stick.get_global_rect(),
-		"look_stick": touch.look_stick.get_global_rect(), "lock_button": touch.get_lock_button_rect()}
+		"look_area": touch.get_look_area_rect(), "lock_button": touch.get_lock_button_rect()}  # M2 H1a: was the drawn look stick
 	for action in touch.get_button_actions():
 		items["button_" + action] = touch.get_button_rect(action)
 	var gear := {"icon": pm.get_gear_icon_rect(), "touch": pm.get_gear_touch_rect()}

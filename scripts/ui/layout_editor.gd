@@ -5,7 +5,8 @@ extends Control
 ## layouts (slots 1-3) with an active slot; Save and Reset act on the slots, Reset restores the G2L default.
 ## Positions are stored as fractions of the HUD so a layout scales with the screen. The gear (top-right) is not
 ## editable. An element partly outside the safe viewport at any checked size blocks Save and is named in a
-## warning; overlap with the gear or the HUD bars only warns (data layout_editor.overlap_policy).
+## warning; overlap with the gear, the HUD bars or (M2 H1a) the main look area only warns (data
+## layout_editor.overlap_policy). In look mode "drag" (the default) there is no look stick element to edit.
 ## The 48 dp floor: the size slider cannot go lower, and TouchHud never draws a target below it.
 ## Landscape only (OQ-PORTRAIT).
 
@@ -318,10 +319,16 @@ func check_slot(slot_i: int, sz: Vector2i) -> Array:
 	for n in ["shield_bar", "health_bar", "weapon_label", "ammo_label", "alive_label", "zone_label", "downed_label"]:
 		bars[n] = (hud.get(n) as Control).get_global_rect()
 	bars["gear"] = gear_rect(Vector2(sz))
+	var look_area: Rect2 = touch.get_look_area_rect()
 	for key in touch.get_element_keys():
 		var r: Rect2 = touch.get_element_rect(key)
 		if not safe.encloses(r):
 			out.append(_issue(slot_i, sz, key, "offscreen", "%s is partly off-screen at %dx%d" % [element_name(key), sz.x, sz.y]))
+		# M2 H1a: a control in the main look area (touch_layout.look_area) is where the look thumb lands by accident.
+		# Warned only, never blocked (overlap_policy warn_only): the player may want it there.
+		# The look stick (look mode "stick" only) rests inside the look area by design, so it is never warned.
+		if key != "look_stick" and r.intersects(look_area):
+			out.append(_issue(slot_i, sz, key, "look_area", "%s is in the look area at %dx%d" % [element_name(key), sz.x, sz.y]))
 		for bname in bars:
 			if r.intersects(bars[bname]):
 				var what: String = "the gear" if bname == "gear" else "the HUD (%s)" % String(bname).replace("_", " ")

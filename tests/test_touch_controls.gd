@@ -313,14 +313,24 @@ func test_gamepad_obeys_cap() -> void:
 	assert_true(g.x > 0.0 and g.x <= cap + 1e-9 and g.y <= cap + 1e-9, "gamepad capped, got %s cap %s" % [g, cap])
 
 
-func test_tap_in_look_zone_pulses_fire() -> void:
+## M2 H1a: a look-zone tap and a still look-zone hold only turn the view; neither presses fire (was:
+## test_tap_in_look_zone_pulses_fire, the tap pressed fire for a short pulse).
+func test_tap_and_hold_in_look_zone_never_fire() -> void:
 	for mode in ["stick", "drag"]:
 		var hud := _new_hud(mode)
 		_touch(hud, 2, Vector2(900, 300), true)
+		assert_eq(hud._look_touch, 2, "%s: the touch is a look touch" % mode)
 		_touch(hud, 2, Vector2(900, 300), false)
-		assert_true(Input.is_action_pressed("fire"), "%s tap presses fire" % mode)
-		hud._process(1.0)
-		assert_true(not Input.is_action_pressed("fire"), "%s fire released" % mode)
+		assert_true(not Input.is_action_pressed("fire"), "%s tap does not press fire" % mode)
+		hud._process(1.0 / 60.0)
+		assert_true(not Input.is_action_pressed("fire"), "%s tap does not press fire on the next frame" % mode)
+		_touch(hud, 2, Vector2(900, 300), true)
+		for i in 60:
+			hud._process(1.0 / 60.0)
+		assert_true(not Input.is_action_pressed("fire"), "%s still hold does not press fire" % mode)
+		_touch(hud, 2, Vector2(900, 300), false)
+		hud._process(1.0 / 60.0)
+		assert_true(not Input.is_action_pressed("fire"), "%s hold release does not press fire" % mode)
 		hud.free()
 
 
@@ -367,12 +377,12 @@ func test_fire_button_works_with_move_finger_held() -> void:
 	var hud := _new_hud()
 	_touch(hud, 0, Vector2(200, 400), true)
 	_drag(hud, 0, Vector2(200, 320), Vector2(0, -80))
-	var point: Vector2 = hud.get_element_rect("look_stick").get_center()
+	# M2 H1a: the second finger presses the right Fire button (was a look-stick tap and its fire pulse).
+	var point: Vector2 = hud.get_button_rect(hud.RIGHT_FIRE_KEY).get_center()
 	_touch(hud, 1, point, true)
-	_touch(hud, 1, point, false)
 	assert_true(Input.is_action_pressed("fire"), "fire pressed by second finger")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still non-zero")
-	hud._process(float(hud._layout["fire_pulse_s"]) + 0.01)
+	_touch(hud, 1, point, false)
 	assert_true(not Input.is_action_pressed("fire"), "fire released")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still held")
 	_touch(hud, 0, Vector2(200, 320), false)
@@ -401,13 +411,15 @@ func test_relayout_folded_and_unfolded() -> void:
 		hud.size = sz
 		hud.relayout()
 		var view := Rect2(Vector2.ZERO, sz)
-		var move_zone: Rect2 = hud._zone_rect("move_zone")
+		# M2 H1a: Swap (bottom centre, left of the centre line) is in the move zone's half, so the check is the drawn
+		# move stick; outer-ring buttons are ring_size_ratio of the primary size.
+		var move_rect: Rect2 = hud.get_move_visual_rect()
 		var rects: Array = []
 		for action in BUTTON_LABELS:
 			var r: Rect2 = hud.get_button_rect(action)
 			assert_true(view.encloses(r), "%s inside %s, got %s" % [action, sz, r])
-			assert_true(r.size.y >= min_frac * sz.y - 0.001, "%s height at %s" % [action, sz])
-			assert_true(not r.intersects(move_zone), "%s clear of move zone at %s" % [action, sz])
+			assert_true(r.size.y >= min_frac * hud._ring_factor(action) * sz.y - 0.001, "%s height at %s" % [action, sz])
+			assert_true(not r.intersects(move_rect), "%s clear of the move stick at %s" % [action, sz])
 			for other in rects:
 				assert_true(not r.intersects(other), "%s overlaps another at %s" % [action, sz])
 			rects.append(r)
@@ -416,6 +428,8 @@ func test_relayout_folded_and_unfolded() -> void:
 
 func _check_rest_sticks(sz: Vector2) -> void:
 	var hud := _new_hud()
+	hud.provider.look_mode = "stick"  # M2 H1a: the look stick is drawn only in look mode "stick" (drag: test_h1a_layout)
+	hud.refresh_look_stick()
 	hud.size = sz
 	hud.relayout()
 	var view := Rect2(Vector2.ZERO, sz)
@@ -424,7 +438,9 @@ func _check_rest_sticks(sz: Vector2) -> void:
 	for name in sticks:
 		var s: Control = sticks[name]
 		assert_true(s != null and s.is_visible_in_tree(), "%s stick visible at rest at %s" % [name, sz])
-		var r := s.get_global_rect()
+		# M2 H1a: the drawn move stick (get_move_visual_rect); the floating VirtualJoystick Control is the whole move
+		# zone, which Swap (just left of the screen centre) now shares; a button press there never reaches the joystick.
+		var r: Rect2 = hud.get_move_visual_rect() if name == "move" else s.get_global_rect()
 		assert_true(r.size.x > 0.0 and r.size.y > 0.0, "%s stick has size at %s" % [name, sz])
 		assert_true(view.encloses(r), "%s stick inside viewport %s, got %s" % [name, sz, r])
 		for action in BUTTON_LABELS:
@@ -432,7 +448,7 @@ func _check_rest_sticks(sz: Vector2) -> void:
 		for other in rects:
 			assert_true(not r.intersects(other), "sticks overlap at %s" % sz)
 		rects.append(r)
-	assert_true(hud.move_stick.get_global_rect().get_center().x < hud.look_stick.get_global_rect().get_center().x, "move stick left of look stick at %s" % sz)
+	assert_true(hud.get_move_visual_rect().get_center().x < hud.look_stick.get_global_rect().get_center().x, "move stick left of look stick at %s" % sz)
 	hud.free()
 
 
@@ -466,7 +482,7 @@ func _check_hud_clear(sz: Vector2) -> void:
 		"shield_bar": game.shield_bar, "health_bar": game.health_bar, "weapon_label": game.weapon_label,
 		"ammo_label": game.ammo_label, "alive_label": game.alive_label, "zone_label": game.zone_label,
 		"downed_label": game.downed_label}
-	var touch_items := {"move_stick": touch.move_stick.get_global_rect(), "look_stick": touch.look_stick.get_global_rect()}
+	var touch_items := {"move_stick": touch.move_stick.get_global_rect()}  # M2 H1a: no drawn look stick in drag mode
 	for action in BUTTON_LABELS:
 		touch_items["button_" + action] = touch.get_button_rect(action)
 	var view := Rect2(Vector2.ZERO, sz)
