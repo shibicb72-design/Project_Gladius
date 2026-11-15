@@ -60,38 +60,62 @@ func test_flat_maps_get_the_plain_files() -> void:
 		assert_eq(cfg["loot"], plain["loot"], map_path + ": loot config equals the plain file")
 
 
-func test_alesia_1km_overrides_are_the_minimum() -> void:
+func test_alesia_1km_overrides_follow_the_rules() -> void:
 	var plain := _cfg()
 	var big := _cfg(BIG)
 	var over: Dictionary = MatchDirector.map_overrides(BIG)
 	for block: Array in [[over["br"]["zone"], "OQ-BR-ZONE"], [over["br"]["drop"], "OQ-BR-DROP"], [over["loot"], "OQ-BR-LOOT"]]:
 		var b: Dictionary = block[0]
 		assert_true(bool(b.get("_placeholder", false)) and String(b.get("_todo", "")).contains(String(block[1])) and String(b["_todo"]).contains("guess"), "%s: a placeholder, labelled a guess" % block[1])
-	# Zone: covers the play circle, br.json's radius fractions, phase count, waits and damage; shrinks only slowed.
+	# Zone: covers the play circle; the phases follow tools/gen_zone.gd's rules for the map's "zone_gen" inputs
+	# (tests/test_zone_gen.gd checks they are exactly the tool's output).
 	var zone: Dictionary = big["br"]["zone"]
 	var base: Dictionary = plain["br"]["zone"]
-	var play := float(DataRegistry.parse_quiet(BIG)["play_radius_m"])
+	var def := DataRegistry.parse_quiet(BIG)
+	var play := float(def["play_radius_m"])
+	var zg: Dictionary = def["zone_gen"]
+	var min_shrink := float(zg["min_shrink_s"])
 	assert_eq(float(zone["start_radius_m"]), play, "the zone starts on the play circle")
 	assert_eq(zone["start_center"], base["start_center"], "the zone starts at the centre")
-	assert_eq((zone["phases"] as Array).size(), (base["phases"] as Array).size(), "the phase count is br.json's")
+	assert_eq((zone["phases"] as Array).size(), (zg["phases"] as Array).size(), "one phase per zone_gen entry")
+	assert_eq(float(zg["edge_speed_cap_mps"]), EDGE_MPS, "the edge cap is zone_gen's")
 	var prev := float(zone["start_radius_m"])
+	var prev_damage := -INF
 	var nominal := 0.0
 	for i in (zone["phases"] as Array).size():
 		var ph: Dictionary = zone["phases"][i]
-		var bp: Dictionary = base["phases"][i]
-		assert_eq(float(ph["damage_per_s"]), float(bp["damage_per_s"]), "phase %d damage is br.json's" % i)
-		assert_eq(float(ph["wait_s"]), float(bp["wait_s"]), "phase %d wait is br.json's" % i)
-		assert_true(absf(float(ph["radius_m"]) - float(bp["radius_m"]) / float(base["start_radius_m"]) * play) < 0.01, "phase %d radius is br.json's fraction of the start" % i)
-		assert_true(float(ph["shrink_s"]) >= float(bp["shrink_s"]), "phase %d shrink is never faster than br.json's" % i)
+		for key: String in ["wait_s", "shrink_s"]:
+			assert_true(float(ph[key]) > 0.0 and float(ph[key]) == floorf(float(ph[key])), "phase %d %s is a whole number of seconds (%s)" % [i, key, ph[key]])
+		assert_true(float(ph["radius_m"]) < prev, "phase %d circle is strictly smaller than the one before (with the centre move limit, inside it)" % i)
+		assert_true(float(ph["damage_per_s"]) > prev_damage, "phase %d damage is higher than the one before" % i)
+		assert_true(float(ph["shrink_s"]) >= min_shrink, "phase %d shrink is at least zone_gen.min_shrink_s" % i)
 		var edge := 2.0 * (prev - float(ph["radius_m"])) / float(ph["shrink_s"])
 		assert_true(edge <= EDGE_MPS + 0.001, "phase %d: the edge moves at most %.1f m/s (%.2f)" % [i, EDGE_MPS, edge])
-		# Only as slow as needed: one second less would break the rule, or the shrink is br.json's own.
-		assert_true(float(ph["shrink_s"]) == float(bp["shrink_s"]) or 2.0 * (prev - float(ph["radius_m"])) / (float(ph["shrink_s"]) - 1.0) > EDGE_MPS, "phase %d shrink is the minimum" % i)
+		# Only as slow as needed: one second less would break the cap, or the shrink is the minimum.
+		assert_true(float(ph["shrink_s"]) == min_shrink or 2.0 * (prev - float(ph["radius_m"])) / (float(ph["shrink_s"]) - 1.0) > EDGE_MPS, "phase %d shrink is the shortest the cap allows" % i)
 		nominal += float(ph["wait_s"]) + float(ph["shrink_s"])
 		prev = float(ph["radius_m"])
+		prev_damage = float(ph["damage_per_s"])
 	assert_eq(prev, 0.0, "the last phase ends at radius 0")
+	# The reach rule, with the merged drop: the last forced drop lands, then runs across to the first circle
+	# (2 x (play radius - first radius) at zone_gen.run_speed_mps) before the first shrink ends.
+	var merged_drop: Dictionary = big["br"]["drop"]
+	var first: Dictionary = zone["phases"][0]
+	var t_land := float(merged_drop["carrier_s"]) + float(merged_drop["altitude_m"]) / float(merged_drop["max_fall_mps"])
+	var reach_s := t_land + 2.0 * (play - float(first["radius_m"])) / float(zg["run_speed_mps"])
+	assert_true(reach_s <= float(first["wait_s"]) + float(first["shrink_s"]), "the last lander can reach the first circle before its shrink ends (%.1f s <= %d s)" % [reach_s, int(float(first["wait_s"]) + float(first["shrink_s"]))])
 	var rules := ModeRegistry.create(MatchDirector.MODE_ID, {MatchDirector.MODE_ID: big["br"]}) as BrRules
 	assert_true(rules != null and rules.config_problems().is_empty(), "BrRules accepts the merged 1 km config")
+	# Nested for real: on a few seeds every seeded target circle lies inside the one before.
+	for seed_value in (20 if rules != null else 0):
+		rules.set_seed(seed_value)
+		var outer_c := Vector2(float(zone["start_center"][0]), float(zone["start_center"][1]))
+		var outer_r := play
+		for circle: Dictionary in rules.get("_circles"):
+			var c: Vector2 = circle["center"]
+			assert_true(c.distance_to(outer_c) + float(circle["radius"]) <= outer_r + 0.001, "seed %d: each zone circle lies inside the one before" % seed_value)
+			outer_c = c
+			outer_r = float(circle["radius"])
 	for key: String in ["teams", "downed", "end", "default_seed"]:
 		assert_eq(big["br"][key], plain["br"][key], key + " is br.json's")
 	# Drop: crosses the play circle; altitude, glide and fall stay br.json's.
