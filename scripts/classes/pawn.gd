@@ -129,9 +129,12 @@ func set_frame(frame: InputFrame) -> void:
 ## D1: press-time action from the input layer (InputRouter.action_triggered via MatchRoot).
 ## One press is one toggle: the frame's crouch_just_pressed bit is transport only until the host-side cover slice, so the
 ## physics tick never toggles from it. Reads cover at call time (tests enable it after begin()).
+## M2 C1b stage 2 (decision 7, fix 4): "crouch" is ignored. In cover the crouch is automatic (low vs high cover, see
+## CoverController._update_crouch); outside cover the press never did anything (the old toggle only acted in cover).
+## The InputFrame bit, the router entry and this entry point stay.
 func handle_action_press(action: String) -> void:
-	if action == "crouch" and cover != null and is_alive():
-		cover.toggle_crouch()
+	if action == "crouch":
+		return
 	elif action == "cover_fire" and cover != null and is_alive():
 		cover.quick_draw(true)
 	elif action == "cover" and cover_button_available():
@@ -384,6 +387,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_ensure_cover()
 	_apply_look()
+	_tick_cover_turn(delta)
 	_apply_aim(delta)
 	if drop_state == Drop.FALLING:
 		_apply_fall(delta)
@@ -786,6 +790,68 @@ var _cover_button_ok := false
 ## M2 C1b stage 1 (fix 13): one haptic tick on every cover entry, the Cover button or the auto-snap.
 func _on_cover_entered() -> void:
 	Haptics.play("cover_snap")
+	_begin_cover_turn()
+
+
+## M2 C1b stage 2 (decision 1, fix 12): the automatic look turn on cover entry. The pawn's own yaw is the look yaw
+## (_apply_look), so the turn eases it toward the wall tangent times CoverController.side (looking along the wall
+## toward the nearer open edge), over camera.json cover_blend_s with a smoothstep, together with the rig's first-to-
+## third blend. Pitch stays the player's. No turn on exit. Values: camera.json cover_blend_s, cover.turn_cancel_look_deg.
+var _cover_turn_total := 0.0
+var _cover_turn_t := 0.0
+var _cover_turn_s := 0.0
+
+
+func _begin_cover_turn() -> void:
+	_cover_turn_s = 0.0
+	if cover == null:
+		return
+	var along: Vector3 = cover.tangent * float(cover.side)
+	along.y = 0.0
+	if along.length_squared() < 1e-6:
+		return
+	var target := atan2(-along.x, -along.z)
+	_cover_turn_total = wrapf(target - global_rotation.y, -PI, PI)
+	_cover_turn_t = 0.0
+	_cover_turn_s = maxf(0.0, cover_blend_s())
+	if _cover_turn_s <= 0.0:
+		rotate_y(_cover_turn_total)  # a 0 s blend is a cut
+
+
+## camera.json cover_blend_s (OQ-COVER): the FREE <-> cover camera blend and the entry look turn.
+func cover_blend_s() -> float:
+	var entry: Variant = _camera.get("cover_blend_s", {})
+	return float((entry as Dictionary).get("value", 0.0)) if entry is Dictionary else float(entry)
+
+
+## True while the automatic entry turn is still running.
+func is_cover_turning() -> bool:
+	return _cover_turn_s > 0.0
+
+
+## Stops the rest of the automatic entry turn where it is (what a look input does in _tick_cover_turn).
+func cancel_cover_turn() -> void:
+	_cover_turn_s = 0.0
+
+
+## Runs right after _apply_look. The player's look input is never locked (0 s, inside cover.json input_lock_max_s):
+## any look delta above cover.turn_cancel_look_deg (per physics frame, a gyro noise floor) cancels the rest of the
+## turn, so it never fights the thumb. Leaving cover (EXITING or FREE) cancels it too.
+func _tick_cover_turn(delta: float) -> void:
+	if _cover_turn_s <= 0.0:
+		return
+	var cancel_entry: Variant = (_camera.get("cover", {}) as Dictionary).get("turn_cancel_look_deg", {})
+	var cancel_rad := deg_to_rad(float((cancel_entry as Dictionary).get("value", 0.0)) if cancel_entry is Dictionary else 0.0)
+	var looking := absf(_frame.look.x) > cancel_rad or absf(_frame.look.y) > cancel_rad
+	if cover == null or not in_cover() or cover.state == CoverController.State.EXITING or looking or not is_alive():
+		cancel_cover_turn()
+		return
+	var s0 := smoothstep(0.0, 1.0, _cover_turn_t / _cover_turn_s)
+	_cover_turn_t = minf(_cover_turn_t + maxf(delta, 0.0), _cover_turn_s)
+	var s1 := smoothstep(0.0, 1.0, _cover_turn_t / _cover_turn_s)
+	rotate_y(_cover_turn_total * (s1 - s0))
+	if _cover_turn_t >= _cover_turn_s:
+		_cover_turn_s = 0.0
 
 
 func _ensure_cover() -> void:

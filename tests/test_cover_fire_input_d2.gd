@@ -74,7 +74,10 @@ func setup() -> void:
 	match_scene.router.action_look_changed.connect(func(a: String, on: bool): looks.append([a, on]))
 	# Walk in through the input layer (KeyboardMouseProvider reads move_forward).
 	Input.action_press("move_forward")
-	await frames(60)
+	for i in 60:
+		await frames(1)
+		if pawn.in_cover():
+			pawn.cancel_cover_turn()  # M2 C1b stage 2: the view stays on the wall (as a look input would keep it)
 	Input.action_release("move_forward")
 	touch.provider.cancel_sprint_lock()
 	await frames(4)

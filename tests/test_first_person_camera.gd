@@ -130,11 +130,12 @@ func test_free_cover_free_cycle_is_smooth() -> void:
 	assert_true(_rig.get_spring_length() == 0.0, "first person: spring 0")
 	var meter := Meter.new()
 	meter.sample(cam, _pawn)
-	# Into cover: push at the wall until the controller snaps, enters and the blend reaches third person.
+	# Into cover: push at the wall until the controller auto-snaps, then let go of the stick (M2 C1b: the automatic
+	# turn looks along the wall, so a held forward stick would now slide) while the blend reaches third person.
 	var reached_third := false
 	var saw_entering := false
 	for i in 150:
-		await _tick(Vector2(0, -1))
+		await _tick(Vector2(0, -1) if _pawn.cover.state == CoverController.State.FREE and not saw_entering else Vector2.ZERO)
 		meter.sample(cam, _pawn)
 		saw_entering = saw_entering or _pawn.cover.state == CoverController.State.ENTERING
 		if _pawn.cover.state == CoverController.State.IN_COVER and _rig.get_first_person_weight() == 0.0:
@@ -142,15 +143,18 @@ func test_free_cover_free_cycle_is_smooth() -> void:
 			break
 	assert_true(saw_entering and reached_third, "real cover entry reached third person (state %s, weight %s)" % [_pawn.cover.state, _rig.get_first_person_weight()])
 	assert_true(not _rig.is_first_person(), "in cover: third person wanted")
-	assert_true(absf(_rig.get_spring_length() - hip) < EPS, "in cover: spring back at the cover value %s (got %s)" % [hip, _rig.get_spring_length()])
+	# M2 C1b stage 2: the close cover view (camera.json cover.distance_m), not today's arm_length_m.
+	var cover_len := float(cfg["cover"]["distance_m"]["value"])
+	assert_true(hip > cover_len and absf(_rig.get_spring_length() - cover_len) < EPS, "in cover: spring at the cover value %s (got %s)" % [cover_len, _rig.get_spring_length()])
 	var enter := [meter.max_m, meter.max_deg, meter.max_pawn_m, meter.max_still_m]
-	# Settle the cover follow, then leave: one frame of back input starts EXITING, then no input.
+	# Settle the cover follow, then leave with the Cover button (M2 C1b: the new exit method), then no input.
 	for i in 30:
 		await _tick(Vector2.ZERO)
 		meter.sample(cam, _pawn)
-	await _tick(Vector2(0, 1))
+	_pawn.handle_action_press("cover")
+	await _tick(Vector2.ZERO)
 	meter.sample(cam, _pawn)
-	assert_eq(_pawn.cover.state, CoverController.State.EXITING, "back input starts the real exit")
+	assert_eq(_pawn.cover.state, CoverController.State.EXITING, "the Cover button starts the real exit")
 	var reached_first := false
 	for i in 150:
 		await _tick(Vector2.ZERO)
@@ -174,7 +178,7 @@ func test_moving_exit_measured() -> void:
 	await _fixture()
 	var cam := _rig.get_camera()
 	for i in 150:
-		await _tick(Vector2(0, -1))
+		await _tick(Vector2(0, -1) if _pawn.cover.state == CoverController.State.FREE else Vector2.ZERO)
 		if _pawn.cover.state == CoverController.State.IN_COVER and _rig.get_first_person_weight() == 0.0:
 			break
 	for i in 30:
@@ -182,6 +186,9 @@ func test_moving_exit_measured() -> void:
 	var meter := Meter.new()
 	meter.sample(cam, _pawn)
 	var reached_first := false
+	# M2 C1b stage 2: the Cover button starts the exit (the automatic turn means back stick no longer points away from
+	# the wall); the stick is then held back the whole time, so the pawn walks while the exit blend runs.
+	_pawn.handle_action_press("cover")
 	for i in 150:
 		await _tick(Vector2(0, 1))
 		meter.sample(cam, _pawn)
@@ -877,7 +884,7 @@ func test_local_body_on_the_layer_and_the_camera_mask_follows_the_mode() -> void
 	var drawn_entering := false
 	var swap_weight := -1.0
 	for i in 150:
-		await _tick(Vector2(0, -1))
+		await _tick(Vector2(0, -1) if _pawn.cover.state == CoverController.State.FREE else Vector2.ZERO)
 		if _cam_draws_body() == vm.visible:
 			mismatches += 1
 		# M2 C1b stage 1: ENTERING is capped at cover.json input_lock_max_s (0.15 s), shorter than the 0.35 s blend, so
@@ -893,7 +900,7 @@ func test_local_body_on_the_layer_and_the_camera_mask_follows_the_mode() -> void
 	assert_true(swap_weight >= 0.0 and swap_weight < _vm_f("show_weight"), "the body appears below show_weight (at %s)" % swap_weight)
 	for i in 30:
 		await _tick(Vector2.ZERO)
-	await _tick(Vector2(0, 1))
+	_pawn.handle_action_press("cover")  # M2 C1b stage 2: the Cover button exit (was one frame of back stick)
 	for i in 150:
 		await _tick(Vector2.ZERO)
 		if _cam_draws_body() == vm.visible:

@@ -54,6 +54,8 @@ func _tick(move: Vector2, fire: bool = false, reload: bool = false, sprint: bool
 func _enter(sprint: bool = false) -> void:
 	for i in 60:
 		await _tick(Vector2(0, -1), false, false, sprint)
+		if _pawn.in_cover():
+			_pawn.cancel_cover_turn()  # M2 C1b stage 2: the view stays on the wall (as a look input would keep it)
 	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "real wall snap and enter")
 
 func _cleanup() -> void:
@@ -161,6 +163,7 @@ func test_sprint_lock_forward_intent_snaps_and_stays_in_cover() -> void:
 		await _tick(Vector2(0, -1), false, false, true)
 	assert_eq(_pawn.cover.state, CoverController.State.FREE, "a held sprint never auto-snaps")
 	_pawn.handle_action_press("cover")
+	_pawn.cancel_cover_turn()  # M2 C1b stage 2: the view stays on the wall, so the held stick still pushes into it
 	for i in 60:
 		await _tick(Vector2(0, -1), false, false, true)
 	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "the Cover button enters with sprint held")

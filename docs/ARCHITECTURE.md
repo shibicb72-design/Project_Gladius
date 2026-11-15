@@ -609,7 +609,7 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
 `CoverIndex`. `Pawn._ensure_cover` builds it only for the local player (CameraRig child, no Brain,
 `net_mode` LOCAL, offline). All numbers are placeholders in `data/cover.json` (OQ-COVER).
 
-#### C1b cover as built (kept current per stage; stage 1 = the Cover button and auto-snap)
+#### C1b cover as built (kept current per stage; stage 1 = the Cover button and auto-snap; stage 2 = the cover camera, pose and auto crouch)
 - **Entry by button.** Touch only in C1b. The touch HUD's Shoulder slot (`swap_shoulder` element) is the
   Cover button while `Pawn.cover_button_available()` (controller present, ALIVE, `drop_state` NONE, not
   LAN): on the ground, FREE or in cover. Carrier, falling and downed show Shoulder swap as C1a left it.
@@ -649,6 +649,56 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
 - **HUD mode source.** The touch HUD finds the pawn through the sibling `../GameHud` node's `pawn`
   (`_hud_pawn`); no GameHud or pawn = no Cover button (the slot stays Shoulder).
 - Tests: `tests/test_cover_entry_c1b.gd`.
+
+**Stage 2: the cover camera, the wall-hug pose and the automatic crouch.**
+- **Camera modes.** `CameraRig.is_first_person()` is false only while the local pawn HOLDS cover: ENTERING,
+  IN_COVER, PEEK_LEFT, PEEK_RIGHT (`_holds_cover`, also `in_cover_view()`). EXITING already wants first person
+  (fix 32), so the exit blend starts with the exit, not 0.3 s later at FREE; the body / view-model swap stays at
+  `first_person.view_model.show_weight` 0.6 (one physics frame, both ways) and the touch HUD's mode follows
+  `is_first_person()`. Blend time: `camera.json cover_blend_s` (0.6) when the blend goes into cover or comes back
+  from the cover pose (`_cover_w > 0`); `first_person.blend_s` (0.35) for carrier, falling and downed.
+- **Cover pose.** The third-person end of the first-person blend is `lerp(today's pose, cover pose, _cover_w)`:
+  spring length `cover.distance_m` (leaned out `out_distance_m`), side offset `cover.side_offset_m` (leaned out
+  `out_side_offset_m`) times the eased cover side, pivot height `lerp(cover.height_m, cover.crouch_height_m,
+  crouch_amount)`. `_cover_w` jumps to 1 / 0 only while the first-person weight is 1 (invisible), is HELD while
+  an exit blends back to first person (so only the first-person weight moves: one move), and eases over
+  `cover_blend_s` for cover -> another third-person mode (downed). Leaned out = PEEK_* or `aim_out_amount > 0`,
+  eased over `cover.out_ease_s`. The side is `CoverController.side`, smoothstep over `cover.side_ease_s`; looking
+  along the wall toward side s, the view's right is the wall normal times s, so `+offset * s` is always the open
+  side. `swap_shoulder` / `set_shoulder_side` are ignored in cover (and in first person). FOV is unchanged.
+- **No snap on exit.** The cover follow (`camera_follow_damping_s`) runs only while holding cover. When it stops
+  (EXITING, or FREE directly: a lost wall, `reset()`, death) its lag (world metres) eases out over
+  `cover_blend_s` (smoothstep) to the parent-exact pivot. The old snap of `position.x/z = 0` at FREE is gone.
+- **The automatic look turn** lives in `pawn.gd` (the pawn's yaw IS the look yaw): `_on_cover_entered` ->
+  `_begin_cover_turn` aims at `cover.tangent * cover.side` (along the wall toward the nearer open edge, picked in
+  `CoverController._enter`), shortest way; `_tick_cover_turn(delta)` runs right after `_apply_look` and applies the
+  smoothstep increments over `cover_blend_s`, in step with the rig's blend (one frame later; the turn starts on the
+  tick after `entered`). Look input is never locked (0 s, inside `input_lock_max_s`): any look delta above
+  `cover.turn_cancel_look_deg` per physics frame calls `cancel_cover_turn()`, as do EXITING, FREE and death. Pitch
+  is the player's; no turn on exit. API: `is_cover_turning()`, `cancel_cover_turn()`, `cover_blend_s()`.
+  NOTE for stage 3: the stick is mapped through the pawn yaw, so after the turn a forward stick points ALONG the
+  wall (today's controller then slides, peeks at the edge and exits on a held push); the fix 11 split owns this.
+  Old-path tests that use view-relative stick inputs call `cancel_cover_turn()` at entry (the view stays on the
+  wall) so they keep their meaning until stages 3 and 4 rewrite them.
+- **Pose.** `CoverAnim` (only the visual model turns): in ENTERING / IN_COVER with `aim_out_amount == 0` the model
+  faces `tangent * side * cos(a) + normal * sin(a)`, `a = cover.json animation.hug_out_deg` (30): along the wall
+  toward the side, back and shoulder to the wall (90 = the old back-flat rule). Leaned out it returns to the pawn's
+  facing as before. The view model stays hidden in cover by weight (below `show_weight`).
+- **Automatic crouch** (`CoverController._update_crouch`): in ENTERING / IN_COVER / PEEK_*, `crouched =
+  height_m < muzzle_height_m` from the probe facts every tick (`CoverProbe.sample`: the locked wall's top minus the
+  pawn's feet; `stats.json movement.muzzle_height_m` 1.3), the rule `can_quick_draw` / `_tick_draw` already use. A
+  tick without `height_m` keeps the stance; standing still waits for `stand_clear`; rising while drawn out is
+  unchanged (crouch_amount 0 while out, back after). The probe locks one wall box, and the slide is clamped to
+  that box's own ends, so today a slide cannot reach a section of another height; the rule follows any height
+  change the probe reports (tested by resizing the wall). `toggle_crouch()` is a no-op (stage 4 removes it);
+  `Pawn.handle_action_press("crouch")` returns at once (outside cover the old toggle never acted either). The
+  InputFrame bits and router entries stay. The old cover Crouch button still draws and consumes its touch; its
+  routed press reaches the pawn and does nothing.
+- **Data keys (stage 2):** `camera.json cover_blend_s` 0.6 [Shibi default]; `camera.json cover`: `distance_m` 1.6,
+  `side_offset_m` 0.55, `height_m` 1.45, `crouch_height_m` 1.05, `out_distance_m` 1.1, `out_side_offset_m` 0.4,
+  `out_ease_s` 0.15, `side_ease_s` 0.3, `turn_cancel_look_deg` 0.05; `cover.json animation.hug_out_deg` 30. All
+  OQ-COVER placeholders.
+- Tests: `tests/test_cover_camera_c1b.gd` (prints `C1B CAMERA` lines with the per-frame camera maxima).
 
 ## 5. Testing
 

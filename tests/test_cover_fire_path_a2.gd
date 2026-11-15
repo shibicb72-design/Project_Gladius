@@ -74,6 +74,7 @@ func setup(window: Vector2i, dpi: float, height: float = 2.2, edge: float = 0.25
 	if enter:
 		# M2 C1b stage 1: a full forward touch push is the sprint gesture, which no longer auto-snaps; enter by Cover.
 		pawn.handle_action_press("cover")
+		pawn.cancel_cover_turn()  # M2 C1b stage 2: the view stays on the wall (as a look input would keep it)
 		await frames(60)
 	touch.provider.move_value = Vector2.ZERO
 	touch.provider.cancel_sprint_lock()
@@ -261,11 +262,12 @@ func test_visible_in_cover_peek_aim_both_stances_and_circle_only_hits() -> void:
 			await hold_tap(touch._buttons["aim"].get_global_rect().get_center())
 			await frames(30)
 			assert_true(pawn.aiming and pawn.cover.aimed_out, "aim lean")
-		for stance in [false, true]:
-			if pawn.cover.crouched != stance:
-				await tap(crouch.label.get_global_rect().get_center())
-				await frames(15)
-			assert_eq(pawn.cover.crouched, stance, "real Crouch tap selects stance")
+		# M2 C1b stage 2 (decision 7): the stance is automatic; behind this HIGH 2.2 m wall it is standing, and the Crouch
+		# tap no longer selects it (was: both stances, each selected by a real Crouch tap).
+		for stance in [false]:
+			await tap(crouch.label.get_global_rect().get_center())
+			await frames(15)
+			assert_eq(pawn.cover.crouched, stance, "high cover: standing, and a real Crouch tap does not change it")
 			for button in [fire, crouch]:
 				assert_true(button.is_visible_in_tree() and button.size.x > 0, "cover control drawn in %s crouch=%s" % [pose, stance])
 				assert_true(Rect2(Vector2.ZERO, touch.size).encloses(button.get_touch_rect()), "button inside canvas")
@@ -305,10 +307,10 @@ func test_cover_slots_do_not_jump_lock_or_swap_and_ten_reliable_taps() -> void:
 		var stance := pawn.cover.crouched
 		await tap(crouch.label.get_global_rect().get_center())
 		await frames(15)
-		assert_eq(pawn.cover.crouched, not stance, "Crouch tap %d/10" % (i + 1))
+		assert_eq(pawn.cover.crouched, stance, "Crouch tap %d/10 is ignored (M2 C1b: automatic crouch)" % (i + 1))
 		assert_true(not Input.is_action_pressed("jump") and not touch.provider.sprint_locked, "replacement circles never drive movement buttons")
 		assert_eq(rig.shoulder_side, shoulder, "replacement circles never swap shoulder")
-	print("A2 RELIABILITY green FIRE 10/10; Crouch 10/10")
+	print("A2 RELIABILITY green FIRE 10/10; Crouch ignored 10/10")
 	await cleanup()
 
 func test_free_controls_restore_and_cover_buttons_are_not_hittable() -> void:
@@ -488,14 +490,19 @@ func test_vf_muzzle_wall_guard_spends_no_ammo() -> void:
 func test_vf_rest_weapon_hands_player_side_and_back_to_wall() -> void:
 	await setup(Vector2i(2520, 1080), 420.0, 2.2, 2.0)
 	var model := pawn.get_node("SoldierModel") as SoldierModel
-	for stance in [false, true]:
-		if pawn.cover.crouched != stance:
-			await tap(crouch.label.get_global_rect().get_center())
+	# M2 C1b stage 2: the stance is automatic (HIGH 2.2 m wall: standing; was both stances via Crouch taps), and the
+	# rest pose hugs the wall: facing along it toward the cover side, turned out by animation.hug_out_deg, back and
+	# shoulder to the wall (was: back flat to the wall, forward == normal).
+	for stance in [false]:
 		await frames(45)
+		assert_eq(pawn.cover.crouched, stance, "high cover: standing")
 		var normal := pawn.cover.normal
 		var plane := pawn.cover.wall_point
 		var forward := -model.global_basis.z
-		assert_true(forward.dot(normal) > 0.99, "rest pose back faces wall")
+		var out := deg_to_rad(float(pawn.cover.config["animation"]["hug_out_deg"]))
+		var hug := (pawn.cover.tangent * float(pawn.cover.side) * cos(out) + normal * sin(out)).normalized()
+		assert_true(forward.dot(hug) > 0.99, "rest pose hugs the wall, facing along it")
+		assert_true(forward.dot(normal) > 0.0, "rest pose back toward the wall")
 		var margin := float(pawn.cover.config["motion_epsilon_m"])
 		var points: Array[Vector3] = [model.barrel_tip.global_position, model.foregrip.global_position]
 		for bone in ["RightUpperArm", "RightForeArm", "RightHand", "LeftHand"]:
@@ -511,9 +518,11 @@ func test_vf_rest_weapon_hands_player_side_and_back_to_wall() -> void:
 	await cleanup()
 
 func test_vf_crouched_first_shot_measured_without_changing_reserved_blend() -> void:
-	await setup(Vector2i(2520, 1080), 420.0, 2.2, 0.5)
-	await tap(crouch.label.get_global_rect().get_center())
+	# M2 C1b stage 2 (decision 7): behind HIGH cover the soldier always stands, so the crouched first shot is now behind
+	# a LOW 1.1 m wall (crouched automatically; was a 2.2 m wall plus a Crouch tap).
+	await setup(Vector2i(2520, 1080), 420.0, 1.1, 0.5)
 	await frames(15)
+	assert_true(pawn.cover.crouched and pawn.cover.crouch_amount == 1.0, "low cover: crouched automatically")
 	var began := pawn.get_clock()
 	await tap(fire.label.get_global_rect().get_center())
 	await frames(60)

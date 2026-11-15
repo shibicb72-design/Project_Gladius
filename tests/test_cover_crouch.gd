@@ -36,8 +36,19 @@ func fixture(height: float = 1.1) -> void:
 	)
 	shots = 0
 	await tree().physics_frame
-	await ticks(60, Vector2(0, -1))
+	# M2 C1b stage 2: the player keeps the view on the wall (Pawn.cancel_cover_turn, what a look input does), so these
+	# old-path tests keep their view-relative stick inputs; the automatic turn is tested in test_cover_camera_c1b.gd.
+	for i in 60:
+		await tick(Vector2(0, -1))
+		if pawn.in_cover():
+			pawn.cancel_cover_turn()
 	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "fixture snaps")
+
+## M2 C1b stage 2: resizes the cover wall in place (bottom on the floor); the probe re-reads its height every tick, so
+## the automatic crouch follows (LOW iff height < muzzle_height_m).
+func set_wall_height(height: float) -> void:
+	((wall.get_node("Shape") as CollisionShape3D).shape as BoxShape3D).size.y = height
+	wall.position.y = height / 2.0
 
 func add_wall(at: Vector3, dimensions: Vector3) -> StaticBody3D:
 	var body := StaticBody3D.new()
@@ -83,7 +94,9 @@ func no_shape_clip() -> void:
 			assert_true(not hit["collider"].is_in_group(&"cover_wall"), "capsule/head never intersect cover")
 
 func test_crouch_blend_shapes_animation_and_standing_restore() -> void:
-	await fixture()
+	# M2 C1b stage 2: enter behind HIGH cover (standing), then the wall turns LOW (was toggle_crouch) and HIGH again (was
+	# the second toggle_crouch); the automatic crouch follows the height with the same blend, shapes and animation.
+	await fixture(2.2)
 	var other: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
 	other.position.x = 10
 	root.add_child(other)
@@ -92,7 +105,8 @@ func test_crouch_blend_shapes_animation_and_standing_restore() -> void:
 	var original_height := original.height
 	var body := pawn.get_node("CollisionShape3D") as CollisionShape3D
 	assert_true(body.shape != original, "shape is per instance")
-	pawn.cover.toggle_crouch()
+	assert_eq(pawn.cover.crouch_amount, 0.0, "standing behind high cover")
+	set_wall_height(1.1)
 	var duration := float(pawn.cover.config["crouch_blend_s"])
 	var previous := 0.0
 	var presentation := pawn.get_node("CoverAnim") as CoverAnim
@@ -115,7 +129,7 @@ func test_crouch_blend_shapes_animation_and_standing_restore() -> void:
 	var head_bone := model.skeleton.global_transform * model.skeleton.get_bone_global_pose(model.skeleton.find_bone("Head")).origin
 	assert_true(head_bone.distance_to(head.global_position) < 0.0001, "skeleton Head follows lowered hitbox: bone=%s hitbox=%s" % [head_bone, head.global_position])
 	assert_eq(original.height, original_height, "other pawn unchanged")
-	pawn.cover.toggle_crouch()
+	set_wall_height(2.2)
 	await ticks(14)
 	assert_true(is_equal_approx((body.shape as CapsuleShape3D).height, 1.6), "standing capsule restored")
 	assert_true(is_equal_approx(head.position.y, 1.75), "standing Head restored")
@@ -243,7 +257,8 @@ func test_context_buttons_real_match_routing_clearance_and_cancel() -> void:
 	touch.relayout()
 	touch_event(8, crouch.get_touch_rect().get_center(), true)
 	touch_event(8, crouch.get_touch_rect().get_center(), false)
-	assert_true(local.cover.crouched, "routed crouch tap toggles once")
+	# M2 C1b stage 2 (decision 7): the old Crouch button's routed press is ignored in cover (automatic crouch).
+	assert_true(not local.cover.crouched, "routed crouch tap is ignored in cover")
 	assert_eq(touch._look_touch, -1, "crouch touch consumed")
 	var point := fire.get_touch_rect().get_center()
 	touch_event(9, point, true)
@@ -279,14 +294,15 @@ func test_context_buttons_real_match_routing_clearance_and_cancel() -> void:
 	await tree().process_frame
 
 func test_overhang_refuses_stand_and_low_wall_quick_tap_rises_then_returns() -> void:
-	await fixture()
-	pawn.cover.toggle_crouch()
+	await fixture()  # M2 C1b stage 2: LOW 1.1 m wall, crouched automatically (was toggle_crouch)
 	await ticks(14)
+	assert_true(pawn.cover.crouched and pawn.cover.crouch_amount == 1.0, "low wall: crouched automatically")
 	var roof := add_wall(Vector3(0, 1.45, 0.5), Vector3(1.5, 0.2, 1.0))
 	await ticks(2)
-	pawn.cover.toggle_crouch()
+	set_wall_height(2.2)  # was toggle_crouch (a stand request): the wall turns HIGH, so the automatic rule wants to stand
 	await ticks(20)
-	assert_true(pawn.cover.crouched and pawn.cover.crouch_amount == 1.0, "stand refused under overhang")
+	assert_true(not pawn.cover.crouched and pawn.cover.crouch_amount == 1.0, "stand refused under overhang")
+	set_wall_height(1.1)
 	roof.queue_free()
 	await ticks(2)
 	assert_true(pawn.cover.can_quick_draw(), "low cover green at mid-wall")
@@ -355,8 +371,7 @@ func test_high_midwall_red_press_and_aim_levels_edge_drag_and_fullauto() -> void
 	await cleanup()
 
 func test_aim_holds_without_fire_and_delayed_semi_round_stays_out() -> void:
-	await fixture()
-	pawn.cover.toggle_crouch()
+	await fixture()  # M2 C1b stage 2: the 1.1 m wall is LOW, so the pawn is already crouched (was toggle_crouch here)
 	await ticks(14)
 	await ticks(120, Vector2.ZERO, true, true)
 	assert_true(pawn.cover.aimed_out and pawn.cover.crouch_amount == 0.0, "Aim rises and stays for two seconds")

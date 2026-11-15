@@ -1,6 +1,7 @@
 class_name CoverAnim
 extends Node
-## Local presentation only. The controller never rotates the Pawn or camera.
+## Local presentation only. The controller never rotates the Pawn or camera (M2 C1b: the pawn's own automatic look
+## turn on entry lives in pawn.gd _tick_cover_turn, not here).
 const NAMES: Array[String] = ["cover_enter", "cover_idle_l", "cover_idle_r", "peek_left", "peek_right", "cover_exit"]
 var pawn: Pawn
 var model: SoldierModel
@@ -156,7 +157,10 @@ func sync_pose(delta: float) -> void:
 		_last = name
 	var yaw := _rest_yaw
 	if (controller.state == CoverController.State.IN_COVER or controller.state == CoverController.State.ENTERING) and controller.aim_out_amount == 0.0:
-		var forward := controller.normal
+		# M2 C1b stage 2: hug the wall, facing along it toward the cover side, turned out by hug_out_deg (back and
+		# shoulder to the wall), like the reference; only this visual model turns.
+		var out := deg_to_rad(float(_cfg["animation"].get("hug_out_deg", 90.0)))
+		var forward := controller.tangent * float(controller.side) * cos(out) + controller.normal * sin(out)
 		yaw += atan2(-forward.x, -forward.z) - pawn.global_rotation.y
 	var step := deg_to_rad(float(_cfg["animation"]["visual_turn_deg_s"])) * delta
 	model.rotation.y += clampf(angle_difference(model.rotation.y, yaw), -step, step)

@@ -72,6 +72,7 @@ func setup(screen: Dictionary, edge: float = 0.25, enter: bool = true) -> void:
 	if enter:
 		# M2 C1b stage 1: a full forward touch push is the sprint gesture, which no longer auto-snaps; enter by Cover.
 		pawn.handle_action_press("cover")
+		pawn.cancel_cover_turn()  # M2 C1b stage 2: the view stays on the wall (as a look input would keep it)
 		await frames(60)
 	touch.provider.move_value = Vector2.ZERO
 	touch.provider.cancel_sprint_lock()
@@ -242,7 +243,8 @@ func check_layout(button: CoverCrouchButton, baseline: Rect2, shift: float) -> v
 		assert_eq(shots, before_shots + 1, "drawn FIRE viewport tap fires shot")
 		assert_eq(pawn.loadout.get_active().ammo_in_mag, ammo - 1, "drawn FIRE spends one round")
 	else:
-		assert_eq(pawn.cover.crouched, not old_crouch, "drawn Crouch viewport tap toggles stance")
+		# M2 C1b stage 2 (decision 7): the old Crouch button's press is ignored in cover; the stance is automatic.
+		assert_eq(pawn.cover.crouched, old_crouch, "drawn Crouch viewport tap leaves the automatic stance")
 		assert_eq(shots, before_shots, "Crouch does not fire")
 
 func test_l_jump_fixture_remaps_only_conflicting_fire() -> void:
@@ -353,6 +355,9 @@ func test_s_lock_already_on_enters_and_stays_in_cover() -> void:
 	# M2 C1b stage 1: no auto-snap while sprinting; the Cover button enters and the held lock is not a new Sprint press.
 	assert_eq(pawn.cover.state, CoverController.State.FREE, "a forward sprint lock never auto-snaps")
 	await tap(touch.get_button_rect(touch.SHOULDER_KEY).get_center())
+	# M2 C1b stage 2: the view stays on the wall (as a look input would keep it), so the held stick still pushes into
+	# the wall instead of along it (the stage 3 stick split owns along-wall input).
+	pawn.cancel_cover_turn()
 	await frames(60)
 	assert_eq(pawn.cover.state, CoverController.State.IN_COVER, "the Cover button enters with the lock on")
 	await frames(60)

@@ -87,10 +87,9 @@ func blocks_fire() -> bool:
 		return true
 	return bool(config["fire_requires_peek"]) and not (aimed_out or ((state == State.PEEK_LEFT or state == State.PEEK_RIGHT) and _peek_complete and crouch_amount == 0.0))
 
+## M2 C1b stage 2 (decision 7): a no-op. The crouch in cover is automatic (_update_crouch); stage 4 removes this.
 func toggle_crouch() -> void:
-	if state == State.IN_COVER or state == State.PEEK_LEFT or state == State.PEEK_RIGHT:
-		if not crouched or bool(_facts.get("stand_clear", false)):
-			crouched = not crouched
+	pass
 
 func set_look_active(active: bool) -> void:
 	_look_active = active
@@ -218,7 +217,13 @@ func tick(delta: float, move: Vector2, fire_pressed: bool, probe: Dictionary, ai
 	if state != State.FREE:
 		target_offset = target_position - position
 
+## M2 C1b stage 2 (decision 7, fix 10): crouched behind LOW cover, standing behind HIGH cover, from the probe's height_m
+## (cover_probe.gd): LOW iff height_m < muzzle_height_m (stats.json movement, the can_quick_draw / _tick_draw rule).
+## Re-read every tick, so a slide from a low to a high section follows; standing up still waits for stand_clear. A
+## tick without the wall's height (a lost sample) keeps the last stance. Rising while drawn out is unchanged.
 func _update_crouch(delta: float, rising: bool) -> void:
+	if state != State.EXITING and state != State.FREE and _facts.has("height_m"):
+		crouched = float(_facts["height_m"]) < float(_facts.get("muzzle_height_m", 0.0))
 	var target := 1.0 if crouched and not rising else 0.0
 	if state == State.EXITING or state == State.FREE:
 		crouched = false
