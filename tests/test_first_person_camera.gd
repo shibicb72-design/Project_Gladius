@@ -1009,7 +1009,10 @@ func test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps() -> void:
 		print("FP SHOULDER %s slot=%s in_look_zone=%s" % [tag, c, touch._zone_hit_rect("look_zone").has_point(c)])
 		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, true)
 		await _ButtonRig.frames(2)
-		assert_true(not Input.is_action_pressed("swap_shoulder"), "%s: the hidden slot does not press swap_shoulder" % tag)
+		# The hidden slot still hit-tests as the Shoulder button and presses swap_shoulder (tests/test_fold_window_coords.gd
+		# needs that); the rig ignores the action in first person, so the tap does nothing and is not a look touch.
+		assert_eq(touch._button_at(c), "swap_shoulder", "%s: the hidden slot still takes the tap" % tag)
+		assert_true(Input.is_action_pressed("swap_shoulder"), "%s: the hidden slot presses the (ignored) swap_shoulder action" % tag)
 		assert_eq(touch._look_touch, -1, "%s: the tap does not reach the look area" % tag)
 		_ButtonRig.touch(_ButtonRig.BUTTON_TOUCH, c, false)
 		await _ButtonRig.frames(12)

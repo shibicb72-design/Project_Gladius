@@ -667,7 +667,7 @@ func _style_button(b: Button, held: bool) -> void:
 
 func _button_at(pos: Vector2) -> String:
 	for action in _buttons:
-		if not is_cover_slot_hidden(action) and not is_first_person_slot_hidden(action) and get_button_rect(action).has_point(pos):
+		if not is_cover_slot_hidden(action) and get_button_rect(action).has_point(pos):
 			return action
 	return ""
 
@@ -734,10 +734,10 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		for key in _cover_hidden_slots:
 			if get_element_rect(key).has_point(pos):
 				return
-	# M2 C1a stage 4: the hidden first-person Shoulder slot swallows the tap (nothing; never the look area or fire).
+	# M2 C1a stage 4: the hidden first-person Shoulder slot swallows the tap: it still hit-tests as the Shoulder button
+	# and presses swap_shoulder (tests/test_fold_window_coords.gd), which the CameraRig ignores in first person, so the
+	# tap never reaches the look area or fires; no press pulse is drawn.
 	_refresh_first_person()
-	if is_first_person_slot_hidden(SHOULDER_KEY) and get_button_rect(SHOULDER_KEY).has_point(pos):
-		return
 	var action := _button_at(pos)
 	if not is_cover_slot_hidden(LOCK_KEY) and get_lock_button_rect().has_point(pos):
 		_lock_btn_touch = idx
@@ -749,7 +749,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		else:
 			Input.action_press(_action_of(action))
 		_style_button(_buttons[action], true)
-		if action == "swap_shoulder":
+		if action == "swap_shoulder" and not is_first_person_slot_hidden(action):
 			_shoulder_pulse_left_s = maxf(0.0, float(_layout["shoulder_pulse_release_s"]["value"]))
 			_apply_shoulder_pulse()
 	elif _move_touch == -1 and _move_grab_rect().has_point(pos):
