@@ -18,7 +18,8 @@ var director: MatchDirector
 var profile: Dictionary = {}
 var cfg: Dictionary = {}
 var target_id: int = -1
-## Last goal kind, for tests and debugging: "revive", "zone", "loot", "hold", "chase" or "".
+## Last goal kind, for tests and debugging: "revive", "zone", "loot", "hold", "chase" or ""; on a big map also
+## "fight", "gear" and "hunt" (M2B1).
 var goal_kind: String = ""
 
 var _agent: NavigationAgent3D
@@ -47,6 +48,9 @@ var _swap_cooldown: float = 0.0
 ## Report and test counters: ticks on which this bot was alive and grounded, and how many were full thinks.
 var brain_ticks: int = 0
 var think_ticks: int = 0
+## Sim CPU proxy (M2B1, report only): microseconds spent in build_frame / _coast_frame on grounded ticks (the
+## brain_ticks condition). Wall clock, so it never enters a deterministic comparison; it changes no decision.
+var brain_usec: int = 0
 var _near: bool = true  # a human within far_distance_m at the last check
 var _has_decision: bool = false  # build_frame ran its full grounded branch since the last early return
 var _last_goal := Vector3.ZERO  # the walk goal chosen at the last think
@@ -55,6 +59,43 @@ var _last_enemy: bool = false  # an enemy was in sight at the last think (the ai
 var _last_look: bool = false  # the last think turned toward something
 var _last_yaw: float = 0.0
 var _last_pitch: float = 0.0
+
+## ---- Route (M2B1, data/bots.json brain.route, placeholders OQ-BOT-ROUTE) ----
+## Big map: the zone's start radius (rules.zone_radius() while phase 0 is "waiting", cached at seeding) is above
+## route.big_map_radius_m. Only then do the gear / hunt / fight goals and the landmark glide run; on a small map
+## (or with no rules, or a brain seeded after the first shrink began) every goal and result is the pre-M2B1 one.
+## Every new seeded draw comes from _route_rng (hash([match_seed, player_id, "route"])), never from _rng (aim).
+var _route_rng := RandomNumberGenerator.new()
+var _big_map: bool = false
+var _landmarks_cache: Array = []  # director.loot_landmarks(), copied once
+var _landmarks_loaded: bool = false
+var _landmark: Dictionary = {}  # the chosen landmark ({} = none): {"id", "at" Vector3, "radius" float}
+var _landmark_picked: bool = false  # a pick was made (it may have found none)
+var _jump_seen: bool = false  # this bot was FALLING at some think (dropped from the carrier)
+var _jump_from := Vector3.ZERO  # its position at the first FALLING think
+var _gear_check_tick: int = 0  # director.tick_count at or after which the chosen landmark is re-checked
+## Report only (the sims read them; no decision depends on them).
+var route_landed_at := Vector3.INF  # position at the first grounded think after the drop
+var route_geared_ever: bool = false
+var route_landed_in_pick: bool = false  # route_landed_at lies inside the landmark held at that moment
+## Stage 5 (hunt): the last place this bot saw or heard an enemy, and the director tick of it (-1 = never).
+var _enemy_mem := Vector3.ZERO
+var _enemy_mem_tick: int = -1
+var _listen_count: int = -1  # director player count when the shot signals were last wired
+var _listening: Dictionary = {}  # player id -> true: that pawn's shot signal is connected to this brain
+var heard_count: int = 0  # report: enemy gun shots heard within the radius
+## Stage 6 (fight band): true while the last think strafes / stands inside the band (no stuck tracking then).
+var _fight_hold: bool = false
+var _strafe_side: float = 0.0  # 0 = not drawn yet; then +1 / -1 (route stream, at the first band think)
+var _strafe_period_ticks: int = 0
+var _strafe_flip_tick: int = 0
+## Stage 6 revision (CPU): the fight goal is kept between thinks so the NavigationAgent is not re-asked each think.
+var _fight_mode: String = ""  # the fight goal of the last think: "close", "band" or "" (no fight goal)
+var _prev_fight_mode: String = ""  # _fight_mode of the think before (read by _fight_goal)
+var _strafe_point := Vector3.ZERO  # the strafe target, fixed for the strafe period
+var _strafe_enemy: int = -1  # the enemy the strafe point was computed against
+var _close_goal := Vector3.ZERO  # the close-in goal, moved only when the enemy is fight.repath_m from it
+var _close_enemy: int = -1
 
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
@@ -73,6 +114,20 @@ func _ensure_seeded() -> void:
 	_rng.seed = hash([director.match_seed if director != null else 0, pawn.player_id, "brain"])  # own stream, apart from the pawn's spread
 	var a := _rng.randf() * TAU
 	_spot_dir = Vector2(cos(a), sin(a)) * sqrt(_rng.randf())
+	_route_rng.seed = hash([director.match_seed if director != null else 0, pawn.player_id, "route"])
+	var rules: BrRules = director.rules if director != null else null
+	_big_map = rules != null and rules.zone_phase() == 0 and rules.zone_state() == "waiting" \
+			and rules.zone_radius() > _route_f("big_map_radius_m", 250.0)
+
+
+## A number from bots.json brain.route (placeholder block, OQ-BOT-ROUTE).
+func _route_f(key: String, default: float) -> float:
+	return float(cfg.get("route", {}).get(key, default))
+
+
+## True on a big map (see the Route block); read by tests and the sims.
+func is_big_map() -> bool:
+	return _big_map
 
 
 func _ready() -> void:
@@ -91,11 +146,19 @@ func next_frame(delta: float) -> InputFrame:
 	var grounded := pawn != null and pawn.is_alive() and pawn.is_inside_tree() and not pawn.is_dropping()
 	if grounded:
 		brain_ticks += 1
+	var frame: InputFrame
+	var t0 := 0
 	if should_think():
 		if grounded:
 			think_ticks += 1
-		return build_frame(delta)
-	return _coast_frame(delta)
+		t0 = Time.get_ticks_usec()
+		frame = build_frame(delta)
+	else:
+		t0 = Time.get_ticks_usec()
+		frame = _coast_frame(delta)
+	if grounded:
+		brain_usec += Time.get_ticks_usec() - t0
+	return frame
 
 
 func _far_interval() -> int:
@@ -200,7 +263,11 @@ func _follow_path(delta: float) -> Vector3:
 	if to_goal.length() < 0.3:
 		_stuck_t = 0.0
 		return Vector3.ZERO
-	if _unstick_left <= 0.0:
+	if _fight_hold:
+		_stuck_t = 0.0
+	elif _unstick_left <= 0.0:
+		if _stuck_t == 0.0:
+			_stuck_from = pawn.global_position  # a stuck window starts here (M2B1: not at the world origin)
 		_stuck_t += delta
 	if _agent.target_position != _last_goal:
 		_agent.target_position = _last_goal
@@ -220,8 +287,8 @@ func build_frame(delta: float) -> InputFrame:
 	_ensure_seeded()
 	if pawn.drop_state == Pawn.Drop.FALLING:
 		_has_decision = false
-		# Steer the glide toward this bot's own spot inside the next circle.
-		var to := _zone_spot() - pawn.global_position
+		# Steer the glide toward this bot's own spot inside the next circle; on a big map toward its landmark.
+		var to := _glide_goal() - pawn.global_position
 		to.y = 0.0
 		if to.length() > 1.0:
 			var local := pawn.global_transform.basis.inverse() * to.normalized()
@@ -230,8 +297,12 @@ func build_frame(delta: float) -> InputFrame:
 	if pawn.is_dropping():
 		_has_decision = false
 		return frame
+	if _big_map:
+		_route_think()
 	var turn: float = float(cfg.get("turn_rate_rad_s", 6.0)) * delta
 	var enemy := _find_target()
+	if _big_map and enemy != null:
+		_remember_enemy(enemy.global_position)
 	var melee_only := _melee_only()
 	var want_dir := Vector3.ZERO
 	if enemy != null:
@@ -351,7 +422,7 @@ func _find_target() -> Pawn:
 		var seen := space.intersect_ray(q).is_empty()
 		var c := {"id": id, "pos": pos, "squad": other.squad_id, "alive": true, "visible": seen}
 		(standing if other.is_alive() else downed).append(c)
-	var sight := float(cfg.get("sight_range_m", 60.0))
+	var sight := _sight()
 	target_id = BotTargeting.pick_target(pawn.global_position, pawn.squad_id, standing, sight)
 	if target_id < 0 and bool(cfg.get("finish_downed", true)):
 		target_id = BotTargeting.pick_target(pawn.global_position, pawn.squad_id, downed, sight)
@@ -371,8 +442,15 @@ func _move_direction(enemy: Pawn, melee_only: bool, delta: float) -> Vector3:
 	if to_goal.length() < 0.3:
 		_stuck_t = 0.0
 		return Vector3.ZERO
-	_track_stuck(delta)
-	_agent.target_position = goal
+	if _fight_hold:
+		_stuck_t = 0.0  # strafing in the band on purpose: never an unstick (as hold)
+	else:
+		_track_stuck(delta)
+	# On a big map an unchanged goal is not handed to the agent again (setting target_position re-queries the
+	# path even when it is unchanged; the agent still re-paths by itself when the pawn strays from the path).
+	# On a small map every goal is set every think, as before M2B1.
+	if not _big_map or _agent.target_position != goal:
+		_agent.target_position = goal
 	var next := _agent.get_next_path_position()
 	var dir := next - pawn.global_position
 	dir.y = 0.0
@@ -383,6 +461,9 @@ func _move_direction(enemy: Pawn, melee_only: bool, delta: float) -> Vector3:
 
 func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 	var me := pawn.player_id
+	_fight_hold = false
+	_prev_fight_mode = _fight_mode
+	_fight_mode = ""
 	# Blade only and an enemy close by: charge it.
 	if enemy != null and melee_only and _flat_dist(enemy) <= float(cfg.get("melee_chase_m", 14.0)):
 		goal_kind = "chase"
@@ -411,11 +492,29 @@ func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 	if _zone_pressure():
 		goal_kind = "zone"
 		return spot
+	# Big map: a gun bot with a standing enemy in sight holds the gun's distance band (M2B1).
+	if _big_map and enemy != null and not melee_only and enemy.is_alive():
+		var fight := _fight_goal(enemy)
+		if fight != Vector3.INF:
+			goal_kind = "fight"
+			return fight
 	# Loot.
 	var item := _loot_goal()
 	if item != Vector3.INF:
 		goal_kind = "loot"
 		return item
+	# Big map: gear up at a landmark (M2B1).
+	if _big_map:
+		var gear := _gear_goal()
+		if gear != Vector3.INF:
+			goal_kind = "gear"
+			return gear
+		# Geared (or no landmark with loot) and nothing in sight: go looking for a fight.
+		if enemy == null:
+			var hunt := _hunt_goal()
+			if hunt != Vector3.INF:
+				goal_kind = "hunt"
+				return hunt
 	goal_kind = "zone"
 	if _inside_target():
 		goal_kind = "hold"
@@ -452,8 +551,21 @@ func _zone_pressure() -> bool:
 		return false
 	var rules := director.rules
 	var here := Vector2(pawn.global_position.x, pawn.global_position.z)
-	return rules.zone_state() != "waiting" or rules.zone_seconds_left() < float(cfg.get("zone_margin_s", 25.0)) \
-			or rules.is_outside(here)
+	# M2B1 stage 4: on a big map, while waiting, leave when the walk to the spot would outlast the wait
+	# (_time_to_reach); a small map keeps the fixed zone_margin_s.
+	var late := (_time_to_reach() > rules.zone_seconds_left()) if _big_map and rules.zone_state() == "waiting" \
+			else rules.zone_seconds_left() < float(cfg.get("zone_margin_s", 25.0))
+	return rules.zone_state() != "waiting" or late or rules.is_outside(here)
+
+
+## Big map rotation (M2B1, brain.route, placeholders OQ-BOT-ROUTE): seconds this bot needs to walk to its zone
+## spot = flat distance / its class move speed (Pawn.get_move_speed: stats.json movement.base_speed_mps x
+## class speed_pct / 100; bots never sprint) x route.rotate_detour + route.rotate_margin_s.
+func _time_to_reach() -> float:
+	var spot := _zone_spot()
+	var d := Vector2(spot.x - pawn.global_position.x, spot.z - pawn.global_position.z).length()
+	var speed := maxf(pawn.get_move_speed(), 0.1)
+	return d / speed * _route_f("rotate_detour", 1.3) + _route_f("rotate_margin_s", 10.0)
 
 
 ## Nearest usable loot item within loot_seek_range_m (a gun first when the bot has none); INF if none.
@@ -482,9 +594,13 @@ func _loot_goal(guns_only: bool = false) -> Vector3:
 	return best
 
 
+## A stuck window measures from where it started: _stuck_from is set whenever _stuck_t starts from 0 (here and
+## in _follow_path, the coast path); hold and arrival reset _stuck_t, so the next walk opens a fresh window.
 func _track_stuck(delta: float) -> void:
 	if _unstick_left > 0.0:
 		return
+	if _stuck_t == 0.0:
+		_stuck_from = pawn.global_position
 	_stuck_t += delta
 	if _stuck_t < float(cfg.get("stuck_window_s", 2.0)):
 		return
@@ -494,3 +610,288 @@ func _track_stuck(delta: float) -> void:
 		_unstick_side = -_unstick_side
 	_stuck_t = 0.0
 	_stuck_from = pawn.global_position
+
+
+## ---- Gearing up at a landmark (M2B1 stage 3, big maps only; placeholders in brain.route, OQ-BOT-ROUTE) ----
+## Geared: armour tier >= route.geared_armor_tier_min and the gun wants_item would refill (the active gun, else
+## the first gun: Pawn._ranged_slot's rule) holds reserve >= magazine x director.bot_ammo_low_magazines().
+## The landmark pick: a seeded choice (_route_rng) among the route.landmark_pick_k nearest landmarks "with loot",
+## measured from the bot's position on the carrier at its jump (or from where it stands at its first think when it
+## never dropped). While FALLING, Pawn.wants_item is false (can_take refuses a dropping pawn), so the jump pick
+## counts a landmark with ANY item inside its radius; every ground pick and re-check counts only items this pawn
+## wants, and skips landmarks whose centre lies outside the current circle. No loot placed yet at the jump: glide
+## to the zone spot and pick (from the stored jump position) on the first think once it is placed.
+## The gear goal walks to the chosen landmark's anchor; every route.gear_recheck_ticks director ticks (not every
+## think) it checks the landmark still has wanted loot inside the circle and otherwise re-picks from here.
+
+func _geared() -> bool:
+	if pawn.armor_tier < int(_route_f("geared_armor_tier_min", 1.0)):
+		return false
+	var lo := pawn.loadout
+	if lo == null:
+		return false
+	var gun: Weapon = lo.get_active()
+	if gun == null or gun.def.is_melee():
+		gun = null
+		for s in lo.slots:
+			if s != null and not s.def.is_melee():
+				gun = s
+				break
+	return gun != null and float(gun.reserve) >= float(gun.def.magazine) * director.bot_ammo_low_magazines()
+
+
+## True once this bot is geared (report / tests).
+func is_geared() -> bool:
+	return _geared()
+
+
+func _route_landmarks() -> Array:
+	if not _landmarks_loaded:
+		_landmarks_loaded = true
+		_landmarks_cache = director.loot_landmarks()
+	return _landmarks_cache
+
+
+static func _lm_center(lm: Dictionary) -> Vector3:
+	var at: Array = lm.get("at", [0.0, 0.0])
+	return Vector3(float(at[0]), 0.0, float(at[1]))
+
+
+## The walk / glide goal of a landmark: its anchor (open ground inside it) when the data has one, else its centre.
+static func _lm_goal(lm: Dictionary) -> Vector3:
+	var an: Variant = lm.get("anchor")
+	if an is Array and (an as Array).size() == 3:
+		return Vector3(float(an[0]), float(an[1]), float(an[2]))
+	return _lm_center(lm)
+
+
+## Whether a landmark holds loot: any item inside its radius (any_item, the jump pick) or one this pawn wants.
+func _landmark_has_loot(lm: Dictionary, any_item: bool) -> bool:
+	var loot := director.loot
+	if loot == null:
+		return false
+	var c := _lm_center(lm)
+	var r := float(lm.get("radius_m", 0.0))
+	for id in loot.items_near(c, r):
+		var entry: Dictionary = loot.items[id]
+		var pos: Vector3 = entry["pos"]
+		if Vector2(pos.x - c.x, pos.z - c.z).length() > r:
+			continue
+		if any_item or pawn.wants_item(loot.def(str(entry["item_id"])), director.bot_ammo_low_magazines(), director.bot_heal_below_pct()):
+			return true
+	return false
+
+
+## A seeded pick among the K nearest landmarks with loot from `from` ({} when none).
+func _pick_landmark(from: Vector3, any_item: bool) -> Dictionary:
+	var lms := _route_landmarks()
+	var order: Array = []
+	for i in lms.size():
+		var c := _lm_center(lms[i])
+		order.append([Vector2(c.x - from.x, c.z - from.z).length(), i])
+	order.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
+	# Nearest first, so the loot check runs only until k landmarks with loot are found.
+	var k := maxi(int(_route_f("landmark_pick_k", 3.0)), 1)
+	var cands: Array = []
+	for o in order:
+		var lm: Dictionary = lms[int(o[1])]
+		var c := _lm_center(lm)
+		if not any_item and director.rules != null and director.rules.is_outside(Vector2(c.x, c.z)):
+			continue
+		if _landmark_has_loot(lm, any_item):
+			cands.append(lm)
+			if cands.size() >= k:
+				break
+	if cands.is_empty():
+		return {}
+	return cands[_route_rng.randi_range(0, cands.size() - 1)]
+
+
+## The FALLING glide target: the zone spot on a small map; on a big map the landmark picked at the jump.
+func _glide_goal() -> Vector3:
+	if not _big_map:
+		return _zone_spot()
+	if not _jump_seen:
+		_jump_seen = true
+		_jump_from = pawn.global_position
+	if not _landmark_picked and director.loot != null and director.loot.placed:
+		_landmark_picked = true
+		_landmark = _pick_landmark(_jump_from, true)
+		_gear_check_tick = director.tick_count  # the first ground think re-checks with the wants rule
+	return _lm_goal(_landmark) if not _landmark.is_empty() else _zone_spot()
+
+
+## Every grounded think on a big map, before the goals: the first pick for a bot that has none yet, and reports.
+func _route_think() -> void:
+	if not _landmark_picked:
+		_landmark_picked = true
+		_landmark = _pick_landmark(_jump_from if _jump_seen else pawn.global_position, false)
+		_gear_check_tick = director.tick_count + _gear_recheck_ticks()
+	if _jump_seen and route_landed_at == Vector3.INF:
+		route_landed_at = pawn.global_position
+		if not _landmark.is_empty():
+			var c := _lm_center(_landmark)
+			route_landed_in_pick = Vector2(c.x - route_landed_at.x, c.z - route_landed_at.z).length() <= float(_landmark.get("radius_m", 0.0))
+	if not route_geared_ever and _geared():
+		route_geared_ever = true
+	_listen()
+
+
+func _gear_recheck_ticks() -> int:
+	return maxi(int(_route_f("gear_recheck_ticks", 60.0)), 1)
+
+
+## The gear goal: the chosen landmark while this bot is not geared; INF when geared or no landmark has loot.
+func _gear_goal() -> Vector3:
+	if _geared():
+		return Vector3.INF
+	if director.tick_count >= _gear_check_tick:
+		_gear_check_tick = director.tick_count + _gear_recheck_ticks()
+		var keep := not _landmark.is_empty()
+		if keep:
+			var c := _lm_center(_landmark)
+			keep = not (director.rules != null and director.rules.is_outside(Vector2(c.x, c.z))) \
+					and _landmark_has_loot(_landmark, false)
+		if not keep:
+			_landmark = _pick_landmark(pawn.global_position, false)
+	if _landmark.is_empty():
+		return Vector3.INF
+	return _lm_goal(_landmark)
+
+
+## The chosen landmark's id ("" when none), for tests and the sims.
+func landmark_id() -> String:
+	return str(_landmark.get("id", ""))
+
+
+## ---- Looking for fights (M2B1 stage 5, big maps only; brain.route hearing/hunt placeholders, OQ-BOT-ROUTE) ----
+## Memory: the last place an enemy was seen (every think with a target) or heard (an enemy's gun shot within
+## route.hearing_radius_m), with the director tick. Hearing: this brain connects its own method to each enemy
+## pawn's `shot` signal, lazily on grounded thinks when the director's player count changed (pawns spawn after
+## the brain). The connection is to a method of this node, so it dies with the brain; a dead, downed or dropping
+## listener ignores shots; squad mates' shots and blade swings (the weapon def is melee) are skipped.
+## Never net_match_bridge.shot_event. Hunt goal (after gear, before spot/hold; no target in sight): walk to the
+## memory while it is younger than route.hunt_memory_s, else toward the next circle's centre; within
+## route.hunt_arrive_m of that point it falls through to today's spot / hold (a reached memory is forgotten).
+
+func _remember_enemy(at: Vector3) -> void:
+	_enemy_mem = at
+	_enemy_mem_tick = director.tick_count
+
+
+func _listen() -> void:
+	var players := director.all_players()
+	if players.size() == _listen_count:
+		return
+	_listen_count = players.size()
+	var ids: Array = players.keys()
+	ids.sort()
+	for id in ids:
+		var p: Pawn = players[id]
+		if p == pawn or _listening.has(id) or not is_instance_valid(p):
+			continue
+		_listening[id] = true
+		p.shot.connect(_on_shot_heard.bind(p))
+
+
+func _on_shot_heard(origin: Vector3, _direction: Vector3, weapon_id: String, shooter: Pawn) -> void:
+	if not _big_map or pawn == null or not is_instance_valid(pawn) or not pawn.is_alive() or pawn.is_dropping():
+		return
+	if not is_instance_valid(shooter) or shooter.squad_id == pawn.squad_id:
+		return
+	var wd: WeaponDef = pawn.registry.get_weapon_def(weapon_id) if pawn.registry != null else null
+	if wd == null or wd.is_melee():
+		return
+	if Vector2(origin.x - pawn.global_position.x, origin.z - pawn.global_position.z).length() > _route_f("hearing_radius_m", 120.0):
+		return
+	heard_count += 1
+	_remember_enemy(origin)
+
+
+func _hunt_goal() -> Vector3:
+	var arrive := _route_f("hunt_arrive_m", 15.0)
+	var here := pawn.global_position
+	var max_age := int(_route_f("hunt_memory_s", 20.0) * float(Engine.physics_ticks_per_second))
+	if _enemy_mem_tick >= 0 and director.tick_count - _enemy_mem_tick <= max_age:
+		if Vector2(_enemy_mem.x - here.x, _enemy_mem.z - here.z).length() > arrive:
+			return _enemy_mem
+		_enemy_mem_tick = -1  # reached: forget it
+	var c := director.zone_target_center()
+	if Vector2(c.x - here.x, c.z - here.z).length() > arrive:
+		return c
+	return Vector3.INF
+
+
+## ---- Fighting at range (M2B1 stage 6, big maps only; brain.fight placeholders, OQ-BOT-FIGHT) ----
+## Sight: on a big map with a gun in hand that fight.sight_by_weapon names, that number clamped to the gun's
+## range_m; otherwise sight_range_m (small maps: always sight_range_m, as before).
+## Fight goal (after zone pressure, before loot): a gun bot with a STANDING enemy in sight. Farther than
+## band_far_frac x sight: close in (walk to the enemy through the NavigationAgent). Nearer: strafe, a point
+## strafe_step_m to one side (perpendicular to the enemy), the side seeded from the route stream at the first band
+## think and flipped every strafe_period_s x (0.75..1.25, drawn once) director ticks; strafe_step_m 0 = stand.
+## In the band _fight_hold resets the stuck window (as hold does), so standing / strafing never unsticks.
+## A DOWNED target is not fought this way: the bot keeps today's goals and shoots it where it can see it
+## (finish_downed unchanged). Blade bots keep "chase". Decided on think ticks only; coast ticks follow _last_goal.
+
+func _fight_f(key: String, default: float) -> float:
+	return float(cfg.get("fight", {}).get(key, default))
+
+
+func _sight() -> float:
+	var base := float(cfg.get("sight_range_m", 60.0))
+	if not _big_map or pawn.loadout == null:
+		return base
+	var w := pawn.loadout.get_active()
+	if w == null or w.def.is_melee():
+		return base
+	var per: Dictionary = cfg.get("fight", {}).get("sight_by_weapon", {})
+	if not per.has(w.def.id):
+		return base
+	return minf(float(per[w.def.id]), w.def.range_m)
+
+
+## The sight this bot uses now (tests / reports).
+func sight_m() -> float:
+	return _sight()
+
+
+## Revision (CPU, no new draws): both goals are kept between thinks so the path is not re-queried every think.
+## Close in: the last close-in goal is kept while the last think also closed in on the same enemy and that enemy
+## is within fight.repath_m of it; otherwise the goal moves to the enemy's position. Strafe: the point is computed
+## when the side is drawn or flipped, when the enemy changes, or when the last think was not in the band, and is
+## returned unchanged until then (a bot that reaches it early stands; _fight_hold keeps the stuck logic off).
+func _fight_goal(enemy: Pawn) -> Vector3:
+	var sight := _sight()
+	var d := _flat_dist(enemy)
+	var ep := enemy.global_position
+	if d > sight * _fight_f("band_far_frac", 0.25):
+		_fight_mode = "close"
+		var keep := _prev_fight_mode == "close" and _close_enemy == enemy.player_id \
+				and Vector2(ep.x - _close_goal.x, ep.z - _close_goal.z).length() <= _fight_f("repath_m", 3.0)
+		if not keep:
+			_close_goal = ep
+			_close_enemy = enemy.player_id
+		return _close_goal
+	_fight_hold = true
+	_fight_mode = "band"
+	var step := _fight_f("strafe_step_m", 3.0)
+	if step <= 0.0:
+		return pawn.global_position
+	var fresh := _prev_fight_mode != "band" or _strafe_enemy != enemy.player_id
+	if _strafe_side == 0.0:
+		_strafe_side = 1.0 if _route_rng.randf() < 0.5 else -1.0
+		var period := _fight_f("strafe_period_s", 1.5) * _route_rng.randf_range(0.75, 1.25)
+		_strafe_period_ticks = maxi(int(period * float(Engine.physics_ticks_per_second)), 1)
+		_strafe_flip_tick = director.tick_count + _strafe_period_ticks
+		fresh = true
+	elif director.tick_count >= _strafe_flip_tick:
+		_strafe_side = -_strafe_side
+		_strafe_flip_tick = director.tick_count + _strafe_period_ticks
+		fresh = true
+	if fresh:
+		var to := ep - pawn.global_position
+		to.y = 0.0
+		var side := Vector3(-to.z, 0.0, to.x).normalized() * _strafe_side
+		_strafe_point = pawn.global_position + side * step
+		_strafe_enemy = enemy.player_id
+	return _strafe_point

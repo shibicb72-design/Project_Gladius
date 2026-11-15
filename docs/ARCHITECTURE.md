@@ -189,6 +189,43 @@ android/              debug.keystore (shared debug key only)
   bots get movement, weapons and rules for free, and work identically on host and dedicated server.
   Target selection and aim error are pure helpers (`bot_targeting.gd`).
 - Think rate (M2 P1c): a bot far from every alive human decides only every 4th tick; see 4.20.
+- Big maps (M2 B1; numbers in `bots.json` `brain.route` and `brain.fight`, OQ-BOT-ROUTE / -FIGHT):
+  - Switch: at seeding the zone's start radius is above `route.big_map_radius_m` (250). Only then
+    do the rules below run; on a small map every goal and result is the pre-B1 one apart from the
+    stuck-window fix below (the small-map sim's deterministic lines match the post-fix reference).
+  - Goal order (first that applies): chase (blade only) > revive > gun_first (unarmed) > zone
+    pressure > fight > loot > gear > hunt > spot / hold. Small maps: chase > revive > gun_first >
+    zone > loot > spot / hold, as before.
+  - Landmark and glide: at the jump a bot picks, seeded, one of the `landmark_pick_k` nearest
+    landmarks holding loot (`MatchDirector.loot_landmarks()`, a read-only deep copy taken once)
+    and glides toward its anchor. The gear goal walks there until geared (armour tier >=
+    `geared_armor_tier_min` and gun reserve >= magazine x ammo_low_magazines); every
+    `gear_recheck_ticks` it re-checks for wanted loot inside the circle, else re-picks.
+  - Rotation: while the zone waits a bot leaves for its zone spot when
+    distance / class move speed x `rotate_detour` + `rotate_margin_s` > seconds left.
+  - Hearing and hunt: each brain connects to the other pawns' `shot` signals; an enemy gun shot
+    within `hearing_radius_m` (or an enemy in sight) sets a memory point. With nothing in sight a
+    geared bot walks to a memory younger than `hunt_memory_s`, else toward the next circle's
+    centre, until within `hunt_arrive_m`.
+  - Sight and band: sight is `fight.sight_by_weapon[gun]` clamped to the gun's `range_m`
+    (otherwise `sight_range_m`). A gun bot with a standing enemy in sight closes in while farther
+    than `band_far_frac` x sight (the goal moves only when the enemy is `repath_m` from it), and
+    inside strafes to a point `strafe_step_m` to the side, fixed for a seeded period, then flips.
+    In the band the stuck window is off (as in hold). Downed targets keep today's goals.
+  - Route RNG: every new seeded draw uses `_route_rng` (hash of match seed, player id, "route"),
+    never the aim stream `_rng`, so aim is unchanged by route decisions.
+  - Path queries: on a big map a goal that did not change is not handed to the NavigationAgent3D
+    again (setting `target_position` re-queries the path); the agent still re-paths by itself when
+    the pawn strays. This halved the CPU proxy on the 1 km map. Small maps set it every think.
+  - Stuck window fix (all maps): a window measures from where it started (`_stuck_from` is set
+    when `_stuck_t` starts), not from the world origin; hold and arrival open a fresh window.
+- Sims (`tests/sim/`, metrics shared in `sim_metrics.gd`): kills and downs by gun / blade with
+  distances, gun hit rate, zone deaths, loot taken (placed / dropped), goal shares, unstick
+  events, landmark landings. Args after `--`: `--sim-profile=<name>` (every bot's profile),
+  `--sim-brain=<path>=<n>,...` (sim-local `brain` overrides, shown in `profile=`), and
+  `--sim-scale=<n>` (the 1 km sim's zone and carrier time scale, default 0.4). CPU proxy, printed
+  after " | " and never compared: "us per think tick (incl. coast)" = sum of `BotBrain.brain_usec`
+  over bots / sum of `think_ticks`.
 - Commands (later): a `BotCommand` id (follow, attack, hold, rush_hill; page 2: guard, rush,
   attack_marked) switches the brain's goal state. Command pages/buttons are data in `input.json`.
   Prone and seeking good spots are brain behaviors.
