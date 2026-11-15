@@ -153,11 +153,17 @@ func tick(delta: float, move: Vector2, fire_pressed: bool, probe: Dictionary, ai
 	_snap_prev = _snap_t
 	_snap_t = minf(_snap_t + delta, float(config["snap_lerp_s"]))
 	if state != State.EXITING:
-		var same_wall: bool = bool(probe.get("hit", false)) and probe.get("wall_key") == wall_key
-		_lost_ticks = 0 if same_wall else _lost_ticks + 1
-		if _lost_ticks > 1:
-			reset()
-			return
+		# M2 C1b stage 3 (item 5, fix 19): the locked cover body was freed (or left the tree; CoverProbe reports
+		# "wall_gone"): leave through EXITING, so the exit blends like every other exit. Any other lost sample (the
+		# pawn pushed off the wall, the face ray missing, a body no longer tagged) keeps the instant reset below.
+		if bool(probe.get("wall_gone", false)):
+			_begin_exit()
+		else:
+			var same_wall: bool = bool(probe.get("hit", false)) and probe.get("wall_key") == wall_key
+			_lost_ticks = 0 if same_wall else _lost_ticks + 1
+			if _lost_ticks > 1:
+				reset()
+				return
 	_phase += delta
 	if _tick_draw(delta, position, aiming):
 		target_offset = target_position - position
@@ -175,44 +181,32 @@ func tick(delta: float, move: Vector2, fire_pressed: bool, probe: Dictionary, ai
 				if _returning:
 					target_offset = target_position - position
 					return
+			if _tick_away_exit(delta, wish):
+				target_offset = target_position - position
+				return
+			# M2 C1b stage 3 (decision 8, fix 11): the along-wall (tangent) part of the camera-yaw stick slides, clamped
+			# edge_margin_m short of the locked wall's ends; the into-wall part does nothing. No stick peek: leaning out
+			# is Fire / Aim only (stage 4).
 			var lateral := wish.dot(tangent)
 			var left := float(probe.get("left_m", INF))
 			var right := float(probe.get("right_m", INF))
 			var margin := float(config["edge_margin_m"])
-			if wish.dot(normal) >= float(config["back_exit_min"]):
-				_begin_exit()
-			elif absf(lateral) >= float(config["peek_stick_min"]) and ((lateral < 0 and left <= margin + 0.000001) or (lateral > 0 and right <= margin + 0.000001)):
-				side = -1 if lateral < 0 else 1
-				_anchor = _plane_position(position)
-				var distance := left if side < 0 else right
-				_peek_target = _anchor + tangent * side * (maxf(distance, 0) + float(config["peek_offset_m"]))
-				state = State.PEEK_LEFT if side < 0 else State.PEEK_RIGHT
-				_phase = 0.0
-				_exit_hold = 0.0
-				_peek_complete = false
-				peeked.emit(side)
-			else:
-				var speed := float(probe.get("slide_speed_mps", 0.0))
-				var step := clampf(lateral * speed * delta, -maxf(left - margin, 0), maxf(right - margin, 0))
-				target_position = _plane_position(position) + tangent * step
+			var speed := float(probe.get("slide_speed_mps", 0.0))
+			var step := clampf(lateral * speed * delta, -maxf(left - margin, 0), maxf(right - margin, 0))
+			target_position = _plane_position(position) + tangent * step
 		State.PEEK_LEFT, State.PEEK_RIGHT:
+			# M2 C1b stage 3: nothing enters PEEK_* from the stick any more (stage 4 decides how the Fire / Aim lean uses
+			# them). A peek held by nothing returns once the last round is done; the away push exits as in IN_COVER.
 			target_position = _peek_target
 			_peek_complete = _phase + 0.000001 >= float(config["peek_s"]) and position.distance_to(_peek_target) <= float(config["motion_epsilon_m"])
-			var along := wish.dot(tangent) * side
-			if along >= float(config["exit_stick_min"]):
-				_exit_hold += delta
-				if _exit_hold + 0.000001 >= float(config["exit_hold_s"]):
-					_begin_exit()
-			else:
-				_exit_hold = 0.0
-				if along < float(config["peek_stick_min"]) and _round_hold <= 0.0 and not bool(probe.get("weapon_pending", false)):
-					state = State.IN_COVER
-					_returning = true
-					target_position = _anchor
-					_phase = 0.0
-					_peek_complete = false
+			if not _tick_away_exit(delta, wish) and _round_hold <= 0.0 and not bool(probe.get("weapon_pending", false)):
+				state = State.IN_COVER
+				_returning = true
+				target_position = _anchor
+				_phase = 0.0
+				_peek_complete = false
 		State.EXITING:
-			if _phase + 0.000001 >= float(config["exit_s"]):
+			if _phase + 0.000001 >= exit_duration():
 				reset()
 	if state != State.FREE:
 		target_offset = target_position - position
@@ -252,8 +246,8 @@ func _tick_draw(delta: float, position: Vector3, aiming: bool) -> bool:
 			_draw_target += tangent * side * (maxf(minf(left, right), 0.0) + float(config["peek_offset_m"]))
 	if not _draw_active:
 		return false
-	# A held C peek already IS the lean-out position. Hand it back directly, so the
-	# existing peek-release / continued-push exit can proceed while that pose is held.
+	# A held peek already IS the lean-out position. Hand it back directly, so the peek's own
+	# return / away-push exit can proceed while that pose is held.
 	if not wants_out and (state == State.PEEK_LEFT or state == State.PEEK_RIGHT):
 		_draw_active = false
 		aimed_out = false
@@ -271,10 +265,44 @@ func _tick_draw(delta: float, position: Vector3, aiming: bool) -> bool:
 		return false
 	return true
 
+## M2 C1b stage 3 (decision 8, fix 11): the outward wall-normal part of the camera-yaw stick at or above
+## back_exit_min, held exit_away_hold_s (both cover.json, OQ-COVER), begins the exit. A shorter push, or a push below
+## the threshold, does nothing (the hold restarts). Returns true on the tick the exit begins.
+func _tick_away_exit(delta: float, wish: Vector3) -> bool:
+	if wish.dot(normal) + 0.000001 < float(config["back_exit_min"]):
+		_exit_hold = 0.0
+		return false
+	_exit_hold += delta
+	if _exit_hold + 0.000001 < float(config["exit_away_hold_s"]):
+		return false
+	_begin_exit()
+	return true
+
 ## M2 C1b stage 1: how long ENTERING ignores the stick: min(enter_s, input_lock_max_s). The move onto the wall
 ## plane keeps easing over snap_lerp_s after the state has settled (movement_velocity).
 func enter_duration() -> float:
 	return minf(float(config["enter_s"]), float(config["input_lock_max_s"]))
+
+## M2 C1b stage 3 (fix 25): how long EXITING lasts: min(exit_s, input_lock_max_s). EXITING never locks the stick, the
+## look, Jump or the Sprint lock (movement_velocity is the free wish); it ignores the Cover button and auto-snap, and
+## Fire is blocked (blocks_fire). The camera's exit blend (camera.json cover_blend_s) runs on independently.
+func exit_duration() -> float:
+	return minf(float(config["exit_s"]), float(config["input_lock_max_s"]))
+
+## M2 C1b stage 3: every span in which the controller ignores an input, from data, keyed by its cover.json source.
+## Each must be <= input_lock_max_s (tests/test_cover_move_exit_c1b.gd). ENTERING ignores the stick; EXITING the
+## Cover button and Fire; the draw out / back (aim_out_s / aim_return_s) and the peek settle (peek_s) the stick.
+func lock_durations() -> Dictionary:
+	return {"enter_s": enter_duration(), "exit_s": exit_duration(), "aim_out_s": float(config["aim_out_s"]),
+		"aim_return_s": float(config["aim_return_s"]), "peek_s": float(config["peek_s"])}
+
+## M2 C1b stage 3: Jump (fix 14) and a Sprint lock press (fixes 3, 24) leave cover through EXITING, from ENTERING,
+## IN_COVER or a peek. Only Pawn calls this. Returns true when the exit began.
+func request_exit() -> bool:
+	if state == State.ENTERING or state == State.IN_COVER or state == State.PEEK_LEFT or state == State.PEEK_RIGHT:
+		_begin_exit()
+		return true
+	return false
 
 ## Auto-snap anti-sticky rules (OQ-COVER, cover.json): the stick pushed into the wall (length >= enter_stick_min, its
 ## direction within max_wall_angle_deg of the wall normal), the facing within the same angle, the wall within probe_m
@@ -286,7 +314,10 @@ func _try_snap(delta: float, wish: Vector3, probe: Dictionary, position: Vector3
 	facing.y = 0
 	facing = facing.normalized()
 	var min_dot := cos(deg_to_rad(float(config["max_wall_angle_deg"])))
-	var valid := not fire_pressed and not sprinting and _cooldown_left <= 0.0
+	# M2 C1b stage 3: cover.json auto_snap_blocked_by_sprint (OQ-COVER). On touch a full forward push is the sprint
+	# gesture, so with the default true a full push into a wall never auto-snaps (only a partial push does).
+	var sprint_blocks := sprinting and bool(config["auto_snap_blocked_by_sprint"])
+	var valid := not fire_pressed and not sprint_blocks and _cooldown_left <= 0.0
 	valid = valid and bool(probe.get("hit", false)) and float(probe.get("distance_m", INF)) <= float(config["probe_m"])
 	valid = valid and float(probe.get("height_m", 0)) + 0.000001 >= float(config["min_cover_height_m"])
 	valid = valid and wish.length() >= float(config["enter_stick_min"]) and wish.normalized().dot(-wall_normal) + 0.000001 >= min_dot
@@ -340,6 +371,7 @@ func _enter(probe: Dictionary, position: Vector3, wish: Vector3) -> void:
 	state = State.ENTERING
 	_phase = 0.0
 	_hold = 0.0
+	_exit_hold = 0.0
 	_candidate = null
 	_lost_ticks = 0
 	_snap_prev = 0.0
@@ -354,6 +386,7 @@ func _plane_position(position: Vector3) -> Vector3:
 func _begin_exit() -> void:
 	state = State.EXITING
 	_phase = 0.0
+	_exit_hold = 0.0
 	_peek_complete = false
 	_draw_active = false
 	aimed_out = false

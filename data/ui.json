@@ -216,8 +216,8 @@
 	"cover_buttons": {
 		"_placeholder": true,
 		"_todo": "OQ-COVER Path A2: live Jump -> FIRE, Sprint lock -> Crouch; Shoulder is hidden too. Largest clear square at each slot, floor from input.touch_layout.button_min_dp. Reserved old label regions are exclusion zones only, never drawn. Styling/clearance values remain placeholders.",
-		"_c1b_todo": "OQ-COVER M2 C1b stage 1: swap_shoulder left the list, so the Cover button in that slot stays reachable in cover and exits it. jump and sprint_lock stay hidden until C1b stage 3.",
-		"hidden_slots": ["jump", "sprint_lock"],
+		"_c1b_todo": "OQ-COVER M2 C1b stage 3 (decision 3, fixes 26, 28): no buttons change under the thumbs in cover, so the list is empty: Jump, the Sprint lock and the Cover button stay visible and usable in cover (Jump and the Sprint lock exit it). The HUD no longer creates the old cover FIRE and Crouch squares; cover_crouch, cover_fire and the rest of this block are dead data that stage 4 deletes.",
+		"hidden_slots": [],
 		"_thumb_reach_todo": "OQ-COVER Oct 30 2026: auto-move only conflicting slots; thumb_reach_min x/y fractions 0.5/0.5 are placeholders needing Shibi's ok, not design values.",
 		"thumb_reach_min": [0.5, 0.5],
 		"clearance_dp": 0.1,

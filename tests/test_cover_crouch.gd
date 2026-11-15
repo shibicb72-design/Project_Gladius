@@ -192,106 +192,8 @@ func test_real_aim_latch_and_gyro_modes_while_leaned() -> void:
 	router.free()
 	await cleanup()
 
-func touch_event(index: int, at: Vector2, down: bool) -> void:
-	var event := InputEventScreenTouch.new()
-	event.index = index
-	event.position = at
-	event.pressed = down
-	tree().root.push_input(event, true)
-
-func test_context_buttons_real_match_routing_clearance_and_cancel() -> void:
-	var old_size := tree().root.size
-	var old_profile := AppFlow.profile
-	AppFlow.profile = {}
-	tree().root.size = Vector2i(1512, 648)
-	var match_scene: MatchRoot = load("res://scenes/match/match.tscn").instantiate()
-	match_scene.auto_start = false
-	match_scene.fill_bots = false
-	match_scene.bake_navmesh = false
-	tree().root.add_child(match_scene)
-	await tree().physics_frame
-	match_scene.director.load_config()
-	assert_true(match_scene.begin(), "real match begins")
-	await tree().process_frame
-	await tree().process_frame
-	var local := match_scene.local_player
-	local.set_physics_process(false)
-	local.enable_cover(DataRegistry.new().load_file("res://data/cover.json"))
-	var touch: Control = match_scene.get_node("Hud/TouchHud")
-	touch.cfg["force_touch_hud"] = true
-	touch.refresh_visibility()
-	var crouch := match_scene.hud.cover_crouch_button
-	var fire := match_scene.hud.cover_fire_button
-	for button in [crouch, fire]:
-		button.refresh()
-		assert_true(not button.visible, "context control hidden in FREE")
-		assert_true(button.get_parent() == touch.get_parent() and button.get_index() > touch.get_index(), "context sibling after TouchHud")
-		assert_true(button.process_physics_priority < local.process_physics_priority, "context state forwarded before pawn physics")
-	local.cover.state = CoverController.State.IN_COVER
-	local.cover._facts = {"height_m": 1.1, "muzzle_height_m": 1.3, "stand_clear": true}
-	var ui := DataRegistry.new().load_file("res://data/ui.json")
-	for dpi in [420.0, 373.0]:
-		PlatformServices.dpi_override = dpi
-		for view in [Vector2(1512, 648), Vector2(2520, 1080), Vector2(1152, 959), Vector2(2176, 1812)]:
-			touch.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-			touch.size = view
-			touch.relayout()
-			for button in [crouch, fire]:
-				button.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-				button.size = view
-				button.refresh()
-				var rect: Rect2 = button.get_touch_rect()
-				assert_true(button.visible and rect.size.x / PlatformServices.new().get_dp_scale() >= 48.0, "visible contextual 48dp target")
-				assert_true(Rect2(Vector2.ZERO, view).encloses(rect), "context control on-screen")
-				var reserved: Array[Rect2] = [PauseMenu.gear_touch_rect(ui["pause_gear"], view), FireModeButton.touch_rect(ui["fire_mode_button"], view)]
-				for key in touch.get_element_keys():
-					reserved.append(touch.get_element_rect(key))
-				for other_rect in reserved:
-					assert_true(not rect.intersects(other_rect), "context control clear of gear/mode/all TouchHud elements")
-			assert_true(not crouch.get_touch_rect().intersects(fire.get_touch_rect()), "context controls do not overlap")
-	PlatformServices.dpi_override = 0.0
-	for button in [crouch, fire]:
-		button.size = Vector2(1512, 648)
-		button._place()
-	touch.size = Vector2(1512, 648)
-	touch.relayout()
-	touch_event(8, crouch.get_touch_rect().get_center(), true)
-	touch_event(8, crouch.get_touch_rect().get_center(), false)
-	# M2 C1b stage 2 (decision 7): the old Crouch button's routed press is ignored in cover (automatic crouch).
-	assert_true(not local.cover.crouched, "routed crouch tap is ignored in cover")
-	assert_eq(touch._look_touch, -1, "crouch touch consumed")
-	var point := fire.get_touch_rect().get_center()
-	touch_event(9, point, true)
-	assert_true(local.cover._quick_held, "context FIRE owns held input")
-	assert_eq(touch._look_touch, -1, "FIRE press consumed")
-	assert_true(not Input.is_action_pressed("fire"), "context FIRE never presses general action")
-	var drag := InputEventScreenDrag.new()
-	drag.index = 9
-	drag.position = point + Vector2(100, 100)
-	drag.relative = Vector2(100, 100)
-	tree().root.push_input(drag, true)
-	assert_eq(touch._look_touch, -1, "captured FIRE drag consumed")
-	touch_event(9, drag.position, false)
-	assert_true(not local.cover._quick_held and local.cover._buffered_round, "release preserves buffered tap")
-	for interruption in ["hide", "suspend", "pause", "death"]:
-		local.cover.quick_draw(true)
-		match interruption:
-			"hide": fire.hide()
-			"suspend": touch.set_suspended(true)
-			"pause": match_scene.pause_menu.open()
-			"death": local.bridge.state.health = 0; local.bridge.state.shield = 0
-		fire.refresh() if interruption != "hide" else fire._release(true)
-		assert_true(not local.cover._quick_held and not local.cover._buffered_round, "interruption cancels FIRE: " + interruption)
-		if interruption == "pause":
-			match_scene.pause_menu.close()
-		if interruption == "suspend":
-			touch.set_suspended(false)
-		fire.refresh()
-	match_scene.queue_free()
-	tree().root.size = old_size
-	AppFlow.profile = old_profile
-	await tree().process_frame
-	await tree().process_frame
+## M2 C1b stage 3: test_context_buttons_real_match_routing_clearance_and_cancel was deleted here (it pinned the old
+## cover Crouch / FIRE squares, which the HUD no longer creates; see docs/ARCHITECTURE.md 4.21 stage 3).
 
 func test_overhang_refuses_stand_and_low_wall_quick_tap_rises_then_returns() -> void:
 	await fixture()  # M2 C1b stage 2: LOW 1.1 m wall, crouched automatically (was toggle_crouch)
@@ -326,27 +228,13 @@ func test_high_midwall_red_press_and_aim_levels_edge_drag_and_fullauto() -> void
 	assert_true(pawn.global_position.distance_to(start) < 0.0001, "red press / midwall Aim cannot move pawn")
 	assert_eq(shots, 0, "red press and general fire do not shoot")
 	assert_eq(pawn.loadout.get_active().ammo_in_mag, ammo, "no ammo spent")
-	var button := CoverFireButton.new()
-	button.bind(pawn, null, null)
-	tree().root.add_child(button)
-	button.set_physics_process(false)
-	button.set_process(false)
-	var fire_cfg: Dictionary = DataRegistry.new().load_file("res://data/ui.json")["cover_fire"]
-	var red: Array = fire_cfg["disabled_color"]
-	var green: Array = fire_cfg["enabled_color"]
-	button.refresh()
-	assert_eq(button.label.self_modulate, Color(red[0], red[1], red[2], red[3]), "red equals data colour")
-	# Red press still held: sliding into the band must not promote it.
+	# M2 C1b stage 3: the old cover FIRE button and its red/green colours are gone from the HUD; the controller rule
+	# stays. Red press still held: sliding into the band must not promote it.
 	for i in 100:
 		await tick(Vector2(0.49, 0))
-		button.refresh()
-		assert_eq(button.enabled, pawn.cover.can_quick_draw(), "colour/reach updates within crossing tick")
-		var expected: Array = green if pawn.cover.can_quick_draw() else red
-		assert_eq(button.label.self_modulate, Color(expected[0], expected[1], expected[2], expected[3]), "colour always equals data")
 	assert_true(pawn.cover.can_quick_draw(), "slide reaches green usable edge")
 	assert_eq(shots, 0, "red press not promoted while held")
 	pawn.cover.quick_draw(false)
-	button.queue_free()
 	await tree().process_frame
 	pawn.cover.set_look_active(true)
 	await ticks(30)

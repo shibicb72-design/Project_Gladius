@@ -7,8 +7,6 @@ const _Theme := preload("res://scenes/ui/theme.tres")
 var director: MatchDirector
 var pawn: Pawn
 var fire_mode_button: FireModeButton
-var cover_crouch_button: CoverCrouchButton
-var cover_fire_button: CoverFireButton
 var interact_button: InteractButton
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
@@ -65,10 +63,6 @@ func _exit_tree() -> void:
 	# The sibling can still be awaiting its deferred insertion when a short-lived HUD is freed.
 	if is_instance_valid(fire_mode_button):
 		fire_mode_button.queue_free()
-	if is_instance_valid(cover_crouch_button):
-		cover_crouch_button.queue_free()
-	if is_instance_valid(cover_fire_button):
-		cover_fire_button.queue_free()
 	if is_instance_valid(interact_button):
 		interact_button.queue_free()
 
@@ -394,19 +388,8 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 			add_child(fire_mode_button)
 	else:
 		fire_mode_button.bind(pawn, get_node_or_null("../TouchHud") as Control, get_node_or_null("../PauseMenu") as PauseMenu)
-	if cover_crouch_button == null:
-		cover_crouch_button = CoverCrouchButton.new()
-		cover_fire_button = CoverFireButton.new()
-		var touch := get_node_or_null("../TouchHud") as Control
-		for button: CoverCrouchButton in [cover_crouch_button, cover_fire_button]:
-			button.bind(pawn, touch, get_node_or_null("../PauseMenu") as PauseMenu)
-			if touch != null:
-				touch.add_sibling.call_deferred(button)
-			else:
-				add_child(button)
-	else:
-		cover_crouch_button.bind(pawn, get_node_or_null("../TouchHud") as Control, get_node_or_null("../PauseMenu") as PauseMenu)
-		cover_fire_button.bind(pawn, get_node_or_null("../TouchHud") as Control, get_node_or_null("../PauseMenu") as PauseMenu)
+	# M2 C1b stage 3 (decision 3, fixes 26, 28): the old cover FIRE (Jump slot) and Crouch (Sprint-lock slot) squares
+	# are no longer created; Jump and the Sprint lock stay visible and usable in cover. Fire in cover is stage 4.
 	var touch_for_interact := get_node_or_null("../TouchHud") as Control
 	if interact_button == null:
 		interact_button = InteractButton.new()

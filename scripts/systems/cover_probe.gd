@@ -2,11 +2,14 @@ class_name CoverProbe
 extends RefCounted
 ## Scene adapter. Only tagged box walls can enter the pure controller.
 var _wall: StaticBody3D
+## M2 C1b stage 3: the locked wall's instance id (0 = none), so a freed body is told apart without touching it.
+var _wall_id := 0
 var _normal := Vector3.ZERO
 var _movement := DataRegistry.new().get_movement_cfg()
 
 func reset() -> void:
 	_wall = null
+	_wall_id = 0
 	_normal = Vector3.ZERO
 
 ## distance_m < 0 = the auto-snap reach cfg probe_m. M2 C1b: the Cover button passes cfg cover_button_range_m for
@@ -32,7 +35,14 @@ func sample(pawn: Pawn, cfg: Dictionary, locked: bool, distance_m: float = -1.0)
 		if hit.is_empty() or not hit["collider"] is StaticBody3D or not hit["collider"].is_in_group(&"cover_wall"):
 			return out
 		_wall = hit["collider"]
+		_wall_id = _wall.get_instance_id()
 		_normal = hit["normal"]
+	# M2 C1b stage 3 (item 5, fix 19): a locked wall whose body was freed (its instance id is no longer valid) or taken
+	# out of the tree is "wall_gone"; CoverController then exits through EXITING instead of the lost-sample reset. The
+	# freed body itself is never dereferenced.
+	if locked and _wall_id != 0 and (not is_instance_id_valid(_wall_id) or not (instance_from_id(_wall_id) as Node).is_inside_tree()):
+		out["wall_gone"] = true
+		return out
 	if not is_instance_valid(_wall) or not _wall.is_inside_tree() or not _wall.is_in_group(&"cover_wall"):
 		return out
 	var shape := _wall.get_node_or_null("Shape") as CollisionShape3D

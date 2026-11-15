@@ -73,39 +73,43 @@ func test_lock_slide_edge_and_current_yaw_stick_frame() -> void:
 	for i in 10:
 		pos = _step(c, pos, Vector2(1, 0), yaw)
 	assert_true(pos.x > 0 and absf(pos.z - 0.45) < 0.02, "current 45 degree yaw projected onto wall")
-	# Below peek threshold, sliding stops at the configured margin.
+	# M2 C1b stage 3: any lateral stick slides (no peek threshold any more); sliding stops at the configured margin.
 	for i in 120:
-		pos = _step(c, pos, Vector2(0.49, 0))
+		pos = _step(c, pos, Vector2(1, 0))
 	assert_true(absf(pos.x - (2.0 - float(_cfg()["edge_margin_m"]))) < 0.001, "slide stops at own wall edge")
-	assert_eq(c.state, CoverController.State.IN_COVER, "small stick does not peek")
+	assert_eq(c.state, CoverController.State.IN_COVER, "a full push at the edge does not peek")
+	# M2 C1b stage 3: the away push must be held exit_away_hold_s (was: one tick exited).
+	var hold := ceili(float(_cfg()["exit_away_hold_s"]) / DT - 0.0001)
+	for i in hold - 1:
+		pos = _step(c, pos, Vector2(0, 1), yaw)
+	assert_eq(c.state, CoverController.State.IN_COVER, "back projection: shorter than the hold stays")
 	pos = _step(c, pos, Vector2(0, 1), yaw)
 	assert_eq(c.state, CoverController.State.EXITING, "back projection uses current yaw")
 
-func test_both_peeks_hold_and_release_return_to_anchor() -> void:
+## M2 C1b stage 3: was test_both_peeks_hold_and_release_return_to_anchor (the stick peek is gone; leaning is Fire / Aim
+## only, stage 4). A sustained lateral push at either end now stays IN_COVER, clamped edge_margin_m short of the end.
+func test_both_ends_clamp_the_slide_and_never_peek() -> void:
 	for side in [-1, 1]:
 		var c := CoverController.new(_cfg())
 		_enter(c)
 		var pos := Vector3(side * (2.0 - float(_cfg()["edge_margin_m"])), 0, 0.45)
 		for i in 120:
 			pos = _step(c, pos, Vector2(side * 0.6, 0))
-		assert_eq(c.state, CoverController.State.PEEK_LEFT if side < 0 else CoverController.State.PEEK_RIGHT, "sustained sub-exit stick stays peeked")
-		assert_true(absf(pos.x - side * (2.0 + float(_cfg()["peek_offset_m"]))) < 0.001, "completed position past edge")
-		assert_true(not c.blocks_fire(), "completed peek may fire before CR1 source switch")
-		for i in 20:
-			pos = _step(c, pos, Vector2.ZERO)
-		assert_eq(c.state, CoverController.State.IN_COVER, "release returns")
-		assert_true(absf(pos.x - side * (2.0 - float(_cfg()["edge_margin_m"]))) < 0.001, "returns to pre-peek anchor")
+		assert_eq(c.state, CoverController.State.IN_COVER, "sustained lateral stick stays in cover")
+		assert_true(absf(pos.x - side * (2.0 - float(_cfg()["edge_margin_m"]))) < 0.001, "clamped at the edge margin")
 		assert_true(c.blocks_fire(), "wall pose blocks fire")
 
-func test_midwall_does_not_peek_and_fire_blocked_during_motion() -> void:
+## M2 C1b stage 3: was test_midwall_does_not_peek_and_fire_blocked_during_motion ("edge initiates peek" is gone).
+func test_midwall_and_edge_push_slide_and_fire_stays_blocked() -> void:
 	var c := CoverController.new(_cfg())
 	_enter(c)
 	c.tick(DT, Vector2(0.6, 0), true, _probe())
-	assert_eq(c.state, CoverController.State.IN_COVER, "mid wall must slide first")
+	assert_eq(c.state, CoverController.State.IN_COVER, "mid wall slides")
 	c.tick(DT, Vector2(0.6, 0), true, _probe(Vector3(1.65, 0, 0.45)))
-	assert_eq(c.state, CoverController.State.PEEK_RIGHT, "edge initiates peek")
-	assert_true(c.blocks_fire(), "no fire during lean movement")
+	assert_eq(c.state, CoverController.State.IN_COVER, "a push at the edge does not peek")
+	assert_true(c.blocks_fire(), "no fire from the wall pose")
 
+## M2 C1b stage 3: was the peek continued-push exit; now the away push held exit_away_hold_s exits.
 func test_exit_hold_short_hold_back_and_reset_signals() -> void:
 	var c := CoverController.new(_cfg())
 	var events: Array[String] = []
@@ -113,23 +117,20 @@ func test_exit_hold_short_hold_back_and_reset_signals() -> void:
 	c.peeked.connect(func(_side: int): events.append("peeked"))
 	c.exited.connect(func(): events.append("exited"))
 	_enter(c)
-	var pos := Vector3(1.65, 0, 0.45)
-	for i in 17:
-		pos = _step(c, pos, Vector2(1, 0))
-	assert_eq(c.state, CoverController.State.PEEK_RIGHT, "short hold does not exit")
-	for i in 3:
-		pos = _step(c, pos, Vector2(1, 0))
-	assert_eq(c.state, CoverController.State.EXITING, "continued push exits")
-	for i in 18:
-		pos = _step(c, pos, Vector2(1, 0))
-	assert_eq(c.state, CoverController.State.FREE, "exit animation duration then free")
+	var pos := Vector3(1.0, 0, 0.45)
+	var hold := ceili(float(_cfg()["exit_away_hold_s"]) / DT - 0.0001)
+	for i in hold - 1:
+		pos = _step(c, pos, Vector2(0, 1))
+	assert_eq(c.state, CoverController.State.IN_COVER, "short hold does not exit")
+	pos = _step(c, pos, Vector2(0, 1))
+	assert_eq(c.state, CoverController.State.EXITING, "held away push exits")
+	for i in ceili(c.exit_duration() / DT - 0.0001):
+		pos = _step(c, pos, Vector2(0, 1))
+	assert_eq(c.state, CoverController.State.FREE, "exit duration then free")
 	var before := pos
-	pos = _step(c, pos, Vector2(1, 0))
-	assert_true(pos.x > before.x, "normal movement continues")
-	assert_eq(events, ["entered", "peeked", "exited"], "one signal per transition")
-	_enter(c)
-	c.tick(DT, Vector2(0, 1), false, _probe())
-	assert_eq(c.state, CoverController.State.EXITING, "back exits")
+	pos = _step(c, pos, Vector2(0, 1))
+	assert_true(pos.z > before.z, "normal movement continues")
+	assert_eq(events, ["entered", "exited"], "one signal per transition")
 	c.reset()
 	assert_eq(c.state_name(), "FREE", "death/disable reset")
 	assert_true(not c.blocks_fire(), "free behavior unaffected")

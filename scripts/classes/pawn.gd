@@ -631,8 +631,12 @@ func _apply_movement(delta: float) -> void:
 			_cover_probe.reset()
 		else:
 			var probe := _cover_probe.sample(self, cover.config, cover.state != CoverController.State.FREE)
-			if sprint_pressed and (cover.state == CoverController.State.IN_COVER or cover.state == CoverController.State.PEEK_LEFT or cover.state == CoverController.State.PEEK_RIGHT):
-				cover._begin_exit()
+			# M2 C1b stage 3: a Sprint lock press (the InputFrame.sprint rising edge; in cover the touch stick's forward
+			# extreme no longer sprints, TouchProvider.cover_suppress_sprint) exits and sprints; a lock already on at entry
+			# has no edge and does not exit. Jump (fix 14) exits and jumps (velocity.y above). Both blend (EXITING).
+			var jumped := _frame.jump_just_pressed and bool(_movement.get("jump_enabled", false))
+			if sprint_pressed or jumped:
+				cover.request_exit()
 			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming, _frame.sprint)
 			_apply_cover_shapes()
 			if cover.state != CoverController.State.FREE:

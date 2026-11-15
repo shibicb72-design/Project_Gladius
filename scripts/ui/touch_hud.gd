@@ -48,6 +48,8 @@ var cover_controls_active := false
 var _cover_hidden_slots: Array = []
 
 ## Context siblings call this synchronously, including refresh() before the next frame.
+## M2 C1b stage 3: inert. Its only caller was the old cover Crouch / FIRE square, which the HUD no longer creates, and
+## data/ui.json cover_buttons.hidden_slots is empty, so no slot is hidden in cover. Stage 4 deletes this machinery.
 func set_cover_controls_active(active: bool) -> void:
 	if _cover_hidden_slots.is_empty():
 		_cover_hidden_slots = _DataRegistry.new().load_file("res://data/ui.json")["cover_buttons"]["hidden_slots"]
@@ -136,6 +138,10 @@ func _refresh_cover_slot() -> void:
 	var pawn := _hud_pawn()
 	var active := pawn != null and pawn.cover_button_available()
 	set_cover_slot(active, active and pawn.cover_button_valid(), active and pawn.in_cover())
+	# M2 C1b stage 3 (fixes 3, 24): in cover (any non-FREE state, read-only) the stick's forward extreme does not sprint;
+	# the Sprint lock button and target stay as they are.
+	if provider != null:
+		provider.cover_suppress_sprint = pawn != null and pawn.in_cover()
 
 ## Callable directly where there is no GameHud sibling (tests). A touch held on the slot when it changes meaning is
 ## released under the action it pressed.

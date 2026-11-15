@@ -107,12 +107,11 @@ func test_cover_press_in_cover_and_peek_exits_and_is_ignored_while_entering() ->
 	_settle_in_cover(c)
 	assert_eq(c.state, CoverController.State.IN_COVER, "settled")
 	_exit_to_free(c)
+	# M2 C1b stage 3: the stick no longer peeks, so the peek is set directly (test seam; stage 4 leans from Fire / Aim).
 	c = CoverController.new(_cfg())
 	assert_true(c.request_cover(_probe(Vector3(1.65, 0, 0.45))), "enters near the right edge")
 	_settle_in_cover(c)
-	for i in 30:
-		c.tick(DT, Vector2(0.6, 0), false, _probe(Vector3(1.65, 0, 0.45)))
-	assert_eq(c.state, CoverController.State.PEEK_RIGHT, "peeked")
+	c.state = CoverController.State.PEEK_RIGHT
 	assert_true(c.request_cover({}), "a press while peeked exits")
 	assert_eq(c.state, CoverController.State.EXITING, "peek -> exiting")
 
@@ -216,8 +215,13 @@ func test_stick_is_free_once_the_lock_ends() -> void:
 	for i in _ticks(c.enter_duration()):
 		c.tick(DT, Vector2(0, 1), false, _probe(Vector3(0, 0, 0.45)))
 	assert_eq(c.state, CoverController.State.IN_COVER, "the lock ended at the cap")
+	# M2 C1b stage 3: the away push is counted from the first tick after the lock and exits after exit_away_hold_s.
+	var hold := _ticks(float(c.config["exit_away_hold_s"]))
+	for i in hold - 1:
+		c.tick(DT, Vector2(0, 1), false, _probe(Vector3(0, 0, 0.45)))
+	assert_eq(c.state, CoverController.State.IN_COVER, "the hold counts only after the lock")
 	c.tick(DT, Vector2(0, 1), false, _probe(Vector3(0, 0, 0.45)))
-	assert_eq(c.state, CoverController.State.EXITING, "the stick acts on the first tick after the lock")
+	assert_eq(c.state, CoverController.State.EXITING, "the stick acts from the first tick after the lock")
 
 
 # ---- the real pawn and wall --------------------------------------------------------------------
@@ -375,7 +379,11 @@ func test_offline_ground_slot_is_the_cover_button_and_shoulder_elsewhere() -> vo
 	touch._on_up(5)
 	assert_true(not Input.is_action_pressed("cover"), "the release frees 'cover'")
 	var states := [["carrier", func() -> void: pawn.drop_state = Pawn.Drop.ABOARD],
-		["falling", func() -> void: pawn.drop_state = Pawn.Drop.FALLING],
+		# M2 C1b stage 3: lifted 30 m, so the pawn really falls (a FALLING pawn on the floor lands on its next physics
+		# tick, which made this case depend on how many physics ticks two process frames hold).
+		["falling", func() -> void:
+			pawn.global_position.y += 30.0
+			pawn.drop_state = Pawn.Drop.FALLING],
 		["downed", func() -> void:
 			pawn.drop_state = Pawn.Drop.NONE
 			pawn.life = Pawn.Life.DOWNED]]

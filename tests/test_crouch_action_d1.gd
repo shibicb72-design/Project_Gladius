@@ -9,7 +9,6 @@ const DT := 1.0 / 60.0
 var match_scene: MatchRoot
 var local: Pawn
 var touch: Control
-var crouch: CoverCrouchButton
 var _old_size: Vector2i
 var _old_profile: Dictionary
 
@@ -122,14 +121,11 @@ func _begin_match() -> void:
 	touch = match_scene.get_node("Hud/TouchHud")
 	touch.cfg["force_touch_hud"] = true
 	touch.refresh_visibility()
-	crouch = match_scene.hud.cover_crouch_button
 	# The test's update_frame() calls are the only consumers of the router latch.
 	match_scene.router.set_physics_process(false)
 	touch.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	touch.size = Vector2(1512, 648)
 	touch.relayout()
-	crouch.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	crouch.size = Vector2(1512, 648)
 
 
 func _end_match() -> void:
@@ -143,39 +139,14 @@ func _end_match() -> void:
 func _fake_cover(stand_clear: bool = true) -> void:
 	local.cover.state = CoverController.State.IN_COVER
 	local.cover._facts = {"height_m": 1.1, "muzzle_height_m": 1.3, "stand_clear": stand_clear}
-	crouch.refresh()
 
 
-func _touch(index: int, at: Vector2, down: bool) -> void:
-	var event := InputEventScreenTouch.new()
-	event.index = index
-	event.position = at
-	event.pressed = down
-	tree().root.push_input(event, true)
-
-
-func _click(at: Vector2, down: bool) -> void:
-	var event := InputEventMouseButton.new()
-	event.button_index = MOUSE_BUTTON_LEFT
-	event.position = at
-	event.global_position = at
-	event.pressed = down
-	tree().root.push_input(event, true)
-
-
-## Real tap at the Crouch button's on-screen centre. Returns crouched as seen between press and release.
-func _tap_crouch(mouse: bool = false) -> bool:
-	var at := crouch.get_touch_rect().get_center()
-	if mouse:
-		_click(at, true)
-	else:
-		_touch(8, at, true)
-	var at_press := local.cover.crouched
-	if mouse:
-		_click(at, false)
-	else:
-		_touch(8, at, false)
-	return at_press
+## M2 C1b stage 3: the old cover Crouch square is no longer created by the HUD (its slot is the Sprint lock again), so
+## the routed press is sent the way that button sent it: TouchProvider.trigger_action("crouch") (was: a real touch or
+## mouse tap on the button). Returns crouched as seen right after the press.
+func _tap_crouch() -> bool:
+	touch.provider.trigger_action("crouch")
+	return local.cover.crouched
 
 
 # ---- T5 routed tap ----------------------------------------------------------------------------
@@ -183,14 +154,13 @@ func _tap_crouch(mouse: bool = false) -> bool:
 func test_t5_real_tap_toggles_once_at_press_and_latches_one_frame_edge() -> void:
 	await _begin_match()
 	_fake_cover()
-	assert_true(crouch.visible, "Crouch shown in cover")
 	var router: InputRouter = match_scene.router
-	for mouse in [false, true]:
-		var kind := "mouse" if mouse else "touch"
+	# M2 C1b stage 3: one routed press per pass (was: a touch pass and a mouse pass on the old Crouch square).
+	for kind in ["first", "second"]:
 		assert_true(not local.cover.crouched, "%s: starts standing" % kind)
 		# M2 C1b stage 2 (decision 7): the routed press still reaches the router (edge below) but the pawn ignores
 		# "crouch" in cover; the stance is automatic (was: crouched at press, one tap toggles once).
-		assert_true(not _tap_crouch(mouse), "%s: no stance change at press time" % kind)
+		assert_true(not _tap_crouch(), "%s: no stance change at press time" % kind)
 		assert_true(not local.cover.crouched, "%s: the tap is ignored in cover" % kind)
 		var f1 := router.update_frame()
 		assert_true(f1.crouch_pressed and f1.crouch_just_pressed, "%s: next frame carries the latched crouch edge" % kind)
@@ -199,27 +169,21 @@ func test_t5_real_tap_toggles_once_at_press_and_latches_one_frame_edge() -> void
 		for i in 5:
 			await tree().physics_frame
 		assert_true(not local.cover.crouched, "%s: still no toggle after physics ticks" % kind)
-		assert_true(not _tap_crouch(mouse) and not local.cover.crouched, "%s: a second tap is ignored too" % kind)
+		assert_true(not _tap_crouch() and not local.cover.crouched, "%s: a second tap is ignored too" % kind)
 		router.update_frame()
 		router.update_frame()
 	# Gates: menu open, HUD suspended, dead. None may toggle.
 	match_scene.pause_menu.open()
-	crouch.refresh()
-	_tap_crouch()
-	touch.provider.trigger_action("crouch")  # the router path itself is gated while the menu is open
+	_tap_crouch()  # the router path itself is gated while the menu is open
 	assert_true(not local.cover.crouched, "menu open: no toggle")
 	match_scene.pause_menu.close()
 	touch.set_suspended(true)
-	crouch.refresh()
 	_tap_crouch()
 	assert_true(not local.cover.crouched, "suspended: no toggle")
 	touch.set_suspended(false)
-	crouch.refresh()
 	local.bridge.state.health = 0
 	local.bridge.state.shield = 0
-	crouch.refresh()
-	_tap_crouch()
-	touch.provider.trigger_action("crouch")  # the pawn gate refuses a dead pawn too
+	_tap_crouch()  # the pawn gate refuses a dead pawn too
 	assert_true(not local.cover.crouched, "dead: no toggle")
 	router.update_frame()
 	await _end_match()
@@ -317,8 +281,6 @@ func _blend(routed: bool) -> Array[float]:
 func test_t6_routed_tap_blends_identically_to_direct_toggle() -> void:
 	await _begin_match()
 	var root := await _wall_fixture()
-	crouch.refresh()
-	assert_true(crouch.visible, "Crouch shown in real cover")
 	var routed_down := await _blend(true)
 	var routed_up := await _blend(true)
 	var direct_down := await _blend(false)
@@ -334,7 +296,6 @@ func test_t6_routed_tap_blends_identically_to_direct_toggle() -> void:
 	for i in 2:
 		await _tick()
 	assert_true(not bool(local.cover._facts.get("stand_clear", true)), "overhang blocks standing")
-	crouch.refresh()
 	assert_true(_tap_crouch(), "routed: still crouched at press (the press is ignored in cover)")
 	for i in 20:
 		await _tick()

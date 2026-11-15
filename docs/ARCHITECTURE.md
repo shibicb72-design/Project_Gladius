@@ -609,7 +609,7 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
 `CoverIndex`. `Pawn._ensure_cover` builds it only for the local player (CameraRig child, no Brain,
 `net_mode` LOCAL, offline). All numbers are placeholders in `data/cover.json` (OQ-COVER).
 
-#### C1b cover as built (kept current per stage; stage 1 = the Cover button and auto-snap; stage 2 = the cover camera, pose and auto crouch)
+#### C1b cover as built (kept current per stage; stage 1 = the Cover button and auto-snap; stage 2 = the cover camera, pose and auto crouch; stage 3 = moving and exiting)
 - **Entry by button.** Touch only in C1b. The touch HUD's Shoulder slot (`swap_shoulder` element) is the
   Cover button while `Pawn.cover_button_available()` (controller present, ALIVE, `drop_state` NONE, not
   LAN): on the ground, FREE or in cover. Carrier, falling and downed show Shoulder swap as C1a left it.
@@ -699,6 +699,64 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   `out_ease_s` 0.15, `side_ease_s` 0.3, `turn_cancel_look_deg` 0.05; `cover.json animation.hug_out_deg` 30. All
   OQ-COVER placeholders.
 - Tests: `tests/test_cover_camera_c1b.gd` (prints `C1B CAMERA` lines with the per-frame camera maxima).
+
+**Stage 3: moving and exiting.**
+- **The stick split** (`CoverController.tick`, IN_COVER; decision 8, fix 11). The stick is mapped to world space
+  through the pawn's yaw (the probe's `basis`, the look yaw), as normal movement is; after stage 2's entry turn the
+  view looks ALONG the wall, so forward / back slide. Its along-wall (tangent) part slides at the probe's
+  `slide_speed_mps`, clamped `edge_margin_m` short of the locked box's ends (`left_m` / `right_m`); its outward
+  wall-normal part at or above `back_exit_min`, held `exit_away_hold_s`, exits (`_tick_away_exit`; a shorter push or a
+  release restarts the hold); the into-wall part does nothing. The stick peek is gone: nothing enters PEEK_LEFT /
+  PEEK_RIGHT from the stick, and the peek's continued-push exit is gone. The State enum keeps PEEK_*; a PEEK_* state
+  (only tests set it now) returns to IN_COVER once no round is held and honours the away push. The quick draw still
+  leans by itself at an edge (`_tick_draw`); while it is out or returning the stick is ignored, as before.
+- **Exits, all through EXITING** (so every exit blends: the rig wants first person from EXITING, stage 2):
+  1. the away push (above), in the controller;
+  2. the Cover button (stage 1, `request_cover` in IN_COVER / PEEK_*);
+  3. the Sprint lock: `Pawn._apply_movement` calls `CoverController.request_exit()` on the `InputFrame.sprint` rising
+     edge. A lock already on at entry has no edge and does not exit. A hard stick push never exits (below);
+  4. Jump (fix 14) [Shibi default]: the same call on `InputFrame.jump_just_pressed` (with `stats.json
+     jump_enabled`); the jump velocity is applied above it, so the pawn exits and jumps;
+  5. a vanished wall (item 5, fix 19): `CoverProbe` keeps the locked wall's instance id; a locked sample whose id is
+     no longer valid (`is_instance_id_valid`, the freed body is never dereferenced) or whose body has left the tree
+     returns `wall_gone: true`, and the controller calls `_begin_exit()` instead of counting a lost tick. Every other
+     lost sample (pushed off the wall, the face ray missing, an untagged body) keeps the two-tick `reset()`.
+  `request_exit()` accepts ENTERING, IN_COVER and PEEK_*. The re-entry cooldown (`reentry_cooldown_s`, auto-snap only)
+  still starts in `reset()`, i.e. when FREE is reached, after every exit.
+- **Sprint suppression in cover** (fixes 3, 24). `TouchProvider.cover_suppress_sprint`, set every `_process` (and on
+  every touch-down) by `TouchHud._refresh_cover_slot` from the bound GameHud pawn's `in_cover()` (any non-FREE state,
+  read-only). While true, `is_sprinting()` ignores the stick's forward-extreme detector, so a hard push slides and
+  `InputFrame.sprint` stays false; `sprint_locked` and `lock_target_visible()` are untouched, so the Sprint lock button
+  and the release-on-target lock stay reachable and are the sprint exit. One frame of lag at entry is harmless (no
+  rising edge reaches IN_COVER). InputFrame.sprint stays one bool; there is no desktop sprint action.
+- **Lock durations** against `input_lock_max_s` 0.15 (`CoverController.lock_durations()`, asserted in the tests):
+  ENTERING ignores the stick for `enter_duration()` = min(`enter_s`, cap) = 0.15; EXITING lasts `exit_duration()` =
+  min(`exit_s`, cap) = 0.15 (`exit_s` was 0.3) and ignores the Cover button and auto-snap and blocks Fire; it never locks
+  the stick, the look, Jump or the Sprint lock (`movement_velocity` is the free wish); the draw out / back
+  (`aim_out_s` 0.15 / `aim_return_s` 0.15) and the peek settle (`peek_s` 0.15) ignore the stick. `cover_anim.gd`'s exit
+  pose reads `exit_s` too (now 0.15). The camera's exit blend is `cover_blend_s` 0.6, independent of EXITING.
+- **Auto-snap and sprint switch**: `cover.json auto_snap_blocked_by_sprint` (true = the spec: a full forward touch
+  push is the sprint gesture, so it never auto-snaps, only a partial push does; false lets a sprinting push snap).
+- **No buttons change under the thumbs** (decision 3, fixes 26, 28): `ui.json cover_buttons.hidden_slots` is `[]`, so
+  Jump, the Sprint lock and the Cover button stay visible and usable in cover. `GameHud.bind` no longer creates or binds
+  `CoverCrouchButton` / `CoverFireButton` (their fields are gone from hud.gd). `TouchHud.set_cover_controls_active` /
+  `is_cover_slot_hidden` are inert (nothing calls the setter; the list is empty). Until stage 4 there is no way to fire
+  in cover from the touch HUD (accepted); the HUD's general "fire" press now reaches the pawn in cover too, where
+  `Pawn._apply_weapon` still ignores it (only `quick_draw_trigger` fires in cover).
+- **Data keys (stage 3, cover.json, OQ-COVER):** `exit_away_hold_s` 0.15 (new), `back_exit_min` 0.6 (now the away
+  threshold), `exit_s` 0.15 (was 0.3), `auto_snap_blocked_by_sprint` true (new), `_c1b_stage3_todo`. Removed (only the
+  stick peek read them): `peek_stick_min`, `exit_stick_min`, `exit_hold_s`. `ui.json cover_buttons.hidden_slots` [].
+- **Left for stage 4** (the old path): `scripts/ui/cover_fire_button.gd`, `scripts/ui/cover_crouch_button.gd` (class
+  files, unreferenced by the game); `ui.json cover_fire`, `cover_crouch` and the rest of `cover_buttons`; touch_hud's
+  `cover_controls_active`, `_cover_hidden_slots`, `set_cover_controls_active`, `is_cover_slot_hidden` and their uses
+  (`_refresh_button_visibility`, `get_element_keys`, `_on_down`, `_button_at`, `_sync_fire_action`);
+  `CoverController.quick_draw`, `quick_draw_trigger`, `round_fired`, `set_look_active`, `_quick_held`,
+  `_buffered_round`, `_look_active`, `toggle_crouch`, the `peeked` signal and `_anchor` / `_peek_target`; `Pawn
+  handle_action_press / release / look("cover_fire")` (stage 4 makes it a no-op); `InputRouter.NON_FRAME_ACTIONS`
+  "cover_fire" and `TouchProvider.release_action` / `set_action_look` (keep the plumbing, fix 4); docs/CONTROLS.md
+  "In-cover controls". Tests that still drive the routed "cover_fire" press: `test_cover_fire_fix.gd`,
+  `test_cover_fire_path_a2.gd`, `test_cover_fire_input_d2.gd`, `test_cover_crouch.gd`, `test_cover_pawn.gd`.
+- Tests: `tests/test_cover_move_exit_c1b.gd` (prints `C1B MOVE_EXIT` lines with the per-frame camera maxima).
 
 ## 5. Testing
 
