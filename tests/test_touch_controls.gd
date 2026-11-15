@@ -313,14 +313,24 @@ func test_gamepad_obeys_cap() -> void:
 	assert_true(g.x > 0.0 and g.x <= cap + 1e-9 and g.y <= cap + 1e-9, "gamepad capped, got %s cap %s" % [g, cap])
 
 
-func test_tap_in_look_zone_pulses_fire() -> void:
+## M2 H1a: a look-zone tap and a still look-zone hold only turn the view; neither presses fire (was:
+## test_tap_in_look_zone_pulses_fire, the tap pressed fire for a short pulse).
+func test_tap_and_hold_in_look_zone_never_fire() -> void:
 	for mode in ["stick", "drag"]:
 		var hud := _new_hud(mode)
 		_touch(hud, 2, Vector2(900, 300), true)
+		assert_eq(hud._look_touch, 2, "%s: the touch is a look touch" % mode)
 		_touch(hud, 2, Vector2(900, 300), false)
-		assert_true(Input.is_action_pressed("fire"), "%s tap presses fire" % mode)
-		hud._process(1.0)
-		assert_true(not Input.is_action_pressed("fire"), "%s fire released" % mode)
+		assert_true(not Input.is_action_pressed("fire"), "%s tap does not press fire" % mode)
+		hud._process(1.0 / 60.0)
+		assert_true(not Input.is_action_pressed("fire"), "%s tap does not press fire on the next frame" % mode)
+		_touch(hud, 2, Vector2(900, 300), true)
+		for i in 60:
+			hud._process(1.0 / 60.0)
+		assert_true(not Input.is_action_pressed("fire"), "%s still hold does not press fire" % mode)
+		_touch(hud, 2, Vector2(900, 300), false)
+		hud._process(1.0 / 60.0)
+		assert_true(not Input.is_action_pressed("fire"), "%s hold release does not press fire" % mode)
 		hud.free()
 
 
@@ -367,12 +377,12 @@ func test_fire_button_works_with_move_finger_held() -> void:
 	var hud := _new_hud()
 	_touch(hud, 0, Vector2(200, 400), true)
 	_drag(hud, 0, Vector2(200, 320), Vector2(0, -80))
-	var point: Vector2 = hud.get_element_rect("look_stick").get_center()
+	# M2 H1a: the second finger presses the right Fire button (was a look-stick tap and its fire pulse).
+	var point: Vector2 = hud.get_button_rect(hud.RIGHT_FIRE_KEY).get_center()
 	_touch(hud, 1, point, true)
-	_touch(hud, 1, point, false)
 	assert_true(Input.is_action_pressed("fire"), "fire pressed by second finger")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still non-zero")
-	hud._process(float(hud._layout["fire_pulse_s"]) + 0.01)
+	_touch(hud, 1, point, false)
 	assert_true(not Input.is_action_pressed("fire"), "fire released")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still held")
 	_touch(hud, 0, Vector2(200, 320), false)

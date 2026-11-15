@@ -72,8 +72,8 @@ func test_button_consumes_touch_before_hud_and_keeps_choice_on_respawn() -> void
 	assert_eq(touch._move_touch, -1, "no move touch")
 	assert_eq(touch._look_touch, -1, "no look touch")
 	assert_true(touch.provider.sprint_locked, "sprint lock unchanged")
-	var layout: Dictionary = touch.cfg["touch_layout"]
-	await tree.create_timer(float(layout["tap_fire_max_s"]) + float(layout["fire_pulse_s"])).timeout
+	# M2 H1a: the look tap pulse and its data keys are gone; wait the old tap window + pulse (0.2 + 0.08 s) anyway.
+	await tree.create_timer(0.3).timeout
 	assert_true(not Input.is_action_pressed("fire"), "no delayed fire pulse")
 	# A user layout overlapping the mode button retains the action button's input.
 	var original: Dictionary = touch.slot_layout.duplicate(true)

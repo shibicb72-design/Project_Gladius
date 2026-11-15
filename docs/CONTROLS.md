@@ -11,7 +11,7 @@ All feedback numbers are placeholders in `data/ui.json` (`shot_fx`, `feedback`);
 
 | Button | Effect | Visible feedback |
 |---|---|---|
-| Look zone | Tap = one round (semi or auto), or one burst for weapons without modes. A still hold past `look_hold_fire.hold_min_s` = one round in semi, continuous in auto, repeat for others. A drag before that threshold only looks; a hold can drag later while continuing to fire. In cover the look zone never fires: use the right Fire or Left Fire button (In-cover controls below). Hitscan ranged weapons spend ammo. | Muzzle flash and tracer from the weapon mesh toward the hit point or max range, drawn on top of the pawn body so the near-axis third-person view still shows it (`shot_fx.tracer_draw_on_top`, tested on screen against `tracer_min_screen_px`; others, including bots, see it from the host's shot report); hit marker on a hit; "Empty" cue when pressed on an empty mag. |
+| Right Fire / Left Fire | M2 H1a (Nov 15 2026): only these buttons fire from the touch HUD; the look zone only turns the view, in and out of cover (a tap, a still hold or a drag never fires; the old look tap-fire and hold-fire and their `tap_fire_max_s`, `look_hold_fire`, `fire_pulse_s` keys are gone). Press = one round in semi, continuous in auto while held, one burst for weapons without modes. Hitscan ranged weapons spend ammo. | Muzzle flash and tracer from the weapon mesh toward the hit point or max range, drawn on top of the pawn body so the near-axis third-person view still shows it (`shot_fx.tracer_draw_on_top`, tested on screen against `tracer_min_screen_px`; others, including bots, see it from the host's shot report); hit marker on a hit; "Empty" cue when pressed on an empty mag. |
 | Reload | Starts a reload if the mag is not full and reserve ammo exists. | "Reloading" text and progress bar while reloading (feedback rows now sit in a centre band, `feedback.row_x_frac`, above the stick tops and button column, so none overlaps a stick or button; checked by tests/test_feedback_clearance.gd); "Full" cue on a full mag, "No reserve" cue with no reserve. |
 | Swap | Switches the active weapon slot. | Toast with the new weapon name; the weapon label also changes. |
 | Aim | Tap toggle (default, `aim_toggle_enabled`, OQ-AIM): a tap zooms the camera FOV (`aim_fov_mult`, eased by `aim_zoom_s`) and tightens spread (`aim_spread_mult`); the zoom stays after release until Aim is tapped again. Fire does not cancel it. `aim_toggle_enabled` false = hold-to-aim. | FOV change. Aim state is read from `InputFrame.aim_pressed` (the router's tap-toggle latch) in `pawn.gd`; the host takes aim from the client's latest `InputFrame` (`net_match_bridge.gd` `host_note_input` stores it, the shot's spread reads it) and ignores the client-sent aim flag. |
@@ -29,7 +29,7 @@ All feedback numbers are placeholders in `data/ui.json` (`shot_fx`, `feedback`);
   hollow scope); the centre crosshair hides at `first_person.crosshair_hide_aim_blend` and returns when Aim ends.
   Third person and the blade keep the crosshair.
 - Shoulder button: hidden in first person (`data/ui.json` `first_person_touch.shoulder_visible`). Its slot stays
-  reserved and swallows taps (no swap, no look, no tap-to-fire) where no Cover button is offered (LAN); on the
+  reserved and swallows taps (no swap, no look) where no Cover button is offered (LAN); on the
   ground C1b puts the Cover button there (In-cover controls below). On the carrier, falling and downed it works as
   before. The shoulder swap is ignored in first person and in cover (the cover side follows the lean).
 - All numbers are guesses for Shibi (OQ-FIRST-PERSON). Tests: `tests/test_first_person_camera.gd`.
@@ -46,7 +46,7 @@ index, position and the button/stick it hit (OQ-DEVICE-TOUCH). Default off.
 
 ## Layouts (virtual stick only, `vjoy_layout`)
 
-- **floating (default)**: "Option 1: Left side of screen is dedicated to movement, right side dedicated to aim. Fixed fire button on the right side. This is the default setup." (since step 3, Nov 9 2026, we have one too: the right Fire button below; the look zone still fires) A `JOYSTICK_DYNAMIC` stick: a touch anywhere in the left half of the screen (`move_zone`, left 0.0 to right 0.5) spawns the base under the thumb. At rest the base is drawn at `move_stick_rest`. The left-half touch area is not drawn; `TouchHud.get_move_visual_rect()` is the drawn base.
+- **floating (default)**: "Option 1: Left side of screen is dedicated to movement, right side dedicated to aim. Fixed fire button on the right side. This is the default setup." (since step 3, Nov 9 2026, we have one too: the right Fire button below; since M2 H1a the look zone never fires) A `JOYSTICK_DYNAMIC` stick: a touch anywhere in the left half of the screen (`move_zone`, left 0.0 to right 0.5) spawns the base under the thumb. At rest the base is drawn at `move_stick_rest`. The left-half touch area is not drawn; `TouchHud.get_move_visual_rect()` is the drawn base.
 - **fixed**: "Option 3: The entire screen can be used for aim, with a fixed stick for movement and a fixed fire button." (since step 3 we also have the right Fire button below) A `JOYSTICK_FIXED` stick at `move_stick_rest`. Only touches on the stick grab it; a touch elsewhere on the left goes to look.
 
 ## How to switch
@@ -168,7 +168,7 @@ This replaces the Oct 29 / Oct 30 cover controls (the cover FIRE and Crouch squa
 | Fire behind HIGH cover away from an edge | [Shibi default] No lean or rise is possible there: Fire does nothing and spends no ammo, and the right Fire and Left Fire buttons dim (`data/ui.json` `cover_fire_dim`). A press there is dropped, not kept for later. |
 | Fire while entering or leaving | A press during ENTERING (at most 0.15 s) is buffered and taken when the pawn settles in cover (if a lean or rise is possible there); a press during EXITING is taken as a normal shot once FREE. |
 | Aim (tap toggle) | Alone it leans or rises out and holds out until it is toggled off; Fire then fires at once from the held pose. Behind HIGH cover away from an edge Aim only does its normal ADS zoom. |
-| Look zone | In cover look-zone taps and holds only turn the view; they never fire (a look touch that began in cover cannot fire after an exit either). Outside cover they fire as before. |
+| Look zone | Look-zone taps, holds and drags only turn the view; they never fire, in cover or outside it (M2 H1a; before it they fired outside cover). |
 | Empty magazine | The soldier returns to cover even with Fire or Aim held; `stats.json` `combat.auto_reload_on_empty` starts the reload; after it a still-held Fire or Aim goes out again. With no reserve it just returns. |
 | Recoil | No recoil and no camera knockback for any shot in cover; the view model's and the soldier's visual kick stay. |
 
@@ -184,17 +184,17 @@ A contextual round button, lower right next to the look stick (placement and siz
 
 ## Right Fire button and swipe-look (step 3, Shibi Nov 9 2026)
 
-- **Swipe-look is the default:** `data/input.json` `look.mode` is `drag`. A finger on the right side turns the view by its travel (`drag_rad_per_screen_height` per screen height), not capped by `max_turn_rate_deg_s` (that cap applies to the stick mode only; uncapped swipe is a guess for Shibi, OQ-53). Stick-look is still there as `look.mode: stick`.
-- **Right Fire button:** element key `fire_right`, label "Fire", always on. Press holds the `fire` action; dragging the same finger also aims (`touch_hud.gd` `_on_drag` sends its travel to `TouchProvider.add_drag`). Releasing it stops firing unless Left Fire or a look hold still holds `fire`.
+- **Swipe-look is the default:** `data/input.json` `look.mode` is `drag`. A finger on the right side turns the view by its travel (`drag_rad_per_screen_height` per screen height), not capped by `max_turn_rate_deg_s` (that cap applies to the stick mode only; uncapped swipe is a guess for Shibi, OQ-53). Stick-look is still there as `look.mode: stick`. In either mode a look touch never fires (M2 H1a).
+- **Right Fire button:** element key `fire_right`, label "Fire", always on. Press holds the `fire` action; dragging the same finger also aims (`touch_hud.gd` `_on_drag` sends its travel to `TouchProvider.add_drag`). Releasing it stops firing unless Left Fire still holds `fire`. Since M2 H1a it and Left Fire are the touch HUD's only fire sources.
 - **Position:** `touch_layout.buttons.fire_right.offset` [-1.65, -0.15] button sizes from the look stick rest, just up-left of the look stick. It is the only patch clear of every HUD rect, the move zone and the north-west rule on all seven test screen sizes at 420 and 373 dpi (probe). Placeholder, OQ-FIRE-BUTTON; the Fold touch test decides.
 - **Real recoil (G4):** each ranged shot raises the pawn's real aim by `weapons.<id>.recoil.pitch_deg` and moves it sideways by up to `yaw_deg` (seeded random sign) in `data/stats.json`. It does not return on its own: pull down to hold the aim. Bots re-aim from their current pitch every tick. Separate from the view-only camera knockback. Values are guesses, OQ-RECOIL.
-- **Tests:** `tests/test_fire_button.gd`.
+- **Tests:** `tests/test_fire_button.gd`; look never fires: `tests/test_look_tap_fire.gd`.
 
 ## Left Fire button (G3e, off by default)
 
 PUBG Mobile offers a second Fire button on the left as an option; so do we, and it is off. Settings > "Left Fire button: Off/On" stores the profile key `left_fire_enabled` (`SaveService` keeps only a bool; default `touch_layout.left_fire.enabled_default`, false).
 
-- **Behaviour:** when on, `touch_hud.gd` builds one more round button (element key `fire_left`, label "Fire"), the action-button size and never below `button_min_dp` (48 dp via the platform layer). It presses and releases the same `fire` action through `_on_down` / `_on_up`; `fire` stays down while Left Fire or a look hold holds it (or a look-tap pulse is active), so releasing one source keeps the others firing. Off: no node is built and `fire_left` is not in `get_element_keys()`.
+- **Behaviour:** when on, `touch_hud.gd` builds one more round button (element key `fire_left`, label "Fire"), the action-button size and never below `button_min_dp` (48 dp via the platform layer). It presses and releases the same `fire` action through `_on_down` / `_on_up`; `fire` stays down while Left Fire or the right Fire button holds it, so releasing one keeps the other firing. Off: no node is built and `fire_left` is not in `get_element_keys()`.
 - **Position:** `data/input.json` `touch_layout.left_fire.pos` (fractions of width/height of the centre; left half, above the move stick, clear of the Sprint lock target). It is a placeholder, not a design value (OQ-LEFT-FIRE-POS). It is not a key of `touch_layout.buttons` (those are InputMap actions).
 - **Layout editor:** "Left Fire" (`fire_left`) shows up only while enabled. Its `pos`, `size_pct` and `alpha_pct` save per slot like any element (`hud_layout_model.gd`), are covered by the off-screen/overlap check, and Reset returns it to the data default.
 - **Tests / shots:** `tests/test_left_fire.gd`; `touch_capture.tscn --left-fire --tag=left_fire_on --layout-shot=<cover|inner>_landscape` and `layout_editor_capture.tscn --left-fire-shot=<cover|inner>`.

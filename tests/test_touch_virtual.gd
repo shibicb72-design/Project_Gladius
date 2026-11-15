@@ -130,13 +130,14 @@ func test_fire_button_works_with_virtual_move_finger_held() -> void:
 	var hud := _hud()
 	_touch(0, Vector2(200, 400), true)
 	_drag(0, Vector2(200, 320), Vector2(0, -80))
-	var fire_c: Vector2 = hud.get_element_rect("look_stick").get_center()
+	# M2 H1a: the second finger holds the right Fire button (was a look-stick tap and its timed fire pulse).
+	var fire_c: Vector2 = hud.get_button_rect(hud.RIGHT_FIRE_KEY).get_center()
 	_touch(1, fire_c, true)
-	_touch(1, fire_c, false)
 	await _frames(2)
 	assert_true(Input.is_action_pressed("fire"), "fire pressed by second finger")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still non-zero")
-	await _frames(6)  # look-tap pulse expires, without releasing the move finger
+	_touch(1, fire_c, false)
+	await _frames(2)  # released by the Fire button lift, without releasing the move finger
 	assert_true(not Input.is_action_pressed("fire"), "fire released")
 	assert_true(hud.provider.move_value != Vector2.ZERO, "move still held")
 	_touch(0, Vector2(200, 320), false)

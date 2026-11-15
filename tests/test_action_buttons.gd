@@ -82,20 +82,29 @@ func _teardown(ctx: Dictionary) -> void:
 	await _frames(2)
 
 
+## "fire" is the right Fire button (element key fire_right). M2 H1a: a look-area tap no longer fires (was: _press("fire")
+## tapped the look stick and relied on its release pulse).
+func _key(action: String) -> String:
+	return _TouchHud.RIGHT_FIRE_KEY if action == "fire" else action
+
+
 func _press(ctx: Dictionary, action: String) -> void:
-	if action == "fire":
-		# F1: the main Fire button is gone; exercise the real look-tap release pulse.
-		var point: Vector2 = ctx["touch"].get_element_rect("look_stick").get_center()
-		_touch(BUTTON_TOUCH, point, true)
-		_touch(BUTTON_TOUCH, point, false)
-		return
-	_touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(action).get_center(), true)
+	_touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(_key(action)).get_center(), true)
 
 
 func _release(ctx: Dictionary, action: String) -> void:
-	if action == "fire":
-		return  # already released by the look tap in _press
-	_touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(action).get_center(), false)
+	_touch(BUTTON_TOUCH, (ctx["touch"] as Control).get_button_rect(_key(action)).get_center(), false)
+
+
+## Waits, one physics tick at a time and at most `timeout_s` of physics time, until `done` returns true; returns
+## whether it did. Waits on the state itself, not a fixed frame count, so a loaded machine only makes it slower.
+func _wait_until(done: Callable, timeout_s: float = 5.0) -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	for i in int(ceil(timeout_s * Engine.physics_ticks_per_second)):
+		if done.call():
+			return true
+		await tree.physics_frame
+	return bool(done.call())
 
 
 ## One quick tap on a HUD button: press, two frames, release, two frames.
@@ -123,12 +132,21 @@ func test_fire_button_spends_ammo_and_shows_tracer() -> void:
 		var w := pawn.loadout.get_active()
 		assert_true(not w.def.is_melee(), "%s: start weapon is ranged" % ctx["tag"])
 		var before := w.ammo_in_mag
+		# M2 H1a: hold the right Fire button and wait (up to 5 s of physics ticks) until ammo has dropped and both the
+		# tracer and the muzzle flash have been seen on some tick (was: a look tap, then a fixed two frames, which failed
+		# under machine load). The tracer and flash only live ~0.08 / 0.06 s, so each is sampled on every physics tick.
+		var seen := {"tracer": false, "flash": false}
 		_press(ctx, "fire")
-		await _frames(2)
+		var ok: bool = await _wait_until(func() -> bool:
+			seen["tracer"] = seen["tracer"] or pawn.shot_fx.is_tracer_visible()
+			seen["flash"] = seen["flash"] or pawn.shot_fx.is_flash_visible()
+			return w.ammo_in_mag < before and seen["tracer"] and seen["flash"])
+		_release(ctx, "fire")
+		assert_true(ok, "%s: fire seen within the timeout" % ctx["tag"])
 		assert_true(w.ammo_in_mag < before, "%s: fire spent ammo (%d -> %d)" % [ctx["tag"], before, w.ammo_in_mag])
-		assert_true(pawn.shot_fx.is_tracer_visible(), "%s: tracer visible" % ctx["tag"])
-		assert_true(pawn.shot_fx.is_flash_visible(), "%s: muzzle flash visible" % ctx["tag"])
-		_release(ctx, "fire"))
+		assert_true(seen["tracer"], "%s: tracer visible" % ctx["tag"])
+		assert_true(seen["flash"], "%s: muzzle flash visible" % ctx["tag"])
+		await _frames(2))
 
 
 func test_reload_button_reloads_and_shows_indicator() -> void:
@@ -214,7 +232,8 @@ func test_aim_button_tap_toggles_zoom() -> void:
 		assert_true(is_equal_approx(pawn.get_spread_mult(), 1.0), "%s: spread back to normal" % ctx["tag"]))
 
 
-## OQ-AIM: Fire does not cancel ADS. A Fire-button tap and a look-zone tap-to-fire both spend ammo while aiming.
+## OQ-AIM: Fire does not cancel ADS. A Fire-button tap spends ammo while aiming. M2 H1a: a look-zone tap spends none
+## and does not cancel ADS either (was: the look-zone tap-to-fire also spent ammo).
 func test_fire_while_aim_latched_keeps_ads() -> void:
 	await _each_combo(func(ctx: Dictionary) -> void:
 		var pawn: Pawn = ctx["pawn"]
@@ -229,10 +248,11 @@ func test_fire_while_aim_latched_keeps_ads() -> void:
 		before = w.ammo_in_mag
 		var look: Vector2 = (ctx["touch"] as Control)._zone_hit_rect("look_zone").get_center()
 		_touch(LOOK_TOUCH, look, true)
+		assert_eq((ctx["touch"] as Control)._look_touch, LOOK_TOUCH, "%s: the tap reached the look area" % ctx["tag"])
 		_touch(LOOK_TOUCH, look, false)
-		await _frames(4)
-		assert_true(w.ammo_in_mag < before, "%s: look-zone tap fired while aiming (%d -> %d)" % [ctx["tag"], before, w.ammo_in_mag])
-		assert_true(pawn.aiming, "%s: tap-to-fire did not cancel ADS" % ctx["tag"]))
+		await _frames(12)
+		assert_eq(w.ammo_in_mag, before, "%s: a look-zone tap does not fire while aiming" % ctx["tag"])
+		assert_true(pawn.aiming, "%s: a look-zone tap did not cancel ADS" % ctx["tag"]))
 
 
 ## OQ-AIM: only Aim flips the latch. Reload, Swap, Jump, Shoulder and Sprint-lock taps and a look drag keep ADS on.

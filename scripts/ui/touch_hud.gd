@@ -1,6 +1,6 @@
 extends Control
 ## Touch HUD: always-visible move stick (bottom-left, re-centres under the thumb) and look stick (bottom
-## centre-right, drag with tap-to-fire), plus action buttons.
+## centre-right, drag to turn; M2 H1a: a look touch never fires), plus action buttons.
 ## Feeds TouchProvider; buttons press InputMap actions. Layout comes from data/input.json.
 
 const _DataRegistry := preload("res://scripts/systems/data_registry.gd")
@@ -18,13 +18,7 @@ var _move_pos: Vector2 = Vector2.ZERO
 var _look_origin: Vector2 = Vector2.ZERO
 var _look_pos: Vector2 = Vector2.ZERO
 var _look_travel: float = 0.0
-var _look_down_s: float = 0.0
 var _look_moved: bool = false
-var _fire_pulse_s: float = 0.0
-var _look_hold_fire := false
-## M2 C1b stage 4 (fix 9): the current look touch was down while the pawn was in cover: it never latches fire or sends
-## the tap pulse, even if the pawn leaves cover before it lifts.
-var _look_no_fire := false
 var _hud_fire_down := false
 var _shoulder_pulse_left_s: float = 0.0
 var _button_touch: Dictionary = {}  # touch index -> element key (an action, or LEFT_FIRE_KEY)
@@ -58,7 +52,7 @@ func _refresh_button_visibility() -> void:
 
 ## M2 C1a stage 4 (spec item 5, fix 2): true while the local pawn's CameraRig wants first person
 ## (CameraRig.is_first_person). The Shoulder button is then hidden (data/ui.json first_person_touch.shoulder_visible,
-## OQ-FIRST-PERSON) and its slot stays reserved and swallows taps (no swap, no look, no tap-to-fire) until C1b puts the
+## OQ-FIRST-PERSON) and its slot stays reserved and swallows taps (no swap, no look) until C1b puts the
 ## Cover button there. Third person (cover, carrier, falling, downed, no rig) keeps today's Shoulder button.
 const SHOULDER_KEY := "swap_shoulder"
 var first_person_active := false
@@ -124,12 +118,6 @@ func _refresh_cover_slot() -> void:
 	if provider != null:
 		provider.cover_suppress_sprint = pawn != null and pawn.in_cover()
 	set_fire_dimmed(pawn != null and pawn.in_cover() and not pawn.cover_fire_available())
-
-## M2 C1b stage 4 (decision 5, fix 9): true while the local pawn is in any cover state (read-only, through the GameHud
-## pawn). Then only the right Fire and Left Fire buttons press "fire"; look-zone taps and holds only turn the view.
-func _fire_from_buttons_only() -> bool:
-	var pawn := _hud_pawn()
-	return pawn != null and pawn.in_cover()
 
 ## M2 C1b stage 4 (fix 7, [Shibi default]): the right Fire and Left Fire buttons dim behind HIGH cover away from an
 ## edge, where no lean or rise is possible and Fire does nothing (Pawn.cover_fire_available). Style: data/ui.json
@@ -483,8 +471,6 @@ func _exit_tree() -> void:
 	for idx in _button_touch:
 		Input.action_release(_action_of(_button_touch[idx]))
 	_button_touch.clear()
-	_look_hold_fire = false
-	_fire_pulse_s = 0.0
 	_hud_fire_down = false
 	Input.action_release("fire")
 
@@ -561,12 +547,6 @@ func _process(delta: float) -> void:
 	if move_mode == "virtual":
 		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3], 0.0)
 	_place_sprint_elements()
-	if _look_touch != -1:
-		_look_down_s += delta
-		if not _look_moved and not _look_no_fire and _look_down_s > float(_layout["look_hold_fire"]["hold_min_s"]):
-			_look_hold_fire = true
-	if _fire_pulse_s > 0.0:
-		_fire_pulse_s = maxf(0.0, _fire_pulse_s - delta)
 	_sync_fire_action()
 	if _shoulder_pulse_left_s > 0.0:
 		_shoulder_pulse_left_s = maxf(0.0, _shoulder_pulse_left_s - delta)
@@ -783,7 +763,7 @@ func _stick(pos: Vector2, origin: Vector2, dead: float, key: String = "move_stic
 
 
 ## While the in-match menu is open the HUD ignores touches and drops everything it holds (sticks, buttons,
-## fire pulse, sprint lock), so nothing is left pressed behind the menu.
+## fire, sprint lock), so nothing is left pressed behind the menu.
 func set_suspended(on: bool) -> void:
 	suspended = on
 	if not on:
@@ -797,8 +777,6 @@ func set_suspended(on: bool) -> void:
 	for action in _VJOY_ACTIONS:
 		Input.action_release(action)
 	Input.action_release("fire")
-	_fire_pulse_s = 0.0
-	_look_hold_fire = false
 	_hud_fire_down = false
 	_shoulder_pulse_left_s = 0.0
 	_apply_shoulder_pulse()
@@ -857,9 +835,6 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		_look_touch = idx
 		_look_origin = pos
 		_look_pos = pos
-		_look_down_s = 0.0
-		_look_hold_fire = false
-		_look_no_fire = _fire_from_buttons_only()
 		_look_moved = false
 		_look_travel = 0.0
 		provider.clear_look()
@@ -912,27 +887,16 @@ func _on_up(idx: int) -> void:
 			provider.lock_sprint()
 		_update_sticks()
 	elif idx == _look_touch:
-		if not _look_hold_fire and not _look_moved and not _look_no_fire and not _fire_from_buttons_only() \
-				and _look_down_s <= float(_layout.get("tap_fire_max_s", 0.2)):
-			_fire_pulse_s = float(_layout.get("fire_pulse_s", 0.08))
 		_look_touch = -1
-		_look_hold_fire = false
-		_look_no_fire = false
-		_sync_fire_action()
 		provider.clear_look()
 		_update_sticks()
 
 
-## The general fire action is the union of the Fire buttons, a latched look hold and a tap pulse.
-## M2 C1b stage 4 (decision 5, fix 9): in cover only the right Fire and Left Fire buttons count; a look hold or a tap
-## pulse is dropped there (the look touch is marked so it cannot fire after an exit either).
+## The general fire action is the union of the Fire buttons (right Fire and the optional Left Fire).
+## M2 H1a: a look-area touch only turns the view, in and out of cover; it never presses "fire" (was: a look tap sent a
+## short fire pulse and a still look hold latched fire, outside cover only).
 func _sync_fire_action() -> void:
-	if _fire_from_buttons_only():
-		_look_hold_fire = false
-		_fire_pulse_s = 0.0
-		if _look_touch != -1:
-			_look_no_fire = true
-	var held := _look_hold_fire or _fire_pulse_s > 0.0
+	var held := false
 	for key in _button_touch.values():
 		held = held or _action_of(key) == "fire"
 	if held and not suspended:
