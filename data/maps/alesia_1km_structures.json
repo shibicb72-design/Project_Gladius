@@ -6029,6 +6029,126 @@
 			"id": "Field_Stakes_29",
 			"type": "stake_row",
 			"yaw": 90.0
+		},
+		{
+			"at": [
+				10.3,
+				0.0,
+				-117.6
+			],
+			"id": "AquaeductusMagnus_Ramp_In_Guard_L0",
+			"type": "stake_row",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				13.7,
+				0.0,
+				-117.6
+			],
+			"id": "AquaeductusMagnus_Ramp_In_Guard_R0",
+			"type": "stake_row",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				13.7,
+				0.0,
+				-352.4
+			],
+			"id": "AquaeductusMagnus_Ramp_Out_Guard_L0",
+			"type": "stake_row",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				10.3,
+				0.0,
+				-352.4
+			],
+			"id": "AquaeductusMagnus_Ramp_Out_Guard_R0",
+			"type": "stake_row",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				117.6,
+				0.0,
+				10.3
+			],
+			"id": "AquaMarcia_Ramp_In_Guard_L0",
+			"type": "stake_row",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				117.6,
+				0.0,
+				13.7
+			],
+			"id": "AquaMarcia_Ramp_In_Guard_R0",
+			"type": "stake_row",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				352.4,
+				0.0,
+				13.7
+			],
+			"id": "AquaMarcia_Ramp_Out_Guard_L0",
+			"type": "stake_row",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				352.4,
+				0.0,
+				10.3
+			],
+			"id": "AquaMarcia_Ramp_Out_Guard_R0",
+			"type": "stake_row",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				-117.6,
+				0.0,
+				-10.3
+			],
+			"id": "AquaClaudia_Ramp_In_Guard_L0",
+			"type": "stake_row",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				-117.6,
+				0.0,
+				-13.7
+			],
+			"id": "AquaClaudia_Ramp_In_Guard_R0",
+			"type": "stake_row",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				-352.4,
+				0.0,
+				-13.7
+			],
+			"id": "AquaClaudia_Ramp_Out_Guard_L0",
+			"type": "stake_row",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-352.4,
+				0.0,
+				-10.3
+			],
+			"id": "AquaClaudia_Ramp_Out_Guard_R0",
+			"type": "stake_row",
+			"yaw": 0.0
 		}
 	],
 	"version": 1

@@ -281,6 +281,9 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	# 6. M2 L1b: the loot chests ("props.chests"), appended after the breakables. Permanent bodies under Nav, never
 	# cover walls (so not counted against max_cover_walls).
 	var chest_pass := _chests(state, camp_centres)
+	# 7. M2L1c: a guard beside each aqueduct ramp's foot ("ramp_guard", OQ-MAP-CLEAR), appended after every earlier
+	# pass, so the earlier pieces and their random draws stay exactly as they were.
+	_ramp_guards(state, structures, kit_types)
 	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
 	if gen.has("props"):
 		cover_file["breakables"] = breakables
@@ -510,6 +513,59 @@ static func _aqueduct(aq: Dictionary) -> Array:
 	pieces.append({"id": "%s_Ramp_In" % base, "type": "aqueduct_ramp", "at": [_r3(inner_at.x), 0.0, _r3(inner_at.y)], "yaw": _yaw_towards(out_dir)})
 	pieces.append({"id": "%s_Ramp_Out" % base, "type": "aqueduct_ramp", "at": [_r3(outer_at.x), 0.0, _r3(outer_at.y)], "yaw": _yaw_towards(-out_dir)})
 	return pieces
+
+
+## M2L1c (generator.ramp_guard, OQ-MAP-CLEAR): guard pieces flush along both long sides of every aqueduct ramp,
+## from its foot up the slope. Measured (runs/M2L1C): the saved navmesh joins the ground to a ramp's side near
+## its foot, where the side is a step the bake connects (agent_max_climb 0.25 m at cell_height 0.25 m) but a pawn
+## (max step 0.12 m, data/physics_baseline.json) cannot climb, so a path from beside the foot runs into the side and
+## the walker stands there. A guard closes that side in physics and in the bake (it is a structure under Nav), so
+## the path enters at the foot. ramp_guard: type (a kit type whose footprint's long axis is local x), along_m (the
+## stretch from the foot that is guarded, in whole guard lengths), overlap_m (into the ramp, so no slit is left).
+## Pieces "<ramp id>_Guard_<L|R><k>" take the ramp's yaw. A guard closer than placement.minimum_gap_m to any other
+## footprint (its own ramp and every guard aside) is a problem, so a guard never makes a slit or sits on a piece.
+static func _ramp_guards(state: Dictionary, structures: Array, kit_types: Dictionary) -> void:
+	var gen: Dictionary = state["gen"]
+	if not gen.has("ramp_guard"):
+		return
+	var cfg: Dictionary = gen["ramp_guard"]
+	var type := String(cfg["type"])
+	var guard_def: Dictionary = kit_types[type]
+	var local_guard := WorldKit.footprint(guard_def, Vector3.ZERO, 0.0)
+	var local_ramp := WorldKit.footprint(kit_types["aqueduct_ramp"], Vector3.ZERO, 0.0)
+	var length := local_guard.size.x
+	var per_side := maxi(int(ceil(float(cfg["along_m"]) / length - 0.001)), 1)
+	var overlap := float(cfg["overlap_m"])
+	var min_gap := float(gen["placement"]["minimum_gap_m"])
+	var own: Array[Rect2] = []
+	var guards: Array = []
+	for entry: Dictionary in structures:
+		if String(entry["type"]) != "aqueduct_ramp":
+			continue
+		var at := Vector3(float(entry["at"][0]), 0.0, float(entry["at"][2]))
+		var yaw := float(entry["yaw"])
+		var turn := Basis(Vector3.UP, deg_to_rad(yaw))
+		own.append(WorldKit.footprint(kit_types["aqueduct_ramp"], at, yaw))
+		for side: float in [-1.0, 1.0]:
+			# Local frame: +x up the slope (the foot at local_ramp.position.x), the sides at local z = the rect's edges.
+			var edge := local_ramp.end.y if side > 0.0 else local_ramp.position.y
+			var z := edge + side * (local_guard.size.y * 0.5 - overlap) - local_guard.get_center().y
+			for k in per_side:
+				var x := local_ramp.position.x + length * (float(k) + 0.5) - local_guard.get_center().x
+				var p := at + turn * Vector3(x, 0.0, z)
+				guards.append({"id": "%s_Guard_%s%d" % [entry["id"], "L" if side < 0.0 else "R", k], "type": type, "at": [_r3(p.x), 0.0, _r3(p.z)], "yaw": yaw})
+	var placed: Array[Rect2] = state["placed"]
+	var guard_rects: Array[Rect2] = []
+	for g: Dictionary in guards:
+		guard_rects.append(WorldKit.footprint(guard_def, Vector3(float(g["at"][0]), 0.0, float(g["at"][2])), float(g["yaw"])))
+	for i in guards.size():
+		for other in placed:
+			if own.has(other) or guard_rects.has(other):
+				continue
+			if WorldRing.rect_gap(guard_rects[i], other) < min_gap:
+				(state["problems"] as PackedStringArray).append("ramp guard %s is %.2f m from another footprint (minimum_gap_m %s)" % [guards[i]["id"], WorldRing.rect_gap(guard_rects[i], other), str(min_gap)])
+	structures.append_array(guards)
+	placed.append_array(guard_rects)
 
 
 ## The 90-degree-step yaw that turns a piece's local +X onto the ground direction `d` (axis-aligned).

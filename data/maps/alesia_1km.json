@@ -361,7 +361,7 @@
 				337.5
 			]
 		},
-		"paint_sha256": "8198d7ca55199792099222e4de5a8dbd59cddcf212f790c82f487fc0642532d4",
+		"paint_sha256": "b1916da9b73330ced2990d6a5780d2a8be1fc6b85617aed8e143457b06e7892d",
 		"placement": {
 			"anchor_clear_m": 2.5,
 			"edge_margin_m": 4.0,
@@ -413,6 +413,13 @@
 					]
 				}
 			}
+		},
+		"ramp_guard": {
+			"_placeholder": true,
+			"_todo": "OQ-MAP-CLEAR: a guess for Shibi, not a design value (M2L1c). A guard piece (kit type `type`, its long axis along the ramp) flush along both long sides of every aqueduct ramp from its foot, along_m up the slope (in whole guard lengths), overlap_m into the ramp so no slit is left (tools/gen_alesia.gd _ramp_guards; appended after every other pass, so no other piece moves). Why (measured, runs/M2L1C): the saved navmesh joined the ground to a ramp's side near its foot, a step the bake connects (agent_max_climb 0.25 m) but a pawn (max step 0.12 m) cannot climb; bots beside the foot stood against the side (squads seed 123: 6 unsticks at Aqua Marcia's inner ramp). Over the first 4 m the ramp's side is under 2.2 m high.",
+			"along_m": 4.0,
+			"overlap_m": 0.05,
+			"type": "stake_row"
 		},
 		"reserved": {
 			"_note": "J1 spots (binding fix 14): places only, no nodes. jump pads at the inner foot of the outer wall, past the outer aqueduct ends and at the hill foot; man cannons from the fields to the camp ring and from the camp ring towards the citadel; lily traps in front of the outer gates and on the stake lines of the fields.",
