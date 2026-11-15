@@ -7,8 +7,30 @@ static var skin: Skin
 static var _rest_bounds: Array[AABB] = []
 
 
+static var _config: Dictionary = {}
+
+
+## data/anim.json with data/anim_third_person.json laid over it (M2 AN1 commit 4: a deep merge, the overlay's keys
+## win, dictionaries merge). Read once; every soldier shares it.
 static func config() -> Dictionary:
-	return DataRegistry.new().load_file("res://data/anim.json")
+	if _config.is_empty():
+		var registry := DataRegistry.new()
+		var merged: Dictionary = registry.load_file("res://data/anim.json").duplicate(true)
+		var overlay: Dictionary = registry.load_file("res://data/anim_third_person.json").duplicate(true)
+		for key: String in overlay.keys():
+			if key.begins_with("_"):  # the overlay's own notes, not anim.json's
+				overlay.erase(key)
+		_merge(merged, overlay)
+		_config = merged
+	return _config
+
+
+static func _merge(into: Dictionary, over: Dictionary) -> void:
+	for key in over:
+		if into.get(key) is Dictionary and over[key] is Dictionary:
+			_merge(into[key], over[key])
+		else:
+			into[key] = (over[key] as Variant).duplicate(true) if over[key] is Dictionary or over[key] is Array else over[key]
 
 
 static func build(parts: Array, head_at: Vector3) -> Skeleton3D:

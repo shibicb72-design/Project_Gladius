@@ -34,8 +34,15 @@ func test_death_adds_one_visible_corpse_and_respawn_adds_none() -> void:
 		pawn.set_active(true)
 		pawn.set_physics_process(false)
 		assert_eq(_corpses(match_parent).size(), 1, "respawn adds none")
-		await tree.create_timer(float(LowpolyKit.config()["death"]["topple_s"]) + 0.1).timeout
-		assert_true(absf(corpse.rotation_degrees.x) > 45.0, "toppled presentation")
+		if corpse.has_meta("authored_fall"):
+			# M2 AN1 commit 4: the corpse's own death clip (UAL Death01) falls; DeathFx adds no outer topple.
+			var player := corpse.get_node("Collapse") as AnimationPlayer
+			await tree.create_timer(player.get_animation(&"collapse").length + 0.1).timeout
+			var rig := corpse.get_node("Skeleton3D") as Skeleton3D
+			assert_true(rig.get_bone_pose_position(rig.find_bone("Hips")).y < 0.3 and is_zero_approx(corpse.rotation_degrees.x), "fallen presentation: the pelvis is down on the ground, no outer topple")
+		else:
+			await tree.create_timer(float(LowpolyKit.config()["death"]["topple_s"]) + 0.1).timeout
+			assert_true(absf(corpse.rotation_degrees.x) > 45.0, "toppled presentation")
 		await tree.create_timer(float(LowpolyKit.config()["death"]["lifetime_s"])).timeout
 		assert_true(not is_instance_valid(corpse), "corpse lifetime releases node")
 		assert_eq(_corpses(match_parent).size(), 0, "no lingering corpse")

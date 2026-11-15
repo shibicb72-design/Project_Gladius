@@ -50,16 +50,22 @@ static func sample_globals(clip: Animation, skeleton: Skeleton3D, time: float) -
 		result.append(_global_at(i, local, parents, cache))
 	return result
 
-static func basis_change(source: Skeleton3D, target: Skeleton3D, mapping: BoneMap = TARGET_MAP) -> Dictionary:
+## M2 AN1: a source rig whose bones are not named by the humanoid profile (the Quaternius UAL: pelvis, spine_01,
+## thigh_l ...) passes `source_map` {profile name: source bone name} (data/anim_sources.json "rigs"). Empty = the
+## source uses the profile names itself (the synthetic test rigs).
+static func _src(profile: String, source_map: Dictionary) -> String:
+	return String(source_map.get(profile, profile))
+
+static func basis_change(source: Skeleton3D, target: Skeleton3D, mapping: BoneMap = TARGET_MAP, source_map: Dictionary = {}) -> Dictionary:
 	var frames: Array[Basis] = []
 	for rig in [source, target]:
 		var source_rig: bool = rig == source
-		var hip: int = rig.find_bone("Hips" if source_rig else _name("Hips", mapping))
-		var has_toes: bool = source_rig and rig.find_bone("LeftToes") >= 0 and rig.find_bone("RightToes") >= 0
-		var left: int = rig.find_bone("LeftToes" if has_toes else "LeftFoot" if source_rig else _name("LeftFoot", mapping))
-		var right: int = rig.find_bone("RightToes" if has_toes else "RightFoot" if source_rig else _name("RightFoot", mapping))
-		var left_thigh: int = rig.find_bone("LeftUpperLeg" if source_rig else _name("LeftUpperLeg", mapping))
-		var right_thigh: int = rig.find_bone("RightUpperLeg" if source_rig else _name("RightUpperLeg", mapping))
+		var hip: int = rig.find_bone(_src("Hips", source_map) if source_rig else _name("Hips", mapping))
+		var has_toes: bool = source_rig and rig.find_bone(_src("LeftToes", source_map)) >= 0 and rig.find_bone(_src("RightToes", source_map)) >= 0
+		var left: int = rig.find_bone(_src("LeftToes", source_map) if has_toes else _src("LeftFoot", source_map) if source_rig else _name("LeftFoot", mapping))
+		var right: int = rig.find_bone(_src("RightToes", source_map) if has_toes else _src("RightFoot", source_map) if source_rig else _name("RightFoot", mapping))
+		var left_thigh: int = rig.find_bone(_src("LeftUpperLeg", source_map) if source_rig else _name("LeftUpperLeg", mapping))
+		var right_thigh: int = rig.find_bone(_src("RightUpperLeg", source_map) if source_rig else _name("RightUpperLeg", mapping))
 		if mini(mini(hip, left), mini(right, mini(left_thigh, right_thigh))) < 0:
 			return {"valid": false}
 		var front: Vector3 = (rig.get_bone_global_rest(left).origin + rig.get_bone_global_rest(right).origin) * 0.5 - rig.get_bone_global_rest(hip).origin
@@ -72,16 +78,18 @@ static func basis_change(source: Skeleton3D, target: Skeleton3D, mapping: BoneMa
 		frames.append(Basis(front.cross(Vector3.UP), Vector3.UP, -front))
 	return {"valid": true, "rotation": (frames[1] * frames[0].inverse()).get_rotation_quaternion()}
 
-static func bake(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_key: String = "") -> Animation:
+## `root_motion` keeps the pelvis' ground-plane travel (a fall that should land away from the feet); the default
+## strips it (in-place clips: the pawn moves the soldier).
+static func bake(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_key: String = "", source_map: Dictionary = {}, root_motion: bool = false) -> Animation:
 	var mapping := TARGET_MAP as BoneMap
 	var cfg: Dictionary = SoldierRig.config()["retarget"]
-	var change := basis_change(source, target, mapping)
+	var change := basis_change(source, target, mapping, source_map)
 	if not change.get("valid", false):
 		return null
 	var source_rest := _rests(source)
 	var target_rest := _rests(target)
 	var key := str(clip.get_instance_id()) if cache_key.is_empty() else cache_key
-	key += str(source_rest) + str(target_rest) + str(cfg)
+	key += str(source_rest) + str(target_rest) + str(cfg) + str(source_map)
 	if _baked.has(key):
 		return _baked[key]
 	var rotation: Quaternion = change["rotation"]
@@ -90,7 +98,7 @@ static func bake(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_
 	for i in mapping.profile.bone_size:
 		var profile := String(mapping.profile.get_bone_name(i))
 		var target_index := target.find_bone(_name(profile, mapping))
-		var source_index := source.find_bone(profile)
+		var source_index := source.find_bone(_src(profile, source_map))
 		if target_index >= 0 and source_index >= 0:
 			profile_names[target_index] = profile
 			source_bones[target_index] = source_index
@@ -122,7 +130,7 @@ static func bake(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_
 		result.track_set_path(track, NodePath("Skeleton3D:" + target.get_bone_name(i)))
 		tracks[i] = track
 	var hips := target.find_bone(_name("Hips", mapping))
-	var source_hips := source.find_bone("Hips")
+	var source_hips := source.find_bone(_src("Hips", source_map))
 	if hips < 0 or source_hips < 0 or is_zero_approx(source_rest[source_hips].origin.y):
 		return null
 	var hip_track := result.add_track(Animation.TYPE_POSITION_3D)
@@ -145,8 +153,9 @@ static func bake(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_
 				var local_rotation: Quaternion = desired if parent < 0 else (target_global[parent] as Quaternion).inverse() * desired
 				result.rotation_track_insert_key(tracks[i], time, local_rotation.normalized())
 		var displacement := rotation * (poses[source_hips].origin - source_rest[source_hips].origin) * scale
-		displacement.x = 0.0
-		displacement.z = 0.0
+		if not root_motion:
+			displacement.x = 0.0
+			displacement.z = 0.0
 		result.position_track_insert_key(hip_track, time, target_rest[hips].origin + displacement)
 	_baked[key] = result
 	return result

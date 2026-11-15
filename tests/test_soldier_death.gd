@@ -63,7 +63,12 @@ func test_corpse_snapshots_rig_and_collapses_without_scripts_or_colliders() -> v
 		if skin_bones[v] == head_bone:
 			head_vertices += 1
 	assert_true(head_vertices > 0, "the shared armor mesh has vertices skinned to the Head bone")
-	assert_eq(player.get_animation(&"collapse").length, float(LowpolyKit.config()["death"]["topple_s"]), "existing topple duration")
+	# M2 AN1 commit 4: with the library death clip the collapse is the crossfade plus the authored fall (DeathFx then
+	# skips the outer topple); the code-built collapse keeps the art_astra topple duration.
+	if corpse.has_meta("authored_fall"):
+		assert_eq(player.get_animation(&"collapse").length, float(SoldierRig.config()["death"]["blend_s"]) + SoldierAnimation.shared("death", rig).length, "authored fall duration")
+	else:
+		assert_eq(player.get_animation(&"collapse").length, float(LowpolyKit.config()["death"]["topple_s"]), "existing topple duration")
 	assert_true(player.is_playing(), "native collapse autoplay")
 	var snapshots: Array[Transform3D] = []
 	snapshots.resize(rig.get_bone_count())
@@ -76,13 +81,17 @@ func test_corpse_snapshots_rig_and_collapses_without_scripts_or_colliders() -> v
 	var hip := rig.find_bone("Hips")
 	assert_true(not snapshots[hip].basis.is_equal_approx(model.pose_cache[hip].basis), "collapse changes rig pose")
 	# Final corpse end pose includes the same outer topple as DeathFx; no engine skinning used.
-	corpse.rotation_degrees.x = float(LowpolyKit.config()["death"]["topple_degrees"])
+	# M2 AN1 commit 4: an authored fall lies the body down at any angle, so the check is made in the corpse Head
+	# bone's own frame (world AABBs of boxes tilted ~70 degrees overlap where the boxes do not); the outer topple
+	# is a rigid turn of the whole corpse and changes nothing in that frame.
+	if not corpse.has_meta("authored_fall"):
+		corpse.rotation_degrees.x = float(LowpolyKit.config()["death"]["topple_degrees"])
 	# Was the yellow shell's box plus 0.02: now the head hitbox's box, carried by the corpse's Head bone.
-	var head_bounds := rig.global_transform * snapshots[head_bone] * Checks.head_box_local(pawn).grow(Checks.body_clearance())
+	var head_bounds := Checks.head_box_local(pawn).grow(Checks.body_clearance())
 	for i in model.local_part_bounds.size():
 		if Checks.is_helmet(model, i):
 			continue
-		var part := rig.global_transform * snapshots[model.part_bones[i]] * model.local_part_bounds[i]
+		var part := snapshots[head_bone].affine_inverse() * snapshots[model.part_bones[i]] * model.local_part_bounds[i]
 		assert_true(not head_bounds.intersects(part), "corpse end pose clears the head: " + String(model.get_meta("parts")[i]))
 	for node in corpse.find_children("*", "", true, false):
 		assert_true(node.get_script() == null, "no corpse scripts")

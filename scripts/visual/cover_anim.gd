@@ -63,7 +63,7 @@ func _build_graph() -> void:
 	mix.filter_enabled = true
 	for bone: String in _cfg["animation"]["bones"]:
 		mix.set_filter_path(NodePath("Skeleton3D:" + bone), true)
-	for bone in ["Hips", "Neck"]:
+	for bone in ["Hips", "Neck", "Spine"]:  # Spine: the peek lean (M2 AN1 commit 4)
 		mix.set_filter_path(NodePath("Skeleton3D:" + bone), true)
 	graph.add_node(&"cover_mix", mix)
 	graph.disconnect_node(&"output", 0)
@@ -110,8 +110,31 @@ func _clip(name: String, crouched: bool = false) -> Animation:
 	clip.length = duration
 	clip.loop_mode = Animation.LOOP_LINEAR if name.contains("idle") or name.begins_with("peek") else Animation.LOOP_NONE
 	var pose: Array = _cfg["animation"]["poses_deg"][name]
+	var look: Dictionary = SoldierRig.config()["cover"]
+	if name.begins_with("peek_"):
+		# M2 AN1 commit 4: a real lean-out: the spine rolls toward the peek side (the head stays on its hitbox).
+		var track := clip.add_track(Animation.TYPE_ROTATION_3D)
+		clip.track_set_path(track, NodePath("Skeleton3D:Spine"))
+		var lean := Quaternion(Vector3.BACK, deg_to_rad(float(look["peek_lean_deg"])) * (1.0 if name == "peek_left" else -1.0))
+		clip.rotation_track_insert_key(track, 0.0, lean)
+		clip.rotation_track_insert_key(track, duration, lean)
 	if crouched:
 		pose = _cfg["animation"]["crouch_pose_deg"]
+		var library := SoldierAnimation.shared("cover_crouch_idle", model.skeleton)
+		if library != null:
+			# M2 AN1 commit 4: the crouched legs and pelvis are the library's crouch (UAL Crouch_Idle) at its
+			# hold_s frame; SoldierGait bends the knees further so the boots stay on the floor at the lower,
+			# hitbox-matched pelvis height below.
+			for bone: String in look["crouch_bones"]:
+				var source := library.find_track(NodePath("Skeleton3D:" + bone), Animation.TYPE_ROTATION_3D)
+				if source < 0:
+					continue
+				var track := clip.add_track(Animation.TYPE_ROTATION_3D)
+				clip.track_set_path(track, NodePath("Skeleton3D:" + bone))
+				var held := library.rotation_track_interpolate(source, float(look["crouch_hold_s"]))
+				clip.rotation_track_insert_key(track, 0.0, Quaternion.IDENTITY if name == "cover_enter" else held)
+				clip.rotation_track_insert_key(track, duration, Quaternion.IDENTITY if name == "cover_exit" else held)
+			pose = []
 	for i in pose.size():
 		var track := clip.add_track(Animation.TYPE_ROTATION_3D)
 		clip.track_set_path(track, NodePath("Skeleton3D:" + String(_cfg["animation"]["bones"][i])))

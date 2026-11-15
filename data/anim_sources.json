@@ -1,42 +1,112 @@
 {
-	"version": 1,
-	"_todo": "OQ-LIBS-SOURCES: no UAL archive acquired; no invented file or clip names. Explicit candidates follow actionforge, ual, mixamo_local, procedural order. Local lists stay empty in the committed table.",
+	"version": 2,
+	"_todo": "OQ-LIBS-SOURCES (M2 AN1 commit 4): the Quaternius Universal Animation Library Standard (CC0, assets/third_party/quaternius_ual, catalogued in data/asset_catalog.json) is the only acquired library. Candidates follow actionforge, ual, mixamo_local, procedural order; a slot with no usable candidate keeps its code-built clip. 'clip' is the clip name in the imported scene (Godot's importer drops the _Loop suffix and loops the clip). 'rig' names the source bone map below. Local lists stay empty in the committed table. Which UAL clip serves which slot is a presentation choice (OQ-ANIM), not a design value.",
+	"rigs": {
+		"ual": {
+			"_note": "Humanoid profile name -> UAL bone. The UAL has three spine bones and clavicles; the soldier has Spine and Chest, so spine_02 drives Spine and spine_03 drives Chest; the bake transfers global rotations, so spine_01 and the clavicles are folded into their children.",
+			"bones": {
+				"Hips": "pelvis", "Spine": "spine_02", "Chest": "spine_03", "Neck": "neck_01", "Head": "Head",
+				"LeftUpperArm": "upperarm_l", "LeftLowerArm": "lowerarm_l", "LeftHand": "hand_l",
+				"RightUpperArm": "upperarm_r", "RightLowerArm": "lowerarm_r", "RightHand": "hand_r",
+				"LeftUpperLeg": "thigh_l", "LeftLowerLeg": "calf_l", "LeftFoot": "foot_l", "LeftToes": "ball_l",
+				"RightUpperLeg": "thigh_r", "RightLowerLeg": "calf_r", "RightFoot": "foot_r", "RightToes": "ball_r"
+			}
+		}
+	},
 	"clips": {
 		"idle": {
 			"actionforge": [],
-			"ual": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Idle", "rig": "ual"}],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"walk_slow": {
+			"_note": "M2 AN1: a slow walk below the normal move speed (a part-pushed move stick).",
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Walk", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"walk_fwd": {
+			"_note": "M2 AN1: the normal move speed (stats.json base_speed_mps, 4.7 m/s) is a jog, so this slot plays Jog_Fwd.",
 			"actionforge": [],
-			"ual": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jog_Fwd", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"walk_back": {
+			"_note": "M2 AN1: the UAL has no backward clip; SoldierAnimation plays this one reversed.",
 			"actionforge": [],
-			"ual": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jog_Fwd", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"strafe_l": {
+			"_note": "M2 AN1: the UAL has no strafe clip; the legs jog and SoldierGait turns the hips toward the motion.",
 			"actionforge": [],
-			"ual": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jog_Fwd", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"strafe_r": {
 			"actionforge": [],
-			"ual": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jog_Fwd", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"run_fwd": {
 			"actionforge": [],
-			"ual": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Sprint", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
+		},
+		"jump_air": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jump", "rig": "ual"}],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"hit_chest": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Hit_Chest", "rig": "ual", "loop": false}],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"hit_head": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Hit_Head", "rig": "ual", "loop": false}],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"death": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Death01", "rig": "ual", "loop": false, "root_motion": true}],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"revive": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Fixing_Kneeling", "rig": "ual", "loop": true}],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"blade_swing": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Sword_Attack", "rig": "ual", "loop": false}],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_crouch_idle": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Crouch_Idle", "rig": "ual"}],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"cover_crouch_move": {
+			"actionforge": [],
+			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Crouch_Fwd", "rig": "ual"}],
+			"mixamo_local": [],
+			"procedural": false
 		},
 		"aim_down": {
 			"actionforge": [],
