@@ -251,3 +251,77 @@ func test_e2e_client_fire_ends_spawn_protection_on_host() -> void:
 		assert_eq(res.blocked_reason, "", "enemy hit not blocked")
 		assert_true(host_copy.bridge.state.shield < before, "host copy's shield went down")
 	await _teardown(p)
+
+
+## M2 L1b: one crate and one chest with the same ids on both peers' worlds (50 m up, out of every pawn's reach). The
+## host breaks the crate and opens the chest; ev_world_prop brings both states to the client, whose crate leaves its
+## world and whose chest looks open, with no loot rolled there; a client cannot break or open by itself.
+func _world_props_pair(m: MatchRoot, tag: String) -> Dictionary:
+	var crate := Breakable.make({"id": "Breakable_980", "type": "breakable_crate", "at": [3.0, 50.0, 3.0], "size": [1.2, 1.2, 1.2]},
+			WorldProps.config()["breakables"]["breakable_crate"])
+	var spare := Breakable.make({"id": "Breakable_981", "type": "breakable_crate", "at": [-3.0, 50.0, 3.0], "size": [1.2, 1.2, 1.2]},
+			WorldProps.config()["breakables"]["breakable_crate"])
+	var chest := LootChest.make({"id": "Chest_980", "at": [3.0, 50.0, -3.0], "size": [1.4, 0.9, 0.9], "yaw": 0.0}, "camp")
+	var other := LootChest.make({"id": "Chest_981", "at": [-3.0, 50.0, -3.0], "size": [1.4, 0.9, 0.9], "yaw": 0.0}, "camp")
+	for body: StaticBody3D in [crate, spare, chest, other]:
+		body.name = String(body.name) + tag
+		m.map.add_child(body)
+	m.world_props.register_breakable(crate)
+	m.world_props.register_breakable(spare)
+	m.world_props.register_chest(chest)
+	m.world_props.register_chest(other)
+	return {"crate": crate, "spare": spare, "chest": chest, "other": other}
+
+
+func test_e2e_world_props_host_and_client_agree() -> void:
+	var p: Dictionary = await _start_pair("WP")
+	if p["ok"]:
+		var hm: MatchRoot = p["hm"]
+		var cm: MatchRoot = p["cm"]
+		for b in hm.bots + cm.bots:
+			var brain := b.get_node_or_null("Brain")
+			if brain != null:
+				brain.set_physics_process(false)
+		var h := _world_props_pair(hm, "H")
+		var c := _world_props_pair(cm, "C")
+		# These matches run without ground loot: give both WorldProps a loot field so a roll would show on either peer.
+		for m: MatchRoot in [hm, cm]:
+			if m.world_props.loot == null:
+				var field := LootField.new()
+				field.setup(DataRegistry.new().load_file(MatchDirector.LOOT_PATH), 7)
+				field.placed = true
+				m.add_child(field)
+				m.world_props.loot = field
+		assert_true(hm.world_props.authority and not cm.world_props.authority, "the host is the props authority, the client is not")
+		await _tree().physics_frame
+		await _tree().physics_frame
+		assert_true(hm.roster.bridge._props == hm.world_props and cm.roster.bridge._props == cm.world_props, "both bridges wired their WorldProps")
+		var host_crate: Breakable = h["crate"]
+		var client_crate: Breakable = c["crate"]
+		var client_chest: LootChest = c["chest"]
+		var client_spilled := cm.world_props.spilled.size()
+		host_crate.take_hit(host_crate.health)
+		assert_true(hm.world_props.open_chest("Chest_980"), "the host opens the chest")
+		var synced: bool = await _wait_until(func() -> bool:
+			return cm.world_props.state_of("Breakable_980") == WorldProps.BROKEN and cm.world_props.state_of("Chest_980") == WorldProps.OPEN, TIMEOUT_S)
+		assert_true(synced, "the client received both states")
+		assert_eq(cm.world_props.states, hm.world_props.states, "both peers end with the same WorldProps states")
+		await _tree().process_frame
+		assert_true(not is_instance_valid(client_crate) or not client_crate.is_inside_tree(), "the client's crate left its world")
+		assert_true(client_chest.is_open, "the client's chest looks open")
+		assert_eq(cm.world_props.spilled.size(), client_spilled, "the client rolled no loot")
+		assert_true(hm.world_props.spilled.size() >= 1, "nonvacuous: the host spilled the chest's roll")
+		# A client cannot open or break by itself.
+		assert_true(not cm.world_props.open_chest("Chest_981"), "a client's WorldProps opens nothing")
+		assert_true(not cm.director.try_open_chest(cm.roster.local_player_id), "a client's director opens nothing")
+		var spare: Breakable = c["spare"]
+		var rifle := DataRegistry.new().get_weapon_def("sagittarii_rifle")
+		var space := cm.map.get_world_3d().direct_space_state
+		var res := Hitscan.fire(space, null, spare.global_position + Vector3(0, 5, 0), Vector3.DOWN, rifle, [] as Array[RID], Callable(), null, 0.0)
+		assert_true(res.get("collider") == spare, "nonvacuous: the client's ray hits its spare crate")
+		assert_true(not spare.is_broken and spare.health == spare.max_health, "a client's shot does not damage a breakable")
+		await _wait_until(func() -> bool: return false, 0.3)
+		assert_eq(cm.world_props.state_of("Chest_981"), WorldProps.INTACT, "the other chest stays closed on the client")
+		assert_eq(hm.world_props.state_of("Chest_981"), WorldProps.INTACT, "and on the host")
+		assert_eq(hm.world_props.state_of("Breakable_981"), WorldProps.INTACT, "the spare crate stays whole on the host")
+	await _teardown(p)
