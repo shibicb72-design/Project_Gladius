@@ -508,3 +508,162 @@ func test_hunt_goal() -> void:
 	b._goal(null, false)
 	assert_true(b.goal_kind == "hold" or b.goal_kind == "zone", "arrived: today's spot or hold (%s)" % b.goal_kind)
 	m.queue_free()
+
+
+# ---- Stage 6: sight per gun and the fight band ----
+
+## Gives `p` the blade plus `gun` from the ground and holds the gun.
+func arm(p: Pawn, gun: String) -> void:
+	p.apply_start_kit({"secondary": "gladius_lux"})
+	p.take_item({"item_id": gun}, m.loot.def(gun))
+	for i in p.loadout.slots.size():
+		var s := p.loadout.slots[i]
+		if s != null and s.def.id == gun:
+			p.loadout.active = i
+
+
+func test_sight_per_gun_is_clamped_to_the_gun_range() -> void:
+	await start(big_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	var fight: Dictionary = base_cfg()["fight"]
+	assert_eq(float(fight["sight_by_weapon"]["pilum_br"]), 60.0, "shipped placeholder: pilum_br 60")
+	assert_eq(float(fight["sight_by_weapon"]["sagittarii_rifle"]), 60.0, "shipped placeholder: sagittarii_rifle 60")
+	assert_eq(float(fight["band_far_frac"]), 0.25, "shipped placeholder: band_far_frac 0.25")
+	assert_eq(float(fight["repath_m"]), 3.0, "shipped placeholder: repath_m 3")
+	arm(bot, "pilum_br")
+	assert_eq(b.sight_m(), minf(60.0, bot.loadout.get_active().def.range_m), "pilum_br: 60 (range 80)")
+	arm(bot, "sagittarii_rifle")
+	assert_eq(b.sight_m(), 60.0, "sagittarii_rifle: 60 (range 200)")
+	var cfg := base_cfg()
+	cfg["fight"]["sight_by_weapon"]["pilum_br"] = 500.0
+	var c := add_brain(bot, cfg, "C")
+	c._ensure_seeded()
+	arm(bot, "pilum_br")
+	assert_eq(c.sight_m(), bot.loadout.get_active().def.range_m, "never above the gun's range_m")
+	bot.loadout.active = 1  # the blade
+	assert_eq(c.sight_m(), float(cfg["sight_range_m"]), "the blade: sight_range_m")
+	m.queue_free()
+	await start(small_zone(), true)
+	bot = m.bots[0]
+	b = add_brain(bot)
+	b._ensure_seeded()
+	arm(bot, "sagittarii_rifle")
+	assert_eq(b.sight_m(), float(base_cfg()["sight_range_m"]), "small map: sight_range_m as before")
+	m.queue_free()
+
+
+func test_fight_band_closes_in_then_strafes_without_unsticking() -> void:
+	await start(big_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var enemy: Pawn = m.bots[1]
+	arm(bot, "pilum_br")
+	bot.global_position = Vector3(0.0, 0.2, 0.0)
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	var far_edge := b.sight_m() * float(base_cfg()["fight"]["band_far_frac"])
+	enemy.global_position = Vector3(far_edge + 10.0, 0.2, 0.0)
+	var g := b._goal(enemy, false)
+	assert_eq(b.goal_kind, "fight", "a standing enemy beyond the band: fight")
+	assert_true(g.distance_to(enemy.global_position) < 0.01 and not b._fight_hold, "closes in on the enemy")
+	enemy.global_position = Vector3(far_edge * 0.5, 0.2, 0.0)
+	g = b._goal(enemy, false)
+	assert_true(b.goal_kind == "fight" and b._fight_hold, "inside the band: hold the band")
+	var off := g - bot.global_position
+	var step := float(base_cfg()["fight"]["strafe_step_m"])
+	assert_true(absf(off.length() - step) < 0.01 and absf(off.x) < 0.01, "a strafe point to one side (%s)" % off)
+	var side := b._strafe_side
+	# The strafe point is fixed for the period: the pawn and the enemy move, the goal does not.
+	bot.global_position = Vector3(0.5, 0.2, 0.4)
+	enemy.global_position = Vector3(far_edge * 0.5, 0.2, 1.0)
+	var g2 := b._goal(enemy, false)
+	assert_eq(b._strafe_side, side, "same side until the period ends")
+	assert_true(g2.is_equal_approx(g), "same strafe point until the period ends (%s vs %s)" % [g2, g])
+	b._strafe_flip_tick = m.director.tick_count
+	var g3 := b._goal(enemy, false)
+	assert_eq(b._strafe_side, -side, "the side flips after the period")
+	var off3 := g3 - bot.global_position
+	assert_true(not g3.is_equal_approx(g) and absf(off3.length() - step) < 0.01, "a new point from here at the flip (%s)" % off3)
+	# A different enemy: the point is recomputed at once (same side, same flip tick).
+	var other: Pawn = m.bots[2]
+	other.global_position = Vector3(0.5, 0.2, far_edge * 0.5)
+	var flip_tick := b._strafe_flip_tick
+	var g4 := b._goal(other, false)
+	var to_other := other.global_position - bot.global_position
+	assert_true(absf((g4 - bot.global_position).dot(Vector3(to_other.x, 0.0, to_other.z).normalized())) < 0.01, "new enemy: a fresh point to its side (%s)" % g4)
+	assert_true(b._strafe_side == -side and b._strafe_flip_tick == flip_tick, "new enemy: side and period kept")
+	# Leaving the band and coming back: a fresh point.
+	enemy.global_position = Vector3(far_edge + 10.0, 0.2, 0.0)
+	b._goal(enemy, false)
+	assert_true(not b._fight_hold, "out of the band: closing in")
+	bot.global_position = Vector3(0.0, 0.2, 0.0)
+	enemy.global_position = Vector3(far_edge * 0.5, 0.2, 0.0)
+	var g5 := b._goal(enemy, false)
+	assert_true(absf(g5.x) < 0.01 and absf((g5 - bot.global_position).length() - step) < 0.01, "back in the band: a fresh point from here (%s)" % g5)
+	b._strafe_flip_tick = m.director.tick_count + 1000  # no flip during the rest of the test
+	# Pinned in the band (the pawn never moves): never an unstick, think or coast.
+	for t in window_ticks(b) * 2:
+		b._move_direction(enemy, false, dt())
+		b._follow_path(dt())
+	assert_true(b._unstick_left <= 0.0 and b._stuck_t == 0.0, "strafing in the band does not unstick")
+	# A downed target is not fought in the band (today's goals; finish_downed shoots it).
+	enemy.life = Pawn.Life.DOWNED
+	b._goal(enemy, false)
+	assert_true(b.goal_kind != "fight" and not b._fight_hold, "downed target: no band (%s)" % b.goal_kind)
+	enemy.life = Pawn.Life.ALIVE
+	# The blade keeps chase.
+	bot.loadout.active = 1
+	enemy.global_position = Vector3(8.0, 0.2, 0.0)
+	b._goal(enemy, true)
+	assert_eq(b.goal_kind, "chase", "blade only: chase as before")
+	m.queue_free()
+
+
+## Closing in keeps its goal while the enemy stays within fight.repath_m of it; then the goal moves to the enemy.
+func test_close_in_goal_moves_only_past_repath_m() -> void:
+	await start(big_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var enemy: Pawn = m.bots[1]
+	arm(bot, "pilum_br")
+	bot.global_position = Vector3(0.0, 0.2, 0.0)
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	var far := b.sight_m() * float(base_cfg()["fight"]["band_far_frac"]) + 20.0
+	var repath := float(base_cfg()["fight"]["repath_m"])
+	enemy.global_position = Vector3(far, 0.2, 0.0)
+	var g := b._goal(enemy, false)
+	assert_true(b.goal_kind == "fight" and g.is_equal_approx(enemy.global_position), "closes in on the enemy")
+	enemy.global_position = Vector3(far, 0.2, repath - 0.5)
+	var g2 := b._goal(enemy, false)
+	assert_true(g2.is_equal_approx(g), "enemy within repath_m of the goal: goal kept (%s)" % g2)
+	enemy.global_position = Vector3(far, 0.2, repath + 0.5)
+	var g3 := b._goal(enemy, false)
+	assert_true(g3.is_equal_approx(enemy.global_position), "enemy past repath_m: goal moves to it (%s)" % g3)
+	# Another enemy, or a think without a close-in goal in between: the goal is taken fresh.
+	var other: Pawn = m.bots[2]
+	other.global_position = Vector3(far, 0.2, repath + 1.0)
+	assert_true(b._goal(other, false).is_equal_approx(other.global_position), "new enemy: its position")
+	enemy.global_position = Vector3(far, 0.2, repath + 1.5)
+	b._goal(null, false)
+	assert_true(b._goal(enemy, false).is_equal_approx(enemy.global_position), "after a think without a fight goal: fresh")
+	# The agent is not handed a kept fight goal again.
+	var kept := b._goal(enemy, false)
+	b._move_direction(enemy, false, dt())
+	var agent_target := b._agent.target_position
+	assert_true(agent_target.is_equal_approx(kept), "agent target = the fight goal")
+	m.queue_free()
+
+
+func test_small_map_never_fights_in_a_band() -> void:
+	await start(small_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var enemy: Pawn = m.bots[1]
+	arm(bot, "pilum_br")
+	bot.global_position = Vector3(0.0, 0.2, 0.0)
+	enemy.global_position = Vector3(20.0, 0.2, 0.0)
+	var b := add_brain(bot)
+	b._ensure_seeded()
+	b._goal(enemy, false)
+	assert_true(b.goal_kind != "fight" and not b._fight_hold, "small map: today's goals (%s)" % b.goal_kind)
+	m.queue_free()

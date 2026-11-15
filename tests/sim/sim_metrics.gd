@@ -46,6 +46,28 @@ static func cli_profile() -> String:
 	return ""
 
 
+## --sim-brain=<path>=<number>[,<path>=<number>...] (after `--`): SIM-LOCAL overrides of data/bots.json "brain"
+## numbers for this run's bots, for tuning runs, e.g. --sim-brain=fight.band_far_frac=0.25,fight.sight_by_weapon.pilum_br=60.
+## {} when absent. The SIM line shows them after the profile name (profile=tiro+fight.band_far_frac=0.25).
+static func cli_brain_overrides() -> Dictionary:
+	var out := {}
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--sim-brain="):
+			for part in a.substr(12).split(",", false):
+				var eq := part.rfind("=")
+				if eq > 0:
+					out[part.substr(0, eq)] = float(part.substr(eq + 1))
+	return out
+
+
+## --sim-scale=<number> (after `--`): the zone and carrier time scale of the 1 km sim; `fallback` when absent.
+static func cli_scale(fallback: float) -> float:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--sim-scale="):
+			return float(a.substr(12))
+	return fallback
+
+
 ## Call right after m.begin() (before the first physics tick). Applies --sim-profile to every bot Brain (the
 ## bots.json profile dictionary, as BotSpawner.attach_brain would hand it; the brain reads `profile` only while
 ## it thinks) and connects the shot counters. Returns the profile name in use, "" for an unknown --sim-profile.
@@ -64,6 +86,25 @@ func bind(match_root: MatchRoot) -> String:
 			var brain := b.get_node_or_null("Brain") as BotBrain
 			if brain != null:
 				brain.profile = (profiles[want] as Dictionary).duplicate(true)
+	var overrides := cli_brain_overrides()
+	if not overrides.is_empty():
+		var shown: Array[String] = []
+		for path in overrides:
+			shown.append("%s=%s" % [path, overrides[path]])
+		profile_name += "+" + ",".join(shown)
+		for b in m.bots:
+			var brain := b.get_node_or_null("Brain") as BotBrain
+			if brain == null:
+				continue
+			brain.cfg = brain.cfg.duplicate(true)  # this sim's bots only; bots.json stays as it is
+			for path in overrides:
+				var keys: PackedStringArray = String(path).split(".")
+				var d: Dictionary = brain.cfg
+				for i in keys.size() - 1:
+					if not d.has(keys[i]) or not d[keys[i]] is Dictionary:
+						d[keys[i]] = {}
+					d = d[keys[i]]
+				d[keys[keys.size() - 1]] = overrides[path]
 	for id in m.director.all_players():
 		var p: Pawn = m.director.player(id)
 		p.fired.connect(func() -> void: shots[id] = int(shots.get(id, 0)) + 1)

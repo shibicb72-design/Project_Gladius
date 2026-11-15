@@ -19,7 +19,7 @@ var profile: Dictionary = {}
 var cfg: Dictionary = {}
 var target_id: int = -1
 ## Last goal kind, for tests and debugging: "revive", "zone", "loot", "hold", "chase" or ""; on a big map also
-## "gear" (M2B1).
+## "fight", "gear" and "hunt" (M2B1).
 var goal_kind: String = ""
 
 var _agent: NavigationAgent3D
@@ -84,6 +84,18 @@ var _enemy_mem_tick: int = -1
 var _listen_count: int = -1  # director player count when the shot signals were last wired
 var _listening: Dictionary = {}  # player id -> true: that pawn's shot signal is connected to this brain
 var heard_count: int = 0  # report: enemy gun shots heard within the radius
+## Stage 6 (fight band): true while the last think strafes / stands inside the band (no stuck tracking then).
+var _fight_hold: bool = false
+var _strafe_side: float = 0.0  # 0 = not drawn yet; then +1 / -1 (route stream, at the first band think)
+var _strafe_period_ticks: int = 0
+var _strafe_flip_tick: int = 0
+## Stage 6 revision (CPU): the fight goal is kept between thinks so the NavigationAgent is not re-asked each think.
+var _fight_mode: String = ""  # the fight goal of the last think: "close", "band" or "" (no fight goal)
+var _prev_fight_mode: String = ""  # _fight_mode of the think before (read by _fight_goal)
+var _strafe_point := Vector3.ZERO  # the strafe target, fixed for the strafe period
+var _strafe_enemy: int = -1  # the enemy the strafe point was computed against
+var _close_goal := Vector3.ZERO  # the close-in goal, moved only when the enemy is fight.repath_m from it
+var _close_enemy: int = -1
 
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
@@ -251,7 +263,9 @@ func _follow_path(delta: float) -> Vector3:
 	if to_goal.length() < 0.3:
 		_stuck_t = 0.0
 		return Vector3.ZERO
-	if _unstick_left <= 0.0:
+	if _fight_hold:
+		_stuck_t = 0.0
+	elif _unstick_left <= 0.0:
 		if _stuck_t == 0.0:
 			_stuck_from = pawn.global_position  # a stuck window starts here (M2B1: not at the world origin)
 		_stuck_t += delta
@@ -408,7 +422,7 @@ func _find_target() -> Pawn:
 		var seen := space.intersect_ray(q).is_empty()
 		var c := {"id": id, "pos": pos, "squad": other.squad_id, "alive": true, "visible": seen}
 		(standing if other.is_alive() else downed).append(c)
-	var sight := float(cfg.get("sight_range_m", 60.0))
+	var sight := _sight()
 	target_id = BotTargeting.pick_target(pawn.global_position, pawn.squad_id, standing, sight)
 	if target_id < 0 and bool(cfg.get("finish_downed", true)):
 		target_id = BotTargeting.pick_target(pawn.global_position, pawn.squad_id, downed, sight)
@@ -428,8 +442,14 @@ func _move_direction(enemy: Pawn, melee_only: bool, delta: float) -> Vector3:
 	if to_goal.length() < 0.3:
 		_stuck_t = 0.0
 		return Vector3.ZERO
-	_track_stuck(delta)
-	_agent.target_position = goal
+	if _fight_hold:
+		_stuck_t = 0.0  # strafing in the band on purpose: never an unstick (as hold)
+	else:
+		_track_stuck(delta)
+	# A kept fight goal is not handed to the agent again (setting target_position re-queries the path even when
+	# it is unchanged); every other goal, and every goal on a small map, is set every think as before.
+	if goal_kind != "fight" or _agent.target_position != goal:
+		_agent.target_position = goal
 	var next := _agent.get_next_path_position()
 	var dir := next - pawn.global_position
 	dir.y = 0.0
@@ -440,6 +460,9 @@ func _move_direction(enemy: Pawn, melee_only: bool, delta: float) -> Vector3:
 
 func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 	var me := pawn.player_id
+	_fight_hold = false
+	_prev_fight_mode = _fight_mode
+	_fight_mode = ""
 	# Blade only and an enemy close by: charge it.
 	if enemy != null and melee_only and _flat_dist(enemy) <= float(cfg.get("melee_chase_m", 14.0)):
 		goal_kind = "chase"
@@ -468,6 +491,12 @@ func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 	if _zone_pressure():
 		goal_kind = "zone"
 		return spot
+	# Big map: a gun bot with a standing enemy in sight holds the gun's distance band (M2B1).
+	if _big_map and enemy != null and not melee_only and enemy.is_alive():
+		var fight := _fight_goal(enemy)
+		if fight != Vector3.INF:
+			goal_kind = "fight"
+			return fight
 	# Loot.
 	var item := _loot_goal()
 	if item != Vector3.INF:
@@ -790,3 +819,78 @@ func _hunt_goal() -> Vector3:
 	if Vector2(c.x - here.x, c.z - here.z).length() > arrive:
 		return c
 	return Vector3.INF
+
+
+## ---- Fighting at range (M2B1 stage 6, big maps only; brain.fight placeholders, OQ-BOT-FIGHT) ----
+## Sight: on a big map with a gun in hand that fight.sight_by_weapon names, that number clamped to the gun's
+## range_m; otherwise sight_range_m (small maps: always sight_range_m, as before).
+## Fight goal (after zone pressure, before loot): a gun bot with a STANDING enemy in sight. Farther than
+## band_far_frac x sight: close in (walk to the enemy through the NavigationAgent). Nearer: strafe, a point
+## strafe_step_m to one side (perpendicular to the enemy), the side seeded from the route stream at the first band
+## think and flipped every strafe_period_s x (0.75..1.25, drawn once) director ticks; strafe_step_m 0 = stand.
+## In the band _fight_hold resets the stuck window (as hold does), so standing / strafing never unsticks.
+## A DOWNED target is not fought this way: the bot keeps today's goals and shoots it where it can see it
+## (finish_downed unchanged). Blade bots keep "chase". Decided on think ticks only; coast ticks follow _last_goal.
+
+func _fight_f(key: String, default: float) -> float:
+	return float(cfg.get("fight", {}).get(key, default))
+
+
+func _sight() -> float:
+	var base := float(cfg.get("sight_range_m", 60.0))
+	if not _big_map or pawn.loadout == null:
+		return base
+	var w := pawn.loadout.get_active()
+	if w == null or w.def.is_melee():
+		return base
+	var per: Dictionary = cfg.get("fight", {}).get("sight_by_weapon", {})
+	if not per.has(w.def.id):
+		return base
+	return minf(float(per[w.def.id]), w.def.range_m)
+
+
+## The sight this bot uses now (tests / reports).
+func sight_m() -> float:
+	return _sight()
+
+
+## Revision (CPU, no new draws): both goals are kept between thinks so the path is not re-queried every think.
+## Close in: the last close-in goal is kept while the last think also closed in on the same enemy and that enemy
+## is within fight.repath_m of it; otherwise the goal moves to the enemy's position. Strafe: the point is computed
+## when the side is drawn or flipped, when the enemy changes, or when the last think was not in the band, and is
+## returned unchanged until then (a bot that reaches it early stands; _fight_hold keeps the stuck logic off).
+func _fight_goal(enemy: Pawn) -> Vector3:
+	var sight := _sight()
+	var d := _flat_dist(enemy)
+	var ep := enemy.global_position
+	if d > sight * _fight_f("band_far_frac", 0.25):
+		_fight_mode = "close"
+		var keep := _prev_fight_mode == "close" and _close_enemy == enemy.player_id \
+				and Vector2(ep.x - _close_goal.x, ep.z - _close_goal.z).length() <= _fight_f("repath_m", 3.0)
+		if not keep:
+			_close_goal = ep
+			_close_enemy = enemy.player_id
+		return _close_goal
+	_fight_hold = true
+	_fight_mode = "band"
+	var step := _fight_f("strafe_step_m", 3.0)
+	if step <= 0.0:
+		return pawn.global_position
+	var fresh := _prev_fight_mode != "band" or _strafe_enemy != enemy.player_id
+	if _strafe_side == 0.0:
+		_strafe_side = 1.0 if _route_rng.randf() < 0.5 else -1.0
+		var period := _fight_f("strafe_period_s", 1.5) * _route_rng.randf_range(0.75, 1.25)
+		_strafe_period_ticks = maxi(int(period * float(Engine.physics_ticks_per_second)), 1)
+		_strafe_flip_tick = director.tick_count + _strafe_period_ticks
+		fresh = true
+	elif director.tick_count >= _strafe_flip_tick:
+		_strafe_side = -_strafe_side
+		_strafe_flip_tick = director.tick_count + _strafe_period_ticks
+		fresh = true
+	if fresh:
+		var to := ep - pawn.global_position
+		to.y = 0.0
+		var side := Vector3(-to.z, 0.0, to.x).normalized() * _strafe_side
+		_strafe_point = pawn.global_position + side * step
+		_strafe_enemy = enemy.player_id
+	return _strafe_point

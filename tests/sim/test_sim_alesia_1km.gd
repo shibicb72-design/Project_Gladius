@@ -139,11 +139,12 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	m.director.mode_cfg["teams"]["mode"]["value"] = mode
 	var z: Dictionary = m.director.mode_cfg["zone"]
 	var want_phases: Array = []
+	var scale := _Metrics.cli_scale(SCALE)  # --sim-scale=1.0 plays the data's own timings (M2B1, for the rotation check)
 	for ph in z["phases"]:
-		ph["wait_s"] = float(ph["wait_s"]) * SCALE
-		ph["shrink_s"] = float(ph["shrink_s"]) * SCALE
+		ph["wait_s"] = float(ph["wait_s"]) * scale
+		ph["shrink_s"] = float(ph["shrink_s"]) * scale
 		want_phases.append([ph["wait_s"], ph["shrink_s"], ph["radius_m"]])
-	var carrier_s := float(m.director.mode_cfg["drop"]["carrier_s"]) * SCALE
+	var carrier_s := float(m.director.mode_cfg["drop"]["carrier_s"]) * scale
 	m.director.mode_cfg["drop"]["carrier_s"] = carrier_s
 	var causes := {}
 	var kills := {"gun": 0, "blade": 0, "none": 0}
@@ -259,7 +260,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			kill_dist["gun"], kill_dist["blade"], _mean(down_dist["gun"]), _mean(down_dist["blade"]), zone["deaths"], zone["before_fight"],
 			metrics.shot_fields(), metrics.loot_fields(), unstick_total, reached_inner.size(), reached_hill.size(), shares,
 			route_fields(m.bots, landmarks)]
-	print(line + " | wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s %s" % [wall_s, begin_ms, carrier_s, capped, metrics.cpu_fields()])
+	print(line + " | scale=%.2f wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s %s" % [scale, wall_s, begin_ms, carrier_s, capped, metrics.cpu_fields()])
 	if over:
 		print("SIM result map=alesia_1km mode=%s winner=%s draw=%s" % [mode, results[0]["winner"], results[0]["draw"]])
 	else:
