@@ -41,6 +41,8 @@ var life: Life = Life.ALIVE:
 			bridge.downed = value == Life.DOWNED
 		if value == Life.DOWNED and cover != null:
 			_leave_cover()
+		if value != Life.ALIVE:
+			ladder_release()  # M2 L1c ladder: downed or dead lets go
 		_apply_life_shapes()
 ## Step 3 G5 (Shibi, Nov 9 2026: "downed lowers the hitbox"): body capsule height and head-hitbox height while
 ## DOWNED (br.json downed.downed_body_height_m / downed_head_y_m, set by MatchDirector.start). Negative = unset:
@@ -138,6 +140,8 @@ func handle_action_press(action: String) -> void:
 	if action == "crouch" or action == "cover_fire":
 		return
 	elif action == "cover" and cover_button_available():
+		if climbing:
+			return  # M2 L1c ladder: no cover on a ladder
 		# M2 C1b: the Cover button. The main probe samples at the button's own reach (cover.json cover_button_range_m),
 		# so on entry it already holds the wall for the locked samples that follow.
 		var probe := _cover_probe.sample(self, cover.config, false, float(cover.config["cover_button_range_m"])) \
@@ -384,6 +388,8 @@ func _physics_process(delta: float) -> void:
 	bridge.tick(delta)
 	if net_mode == NetMode.HOST_REMOTE:
 		return
+	if climbing and drop_state != Drop.NONE:
+		ladder_release()  # M2 L1c ladder: the drop state lets go
 	if drop_state == Drop.ABOARD:
 		_apply_look()
 		_drop_requested = _drop_requested or _frame.jump_just_pressed
@@ -615,6 +621,10 @@ func _update_sprint_factor(delta: float) -> void:
 func _apply_movement(delta: float) -> void:
 	var sprint_pressed := _frame.sprint and not _sprint_was_requested
 	_sprint_was_requested = _frame.sprint
+	# M2 L1c ladder: on (or grabbing) a ladder the ladder block moves the pawn; the gravity and jump lines, the cover
+	# probe (auto-snap) and the cover tick below are all skipped, so cover stays FREE for the whole climb.
+	if _ladder_tick(delta):
+		return
 	# Full analog speed: the wish speed scales continuously with the stick length (no walk/run step).
 	# Sideways and backward are a ratio of forward speed (stats.json movement.strafe_back_ratio).
 	_update_sprint_factor(delta)
@@ -682,7 +692,7 @@ func _apply_weapon() -> void:
 			reload_started.emit()
 		elif not w.def.is_melee() and not w.reloading:
 			reload_rejected.emit("full" if w.ammo_in_mag >= w.def.magazine else "no_reserve")
-	if _frame.fire_just_pressed and not w.has_ammo() and not w.reloading:
+	if _frame.fire_just_pressed and not w.has_ammo() and not w.reloading and not climbing:  # M2 L1c ladder
 		fire_empty.emit()
 	var in_cover := cover != null and cover.state != CoverController.State.FREE
 	# M2 C1b stage 4 (decisions 3, 5; fix 9): in cover the frame's fire bit (the Fire buttons, mouse, keyboard, gamepad)
@@ -690,6 +700,12 @@ func _apply_weapon() -> void:
 	# and the wall ray is clear (CoverController.fire_trigger / blocks_fire); a press buffered through ENTERING, EXITING
 	# or the move out counts as held until a round answers it.
 	var trigger := cover.fire_trigger(_frame.fire_pressed) if cover != null else _frame.fire_pressed
+	if climbing:
+		# M2 L1c ladder: no gun fire and no melee on a ladder (no grenade exists). Swap and reload above still run and
+		# update() below still completes a reload; a pending semi round or burst is dropped, not fired on the way off.
+		trigger = false
+		w._semi_armed = false
+		w._burst_left = 0
 	# A locked semi/burst may finish with a false trigger. Preserve its round while the
 	# ray is blocked, but still update every tick so reload completion remains unchanged.
 	var pending: Array = [w.ammo_in_mag, w._semi_armed, w._burst_left, w._next_fire_time, w._next_burst_time, w._last_mode_shot]
@@ -714,6 +730,98 @@ func _apply_weapon() -> void:
 			and bool(bridge.combat_cfg.get("auto_reload_on_empty", false)):
 		if w.start_reload(_clock):
 			reload_started.emit()
+
+
+# ---- M2 L1c ladder (commit 5): data/props.json "ladder" (OQ-PROPS-LADDER), scripts/props/ladder.gd ----------------
+## The climbing state is plain on the pawn, for M3 to replicate: `climbing`, `ladder_id` (the cover file's ladder id,
+## "" when not climbing) and the pawn's own position. Grab: only a LOCAL pawn with can_climb and no Brain child, offline
+## (not in_lan_session), ALIVE, drop NONE, cover FREE or absent, regrab_delay_s after its last let-go, and
+## Ladder.grab_kind says so (touching the
+## trigger on the floor with the stick into the ladder from below, or out over the edge from the ledge; a grab from
+## the ledge sets the feet on the climb line at the ledge top). On the ladder (_ladder_tick, from _apply_movement): the
+## stick's share into the ladder (Ladder.climb_rate, the move turned by the look yaw) climbs at climb_speed_mps, up or
+## down, and no input holds; no gravity, no jump, no cover probe or tick, no fire or melee (_apply_weapon); reload and
+## swap work. The body is pulled onto the climb line at snap_speed_mps. Feet past the ledge top by top_rise_m while
+## climbing up: the top step (the feet set on the top point, then normal movement). Climbing down onto the floor: let
+## go, standing. Jump: let go with let_go_push_mps away from the ladder (then falling; no fall damage exists). Downed,
+## dead (the life setter), the drop state (_physics_process), 0 health or the ladder gone: let go.
+## False: this pawn never grabs a ladder (a pawn with a Brain child, a bot, never grabs whatever this says).
+var can_climb := true
+var climbing := false
+var ladder_id := ""
+var _ladder: Ladder
+var _ladder_regrab_s := 0.0
+
+
+## The ladder this pawn is on (null when not climbing).
+func current_ladder() -> Ladder:
+	return _ladder if climbing else null
+
+
+## Lets go (nothing when not climbing): the state is cleared, the velocity becomes `push`, a regrab waits.
+func ladder_release(push := Vector3.ZERO) -> void:
+	if not climbing:
+		return
+	if is_instance_valid(_ladder):
+		_ladder_regrab_s = float(_ladder.cfg.get("regrab_delay_s", 0.5))
+	climbing = false
+	ladder_id = ""
+	_ladder = null
+	velocity = push
+
+
+func _ladder_may_grab() -> bool:
+	# Offline only until M3 (as cover, in_lan_session): the top step and the grab from the ledge move the pawn more than
+	# the host's NetValidator.validate_move allows in one window, so a LAN client's climb would be refused there.
+	return can_climb and _ladder_regrab_s <= 0.0 and net_mode == NetMode.LOCAL and is_alive() \
+			and drop_state == Drop.NONE and not in_cover() and not has_node("Brain") and not in_lan_session()
+
+
+## One movement tick on or onto a ladder; true when this tick belongs to the ladder (the rest of _apply_movement is
+## skipped).
+func _ladder_tick(delta: float) -> bool:
+	_ladder_regrab_s = maxf(_ladder_regrab_s - delta, 0.0)
+	var move := global_transform.basis * Vector3(_frame.move.x, 0.0, _frame.move.y)
+	if not climbing:
+		if not _ladder_may_grab():
+			return false
+		for node in get_tree().get_nodes_in_group(Ladder.GROUP):
+			var l := node as Ladder
+			if l == null:
+				continue
+			var how := l.grab_kind(global_position, is_on_floor(), move, l.overlaps_body(self))
+			if how == Ladder.Grab.NONE:
+				continue
+			climbing = true
+			ladder_id = l.prop_id
+			_ladder = l
+			velocity = Vector3.ZERO
+			if how == Ladder.Grab.TOP:
+				global_position = l.climb_point(l.top_y())
+			return true
+		return false
+	if not is_instance_valid(_ladder) or not is_alive() or drop_state != Drop.NONE:
+		ladder_release()
+		return false
+	var lad := _ladder
+	if _frame.jump_just_pressed:
+		ladder_release(-lad.into_dir() * float(lad.cfg.get("let_go_push_mps", 1.0)))
+		move_and_slide()
+		return true
+	var rate := lad.climb_rate(move)
+	if rate > 0.0 and global_position.y >= lad.top_y() + float(lad.cfg.get("top_rise_m", 0.1)):
+		var top := lad.top_point()
+		ladder_release()
+		global_position = top
+		return true
+	var to_line := lad.climb_point(global_position.y) - global_position
+	to_line.y = 0.0
+	velocity = to_line.limit_length(float(lad.cfg.get("snap_speed_mps", 4.0)) * delta) / maxf(delta, 0.0001)
+	velocity.y = rate * float(lad.cfg.get("climb_speed_mps", 2.0))
+	move_and_slide()
+	if rate < 0.0 and is_on_floor():
+		ladder_release()
+	return true
 
 
 ## Explicit test seam; normal play uses the first-physics-tick CameraRig/no-Brain gate.

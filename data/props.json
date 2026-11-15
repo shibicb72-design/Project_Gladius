@@ -51,7 +51,7 @@
 		"loot": {"count_min": 2, "count_max": 3, "item_kinds": []}
 	},
 	"door": {
-		"_todo": "OQ-PROPS-DOOR: every number and look here is a first guess for Shibi (M2 L1c). Placement, the box size (opening width x height x leaf thickness), the hinge side, the swing side and the seeded start state live in the map's cover file (\"doors\", tools/gen_alesia.gd from the generator block doors), because the saved navigation hashes that file. This file is never a navigation input.",
+		"_todo": "OQ-PROPS-DOOR: every number and look here is a first guess for Shibi (M2 L1c). Placement, the box size (opening width x height x leaf thickness), the slide direction (the cover entry's \"slide\": left, right or apart; doors slide, they do not swing) and the seeded start state live in the map's cover file (\"doors\", tools/gen_alesia.gd from the generator block doors), because the saved navigation hashes that file. This file is never a navigation input.",
 		"_note": "The keys here are the barracks door's; \"gate\" holds only what a wall gate does differently (WorldProps.door_cfg merges it over the rest). Both kinds slide (pocket doors: each leaf slides its own width into the wall beside the opening). interact_range_m: flat distance from the closed leaves' footprint within which Interact toggles it; height_limit_m: the most the pawn's feet may lie above or below the threshold. move_time_s: the slide from closed to open (or back). blocked_retry_s: a pawn in the doorway when the door should move (or, after a close, before its collider switches on): the door does not move and asks again after this long. bot_open_delay_s: M2 L1c commit 4 (bots opening doors); bot_open_delay_s + move_time_s must stay under data/bots.json stuck_window_s. palette: the tint (data/art_materials.json tints; an unlisted one draws the parts' own colours) and the impact sound (data/audio.json impacts.by_palette; an unlisted one is by_palette.default, wood). look: LowpolyKit parts of ONE leaf authored for look_size (+x = the side that enters the pocket), scaled to each leaf; grey-box, the art slice dresses it.",
 		"interact_range_m": 2.0,
 		"height_limit_m": 2.0,
@@ -83,6 +83,42 @@
 					{"size": [0.3, 0.3, 0.3], "at": [-0.85, 0.4, 0], "color": "bronze"}
 				]
 			}
+		}
+	},
+	"ladder": {
+		"_todo": "OQ-PROPS-LADDER: every number and look here is a first guess for Shibi (M2 L1c commit 5). Placement (the foot, the yaw a climber faces, the height to the ledge top, the width and the top-step point on the ledge) lives in the map's cover file (\"ladders\", tools/gen_alesia.gd from the generator block ladders), because the saved navigation hashes that file. This file is never a navigation input.",
+		"_note": "scripts/props/ladder.gd (a non-blocking Area3D trigger: layer 0, so no shot, sight or movement query ever meets it) and the ladder block of scripts/classes/pawn.gd. climb_speed_mps: the climb at a full stick (run speed is stats.json movement.base_speed_mps 4.7). The climb rate is the share of the move input (turned by the pawn's look yaw) that points into the ladder: facing the ladder, stick forward = up, back = down; facing away (after getting on from the top), forward = down. grab_min_input: the least stick length that grabs; grab_min_dot: the least cosine between the move direction and the direction into the ladder (bottom) or out over the edge (top) that grabs (0.6 = within about 53 degrees; a 45 degree diagonal grabs, walking along the wall does not). bottom_grab_height_m: from below, the feet at most this far above the foot. top_grab_height_m: from the ledge, the feet within this of the ledge top. climb_offset_m: the climber's centre is held this far out from the ladder plane (clear of an eave at the plane; the pawn radius is 0.4); snap_speed_mps: how fast the climber is pulled onto that line. top_rise_m: the feet this far above the ledge top while climbing up = the top step (the pawn is set on the cover file's top point, on the ledge). reach_m / top_reach_m: the trigger reaches this far out from the plane / this far onto the ledge. let_go_push_mps: Jump lets go with this push away from the ladder (no other velocity; gravity does the rest); regrab_delay_s: no grab for this long after any let-go or top step. palette: the tint (data/art_materials.json tints; an unlisted one draws the parts' own colours). look: LowpolyKit parts (two rails, rungs) authored for look_size, scaled to width x (height + rail_above_m) x look_size z; grey-box, the art slice dresses it.",
+		"climb_speed_mps": 2.0,
+		"grab_min_input": 0.3,
+		"grab_min_dot": 0.6,
+		"bottom_grab_height_m": 0.5,
+		"top_grab_height_m": 0.3,
+		"climb_offset_m": 0.5,
+		"snap_speed_mps": 4.0,
+		"top_rise_m": 0.1,
+		"reach_m": 0.5,
+		"top_reach_m": 1.0,
+		"let_go_push_mps": 1.0,
+		"regrab_delay_s": 0.5,
+		"rail_above_m": 0.9,
+		"palette": "door",
+		"look_size": [0.6, 4.2, 0.08],
+		"look": {
+			"parts": [
+				{"size": [0.07, 4.2, 0.08], "at": [-0.265, 0, 0], "color": "dark"},
+				{"size": [0.07, 4.2, 0.08], "at": [0.265, 0, 0], "color": "dark"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, -1.8, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, -1.5, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, -1.2, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, -0.9, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, -0.6, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, -0.3, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, 0.0, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, 0.3, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, 0.6, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, 0.9, 0], "color": "trim"},
+				{"size": [0.46, 0.05, 0.05], "at": [0, 1.2, 0], "color": "trim"}
+			]
 		}
 	},
 	"break_fx": {

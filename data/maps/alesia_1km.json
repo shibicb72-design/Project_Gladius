@@ -350,6 +350,20 @@
 			"sides": 24.0,
 			"tower_bearings_deg": []
 		},
+		"ladders": {
+			"_placeholder": true,
+			"_todo": "OQ-PROPS-LADDER: a guess for Shibi, not a design value (M2 L1c commit 5). Where: barracks roofs only (the only tops no ramp or stair reaches), one ladder per barracks block on an END wall (no doorway there), outside face, at the wall's middle. ends: the end walls tried in this order (1 = the piece's local +x end, -1 = the -x end); the first whose clearance is free is taken, none free = a problem (the generator reports the block). The ladder plane is the roof's edge (the eave, 0.2 m in front of the end wall's face), the foot on the ground under it, the height the roof slab's top (all read from the kit type's colliders, data/maps/alesia_structures.json, read-only). width_m: the ladder's width. top_step_m: the top-step point lies this far from the plane onto the roof (it must stay a pawn radius inside the roof slab). front_clear_m / side_clear_m: the ground from the plane out front_clear_m, across width_m plus side_clear_m each side, must be free of every other footprint (placement.minimum_gap_m is not applied: the barracks' own footprint ends at the plane). No random draw: nothing else in the cover or structure files changes. tools/gen_alesia.gd _ladders writes alesia_1km_cover.json \"ladders\"; behaviour and looks: data/props.json \"ladder\". Ladders are not cover walls (not counted in max_cover_walls), stand outside the navigation and block nothing; bots do not climb (no nav link).",
+			"enabled": true,
+			"ends": [
+				1.0,
+				-1.0
+			],
+			"front_clear_m": 1.0,
+			"side_clear_m": 0.4,
+			"top_step_m": 0.7,
+			"type": "barracks",
+			"width_m": 0.6
+		},
 		"landmark_radius_m": {
 			"aqueduct": 16.0,
 			"arx": 40.0,

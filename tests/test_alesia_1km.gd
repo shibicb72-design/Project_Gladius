@@ -598,6 +598,71 @@ func test_doors_are_built_under_props_outside_nav() -> void:
 	wp.free()
 
 
+## M2 L1c commit 5: the cover file's 12 ladders are Ladder triggers under ArtBuilder/Props (outside Nav), in
+## builder.ladders in order, group ladder only (never cover_wall, in no body list), on collision layer 0, their foot on
+## the terrain at their barracks' eave, the top point on that barracks' roof (a ray down meets the roof at the ledge
+## top); and a real pawn climbs Ladder_000 from the ground to the roof of the built map.
+func test_ladders_are_built_under_props_outside_nav_and_climbable() -> void:
+	var map := _map()
+	var builder := map.get_node("ArtBuilder")
+	var cover := DataRegistry.parse_quiet(String(_def()["cover_data"]))
+	var entries: Array = cover.get("ladders", [])
+	assert_eq(entries.size(), 12, "12 ladders in the cover file")
+	var props := map.get_node_or_null("ArtBuilder/Props")
+	var nav := map.get_node("Nav")
+	var terrain: MapTerrain = builder.terrain
+	assert_eq(builder.ladders.size(), entries.size(), "builder.ladders lists them all")
+	var lists: Array = [builder.cover_bodies, builder.ring_bodies, builder.structure_bodies, builder.decor_bodies, builder.chest_bodies, builder.door_bodies]
+	var space := map.get_world_3d().direct_space_state
+	for i in entries.size():
+		var e: Dictionary = entries[i]
+		var id := String(e["id"])
+		var l := props.get_node_or_null(id) as Ladder if props != null else null
+		assert_true(l != null and builder.ladders[i] == l, "%s is a Ladder under Props, in order" % id)
+		if l == null:
+			continue
+		assert_true(not nav.is_ancestor_of(l), "%s is outside Nav" % id)
+		assert_true(l.is_in_group(Ladder.GROUP) and not l.is_in_group(&"cover_wall"), "%s: group ladder, never cover_wall" % id)
+		assert_true(l.collision_layer == 0, "%s: layer 0" % id)
+		for list: Array in lists:
+			assert_true(not (l in list), "%s is in no body list" % id)
+		var at := LowpolyKit.vec(e["at"])
+		assert_true(absf(l.position.y - (at.y + terrain.height_at(at.x, at.z))) < 0.001, "%s stands on the terrain" % id)
+		var top := l.top_point()
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(top + Vector3.UP * 1.0, top + Vector3.DOWN * 1.0, Hitscan.MASK_WORLD))
+		assert_true(not down.is_empty() and String((down["collider"] as Node).name) == String(e["piece"]) and absf(float(down["position"].y) - l.top_y()) < 0.01,
+				"%s: the top point stands on %s's roof at the ledge top (%s)" % [id, e["piece"], str(down.get("position", "none"))])
+	# A real pawn climbs Ladder_000 to the roof.
+	var ladder := props.get_node("Ladder_000") as Ladder
+	var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	map.add_child(pawn)
+	pawn.set_physics_process(false)
+	var start := ladder.foot() - ladder.into_dir() * 1.8 + Vector3.UP * 0.05
+	pawn.global_transform = Transform3D(Basis.looking_at(ladder.into_dir()), start)
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.physics_frame
+	var frame := InputFrame.new()
+	frame.move = Vector2(0, -1)
+	pawn.set_frame(frame)
+	var grabbed := false
+	for i in 120:
+		pawn._physics_process(1.0 / 60.0)
+		if pawn.climbing:
+			grabbed = true
+			break
+		await tree.physics_frame
+	assert_true(grabbed and pawn.ladder_id == "Ladder_000", "a pawn walking into Ladder_000 grabs it")
+	for i in 300:
+		if not pawn.climbing:
+			break
+		pawn._physics_process(1.0 / 60.0)
+	for i in 20:
+		pawn._physics_process(1.0 / 60.0)
+	assert_true(not pawn.climbing and pawn.is_on_floor() and absf(pawn.global_position.y - ladder.top_y()) < 0.03,
+			"it ends standing on Castra1_Barracks_0's roof (y %.2f, ledge %.2f)" % [pawn.global_position.y, ladder.top_y()])
+	pawn.free()
+
+
 ## Last in this file: frees the shared 1 km map so later suite files start clean.
 func test_zz_free_the_map() -> void:
 	if is_instance_valid(_built):

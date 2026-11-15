@@ -22,6 +22,8 @@ const CLOSED := 3
 const BREAKABLES_KEY := "breakables"
 const CHESTS_KEY := "chests"
 const DOORS_KEY := "doors"
+## M2 L1c commit 5: ladders (Ladder) have no state here (they never change); only their entries are validated.
+const LADDERS_KEY := "ladders"
 
 var cfg: Dictionary = {}
 var match_seed := 1
@@ -253,7 +255,8 @@ static func spill_points(centre: Vector3, count: int, radius: float, yaw_deg: fl
 
 ## What is wrong with a map cover file's "breakables" (optional) against data/props.json, one line each (empty:
 ## fine). Ids are unique across pieces, ring pieces and breakables. M2 L1c: also data/props.json "door" and the
-## cover file's optional "doors" (ids unique across every list).
+## cover file's optional "doors" (ids unique across every list); commit 5: data/props.json "ladder" and the cover
+## file's optional "ladders".
 static func problems(cover_file: Dictionary, props_cfg: Dictionary) -> PackedStringArray:
 	var out := PackedStringArray()
 	var types: Dictionary = props_cfg.get("breakables", {})
@@ -278,6 +281,8 @@ static func problems(cover_file: Dictionary, props_cfg: Dictionary) -> PackedStr
 	out.append_array(_chest_entry_problems(cover_file, seen))
 	out.append_array(_door_cfg_problems(props_cfg.get("door")))
 	out.append_array(_door_entry_problems(cover_file, seen))
+	out.append_array(_ladder_cfg_problems(props_cfg.get("ladder")))
+	out.append_array(_ladder_entry_problems(cover_file, seen))
 	if not cover_file.has(BREAKABLES_KEY):
 		return out
 	if typeof(cover_file[BREAKABLES_KEY]) != TYPE_ARRAY:
@@ -408,6 +413,70 @@ static func _door_entry_problems(cover_file: Dictionary, seen: Dictionary) -> Pa
 			out.append("door %s: slide must be left, right or apart" % id)
 		if not str(entry.get("start", "")) in Door.STARTS:
 			out.append("door %s: start must be open or closed" % id)
+	return out
+
+
+## M2 L1c commit 5: data/props.json "ladder" (OQ-PROPS-LADDER): speeds, heights and reaches > 0, grab_min_input in
+## (0, 1], grab_min_dot in (0, 1], the push and the delays >= 0, climb_offset_m at least the pawn radius (the climb line
+## clears an eave at the plane), a palette, a look_size > 0 and a non-empty look.
+static func _ladder_cfg_problems(ladder: Variant) -> PackedStringArray:
+	var out := PackedStringArray()
+	if not ladder is Dictionary:
+		out.append("props ladder must be a dictionary")
+		return out
+	for key: String in ["climb_speed_mps", "snap_speed_mps", "top_rise_m", "reach_m", "top_reach_m", "bottom_grab_height_m", "top_grab_height_m"]:
+		if not _num(ladder.get(key)) or float(ladder[key]) <= 0.0:
+			out.append("props ladder.%s must be a number > 0" % key)
+	for key: String in ["grab_min_input", "grab_min_dot"]:
+		if not _num(ladder.get(key)) or float(ladder[key]) <= 0.0 or float(ladder[key]) > 1.0:
+			out.append("props ladder.%s must be a number in (0, 1]" % key)
+	for key: String in ["let_go_push_mps", "regrab_delay_s", "rail_above_m"]:
+		if not _num(ladder.get(key)) or float(ladder[key]) < 0.0:
+			out.append("props ladder.%s must be a number >= 0" % key)
+	if not _num(ladder.get("climb_offset_m")) or float(ladder["climb_offset_m"]) < Ladder.PAWN_RADIUS_M:
+		out.append("props ladder.climb_offset_m must be a number >= the pawn radius %.2f" % Ladder.PAWN_RADIUS_M)
+	if typeof(ladder.get("palette")) != TYPE_STRING:
+		out.append("props ladder.palette must be a string")
+	if not _vec3(ladder.get("look_size"), true):
+		out.append("props ladder.look_size must be three numbers > 0")
+	var look: Variant = ladder.get("look")
+	if not look is Dictionary or typeof(look.get("parts")) != TYPE_ARRAY or (look["parts"] as Array).is_empty():
+		out.append("props ladder.look must hold a non-empty parts list")
+	return out
+
+
+## M2 L1c commit 5: a cover file's optional "ladders": {id, piece (a string), at ([x, y, z], the foot), yaw (a number),
+## height and width (numbers > 0), top ([x, y, z], the top-step point: at the ledge top, height above the foot)}, ids
+## unique across every list (adds them to `seen`).
+static func _ladder_entry_problems(cover_file: Dictionary, seen: Dictionary) -> PackedStringArray:
+	var out := PackedStringArray()
+	if not cover_file.has(LADDERS_KEY):
+		return out
+	if typeof(cover_file[LADDERS_KEY]) != TYPE_ARRAY:
+		out.append("cover file '%s' must be an array" % LADDERS_KEY)
+		return out
+	for entry: Variant in cover_file[LADDERS_KEY]:
+		if not entry is Dictionary:
+			out.append("cover file '%s' holds a non-dictionary entry" % LADDERS_KEY)
+			continue
+		var id := str(entry.get("id", ""))
+		if id == "" or seen.has(id):
+			out.append("ladder id '%s' is empty or not unique" % id)
+		seen[id] = true
+		if typeof(entry.get("piece")) != TYPE_STRING:
+			out.append("ladder %s: piece must be a string" % id)
+		if not _vec3(entry.get("at")):
+			out.append("ladder %s: at must be [x, y, z]" % id)
+		if not _num(entry.get("yaw")):
+			out.append("ladder %s: yaw must be a number" % id)
+		for key: String in ["height", "width"]:
+			if not _num(entry.get(key)) or float(entry[key]) <= 0.0:
+				out.append("ladder %s: %s must be a number > 0" % [id, key])
+		if not _vec3(entry.get("top")):
+			out.append("ladder %s: top must be [x, y, z]" % id)
+		elif _vec3(entry.get("at")) and _num(entry.get("height")) \
+				and absf(float(entry["top"][1]) - float(entry["at"][1]) - float(entry["height"])) > 0.01:
+			out.append("ladder %s: top must lie at the ledge top (height above the foot)" % id)
 	return out
 
 
