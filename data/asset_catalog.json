@@ -13,6 +13,19 @@
 			"sha256": "57b8041bfe0d0f01430e4dbaad45e7ddddf0a9fc97317f90dbc51f7b0d9e1b5d"
 		},
 		{
+			"id": "quaternius_ual_standard_glb",
+			"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb",
+			"source": "Quaternius Universal Animation Library Standard",
+			"source_url": "https://quaternius.com/packs/universalanimationlibrary.html",
+			"author": "Quaternius",
+			"download_url": "https://quaternius.itch.io/universal-animation-library",
+			"licence": "CC0-1.0",
+			"licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+			"redistribution_quote": "Free to use in personal, educational and commercial projects. (CC0 License)",
+			"download_date": "2026-11-15",
+			"sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997"
+		},
+		{
 			"id": "kenney_fonts_future",
 			"path": "res://assets/third_party/kenney_fonts/kenney_future.ttf",
 			"source": "Kenney Fonts",
