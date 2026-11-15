@@ -337,6 +337,11 @@ android/              debug.keystore (shared debug key only)
   DamageRules, scores, spawns, runs bots and computes payouts.
 - Replication: transforms + health/shield per pawn, score/timer and match state. Discrete events
   (kill, respawn, streak, match over, payout) go as reliable RPCs. Clients never write rules state.
+- World props (M2 L1b): one reliable event `NetMatchBridge.ev_world_prop(prop_id, state)` for breakables and
+  chests. The bridge wires `director.props` (WorldProps) once it exists (MatchRoot.begin makes it after the
+  bridge's setup: setup, the next physics tick or an incoming event); the host forwards every `prop_changed`, a
+  client calls `apply_state` (look and collider; no loot roll: the spill reaches it as ground loot). Events that
+  arrive before a client's WorldProps exist are kept and applied when it is wired; detach unwires.
 - Lobby: `LobbyState` (pure, serializable) holds players, squads, classes and settings. The host owns
   it and broadcasts changes.
 - Discovery: manual IP in milestone 1 (OQ-41). A later UDP-broadcast discoverer plugs into
@@ -600,6 +605,40 @@ android/              debug.keystore (shared debug key only)
     arrow, 100 m scale; text in a built-in 5x7 bitmap font). `-- --shots=<dir>` (windowed) builds
     the map scene with the match's Light and WorldEnvironment (GreyboxArt) and saves six ground
     shots at 2520 x 1080 (`shot_points`). Its data pass is tested in test_alesia_1km_data.gd.
+- **Props: breakables and loot chests (M2 L1b).** All numbers are placeholders (OQ-PROPS-BREAK, OQ-PROPS-CHEST).
+  - Data split: WHERE lives in the map's cover file (`alesia_1km_cover.json` `"breakables"` {id, type, at, size}
+    and `"chests"` {id, at, size, yaw}), because the saved nav hashes that file; WHAT lives in `data/props.json`
+    (breakable types: health, melee damage, palette, look, loot roll; `chest`: range, height limit, palette, the
+    closed and open looks for `look_size`, the spill, the roll; `break_fx`). props.json is never a nav input.
+  - Generator passes, in this order (each appended after the earlier ones, so earlier output stays
+    byte-identical): original pieces, `_extra_cover` ("extra_cover"), `_breakables` ("props.breakables"),
+    `_chests` ("props.chests"; a chest's footprint is its box plus `front_clear_m` in front, `chest_rect`).
+    Re-generate: `godot --headless --path . --script res://tools/gen_alesia.gd`, then
+    `tools/bake_nav.gd -- --map=res://data/maps/alesia_1km.json`; commit the map json, the cover file, the paint
+    `.res` if it changed and the two nav files.
+  - Building (`astra_map.gd`): breakables are `Breakable` bodies under `ArtBuilder/Props`, OUTSIDE Nav (never
+    baked; bots path through them), groups `cover_wall` and `breakable`, appended to `cover_bodies` right after the
+    pieces (the paint's trodden order, `gen_alesia.trodden_of`). Chests are permanent `LootChest` bodies UNDER Nav
+    (baked), group `loot_chest` only (never cover_wall, never in cover_bodies, so the paint and the cover index are
+    unchanged), built after the wall loop, in `chest_bodies`. alesia_section and test_300 have neither.
+  - Looks are named chunk pieces (`MapChunks.add(..., piece_id)`, source "cover"): a breakable's id; a chest's
+    closed look (type `loot_chest`, its id) and open look (`loot_chest_open`, `LootChest.open_id(id)` =
+    "<id>/open", hidden right after `build()`). `hide_piece` / `show_piece` set a zero-scale instance (and the
+    batch's "transforms" meta); breaking hides, opening swaps. `tools/props_shots.gd -- --out=<dir>` (windowed)
+    shows the result on screen.
+  - `WorldProps` (`scripts/props/world_props.gd`, one per match, `MatchRoot.world_props` = `director.props`):
+    collects the map's breakables and chests, holds the states (INTACT, BROKEN, OPEN), and on the authority rolls
+    the loot from the match seed and the prop id (`loot_roll`, salt "break" / "chest") and spills it through
+    `LootField.drop` (`spilled` keeps the ids); `prop_changed` feeds the net event (4.17); `apply_state` is the
+    client side. `chest_near(pos)` is the nearest closed chest within range and height.
+  - Hooks: `Hitscan.fire` and `Melee.swing` damage group `breakable` on the authority only. Interact
+    (`MatchRoot._on_action_triggered`): revive, else pickup, else `MatchDirector.try_open_chest`;
+    `chest_target_for` has pickup's conditions (alive, not dropping). `InteractButton` shows "Open chest". Bots:
+    `_bot_pickups` then `_bot_chests` (any closed chest in range; no brain change).
+  - Tests: `test_props_world.gd`, `test_props_breakable.gd`, `test_props_hooks.gd`, `test_props_nav.gd`,
+    `test_props_chest.gd`, the 1 km checks in `test_alesia_1km.gd`, the host/client agreement in
+    `test_net_match.gd`. The sims print `props_broken chests_opened prop_loot prop_loot_taken` at the end of the
+    SIM line's deterministic part.
 
 ## 5. Testing
 

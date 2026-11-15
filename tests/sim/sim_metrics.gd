@@ -227,6 +227,29 @@ func loot_fields() -> String:
 			loot_placed, left, taken_placed, taken_dropped, uncredited, flash, bp["mean"], bp["min"], bp["max"]]
 
 
+## M2 L1b: the deterministic prop fields of the SIM line, read at the end of the match from MatchRoot.world_props:
+## breakables broken, chests opened, items the props spilled (WorldProps.spilled) and how many of those are gone
+## from the ground (LootField.take is the only removal, so gone = taken). All 0 on a map without props.
+func prop_fields() -> String:
+	var props: WorldProps = m.world_props if m != null else null
+	var broken := 0
+	var opened := 0
+	var spilled := 0
+	var taken := 0
+	if props != null and is_instance_valid(props):
+		for id: String in props.states:
+			match int(props.states[id]):
+				WorldProps.BROKEN:
+					broken += 1
+				WorldProps.OPEN:
+					opened += 1
+		spilled = props.spilled.size()
+		for item_id: int in props.spilled:
+			if m.loot != null and not m.loot.items.has(item_id):
+				taken += 1
+	return "props_broken=%d chests_opened=%d prop_loot=%d prop_loot_taken=%d" % [broken, opened, spilled, taken]
+
+
 ## The deterministic shot fields of the SIM line.
 func shot_fields() -> String:
 	return "shots=%d swings=%d gun_shots=%d hits=%d gun_hit_rate=%.3f" % [
