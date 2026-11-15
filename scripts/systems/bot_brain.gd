@@ -509,8 +509,9 @@ func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 		if gear != Vector3.INF:
 			goal_kind = "gear"
 			return gear
-		# Geared (or no landmark with loot) and nothing in sight: go looking for a fight.
-		if enemy == null:
+		# Geared (or no landmark with loot) and nothing in sight: go looking for a fight. With
+		# route.hunt_requires_gear true, only a geared bot hunts (OQ-BOT-ROUTE; false is a placeholder for Shibi).
+		if enemy == null and (_geared() or not bool(cfg.get("route", {}).get("hunt_requires_gear", false))):
 			var hunt := _hunt_goal()
 			if hunt != Vector3.INF:
 				goal_kind = "hunt"
@@ -828,7 +829,7 @@ func _hunt_goal() -> Vector3:
 ## Fight goal (after zone pressure, before loot): a gun bot with a STANDING enemy in sight. Farther than
 ## band_far_frac x sight: close in (walk to the enemy through the NavigationAgent). Nearer: strafe, a point
 ## strafe_step_m to one side (perpendicular to the enemy), the side seeded from the route stream at the first band
-## think and flipped every strafe_period_s x (0.75..1.25, drawn once) director ticks; strafe_step_m 0 = stand.
+## think and flipped every strafe_period_s x (1 +- strafe_jitter_frac, drawn once) director ticks; strafe_step_m 0 = stand.
 ## In the band _fight_hold resets the stuck window (as hold does), so standing / strafing never unsticks.
 ## A DOWNED target is not fought this way: the bot keeps today's goals and shoots it where it can see it
 ## (finish_downed unchanged). Blade bots keep "chase". Decided on think ticks only; coast ticks follow _last_goal.
@@ -880,7 +881,8 @@ func _fight_goal(enemy: Pawn) -> Vector3:
 	var fresh := _prev_fight_mode != "band" or _strafe_enemy != enemy.player_id
 	if _strafe_side == 0.0:
 		_strafe_side = 1.0 if _route_rng.randf() < 0.5 else -1.0
-		var period := _fight_f("strafe_period_s", 1.5) * _route_rng.randf_range(0.75, 1.25)
+		var jitter := _fight_f("strafe_jitter_frac", 0.25)
+		var period := _fight_f("strafe_period_s", 1.5) * _route_rng.randf_range(1.0 - jitter, 1.0 + jitter)
 		_strafe_period_ticks = maxi(int(period * float(Engine.physics_ticks_per_second)), 1)
 		_strafe_flip_tick = director.tick_count + _strafe_period_ticks
 		fresh = true

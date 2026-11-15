@@ -528,14 +528,10 @@ func test_sight_per_gun_is_clamped_to_the_gun_range() -> void:
 	var b := add_brain(bot)
 	b._ensure_seeded()
 	var fight: Dictionary = base_cfg()["fight"]
-	assert_eq(float(fight["sight_by_weapon"]["pilum_br"]), 60.0, "shipped placeholder: pilum_br 60")
-	assert_eq(float(fight["sight_by_weapon"]["sagittarii_rifle"]), 60.0, "shipped placeholder: sagittarii_rifle 60")
-	assert_eq(float(fight["band_far_frac"]), 0.25, "shipped placeholder: band_far_frac 0.25")
-	assert_eq(float(fight["repath_m"]), 3.0, "shipped placeholder: repath_m 3")
 	arm(bot, "pilum_br")
-	assert_eq(b.sight_m(), minf(60.0, bot.loadout.get_active().def.range_m), "pilum_br: 60 (range 80)")
+	assert_eq(b.sight_m(), minf(float(fight["sight_by_weapon"]["pilum_br"]), bot.loadout.get_active().def.range_m), "pilum_br: the data sight, clamped to range_m")
 	arm(bot, "sagittarii_rifle")
-	assert_eq(b.sight_m(), 60.0, "sagittarii_rifle: 60 (range 200)")
+	assert_eq(b.sight_m(), minf(float(fight["sight_by_weapon"]["sagittarii_rifle"]), bot.loadout.get_active().def.range_m), "sagittarii_rifle: the data sight, clamped to range_m")
 	var cfg := base_cfg()
 	cfg["fight"]["sight_by_weapon"]["pilum_br"] = 500.0
 	var c := add_brain(bot, cfg, "C")
