@@ -2,10 +2,10 @@
 Rules: everything modular, data-driven, future-proof (additions must not mean rewrites). All numbers live in editable data files (res://data/*.json). Do NOT invent product decisions; where something is undecided, leave a clearly-marked TODO/placeholder.
 
 ## Platform/tech
-Godot 4.7.2, GDScript, Android (Vulkan Mobile renderer). Phones: S24 Ultra, S25 Ultra, Z Fold7 (wider FOV on inner screen). 60 fps target, optional 120 fps setting. Low-poly 3D third-person. Free CC0 art (Kenney, Quaternius); Mixamo (Adobe terms, local builds only, never committed). Networking: local hotspot multiplayer, host phone is authoritative (decides hits/payouts). Later: dedicated server on Alienware is authoritative online (same rules code). Progress stored on phone; later sync to Alienware keeping last good sync.
+Godot 4.7.2, GDScript, Android (Vulkan Mobile renderer). Phones: S24 Ultra, S25 Ultra, Z Fold7 (wider FOV on inner screen). 60 fps target, optional 120 fps setting. Low-poly 3D: first person while moving, third person in cover (Shibi, Nov 14 2026; was third-person throughout). The drop, downed and spectating stay third person. Free CC0 art (Kenney, Quaternius); Mixamo (Adobe terms, local builds only, never committed). Networking: local hotspot multiplayer, host phone is authoritative (decides hits/payouts). Later: dedicated server on Alienware is authoritative online (same rules code). Progress stored on phone; later sync to Alienware keeping last good sync.
 
 ## Setting
-Futuristic Roman Republic (Rome never fell), Halo 2/3 feel. Map: futuristic Alesia (hilltop citadel = hill, inner wall, legion camp ring, outer wall with sniper towers, energy lily traps, stakes, jump pads, man cannons, aqueduct high routes, arches/eagles/columns/marble). Dusk/night/storm variants.
+Futuristic Roman Republic (Rome never fell), Halo 2/3 feel. Map: futuristic Alesia (hilltop citadel = hill, inner wall, legion camp ring, outer wall with sniper towers, energy lily traps, stakes, jump pads, man cannons, aqueduct high routes, arches/eagles/columns/marble). Dusk/night/storm variants. The 1 km layout (rings, names, tower count) was approved by Shibi on Nov 14 2026. Interactive props (Nov 14 2026): more cover, loot chests, breakable crates and barrels, doors and gates, ladders.
 
 ## Match: battle royale (decided by Shibi, Nov 9 2026)
 Battle royale is the only mode. King of the Hill is cut; Slayer, Capture the Eagle and Oddball are not planned. Offline only: local LAN (phone hotspot or Wi-Fi) plus bots; no online servers, accounts, matchmaking or analytics. Polish bar: PUBG / BGMI-level controls, feel, HUD, looting flow, bot quality and performance (not their art).
@@ -29,7 +29,19 @@ Scorestreaks (player kills only, reset on death, any class): ammo drop 3, suppor
 Deployables (carry 5, spawn randomly on map over time): Testudo bubble (30 s, rallies squad bots, open to fire out), radar jammer, turret, healing station, grav lift, decoy, mine field, regen field (first to cut).
 Aim assist: Halo friction + light follow when aiming + small per-weapon magnetism, ADS snap off; controller strongest, touch lighter, none on gyro; angle zones shrink with zoom, distance falloff; all values low and in stats file.
 
-## Cover crouch (decided by Shibi, Oct 29 2026)
+## Cover (decided by Shibi, Nov 14 2026; supersedes the Oct 29 section below)
+
+After playing on the Fold, Shibi asked for smooth cover like his reference video:
+- The camera blends from first person to a close third-person view when the player enters cover, and back on exit.
+- Entering: a Cover button (in the old Shoulder slot) and automatic snapping when moving into a wall.
+- Firing: the normal Fire buttons (right Fire and Left Fire) work in cover. Pressing leans out at an edge or rises over low cover and fires; releasing returns. Aim (tap toggle) holds the player out. Look-zone taps do not fire in cover. The special cover FIRE button is removed.
+- No blind fire for now ("let's get core functions working, then we can add complexity").
+- No recoil in cover.
+- Crouch is automatic: crouched behind low cover, standing behind high cover. No Crouch toggle in cover.
+- Moving: the stick slides along the wall; holding it away from the wall exits; Sprint exits only through the Sprint lock.
+- Numbers are placeholders in data (OQ-COVER). Defaults pending Shibi's Fold test: Fire does nothing behind high cover away from an edge; Jump exits cover and jumps; cover is offline-only until LAN cover in M3.
+
+## Cover crouch (decided by Shibi, Oct 29 2026; SUPERSEDED Nov 14 2026 by the section above)
 
 While in cover, a Crouch toggle switches standing and crouched stances with a smooth pose and lowered body/head hitboxes. Crouch here applies only in cover; free crouch, prone and radar behavior are separate work. The contextual cover FIRE button draws out and fires only from a completed clear pose, then returns automatically; Aim or a look drag can hold the pawn out without firing. Low cover uses a standing rise; high cover requires a nearby usable edge. The cover FIRE button is the only firing control in cover, including peeks. Dimensions, timings and control placement remain placeholders in data pending review.
 
