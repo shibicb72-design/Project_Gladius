@@ -44,6 +44,8 @@ var _fp_target: float = 0.0
 var _fp_elapsed_s: float = 0.0
 var _fp_duration_s: float = 0.0
 var _fp_evaluated := false
+## M2 C1a stage 2: the local player's first-person view model under the camera (scripts/visual/view_model.gd).
+var _view_model: ViewModel
 
 
 ## Picks the first table row (sorted by min_aspect descending) the aspect satisfies.
@@ -68,12 +70,14 @@ func _ready() -> void:
 	apply_fov()
 	# The first evaluation snaps, so a rig attached to a walking local pawn starts in first person (no blend).
 	_tick_first_person(0.0)
+	_ensure_view_model()
 
 
 ## Recovers the knockback. The pawn (this rig's parent) runs first in a physics frame and may kick during it, so a
 ## kick from the current frame is left whole for one frame.
 func _physics_process(delta: float) -> void:
 	_tick_first_person(delta)
+	_ensure_view_model()
 	_tick_cover_follow(delta)
 	_tick_shoulder(delta)
 	if knockback.offset == Vector2.ZERO or Engine.get_physics_frames() == _kick_frame:
@@ -92,6 +96,17 @@ func is_first_person() -> bool:
 	if pawn.life != Pawn.Life.ALIVE or pawn.drop_state != Pawn.Drop.NONE:
 		return false
 	return pawn.cover == null or pawn.cover.state == CoverController.State.FREE
+
+
+## Lazily gives the local player's pawn its view model (the rig is added after Pawn._ready, and a Brain may be removed
+## later); ViewModel.attach returns null for every other parent, so the check repeats until it applies.
+func _ensure_view_model() -> void:
+	if _view_model == null or not is_instance_valid(_view_model):
+		_view_model = ViewModel.attach(self)
+
+
+func get_view_model() -> ViewModel:
+	return _view_model if _view_model != null and is_instance_valid(_view_model) else null
 
 
 ## 0 = third person, 1 = first person; between them while the mode blend runs.

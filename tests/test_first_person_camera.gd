@@ -319,3 +319,204 @@ func test_first_person_kick_never_moves_the_aim_point() -> void:
 		_rig.set_pitch(0.05)
 		assert_true(_rig.get_aim_point(exclude).distance_to(aim_before) < tol, "%s: same point again at rest" % tag)
 		await _cleanup()
+
+
+# --- stage 2: the view model (scripts/visual/view_model.gd, data/camera.json first_person.view_model) ---------------
+
+func _vm_cfg() -> Dictionary:
+	return _cam_cfg()["first_person"]["view_model"]
+
+
+func _vm_f(key: String) -> float:
+	return float(_vm_cfg()[key]["value"])
+
+
+func _vm_frames(seconds: float) -> int:
+	return ceili(seconds / DT) + 3
+
+
+func _view_models(cam: Camera3D) -> Array:
+	return cam.find_children("*", "", true, false).filter(func(n: Node) -> bool: return n is ViewModel)
+
+
+## Exactly one view model under the local pawn's camera; none for a Brain pawn, a rig without a pawn, or before the
+## Brain is removed (test_cover_pawn.gd:133-141 order: rig added, then the Brain removed).
+func test_view_model_only_for_the_local_pawn() -> void:
+	await _fixture(true, false, false)
+	var vms := _view_models(_rig.get_camera())
+	assert_eq(vms.size(), 1, "local pawn: exactly one view model under the camera")
+	assert_true(vms.size() == 1 and vms[0].get_parent() == _rig.get_camera(), "it rides on the rig's Camera3D")
+	assert_true(_rig.get_view_model() == vms[0], "the rig reports it")
+	await _frames(5)
+	assert_eq(_view_models(_rig.get_camera()).size(), 1, "still one after more frames")
+	await _cleanup()
+	await _fixture(true, true, false)
+	assert_eq(_view_models(_rig.get_camera()).size(), 0, "Brain pawn: no view model")
+	var brain := _pawn.get_node("Brain")
+	_pawn.remove_child(brain)
+	brain.free()
+	await _frames(2)
+	assert_eq(_view_models(_rig.get_camera()).size(), 1, "Brain removed after the rig: the view model arrives lazily")
+	await _cleanup()
+	var root := Node3D.new()
+	_tree().root.add_child(root)
+	var rig: CameraRig = _RigScene.instantiate()
+	root.add_child(rig)
+	await _frames(2)
+	assert_eq(_view_models(rig.get_camera()).size(), 0, "rig without a pawn: no view model")
+	assert_true(rig.get_view_model() == null, "rig without a pawn reports none")
+	root.queue_free()
+	await _tree().process_frame
+
+
+func test_view_model_shown_in_first_person_only() -> void:
+	var settle := _vm_frames(_fp("blend_s"))
+	await _fixture(true, false, false)
+	var vm := _rig.get_view_model()
+	assert_true(vm.visible, "first person: visible")
+	for mode in ["downed", "falling"]:
+		if mode == "downed":
+			_pawn.life = Pawn.Life.DOWNED
+		else:
+			_pawn.drop_state = Pawn.Drop.FALLING
+		await _frames(settle)
+		assert_true(not vm.is_visible_in_tree(), "%s: hidden" % mode)
+		_pawn.life = Pawn.Life.ALIVE
+		_pawn.drop_state = Pawn.Drop.NONE
+		await _frames(settle)
+		assert_true(vm.is_visible_in_tree(), "%s over: shown again" % mode)
+	await _cleanup()
+	# Real cover entry: hidden once the blend has gone below show_weight, and in cover.
+	await _fixture()
+	vm = _rig.get_view_model()
+	var hid_at := -1.0
+	for i in 150:
+		await _tick(Vector2(0, -1))
+		if hid_at < 0.0 and not vm.visible:
+			hid_at = _rig.get_first_person_weight()
+		if _pawn.cover.state == CoverController.State.IN_COVER and _rig.get_first_person_weight() == 0.0:
+			break
+	assert_true(not vm.is_visible_in_tree(), "in cover: hidden")
+	assert_true(hid_at >= 0.0 and hid_at < _vm_f("show_weight"), "hid below show_weight (at %s)" % hid_at)
+	await _cleanup()
+
+
+## The active weapon is shown; weapon_switched lowers, swaps at the half and raises; reload_started runs for the
+## weapon's real reload_s; fired swings the blade and kicks a gun; every motion ends.
+func test_view_model_follows_weapon_and_motions() -> void:
+	await _fixture(true, false, false)
+	var vm := _rig.get_view_model()
+	var gun := _pawn.loadout.get_active()
+	assert_eq(vm.get_shown_weapon_id(), gun.def.id, "shows the active weapon (%s)" % gun.def.id)
+	# Reload: the gun's own reload time.
+	_pawn.reload_started.emit()
+	assert_true(vm.is_reloading(), "reload_started starts the reload motion")
+	await _frames(ceili(gun.def.reload_s / DT) - 6)
+	assert_true(vm.is_reloading(), "the reload motion lasts about reload_s (%s s)" % gun.def.reload_s)
+	await _frames(10)
+	assert_true(not vm.is_reloading(), "the reload motion ends")
+	# Gun shot: a kick that recovers.
+	_pawn.fired.emit()
+	assert_true(vm.is_recoiling() and not vm.is_swinging(), "fired with a gun: kick, no swing")
+	await _frames(_vm_frames(_vm_f("recoil_s")))
+	assert_true(not vm.is_recoiling(), "the kick recovers")
+	# Swap to the blade.
+	assert_true(_pawn.loadout.swap(), "the loadout has a second weapon")
+	var blade := _pawn.loadout.get_active()
+	_pawn.weapon_switched.emit(_pawn.loadout.active)
+	assert_true(vm.is_swapping(), "weapon_switched starts the swap motion")
+	await _frames(2)
+	assert_eq(vm.get_shown_weapon_id(), gun.def.id, "the old weapon goes down first")
+	await _frames(_vm_frames(_vm_f("swap_s")))
+	assert_true(not vm.is_swapping(), "the swap motion ends")
+	assert_eq(vm.get_shown_weapon_id(), blade.def.id, "then the new weapon is shown (%s)" % blade.def.id)
+	assert_true(blade.def.is_melee(), "the second weapon is the blade")
+	# Melee: fired plays the swing (fix 9).
+	_pawn.reload_started.emit()
+	assert_true(not vm.is_reloading(), "no reload motion for the blade")
+	_pawn.fired.emit()
+	assert_true(vm.is_swinging() and not vm.is_recoiling(), "fired with the blade: swing, no kick")
+	await _frames(_vm_frames(_vm_f("swing_s")))
+	assert_true(not vm.is_swinging(), "the swing ends")
+	await _cleanup()
+
+
+## Fix 1: a real ranged shot shows the view model's own tracer from its muzzle to the shot's end, and it expires; the
+## third-person ShotFx tracer still runs. Hidden (third person): no view-model tracer.
+func test_view_model_tracer_from_its_muzzle() -> void:
+	await _fixture(true, false, false)
+	var vm := _rig.get_view_model()
+	await _frames(2)
+	var seen := {}
+	_pawn.shot_fx.shot_shown.connect(func(_o: Vector3, e: Vector3) -> void:
+		seen["end"] = e
+		seen["muzzle"] = vm.get_muzzle_position())
+	var res := _pawn.fire_shot()
+	assert_true(res.has("position"), "the shot hit the wall ahead")
+	assert_true(vm.is_tracer_visible() and vm.is_flash_visible(), "view-model tracer and flash shown")
+	assert_true(_pawn.shot_fx.is_tracer_visible(), "the third-person ShotFx tracer still runs (stage 4 hides it by layer)")
+	var ep := vm.get_tracer_endpoints()
+	assert_true(ep[0].distance_to(seen["muzzle"]) < 0.001, "tracer starts at the view-model muzzle (%s vs %s)" % [ep[0], seen["muzzle"]])
+	assert_true(ep[1].distance_to(seen["end"]) < 0.001, "tracer ends at the shot end (%s vs %s)" % [ep[1], seen["end"]])
+	assert_true(ep[0].distance_to(_rig.get_camera().global_position) < _vm_f("max_reach_m"), "the muzzle is near the eye")
+	assert_true(ep[0].distance_to(_pawn.get_muzzle_position()) > 0.05, "not the gameplay muzzle (presentation only)")
+	await _frames(_vm_frames(maxf(_vm_f("tracer_s"), _vm_f("flash_s"))))
+	assert_true(not vm.is_tracer_visible() and not vm.is_flash_visible(), "tracer and flash expire")
+	_pawn.life = Pawn.Life.DOWNED
+	await _frames(_vm_frames(_fp("blend_s")))
+	_pawn.show_shot_fx(_pawn.get_muzzle_position(), _pawn.get_muzzle_position() + Vector3(0, 0, -10))
+	assert_true(not vm.is_tracer_visible(), "third person: no view-model tracer")
+	await _cleanup()
+
+
+## Presentation only: no physics bodies or shapes, and get_aim_point is the same with and without the view model.
+func test_view_model_adds_no_bodies_and_keeps_the_aim_point() -> void:
+	await _fixture(true, false, false)
+	var vm := _rig.get_view_model()
+	assert_eq(vm.find_children("*", "CollisionObject3D", true, false).size(), 0, "no collision objects")
+	assert_eq(vm.find_children("*", "CollisionShape3D", true, false).size(), 0, "no collision shapes")
+	var exclude: Array[RID] = _pawn.hitscan_exclude()
+	var aim_with := _rig.get_aim_point(exclude)
+	var muzzle_with := _pawn.get_muzzle_position()
+	vm.free()
+	var aim_without := _rig.get_aim_point(exclude)
+	assert_true(aim_with.distance_to(aim_without) < 1e-4, "aim point unchanged (%s vs %s)" % [aim_with, aim_without])
+	assert_true(muzzle_with.distance_to(_pawn.get_muzzle_position()) < 1e-6, "gameplay muzzle unchanged")
+	await _cleanup()
+
+
+## Fix 12 option (a): at rest every view-model vertex of each weapon lies between the camera near plane and max_reach_m
+## from the eye, inside the pawn's capsule radius, so walls held off by the capsule never cut the model.
+func test_view_model_stays_inside_the_capsule() -> void:
+	var reach := _vm_f("max_reach_m")
+	for class_id in ["hastati", "sagittarii"]:
+		await _fixture(true, false, false)
+		if class_id != "hastati":
+			_pawn.setup(class_id, 0)
+		var capsule := (_pawn.get_node("CollisionShape3D") as CollisionShape3D).shape as CapsuleShape3D
+		var cam := _rig.get_camera()
+		var vm := _rig.get_view_model()
+		for slot in 2:
+			await _frames(_vm_frames(_vm_f("swap_s")))
+			var to_cam := cam.global_transform.affine_inverse()
+			var far := 0.0
+			var near := INF
+			var meshes := 0
+			for mi in vm.mesh_instances():
+				if mi == vm.tracer or mi == vm.flash or not mi.is_visible_in_tree():
+					continue
+				meshes += 1
+				var xf := to_cam * mi.global_transform
+				for v in mi.mesh.get_faces():
+					var d := (xf * v).length()
+					far = maxf(far, d)
+					near = minf(near, d)
+			var id := vm.get_shown_weapon_id()
+			print("FP VIEW MODEL %s reach_m=%.4f nearest_m=%.4f meshes=%d (limit %.2f, capsule %.2f, near %.3f, nodes %d)" % [
+					id, far, near, meshes, reach, capsule.radius, cam.near, vm.find_children("*", "", true, false).size()])
+			assert_true(meshes >= 2, "%s: weapon and arm meshes shown" % id)
+			assert_true(far < reach and reach < capsule.radius, "%s: reach %.4f < %.2f < capsule %.2f" % [id, far, reach, capsule.radius])
+			assert_true(near > cam.near, "%s: nearest vertex %.4f beyond the near plane %.3f" % [id, near, cam.near])
+			_pawn.loadout.swap()
+			_pawn.weapon_switched.emit(_pawn.loadout.active)
+		await _cleanup()
