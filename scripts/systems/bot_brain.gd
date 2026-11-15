@@ -18,7 +18,8 @@ var director: MatchDirector
 var profile: Dictionary = {}
 var cfg: Dictionary = {}
 var target_id: int = -1
-## Last goal kind, for tests and debugging: "revive", "zone", "loot", "hold", "chase" or "".
+## Last goal kind, for tests and debugging: "revive", "zone", "loot", "hold", "chase" or ""; on a big map also
+## "gear" (M2B1).
 var goal_kind: String = ""
 
 var _agent: NavigationAgent3D
@@ -59,6 +60,25 @@ var _last_look: bool = false  # the last think turned toward something
 var _last_yaw: float = 0.0
 var _last_pitch: float = 0.0
 
+## ---- Route (M2B1, data/bots.json brain.route, placeholders OQ-BOT-ROUTE) ----
+## Big map: the zone's start radius (rules.zone_radius() while phase 0 is "waiting", cached at seeding) is above
+## route.big_map_radius_m. Only then do the gear / hunt / fight goals and the landmark glide run; on a small map
+## (or with no rules, or a brain seeded after the first shrink began) every goal and result is the pre-M2B1 one.
+## Every new seeded draw comes from _route_rng (hash([match_seed, player_id, "route"])), never from _rng (aim).
+var _route_rng := RandomNumberGenerator.new()
+var _big_map: bool = false
+var _landmarks_cache: Array = []  # director.loot_landmarks(), copied once
+var _landmarks_loaded: bool = false
+var _landmark: Dictionary = {}  # the chosen landmark ({} = none): {"id", "at" Vector3, "radius" float}
+var _landmark_picked: bool = false  # a pick was made (it may have found none)
+var _jump_seen: bool = false  # this bot was FALLING at some think (dropped from the carrier)
+var _jump_from := Vector3.ZERO  # its position at the first FALLING think
+var _gear_check_tick: int = 0  # director.tick_count at or after which the chosen landmark is re-checked
+## Report only (the sims read them; no decision depends on them).
+var route_landed_at := Vector3.INF  # position at the first grounded think after the drop
+var route_geared_ever: bool = false
+var route_landed_in_pick: bool = false  # route_landed_at lies inside the landmark held at that moment
+
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
 	pawn = new_pawn
@@ -76,6 +96,20 @@ func _ensure_seeded() -> void:
 	_rng.seed = hash([director.match_seed if director != null else 0, pawn.player_id, "brain"])  # own stream, apart from the pawn's spread
 	var a := _rng.randf() * TAU
 	_spot_dir = Vector2(cos(a), sin(a)) * sqrt(_rng.randf())
+	_route_rng.seed = hash([director.match_seed if director != null else 0, pawn.player_id, "route"])
+	var rules: BrRules = director.rules if director != null else null
+	_big_map = rules != null and rules.zone_phase() == 0 and rules.zone_state() == "waiting" \
+			and rules.zone_radius() > _route_f("big_map_radius_m", 250.0)
+
+
+## A number from bots.json brain.route (placeholder block, OQ-BOT-ROUTE).
+func _route_f(key: String, default: float) -> float:
+	return float(cfg.get("route", {}).get(key, default))
+
+
+## True on a big map (see the Route block); read by tests and the sims.
+func is_big_map() -> bool:
+	return _big_map
 
 
 func _ready() -> void:
@@ -233,8 +267,8 @@ func build_frame(delta: float) -> InputFrame:
 	_ensure_seeded()
 	if pawn.drop_state == Pawn.Drop.FALLING:
 		_has_decision = false
-		# Steer the glide toward this bot's own spot inside the next circle.
-		var to := _zone_spot() - pawn.global_position
+		# Steer the glide toward this bot's own spot inside the next circle; on a big map toward its landmark.
+		var to := _glide_goal() - pawn.global_position
 		to.y = 0.0
 		if to.length() > 1.0:
 			var local := pawn.global_transform.basis.inverse() * to.normalized()
@@ -243,6 +277,8 @@ func build_frame(delta: float) -> InputFrame:
 	if pawn.is_dropping():
 		_has_decision = false
 		return frame
+	if _big_map:
+		_route_think()
 	var turn: float = float(cfg.get("turn_rate_rad_s", 6.0)) * delta
 	var enemy := _find_target()
 	var melee_only := _melee_only()
@@ -429,6 +465,12 @@ func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 	if item != Vector3.INF:
 		goal_kind = "loot"
 		return item
+	# Big map: gear up at a landmark (M2B1).
+	if _big_map:
+		var gear := _gear_goal()
+		if gear != Vector3.INF:
+			goal_kind = "gear"
+			return gear
 	goal_kind = "zone"
 	if _inside_target():
 		goal_kind = "hold"
@@ -511,3 +553,154 @@ func _track_stuck(delta: float) -> void:
 		_unstick_side = -_unstick_side
 	_stuck_t = 0.0
 	_stuck_from = pawn.global_position
+
+
+## ---- Gearing up at a landmark (M2B1 stage 3, big maps only; placeholders in brain.route, OQ-BOT-ROUTE) ----
+## Geared: armour tier >= route.geared_armor_tier_min and the gun wants_item would refill (the active gun, else
+## the first gun: Pawn._ranged_slot's rule) holds reserve >= magazine x director.bot_ammo_low_magazines().
+## The landmark pick: a seeded choice (_route_rng) among the route.landmark_pick_k nearest landmarks "with loot",
+## measured from the bot's position on the carrier at its jump (or from where it stands at its first think when it
+## never dropped). While FALLING, Pawn.wants_item is false (can_take refuses a dropping pawn), so the jump pick
+## counts a landmark with ANY item inside its radius; every ground pick and re-check counts only items this pawn
+## wants, and skips landmarks whose centre lies outside the current circle. No loot placed yet at the jump: glide
+## to the zone spot and pick (from the stored jump position) on the first think once it is placed.
+## The gear goal walks to the chosen landmark's anchor; every route.gear_recheck_ticks director ticks (not every
+## think) it checks the landmark still has wanted loot inside the circle and otherwise re-picks from here.
+
+func _geared() -> bool:
+	if pawn.armor_tier < int(_route_f("geared_armor_tier_min", 1.0)):
+		return false
+	var lo := pawn.loadout
+	if lo == null:
+		return false
+	var gun: Weapon = lo.get_active()
+	if gun == null or gun.def.is_melee():
+		gun = null
+		for s in lo.slots:
+			if s != null and not s.def.is_melee():
+				gun = s
+				break
+	return gun != null and float(gun.reserve) >= float(gun.def.magazine) * director.bot_ammo_low_magazines()
+
+
+## True once this bot is geared (report / tests).
+func is_geared() -> bool:
+	return _geared()
+
+
+func _route_landmarks() -> Array:
+	if not _landmarks_loaded:
+		_landmarks_loaded = true
+		_landmarks_cache = director.loot_landmarks()
+	return _landmarks_cache
+
+
+static func _lm_center(lm: Dictionary) -> Vector3:
+	var at: Array = lm.get("at", [0.0, 0.0])
+	return Vector3(float(at[0]), 0.0, float(at[1]))
+
+
+## The walk / glide goal of a landmark: its anchor (open ground inside it) when the data has one, else its centre.
+static func _lm_goal(lm: Dictionary) -> Vector3:
+	var an: Variant = lm.get("anchor")
+	if an is Array and (an as Array).size() == 3:
+		return Vector3(float(an[0]), float(an[1]), float(an[2]))
+	return _lm_center(lm)
+
+
+## Whether a landmark holds loot: any item inside its radius (any_item, the jump pick) or one this pawn wants.
+func _landmark_has_loot(lm: Dictionary, any_item: bool) -> bool:
+	var loot := director.loot
+	if loot == null:
+		return false
+	var c := _lm_center(lm)
+	var r := float(lm.get("radius_m", 0.0))
+	for id in loot.items_near(c, r):
+		var entry: Dictionary = loot.items[id]
+		var pos: Vector3 = entry["pos"]
+		if Vector2(pos.x - c.x, pos.z - c.z).length() > r:
+			continue
+		if any_item or pawn.wants_item(loot.def(str(entry["item_id"])), director.bot_ammo_low_magazines(), director.bot_heal_below_pct()):
+			return true
+	return false
+
+
+## A seeded pick among the K nearest landmarks with loot from `from` ({} when none).
+func _pick_landmark(from: Vector3, any_item: bool) -> Dictionary:
+	var lms := _route_landmarks()
+	var order: Array = []
+	for i in lms.size():
+		var c := _lm_center(lms[i])
+		order.append([Vector2(c.x - from.x, c.z - from.z).length(), i])
+	order.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
+	# Nearest first, so the loot check runs only until k landmarks with loot are found.
+	var k := maxi(int(_route_f("landmark_pick_k", 3.0)), 1)
+	var cands: Array = []
+	for o in order:
+		var lm: Dictionary = lms[int(o[1])]
+		var c := _lm_center(lm)
+		if not any_item and director.rules != null and director.rules.is_outside(Vector2(c.x, c.z)):
+			continue
+		if _landmark_has_loot(lm, any_item):
+			cands.append(lm)
+			if cands.size() >= k:
+				break
+	if cands.is_empty():
+		return {}
+	return cands[_route_rng.randi_range(0, cands.size() - 1)]
+
+
+## The FALLING glide target: the zone spot on a small map; on a big map the landmark picked at the jump.
+func _glide_goal() -> Vector3:
+	if not _big_map:
+		return _zone_spot()
+	if not _jump_seen:
+		_jump_seen = true
+		_jump_from = pawn.global_position
+	if not _landmark_picked and director.loot != null and director.loot.placed:
+		_landmark_picked = true
+		_landmark = _pick_landmark(_jump_from, true)
+		_gear_check_tick = director.tick_count  # the first ground think re-checks with the wants rule
+	return _lm_goal(_landmark) if not _landmark.is_empty() else _zone_spot()
+
+
+## Every grounded think on a big map, before the goals: the first pick for a bot that has none yet, and reports.
+func _route_think() -> void:
+	if not _landmark_picked:
+		_landmark_picked = true
+		_landmark = _pick_landmark(_jump_from if _jump_seen else pawn.global_position, false)
+		_gear_check_tick = director.tick_count + _gear_recheck_ticks()
+	if _jump_seen and route_landed_at == Vector3.INF:
+		route_landed_at = pawn.global_position
+		if not _landmark.is_empty():
+			var c := _lm_center(_landmark)
+			route_landed_in_pick = Vector2(c.x - route_landed_at.x, c.z - route_landed_at.z).length() <= float(_landmark.get("radius_m", 0.0))
+	if not route_geared_ever and _geared():
+		route_geared_ever = true
+
+
+func _gear_recheck_ticks() -> int:
+	return maxi(int(_route_f("gear_recheck_ticks", 60.0)), 1)
+
+
+## The gear goal: the chosen landmark while this bot is not geared; INF when geared or no landmark has loot.
+func _gear_goal() -> Vector3:
+	if _geared():
+		return Vector3.INF
+	if director.tick_count >= _gear_check_tick:
+		_gear_check_tick = director.tick_count + _gear_recheck_ticks()
+		var keep := not _landmark.is_empty()
+		if keep:
+			var c := _lm_center(_landmark)
+			keep = not (director.rules != null and director.rules.is_outside(Vector2(c.x, c.z))) \
+					and _landmark_has_loot(_landmark, false)
+		if not keep:
+			_landmark = _pick_landmark(pawn.global_position, false)
+	if _landmark.is_empty():
+		return Vector3.INF
+	return _lm_goal(_landmark)
+
+
+## The chosen landmark's id ("" when none), for tests and the sims.
+func landmark_id() -> String:
+	return str(_landmark.get("id", ""))

@@ -148,3 +148,203 @@ func test_hold_then_walk_opens_a_fresh_window() -> void:
 		b._track_stuck(dt())
 	assert_true(b._unstick_left <= 0.0, "a fresh window: no unstick before its end")
 	m.queue_free()
+
+
+# ---- Stage 3: big-map switch, geared rule, landmark pick, glide, gear goal ----
+
+## Flat world direction of a frame's move on `p` (frame.move is in the pawn's local x/z).
+static func world_move(p: Pawn, f: InputFrame) -> Vector3:
+	var w := p.global_transform.basis * Vector3(f.move.x, 0.0, f.move.y)
+	w.y = 0.0
+	return w.normalized()
+
+
+static func flat_dir(from: Vector3, to: Vector3) -> Vector3:
+	var d := to - from
+	d.y = 0.0
+	return d.normalized()
+
+
+func test_big_map_switch_from_the_start_radius() -> void:
+	await start(big_zone())
+	var b := add_brain(m.bots[0])
+	b._ensure_seeded()
+	assert_true(b.is_big_map(), "start radius 400 > big_map_radius_m: big")
+	m.queue_free()
+	await start(small_zone())
+	b = add_brain(m.bots[0])
+	b._ensure_seeded()
+	assert_true(not b.is_big_map(), "start radius 80: small")
+	m.queue_free()
+	# No rules at all (a bare director): small, the safe side.
+	var d := MatchDirector.new()
+	var p := Pawn.new()
+	var c := BotBrain.new()
+	c.setup(p, d, {}, base_cfg())
+	c._ensure_seeded()
+	assert_true(not c.is_big_map(), "no rules: small")
+	c.free()
+	p.free()
+	d.free()
+
+
+func test_geared_needs_armour_and_ammo() -> void:
+	await start(big_zone())
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	var gun := bot.loadout.get_active()
+	assert_true(gun != null and not gun.def.is_melee(), "class gun in hand")
+	var low := m.director.bot_ammo_low_magazines()
+	bot.armor_tier = 0
+	gun.reserve = int(ceil(gun.def.magazine * low)) + 5
+	assert_true(not b.is_geared(), "no armour: not geared")
+	bot.armor_tier = 1
+	assert_true(b.is_geared(), "armour 1 and ammo above the low mark: geared")
+	gun.reserve = int(gun.def.magazine * low) - 1
+	assert_true(not b.is_geared(), "ammo below magazine x ammo_low_magazines: not geared")
+	assert_eq(b.is_geared(), not bot.wants_item({"kind": "ammo"}, low, 70.0), "the ammo half is wants_item's ammo rule")
+	gun.reserve = int(ceil(gun.def.magazine * low)) + 5
+	assert_eq(b.is_geared(), not bot.wants_item({"kind": "ammo"}, low, 70.0), "the ammo half is wants_item's ammo rule (full)")
+	m.queue_free()
+
+
+## The jump pick (any item counts) is seeded per bot, spreads over the k nearest, never the farther ones, and
+## repeats for the same seed.
+func test_landmark_pick_is_seeded_spread_and_repeats() -> void:
+	await start(big_zone(), true)
+	var first: Array = []
+	for i in m.bots.size():
+		var b := add_brain(m.bots[i], {}, "A%d" % i)
+		b._ensure_seeded()
+		first.append(String(b._pick_landmark(Vector3.ZERO, true).get("id", "")))
+	var again: Array = []
+	for i in m.bots.size():
+		var b := add_brain(m.bots[i], {}, "B%d" % i)
+		b._ensure_seeded()
+		again.append(String(b._pick_landmark(Vector3.ZERO, true).get("id", "")))
+	assert_eq(again, first, "same seed and ids: the same picks")
+	var kinds := {}
+	for id in first:
+		kinds[id] = true
+	assert_true(kinds.size() >= 2, "17 bots spread over several landmarks: %s" % [kinds.keys()])
+	assert_true(not kinds.has("porta_astra") and not kinds.has(""), "only the k = 3 nearest (porta_astra is the farthest from the origin): %s" % [kinds.keys()])
+	m.queue_free()
+
+
+func test_glide_steers_to_the_landmark_on_a_big_map() -> void:
+	await start(big_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	bot.start_fall(Vector3(5.0, 60.0, 5.0))
+	var f := b.build_frame(dt())
+	assert_true(b._landmark_picked and b.landmark_id() != "", "picked a landmark at the jump (%s)" % b.landmark_id())
+	assert_true(b._jump_from.distance_to(Vector3(5.0, 60.0, 5.0)) < 0.5, "measured from the jump position")
+	var want := flat_dir(bot.global_position, BotBrain._lm_goal(b._landmark))
+	assert_true(world_move(bot, f).dot(want) > 0.99, "the glide heads for the landmark anchor")
+	m.queue_free()
+
+
+func test_glide_steers_to_the_zone_spot_on_a_small_map() -> void:
+	await start(small_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	bot.start_fall(Vector3(5.0, 60.0, 5.0))
+	var f := b.build_frame(dt())
+	assert_true(not b._landmark_picked, "small map: no landmark pick")
+	var want := flat_dir(bot.global_position, b._zone_spot())
+	assert_true(world_move(bot, f).dot(want) > 0.99, "the glide heads for the zone spot as before")
+	m.queue_free()
+
+
+## No loot placed at the jump: glide to the zone spot; once placed, pick from the stored jump position.
+func test_glide_waits_for_the_loot_then_picks_from_the_jump() -> void:
+	await start(big_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var b := add_brain(bot)
+	m.loot.placed = false
+	bot.start_fall(Vector3(5.0, 60.0, 5.0))
+	var f := b.build_frame(dt())
+	assert_true(not b._landmark_picked, "no loot placed yet: no pick")
+	assert_true(world_move(bot, f).dot(flat_dir(bot.global_position, b._zone_spot())) > 0.99, "glides to the zone spot meanwhile")
+	m.loot.placed = true
+	bot.global_position = Vector3(30.0, 50.0, 30.0)
+	b.build_frame(dt())
+	assert_true(b._landmark_picked and b.landmark_id() != "", "picked once the loot is placed")
+	assert_true(b._jump_from.distance_to(Vector3(5.0, 60.0, 5.0)) < 0.5, "still measured from the jump position")
+	m.queue_free()
+
+
+## The gear goal: an ungeared bot with no loot in reach walks to its landmark; an emptied landmark is re-picked
+## on the re-check; geared -> no gear goal. loot_seek_range_m is cut to 5 m so the loot goal stays out of it.
+func test_gear_goal_walks_to_the_landmark_and_repicks_when_empty() -> void:
+	await start(big_zone(), true)
+	for id in m.loot.items.keys():
+		m.loot.take(id)
+	var a_id := m.loot.drop({"item_id": "armor_1"}, Vector3(44.0, 0.0, -38.0))  # aqua_alta
+	m.loot.drop({"item_id": "armor_1"}, Vector3(42.0, 0.0, 41.0))  # specula
+	var bot: Pawn = m.bots[0]
+	bot.global_position = Vector3(20.0, 0.2, -20.0)
+	bot.armor_tier = 0
+	var cfg := base_cfg()
+	cfg["loot_seek_range_m"] = 5.0
+	cfg["route"]["landmark_pick_k"] = 1
+	var b := add_brain(bot, cfg)
+	b._ensure_seeded()
+	b._route_think()
+	assert_eq(b.landmark_id(), "aqua_alta", "the nearest landmark with wanted loot")
+	var g := b._goal(null, false)
+	assert_eq(b.goal_kind, "gear", "not geared, nothing in reach: gear")
+	assert_true(g.distance_to(BotBrain._lm_goal(b._landmark)) < 0.01, "walks to the landmark anchor")
+	m.loot.take(a_id)
+	b._goal(null, false)
+	assert_eq(b.landmark_id(), "aqua_alta", "no re-check before the interval")
+	b._gear_check_tick = m.director.tick_count  # the interval is up
+	b._goal(null, false)
+	assert_eq(b.landmark_id(), "specula", "emptied: re-picked the next landmark with loot")
+	assert_eq(b.goal_kind, "gear", "still gearing")
+	var gun := bot.loadout.get_active()
+	bot.armor_tier = 1
+	gun.reserve = int(ceil(gun.def.magazine * m.director.bot_ammo_low_magazines())) + 5
+	b._goal(null, false)
+	assert_true(b.goal_kind != "gear", "geared: no gear goal (%s)" % b.goal_kind)
+	m.queue_free()
+
+
+## The same scene on a small map never gears: today's goal.
+func test_small_map_never_gears() -> void:
+	await start(small_zone(), true)
+	for id in m.loot.items.keys():
+		m.loot.take(id)
+	m.loot.drop({"item_id": "armor_1"}, Vector3(44.0, 0.0, -38.0))
+	var bot: Pawn = m.bots[0]
+	bot.global_position = Vector3(20.0, 0.2, -20.0)
+	bot.armor_tier = 0
+	var cfg := base_cfg()
+	cfg["loot_seek_range_m"] = 5.0
+	var b := add_brain(bot, cfg)
+	b._ensure_seeded()
+	b._goal(null, false)
+	assert_true(b.goal_kind == "hold" or b.goal_kind == "zone", "small map: today's spot or hold (%s)" % b.goal_kind)
+	assert_true(not b._landmark_picked, "small map: no landmark")
+	m.queue_free()
+
+
+## The aim stream: the route picks draw only from the route stream, so the aim draws are unchanged.
+func test_route_draws_leave_the_aim_stream_alone() -> void:
+	await start(big_zone(), true)
+	var bot: Pawn = m.bots[0]
+	var a := add_brain(bot, {}, "A")
+	var b := add_brain(bot, {}, "B")
+	a._ensure_seeded()
+	b._ensure_seeded()
+	for i in 5:
+		a._pick_landmark(Vector3(float(i) * 7.0, 0.0, 0.0), true)
+		a._pick_landmark(Vector3(0.0, 0.0, float(i) * 7.0), false)
+	var same := true
+	for i in 20:
+		var ea := BotTargeting.aim_error(0.35, 12.0, a._rng)
+		var eb := BotTargeting.aim_error(0.35, 12.0, b._rng)
+		same = same and ea == eb
+	assert_true(same, "aim error sequences equal with and without route picks")
+	assert_eq(a._spot_dir, b._spot_dir, "same spot direction")
+	m.queue_free()

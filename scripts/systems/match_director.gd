@@ -496,3 +496,10 @@ func _place(player_id: int, squad_ids: Array, spots: Array) -> void:
 	var spacing := float(match_cfg.get("squad_spacing_m", 1.5))
 	xform.origin += xform.basis.x * spacing * float(_slot_in_squad.get(player_id, 0))
 	pawn.respawn_at(xform)
+
+
+## M2B1, read only: a copy of the map's landmark list the loot field was set up with ([{id, at [x, z],
+## radius_m, ...}], data/maps/<map>_landmarks.json); [] when there is no loot field. The bot brain picks its
+## gear-up landmark from it. No state changes.
+func loot_landmarks() -> Array:
+	return loot._landmarks.duplicate(true) if loot != null else []
