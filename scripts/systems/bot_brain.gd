@@ -212,6 +212,8 @@ func _follow_path(delta: float) -> Vector3:
 		_stuck_t = 0.0
 		return Vector3.ZERO
 	if _unstick_left <= 0.0:
+		if _stuck_t == 0.0:
+			_stuck_from = pawn.global_position  # a stuck window starts here (M2B1: not at the world origin)
 		_stuck_t += delta
 	if _agent.target_position != _last_goal:
 		_agent.target_position = _last_goal
@@ -493,9 +495,13 @@ func _loot_goal(guns_only: bool = false) -> Vector3:
 	return best
 
 
+## A stuck window measures from where it started: _stuck_from is set whenever _stuck_t starts from 0 (here and
+## in _follow_path, the coast path); hold and arrival reset _stuck_t, so the next walk opens a fresh window.
 func _track_stuck(delta: float) -> void:
 	if _unstick_left > 0.0:
 		return
+	if _stuck_t == 0.0:
+		_stuck_from = pawn.global_position
 	_stuck_t += delta
 	if _stuck_t < float(cfg.get("stuck_window_s", 2.0)):
 		return
