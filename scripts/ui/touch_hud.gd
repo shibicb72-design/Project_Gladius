@@ -61,13 +61,57 @@ func set_cover_controls_active(active: bool) -> void:
 		_lock_btn_touch = -1
 		_shoulder_pulse_left_s = 0.0
 		_sync_fire_action()
+	_refresh_button_visibility()
+
+
+func _refresh_button_visibility() -> void:
 	for key in _buttons:
-		_buttons[key].visible = not is_cover_slot_hidden(key)
+		_buttons[key].visible = not is_cover_slot_hidden(key) and not is_first_person_slot_hidden(key)
 	if lock_button != null:
 		lock_button.visible = not is_cover_slot_hidden(LOCK_KEY)
 
 func is_cover_slot_hidden(key: String) -> bool:
 	return cover_controls_active and key in _cover_hidden_slots
+
+## M2 C1a stage 4 (spec item 5, fix 2): true while the local pawn's CameraRig wants first person
+## (CameraRig.is_first_person). The Shoulder button is then hidden (data/ui.json first_person_touch.shoulder_visible,
+## OQ-FIRST-PERSON) and its slot stays reserved and swallows taps (no swap, no look, no tap-to-fire) until C1b puts the
+## Cover button there. Third person (cover, carrier, falling, downed, no rig) keeps today's Shoulder button.
+const SHOULDER_KEY := "swap_shoulder"
+var first_person_active := false
+var _fp_shoulder_visible: Variant = null  # read once from data/ui.json
+
+## Driven from _process and _on_down by _refresh_first_person; callable directly where there is no GameHud sibling.
+func set_first_person_active(active: bool) -> void:
+	if first_person_active == active:
+		return
+	first_person_active = active
+	if is_first_person_slot_hidden(SHOULDER_KEY):
+		for idx in _button_touch.keys():
+			if _button_touch[idx] == SHOULDER_KEY:
+				_button_touch.erase(idx)
+				Input.action_release(SHOULDER_KEY)
+				_style_button(_buttons[SHOULDER_KEY], false)
+		_shoulder_pulse_left_s = 0.0
+		_apply_shoulder_pulse()
+	_refresh_button_visibility()
+
+func is_first_person_slot_hidden(key: String) -> bool:
+	if not first_person_active or key != SHOULDER_KEY:
+		return false
+	if _fp_shoulder_visible == null:
+		_fp_shoulder_visible = bool(_DataRegistry.new().load_file("res://data/ui.json").get("first_person_touch", {}).get("shoulder_visible", true))
+	return not bool(_fp_shoulder_visible)
+
+## The mode comes from the local pawn the sibling GameHud is bound to (hud.gd bind, from MatchRoot) and that pawn's
+## CameraRig; no GameHud, no pawn or no rig = third person. No raw input is read.
+func _refresh_first_person() -> void:
+	var game_hud := get_node_or_null("../GameHud")
+	var pawn: Variant = game_hud.get("pawn") if game_hud != null else null
+	var rig: CameraRig = null
+	if is_instance_valid(pawn) and pawn is Pawn:
+		rig = (pawn as Pawn).get_node_or_null("CameraRig") as CameraRig
+	set_first_person_active(rig != null and rig.is_first_person())
 ## G3e: element key of the optional left Fire button (not an InputMap action: it presses "fire").
 const LEFT_FIRE_KEY := "fire_left"
 ## Step 3 (Shibi, Nov 9 2026): the right-side Fire button (data/input.json touch_layout.buttons.fire_right). It holds
@@ -426,6 +470,7 @@ func get_move_target_dp() -> float:
 
 
 func _process(delta: float) -> void:
+	_refresh_first_person()
 	if move_mode == "virtual":
 		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3], 0.0)
 	_place_sprint_elements()
@@ -689,6 +734,10 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		for key in _cover_hidden_slots:
 			if get_element_rect(key).has_point(pos):
 				return
+	# M2 C1a stage 4: the hidden first-person Shoulder slot swallows the tap: it still hit-tests as the Shoulder button
+	# and presses swap_shoulder (tests/test_fold_window_coords.gd), which the CameraRig ignores in first person, so the
+	# tap never reaches the look area or fires; no press pulse is drawn.
+	_refresh_first_person()
 	var action := _button_at(pos)
 	if not is_cover_slot_hidden(LOCK_KEY) and get_lock_button_rect().has_point(pos):
 		_lock_btn_touch = idx
@@ -700,7 +749,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 		else:
 			Input.action_press(_action_of(action))
 		_style_button(_buttons[action], true)
-		if action == "swap_shoulder":
+		if action == "swap_shoulder" and not is_first_person_slot_hidden(action):
 			_shoulder_pulse_left_s = maxf(0.0, float(_layout["shoulder_pulse_release_s"]["value"]))
 			_apply_shoulder_pulse()
 	elif _move_touch == -1 and _move_grab_rect().has_point(pos):

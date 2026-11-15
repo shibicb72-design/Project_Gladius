@@ -263,6 +263,31 @@ android/              debug.keystore (shared debug key only)
   of aspect-ratio breakpoints. Tall phones use the base FOV; near-square screens (Z Fold7 inner) use a
   wider entry, as DESIGN.md requires. The rig re-applies on viewport `size_changed`, so folding or
   unfolding mid-match works. Scope zoom multiplies on top.
+- Two modes (M2 C1a, OQ-FIRST-PERSON; `camera.json` `first_person`). The rig decides every physics frame
+  (`is_first_person`): first person when its parent is the local player's pawn (a Pawn with no `Brain`
+  child), ALIVE, on the ground and with cover FREE or absent; today's third person everywhere else (cover,
+  including ENTERING and EXITING, the carrier, falling, downed, a rig without a pawn). A smoothstep weight
+  (`get_first_person_weight`, 0 third to 1 first, over `blend_s`) blends the spring length to 0, the side
+  offset to 0, the rig height to `eye_height_m` and the FOV; the first evaluation snaps. Same rig, same
+  contracts: `AimRayCast`, `get_aim_point`, `set_pitch`, `set_aim_blend`, the view-only knockback. The shoulder
+  swap is ignored in first person.
+- View model (`scripts/visual/view_model.gd`): the arms and held weapon on the rig's Camera3D, attached lazily
+  by the rig for the local pawn only, shown from `view_model.show_weight`; it plays swap, reload, kick and the
+  blade swing from the pawn's signals, draws its own tracer and flash from `ShotFx.shot_shown`, and raises the
+  gun to a red dot on the centre ray in ADS. Presentation only: no colliders, the shot never reads it.
+- Body layer (`scripts/visual/local_body_layer.gd`): the rig calls `Pawn.ensure_local_body_layer` every physics
+  frame; for the local pawn it moves Body, HeadMesh, every SoldierModel mesh (also ones added later, followed
+  by `child_entered_tree`), the ShotFx tracer and flash and the SwingVisual bar from render layer 1 to
+  `body_layer`. The rig camera leaves that layer out of its cull mask while the view model shows
+  (`is_body_hidden`), so body and arms swap on one frame; every other camera (SpectatorCamera, other players)
+  keeps the default mask. ShotFx impact, sparks and dust stay on layer 1. Render layers only: collision,
+  hitboxes, the muzzle and the host aim check are unchanged. The body's shadow goes with it (measured).
+- HUD rules: `hud.gd` hides the crosshair at `crosshair_hide_aim_blend` in first person with a gun; the touch
+  HUD reads the mode from the sibling GameHud's pawn and its CameraRig and hides the Shoulder button in first
+  person (`ui.json` `first_person_touch.shoulder_visible`), its slot reserved and swallowing taps
+  (the slot still hit-tests and presses `swap_shoulder`, which the rig ignores in first person, so a tap there
+  never reaches the look area or fires).
+- Tests: `tests/test_first_person_camera.gd`; captures: `tools/fp_capture.gd`.
 
 ### 4.17 Networking (host authority)
 - Transport: `ENetMultiplayerPeer` + Godot high-level multiplayer (RPCs, MultiplayerSpawner/

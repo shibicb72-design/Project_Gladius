@@ -718,6 +718,20 @@ func disable_cover() -> void:
 	_cover_auto_disabled = true
 
 
+## M2 C1a stage 4: called by this pawn's CameraRig every physics frame. Once the pawn is the local player (a CameraRig
+## child and no Brain, the _ensure_cover check without net_mode), its own body goes on render layer `layer`
+## (LocalBodyLayer), which the rig camera leaves out in first person. Bots, replicas and rig-less pawns never get it.
+func ensure_local_body_layer(layer: int) -> void:
+	if layer <= 0 or not has_node("CameraRig") or has_node("Brain"):
+		return
+	if _local_body == null:
+		_local_body = LocalBodyLayer.new(self, layer)
+	_local_body.refresh()
+
+
+var _local_body: LocalBodyLayer
+
+
 func _ensure_cover() -> void:
 	if cover != null or _cover_auto_disabled or net_mode != NetMode.LOCAL or not is_alive():
 		return

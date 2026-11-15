@@ -140,8 +140,12 @@ func test_far_tracer_ends_outside_the_shooter_screen_rect_at_fold_sizes() -> voi
 			assert_true(pawn.shot_fx.is_tracer_visible(), "%s: tracer drawn" % size)
 			assert_true(not cam.is_position_behind(ep[1]), "%s: far end is in front of the camera" % size)
 			var far_px := cam.unproject_position(ep[1])
-			var rect := _screen_rect(cam, pawn)
-			assert_true(not rect.has_point(far_px), "%s: far end %s outside shooter rect %s" % [size, far_px, rect])
+			# M2 C1a: the match pawn walks in first person, where the camera sits inside its own (hidden) body, so the
+			# shooter-rect rule is a third-person rule; in first person the far end must be on screen instead.
+			var rig := pawn.get_node("CameraRig") as CameraRig
+			assert_true(rig.is_first_person(), "%s: the match pawn walks in first person" % size)
+			var view := Rect2(Vector2.ZERO, pawn.get_viewport().get_visible_rect().size)
+			assert_true(view.has_point(far_px), "%s: first person: far end %s on screen %s" % [size, far_px, view])
 		await _Rig.teardown(ctx)
 
 
@@ -176,8 +180,11 @@ func test_camera_json_exposes_left_shoulder_data() -> void:
 ## Path A phase 2, Goal B: through the match, a tap on the touch HUD Shoulder button (InputMap swap_shoulder ->
 ## InputFrame LOCAL_BUTTONS -> MatchRoot) moves the local camera to the left shoulder; holding it does not keep
 ## swapping, and a second tap moves it back. Both Fold sizes of tests/button_rig.gd.
+## M2 C1a: the match pawn walks in first person, where the Shoulder input is ignored for the view (fix 2), so the tap
+## leaves the side and the (zero) side offset alone; the third-person swap is covered by the rig-only tests above.
+## Stage 4: the Shoulder button is hidden in first person and its slot swallows the tap, so the side stays for that
+## reason too (tests/test_first_person_camera.gd test_shoulder_hidden_in_first_person_and_its_slot_swallows_taps).
 func test_shoulder_button_swaps_the_match_camera_and_back() -> void:
-	var left_x := float(DataRegistry.new().get_camera_cfg()["shoulder_offset_left_m"]["value"])
 	for sz in _Rig.SIZES:
 		var ctx: Dictionary = await _Rig.setup(sz, "virtual")
 		var tag: String = ctx["tag"]
@@ -185,9 +192,9 @@ func test_shoulder_button_swaps_the_match_camera_and_back() -> void:
 		assert_eq(rig.shoulder_side, "right", "%s: the match starts on the right shoulder" % tag)
 		_Rig.press(ctx, "swap_shoulder", true)
 		await _Rig.frames(4)
-		assert_eq(rig.shoulder_side, "left", "%s: one tap (held 4 frames) moves the camera to the left shoulder" % tag)
+		assert_eq(rig.shoulder_side, "right", "%s: first person: one tap (held 4 frames) leaves the shoulder side" % tag)
 		await _shoulder_settled()
-		assert_true(absf(rig.get_node("SpringArm3D").position.x - left_x) < 0.001, "%s: arm on the left offset" % tag)
+		assert_true(absf(rig.get_node("SpringArm3D").position.x) < 0.001, "%s: first person: no side offset" % tag)
 		_Rig.press(ctx, "swap_shoulder", false)
 		await _Rig.frames(2)
 		_Rig.press(ctx, "swap_shoulder", true)

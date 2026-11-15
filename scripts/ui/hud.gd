@@ -33,12 +33,14 @@ var cue_label: Label
 var toast_label: Label
 var hit_marker: Label
 var banner_label: Label
-## Permanent centre aim reticle (data/ui.json "crosshair", OQ-CROSSHAIR); hidden while the local pawn is dead.
+## Permanent centre aim reticle (data/ui.json "crosshair", OQ-CROSSHAIR); hidden while the local pawn is dead and
+## while it aims down a gun's red-dot sight in first person (_ads_hides_crosshair).
 var crosshair: Control
 
 var _fb: Dictionary = {}
 var _ch: Dictionary = {}
 var _crosshair_arms: Array[ColorRect] = []
+var _ch_hide_aim_blend: float = 2.0  # camera.json first_person.crosshair_hide_aim_blend; above 1 = never hides
 var _cue_left_s: float = 0.0
 var _toast_left_s: float = 0.0
 var _marker_left_s: float = 0.0
@@ -252,8 +254,23 @@ func _build_crosshair() -> void:
 		crosshair.add_child(arm)
 		_crosshair_arms.append(arm)
 	crosshair.visible = bool(_ch["enabled"])
+	var hide_at: Variant = DataRegistry.new().get_camera_cfg().get("first_person", {}).get("crosshair_hide_aim_blend", {})
+	_ch_hide_aim_blend = float((hide_at as Dictionary).get("value", 2.0)) if hide_at is Dictionary else float(hide_at)
 	resized.connect(_size_crosshair)
 	_size_crosshair()
+
+
+## M2 C1a stage 3 (fix 8): the red dot replaces the reticle while the local pawn aims down a gun's sight in first person
+## (aim_blend at or above camera.json first_person.crosshair_hide_aim_blend). Third person (no rig, cover, carrier,
+## falling, downed) and the blade keep today's crosshair.
+func _ads_hides_crosshair() -> bool:
+	if pawn.aim_blend < _ch_hide_aim_blend:
+		return false
+	var rig := pawn.get_node_or_null("CameraRig") as CameraRig
+	if rig == null or not rig.is_first_person():
+		return false
+	var w: Weapon = pawn.loadout.get_active() if pawn.loadout != null else null
+	return w != null and not w.def.is_melee()
 
 
 ## Sizes the reticle from the HUD height (folding the phone resizes the HUD at runtime). Offsets of +-half the span
@@ -438,7 +455,7 @@ func refresh_pawn() -> void:
 	var waiting := not pawn.is_alive()
 	respawn_label.visible = false  # no respawn in battle royale (item 6 removes the label)
 	own_death_label.visible = waiting and not pawn.is_downed()  # DOWNED is not dead (item 6 adds its own label)
-	crosshair.visible = bool(_ch["enabled"]) and not waiting  # no shot is possible while dead
+	crosshair.visible = bool(_ch["enabled"]) and not waiting and not _ads_hides_crosshair()  # no shot while dead
 	_refresh_match_texts()
 
 
