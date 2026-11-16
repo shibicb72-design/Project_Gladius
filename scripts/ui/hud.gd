@@ -94,6 +94,16 @@ func _exit_tree() -> void:
 		coach.queue_free()
 
 
+## M2 H1b: deferred insertion of `node` right after `anchor`, which is itself awaiting its own deferred insertion. When
+## the match is freed before the deferred calls run, the anchor never got a parent: nothing is inserted (no engine error)
+## and _exit_tree frees the node.
+func _add_after(anchor: Node, node: Node) -> void:
+	if not is_instance_valid(node) or node.get_parent() != null:
+		return
+	if is_instance_valid(anchor) and anchor.get_parent() != null:
+		anchor.add_sibling(node)
+
+
 ## M2 H1b commit 3: the map json of the match this HUD is in (MatchRoot.map_def), {} outside a match.
 func _map_def() -> Dictionary:
 	var n := get_parent()
@@ -455,7 +465,7 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 		interact_prompt = InteractPrompt.new()
 		interact_prompt.bind(pawn, director, touch_for_interact, interact_button, get_node_or_null("../PauseMenu") as PauseMenu)
 		if touch_for_interact != null:
-			interact_button.add_sibling.call_deferred(interact_prompt)
+			_add_after.call_deferred(interact_button, interact_prompt)
 		else:
 			add_child(interact_prompt)
 	else:
@@ -475,7 +485,7 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 	if radar == null:
 		radar = HudRadar.new()
 		if touch_for_interact != null:
-			minimap.add_sibling.call_deferred(radar)
+			_add_after.call_deferred(minimap, radar)
 		else:
 			add_child(radar)
 	radar.bind(director, pawn, self)
@@ -485,7 +495,7 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 	if coach == null and AppFlow.take_coach_route() and HudCoach.wanted(true, _coach_profile()):
 		coach = HudCoach.new()
 		if touch_for_interact != null:
-			radar.add_sibling.call_deferred(coach)
+			_add_after.call_deferred(radar, coach)
 		else:
 			add_child(coach)
 	if coach != null:
