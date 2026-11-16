@@ -84,6 +84,14 @@ static func cli_seed(fallback: int) -> int:
 	return fallback
 
 
+## M2 Z2: --sim-length=<id> (after `--`): a data/br.json "match_length" option id for the 1 km sim; "" when absent.
+static func cli_length() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--sim-length="):
+			return a.substr(13)
+	return ""
+
+
 ## The distance band of a flat distance in metres.
 static func band_of(dist_m: float) -> String:
 	if dist_m < 15.0:

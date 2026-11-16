@@ -7,6 +7,9 @@ var squad_size: int = 3
 ## Battle royale team mode chosen by the host: "solo" or "squads" (sets squad_count / squad_size).
 var team_mode: String = "solo"
 const TEAM_MODES: Array[String] = ["solo", "squads"]
+## M2 Z2 (OQ-BR-LENGTH): the host's match length id (data/br.json "match_length" options); "" = no preset, the
+## map's own zone schedule. Not validated here (pure): MatchDirector.load_config rejects an unknown id.
+var match_length: String = ""
 ## Human cap (match.json max_humans); 0 = squad_count * squad_size.
 var max_humans: int = 0
 var default_class: String = "hastati"
@@ -39,6 +42,14 @@ func set_team_mode(mode: String, squads: int, size: int) -> bool:
 	squad_count = squads
 	squad_size = size
 	bot_classes.clear()  # slot indices change with the layout
+	return true
+
+
+## Host only, before the match: the match length id (M2 Z2). Refused after start; the id is not checked here.
+func set_match_length(id: String) -> bool:
+	if started:
+		return false
+	match_length = id
 	return true
 
 
@@ -114,7 +125,7 @@ func to_dict() -> Dictionary:
 	return {"squad_count": squad_count, "squad_size": squad_size, "team_mode": team_mode, "default_class": default_class,
 			"class_rotation": class_rotation.duplicate(), "started": started,
 			"humans": humans.duplicate(true), "slots": slots.duplicate(true),
-			"bot_classes": bot_classes.duplicate()}
+			"bot_classes": bot_classes.duplicate(), "match_length": match_length}
 
 
 static func from_dict(d: Dictionary) -> LobbyState:
@@ -123,6 +134,7 @@ static func from_dict(d: Dictionary) -> LobbyState:
 	l.squad_size = int(d.get("squad_size", 3))
 	var mode := str(d.get("team_mode", "solo"))
 	l.team_mode = mode if mode in TEAM_MODES else "solo"
+	l.match_length = str(d.get("match_length", ""))
 	l.default_class = str(d.get("default_class", "hastati"))
 	l.class_rotation = Array(d.get("class_rotation", [])).duplicate()
 	l.started = bool(d.get("started", false))

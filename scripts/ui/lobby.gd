@@ -5,7 +5,7 @@ extends Control
 ## to the host and applies its snapshots (see MatchRoot, NetMatchBridge, tests/test_net_match.gd).
 ## All networking goes through NetLobby (session.lobby); this UI only calls it and listens to its signals.
 ## Layout (docs/UI_STYLE.md): page backdrop; header (title, IPs or status); the roster as a grid of squad cards in a
-## vertical scroll; the always-visible ActionBar (Back, Class, Mode, Start) at the bottom.
+## vertical scroll; the always-visible ActionBar (Back, Class, Mode, Length, Start) at the bottom.
 
 const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const CLASSES: Array[String] = ["hastati", "sagittarii"]
@@ -23,6 +23,10 @@ var start_button: Button
 var class_button: Button
 ## Host only: Solo / Squads (battle royale team mode). Clients see the mode in the status line.
 var mode_button: Button
+## Host only (M2 Z2, OQ-BR-LENGTH): cycles the data/br.json match_length options. Clients see it in the status line.
+var length_button: Button
+## Where a length change is saved (tests point it at a temp user:// file).
+var save := SaveService.new()
 var is_host: bool = true
 var _br_cfg: Dictionary = {}
 var _match_cfg: Dictionary = {}
@@ -92,7 +96,10 @@ func _ready() -> void:
 	squad_grid.mouse_filter = Control.MOUSE_FILTER_PASS
 	MenuStyle.gap(squad_grid, 1.5)
 	rows_box.add_child(squad_grid)
-	var actions := HBoxContainer.new()
+	# M2 Z2: a flow container, one row when the five buttons fit, else it wraps to a second row (the Fold's inner
+	# screen: its 1152 x 959 canvas has taller buttons whose labels do not fit in one row). Each row's buttons
+	# still share the row width by their stretch ratios.
+	var actions := HFlowContainer.new()
 	actions.name = "ActionBar"
 	actions.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	MenuStyle.gap(actions, 1.5)
@@ -113,6 +120,12 @@ func _ready() -> void:
 	mode_button.visible = is_host
 	mode_button.pressed.connect(toggle_team_mode)
 	actions.add_child(mode_button)
+	length_button = Button.new()
+	length_button.name = "LengthButton"
+	length_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	length_button.visible = is_host
+	length_button.pressed.connect(cycle_match_length)
+	actions.add_child(length_button)
 	start_button = Button.new()
 	start_button.text = "Start"
 	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -128,14 +141,17 @@ func _ready() -> void:
 	session.host_lost.connect(_on_back)
 	net_lobby.state_changed.connect(_on_state_changed)
 	net_lobby.match_starting.connect(_on_match_starting)
+	var reg := DataRegistry.new()
+	# The br config: team layouts (host) and the match length options and labels (host and clients, M2 Z2).
+	_br_cfg = ModeRegistry.merged_config(MatchDirector.MODE_ID, reg.load_file("res://data/modes.json"))
 	if is_host:
 		ips_label.text = "Your IP: " + ", ".join(local_ipv4())
-		var reg := DataRegistry.new()
-		_br_cfg = ModeRegistry.merged_config(MatchDirector.MODE_ID, reg.load_file("res://data/modes.json"))
 		_match_cfg = cfg
 		var layout := MatchDirector.team_layout(_br_cfg, cfg)
 		net_lobby.host_open(int(layout["squad_count"]), int(layout["squad_size"]), my_name, [], int(cfg.get("max_humans", 8)))
 		set_team_mode(MatchDirector.team_mode_of(_br_cfg))
+		# M2 Z2: the profile's last length (validated, else the data default). Not saved here: only a change saves.
+		_apply_match_length(SaveService.match_length(_profile().get("match_length", null)), false)
 	else:
 		status_label.text = "Connected. Waiting for the host to start."
 		net_lobby.submit_local(my_name, "hastati")
@@ -173,6 +189,43 @@ func set_team_mode(mode: String) -> bool:
 	var ok := net_lobby.host_set_team_mode(mode, int(layout["squad_count"]), int(layout["squad_size"]))
 	refresh()
 	return ok
+
+
+## M2 Z2, host only: the next data/br.json match_length option, in data order (wraps).
+func cycle_match_length() -> void:
+	var ids: Array[String] = []
+	for opt: Dictionary in MatchDirector.match_length_options(_br_cfg):
+		ids.append(str(opt.get("id", "")))
+	if ids.is_empty():
+		return
+	set_match_length(ids[(ids.find(state.match_length) + 1) % ids.size()])
+
+
+## M2 Z2, host only: sets a data match length id, saves it in the profile and sends it to the clients. False for a
+## client, an id not in data, or after the start.
+func set_match_length(id: String) -> bool:
+	if not is_host or MatchDirector.match_length_option(_br_cfg, id).is_empty():
+		return false
+	return _apply_match_length(id, true)
+
+
+func _apply_match_length(id: String, persist: bool) -> bool:
+	if not net_lobby.state.set_match_length(id):
+		return false
+	state = net_lobby.state
+	if persist:  # the settings screens' pattern (haptics_screen.gd _persist)
+		var profile := save.load_profile()
+		profile["match_length"] = id
+		save.save_profile(profile)
+		AppFlow.profile = save.load_profile()
+	# NetLobby (read-only in this slice) has no host_set_match_length. Its public submit_local on the host applies
+	# the host's own unchanged name and class and then broadcasts state.to_dict() to every client, so re-submitting
+	# them sends the new length. A dedicated NetLobby.host_set_match_length would be cleaner (outside this slice).
+	var i := state.find_human(net_lobby.local_id())
+	if i >= 0:
+		net_lobby.submit_local(str(state.humans[i]["name"]), str(state.humans[i]["class_id"]))
+	refresh()
+	return true
 
 
 func toggle_class() -> void:
@@ -248,8 +301,11 @@ func refresh() -> void:
 	class_button.text = "Class: %s" % (str(state.humans[i]["class_id"]) if i >= 0 else "-")
 	var mode_name := "Squads" if state.team_mode == "squads" else "Solo"
 	mode_button.text = "Mode: %s" % mode_name
+	var length_label := MatchDirector.match_length_label(_br_cfg, state.match_length)  # "" for "" or an unknown id
+	length_button.text = "Length: %s" % (length_label if length_label != "" else "-")
 	if not is_host:
-		status_label.text = "Mode: %s. Waiting for the host to start." % mode_name
+		var length_part := " Length: %s." % length_label if length_label != "" else ""
+		status_label.text = "Mode: %s.%s Waiting for the host to start." % [mode_name, length_part]
 
 
 ## Squad card columns: one per ~15 body-font widths of roster width, 1 to 3.

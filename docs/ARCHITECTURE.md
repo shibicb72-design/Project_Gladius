@@ -167,6 +167,19 @@ android/              debug.keystore (shared debug key only)
   `mode_cfg` (tests may edit it before `start`); `start` seeds the rules, sets the team mode and registers every
   pawn. The roster fills to `match.json` `max_players` (18) on both the lobby and the standalone path: solo
   = 18 squads of 1, squads = 6 squads of 3. In solo each pawn's squad id is its player id.
+- Match length (M2 Z2, OQ-BR-LENGTH): `data/br.json` `match_length` lists the options (`id`, `minutes`) and
+  the default; adding an option is a data change only. `MatchDirector.load_config(map_json, length_id)`
+  applies one after the map's overrides are merged (`apply_match_length`, one marked block): every zone
+  phase's `wait_s` and `shrink_s` is multiplied by `minutes x 60 / the sum of all waits and shrinks`, so the
+  last circle finishes closing at `minutes`. Radii, damage, the phase order, the drop and loot are not
+  scaled; the scaled times stay floats. An empty id changes nothing (tests and sims that pass nothing keep the
+  file's phases untouched). An unknown id, or a factor below 1.0 (shorter than the map's own schedule, which
+  would break the zone generator's edge-speed cap and the drop rule), is rejected with one warning and the
+  map's own schedule is used. The host picks the length in the lobby ("Length: 15 min", saved in the profile
+  key `match_length`); it travels in `LobbyState.match_length`, and `MatchRoot.begin` passes the lobby's
+  value to `load_config` on every peer. A `begin()` without a lobby passes "". Map files are not edited and
+  nothing is re-baked. Nothing else needed a change: the HUD timer, the zone sounds, the zone wall and the
+  bots' rotation rule read the rules' state and seconds left.
 - Each physics tick it sends positions and revive pairs to `BrRules` and acts on the events: zone damage
   through `PawnRulesBridge.take_direct_damage`, pawn life state ALIVE / DOWNED / DEAD, deactivation on
   `dead`, and the signals `zone_changed`, `alive_changed`, `player_downed`, `player_revived`,
@@ -253,7 +266,9 @@ android/              debug.keystore (shared debug key only)
   events, landmark landings. Args after `--`: `--sim-profile=<name>` (every bot's profile),
   `--sim-brain=<path>=<n>,...` (sim-local `brain` overrides, shown in `profile=`), and
   `--sim-scale=<n>` (the 1 km sim's zone and carrier time scale, default 0.4), `--sim-seed=<n>`
-  (the 1 km match seed, default 99 solo / 199 squads). M2 B2 lines, separate from the `SIM` line:
+  (the 1 km match seed, default 99 solo / 199 squads), `--sim-length=<id>` (M2 Z2: a `br.json`
+  `match_length` option, applied before `--sim-scale`; prints one `SIM_LENGTH id= minutes= factor=
+  last_close_s=` line and stretches the wall cap by the factor; absent = nothing changes). M2 B2 lines, separate from the `SIM` line:
   `SIM_BANDS` (gun rounds / hits / hit rate by the shooter's flat distance to its target at
   `fired`: 0-15, 15-40, 40-80, 80+ m, none) in both sims; `SIM_UNSTICK_GOALS` (unstick events by
   goal kind and whether the nav target was reachable) in the 1 km sim. On demand:
@@ -410,7 +425,9 @@ android/              debug.keystore (shared debug key only)
   client calls `apply_state` (look and collider; no loot roll: the spill reaches it as ground loot). Events that
   arrive before a client's WorldProps exist are kept and applied when it is wired; detach unwires.
 - Lobby: `LobbyState` (pure, serializable) holds players, squads, classes and settings. The host owns
-  it and broadcasts changes.
+  it and broadcasts changes. `match_length` (M2 Z2) is one field of that payload: the host's match length
+  id, sent with every sync and with the start, so every peer stretches its own zone clock alike. The zone
+  state itself is still not replicated (M3).
 - Discovery: manual IP in milestone 1 (OQ-41). A later UDP-broadcast discoverer plugs into
   NetSession, and needs a platform hook for an Android multicast lock if multicast is used.
 - Dedicated server later: the same project runs `--headless` with a server boot scene. Its
