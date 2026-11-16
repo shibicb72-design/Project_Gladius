@@ -32,12 +32,24 @@ const PROMPT_KINDS: Array = ["prompt_pickup", "prompt_chest", "prompt_door_open"
 ## Each baked texture is also copied to minimap_tex_<map>.png.
 const MINIMAP_KINDS: Array = ["minimap_small_rotate", "minimap_small_north", "minimap_expanded", "minimap_zoom"]
 const MINIMAP_MAP := "res://data/maps/alesia_1km.json"
+## Commit 4 (the radar): shot in a fourth match per size, set up as the minimap match (alesia_1km, squads, idle bots,
+## the same player place), with enemy bots moved to several bearings and distances inside 25 m (and one at 31 m, which
+## must not show) and one squad mate 12 m behind-right; saved as radar_<kind>_<WxH>.png, sheet_radar_<WxH>.png.
+##   radar_blips  the whole HUD with the blips
+##   radar_cover  no render of its own: the panel cropped and enlarged twice side by side, LEFT the scene with one enemy
+##                standing (shown), RIGHT the same enemy in the cover crouch (hidden). The cover state is set through
+##                the enable_cover test seam (bots never take cover in M2), as tests/test_h1b_radar.gd does.
+##   panel_zoom   no render: the whole radar + minimap panel of radar_blips cropped and enlarged
+const RADAR_KINDS: Array = ["radar_blips", "radar_cover", "panel_zoom"]
+## Radar layout around the player, relative to its heading: [right m, ahead m]. The last is out of range.
+const RADAR_ENEMIES: Array = [Vector2(0, 9), Vector2(11, 12), Vector2(-15, -14), Vector2(-23, 3), Vector2(16, -6), Vector2(0, -31)]
+const RADAR_MATE := Vector2(9, -8)
 const DPI := 420.0
 const SHEET_CELL_W := 900
 const ARENA_X := 1000.0
 
 var _out: String = "build/shots"
-var _kinds: Array = KINDS + PROMPT_KINDS + MINIMAP_KINDS
+var _kinds: Array = KINDS + PROMPT_KINDS + MINIMAP_KINDS + RADAR_KINDS
 var _sizes: Array = DEFAULT_SIZES
 
 
@@ -75,11 +87,12 @@ func _run() -> void:
 	var saved_dpi: float = PlatformServices.dpi_override
 	PlatformServices.dpi_override = DPI
 	_TouchHud.move_stick_override = "custom"
-	var c1: Array = _kinds.filter(func(k: String) -> bool: return not PROMPT_KINDS.has(k) and not MINIMAP_KINDS.has(k))
+	var c1: Array = _kinds.filter(func(k: String) -> bool: return not PROMPT_KINDS.has(k) and not MINIMAP_KINDS.has(k) and not RADAR_KINDS.has(k))
 	var c2: Array = _kinds.filter(func(k: String) -> bool: return PROMPT_KINDS.has(k))
 	var c3: Array = _kinds.filter(func(k: String) -> bool: return MINIMAP_KINDS.has(k))
+	var c4: Array = _kinds.filter(func(k: String) -> bool: return RADAR_KINDS.has(k))
 	for size in _sizes:
-		for group in [[c1, "sheet", false, false], [c2, "sheet_prompt", true, false], [c3, "sheet_minimap", false, true]]:
+		for group in [[c1, "sheet", false, false], [c2, "sheet_prompt", true, false], [c3, "sheet_minimap", false, true], [c4, "sheet_radar", false, true]]:
 			if (group[0] as Array).is_empty():
 				continue
 			AppFlow.profile = {}
@@ -161,8 +174,8 @@ class Overlay extends Control:
 		var magenta := Color(1.0, 0.3, 0.9, 0.95)
 		draw_arc(radar.get_center(), radar.size.x * 0.5, 0.0, TAU, 64, magenta, 3.0, true)
 		draw_rect(minimap, magenta, false, 3.0)
-		_label(radar.position, "radar (reserved)", magenta)
-		_label(minimap.position + Vector2(0, minimap.size.y - 30), "minimap (reserved)", magenta)
+		_label(radar.position, "radar (passive)", magenta)
+		_label(minimap.position + Vector2(0, minimap.size.y - 30), "minimap", magenta)
 		for k in passive:
 			draw_rect(passive[k], Color(0.2, 0.95, 1.0, 0.95), false, 3.0)
 			_label(Rect2(passive[k]).position, String(k), Color(0.4, 1.0, 1.0))
@@ -594,6 +607,127 @@ func _copy_minimap_textures() -> bool:
 		print("[h1b_capture] minimap_tex_%s %s -> %s" % [id, str(img.get_size()) if img != null else "missing", error_string(err)])
 		ok = ok and err == OK
 	return ok
+
+
+# --- commit 4: the radar ---------------------------------------------------------------------------------------------
+
+## Once per match: the minimap placement, then enemies at RADAR_ENEMIES and a squad mate at RADAR_MATE around the player
+## (relative to its heading, on the ground). Returns the enemies placed, in RADAR_ENEMIES order.
+func _radar_prep(ctx: Dictionary) -> Array:
+	await _minimap_prep(ctx)
+	if ctx.has("radar_enemies"):
+		return ctx["radar_enemies"]
+	var m: MatchRoot = ctx["m"]
+	var me := m.local_player
+	var terrain := MapTerrain.for_map(m.map_def)
+	var yaw := me.rotation.y
+	var fwd := Vector2(-sin(yaw), -cos(yaw))
+	var right := Vector2(cos(yaw), -sin(yaw))
+	var at := Vector2(me.global_position.x, me.global_position.z)
+	var place := func(p: Pawn, rel: Vector2) -> void:
+		var q: Vector2 = at + right * rel.x + fwd * rel.y
+		p.global_position = Vector3(q.x, (terrain.height_at(q.x, q.y) if terrain != null else 0.0) + 0.05, q.y)
+		p.velocity = Vector3.ZERO
+	var enemies: Array = []
+	var mate_done := false
+	for id in m.director.all_players():
+		var o: Pawn = m.director.player(id)
+		if o == me:
+			continue
+		if o.squad_id == me.squad_id:
+			if not mate_done:
+				place.call(o, RADAR_MATE)
+				mate_done = true
+			continue
+		if enemies.size() < RADAR_ENEMIES.size():
+			place.call(o, RADAR_ENEMIES[enemies.size()])
+			enemies.append(o)
+	ctx["radar_enemies"] = enemies
+	await _frames(8)
+	return enemies
+
+
+func _radar_log(ctx: Dictionary, what: String) -> HudRadar:
+	var radar: HudRadar = (ctx["game"] as GameHud).radar
+	var kinds := {}
+	for b: Dictionary in radar.blips:
+		kinds[b["kind"]] = int(kinds.get(b["kind"], 0)) + 1
+	print("[h1b_capture] %s %s radar visible=%s blips=%s disc=%s" % [ctx["tag"], what, radar.visible, str(kinds), HudRadar.disc_rect(ctx["size"])])
+	return radar
+
+
+func _shot_radar_blips(ctx: Dictionary) -> bool:
+	AppFlow.profile = {"minimap_rotate": true}
+	var enemies: Array = await _radar_prep(ctx)
+	await _frames(8)  # at least one blip update after the placement
+	var radar := _radar_log(ctx, "radar_blips")
+	var ok: bool = await _save(ctx["svp"], "radar_blips_" + ctx["tag"])
+	# Every enemy inside 25 m and the mate shown; the one at 31 m not.
+	var want_enemies := RADAR_ENEMIES.filter(func(v: Vector2) -> bool: return v.length() <= HudRadar.range_m()).size()
+	var got := radar.blips.filter(func(b: Dictionary) -> bool: return b["kind"] == HudRadar.ENEMY).size()
+	var mates := radar.blips.filter(func(b: Dictionary) -> bool: return b["kind"] == HudRadar.MATE).size()
+	print("[h1b_capture] %s radar_blips enemies %d of %d placed (want %d), mates %d" % [ctx["tag"], got, enemies.size(), want_enemies, mates])
+	return ok and radar.visible and got == want_enemies and mates == 1
+
+
+## Two renders (the first enemy standing, then in the cover crouch through the enable_cover seam), saved as
+## radar_cover_shown_ / radar_cover_hidden_<WxH>.png, and their panels side by side as radar_cover_<WxH>.png.
+func _shot_radar_cover(ctx: Dictionary) -> bool:
+	AppFlow.profile = {"minimap_rotate": true}
+	var enemies: Array = await _radar_prep(ctx)
+	if enemies.is_empty():
+		return false
+	var foe: Pawn = enemies[0]
+	foe.set_physics_process(false)  # hold the cover state still for the shot (its controller would re-probe the wall)
+	foe.enable_cover(DataRegistry.new().load_file("res://data/cover.json"))
+	if foe.cover == null:
+		push_error("[h1b_capture] radar_cover: the cover seam gave no controller")
+		return false
+	foe.cover.state = CoverController.State.FREE
+	foe.cover.crouch_amount = 0.0
+	await _frames(8)
+	var radar := _radar_log(ctx, "radar_cover shown")
+	var shown := not radar.blip_of(int(foe.player_id)).is_empty()
+	var ok: bool = await _save(ctx["svp"], "radar_cover_shown_" + ctx["tag"])
+	foe.cover.state = CoverController.State.IN_COVER
+	foe.cover.crouch_amount = 1.0
+	await _frames(8)
+	_radar_log(ctx, "radar_cover hidden")
+	var hidden := radar.blip_of(int(foe.player_id)).is_empty()
+	var ok2: bool = await _save(ctx["svp"], "radar_cover_hidden_" + ctx["tag"])
+	ok = ok and ok2
+	foe.cover.reset()
+	foe.set_physics_process(true)
+	print("[h1b_capture] %s radar_cover enemy %d: standing shown=%s, cover crouch hidden=%s" % [ctx["tag"], foe.player_id, shown, hidden])
+	ok = ok and _zoom_pair(ctx, ["radar_cover_shown", "radar_cover_hidden"], "radar_cover")
+	return ok and shown and hidden
+
+
+func _shot_panel_zoom(ctx: Dictionary) -> bool:
+	return _zoom_pair(ctx, ["radar_blips"], "panel_zoom")
+
+
+## No render: the radar + minimap panel of each source shot cropped and enlarged, side by side (one source: centred).
+func _zoom_pair(ctx: Dictionary, sources: Array, kind: String) -> bool:
+	var size: Vector2 = ctx["size"]
+	var u := HudArrangement.unit(size)
+	var crop := Rect2i(HudMinimap.frame_rect(size).grow(u * 0.6).intersection(Rect2(Vector2.ZERO, size)))
+	var out := Image.create_empty(int(size.x), int(size.y), false, Image.FORMAT_RGB8)
+	out.fill(Color(0.08, 0.08, 0.1))
+	var cell := Vector2(size.x / sources.size(), size.y)
+	var scale := minf((cell.x - 24.0) / crop.size.x, (cell.y - 24.0) / crop.size.y)
+	for i in sources.size():
+		var img := Image.load_from_file(_out.path_join("%s_%s.png" % [sources[i], ctx["tag"]]))
+		if img == null:
+			push_error("[h1b_capture] %s needs %s_%s.png" % [kind, sources[i], ctx["tag"]])
+			return false
+		img.convert(Image.FORMAT_RGB8)
+		var part := img.get_region(crop)
+		part.resize(int(crop.size.x * scale), int(crop.size.y * scale), Image.INTERPOLATE_LANCZOS)
+		out.blit_rect(part, Rect2i(Vector2i.ZERO, part.get_size()), Vector2i(int(cell.x * i + (cell.x - part.get_width()) * 0.5), int((cell.y - part.get_height()) * 0.5)))
+	var err := out.save_png(_out.path_join("%s_%s.png" % [kind, ctx["tag"]]))
+	print("[h1b_capture] %s_%s (%s, x%.2f) -> %s" % [kind, ctx["tag"], ", ".join(sources), scale, error_string(err)])
+	return err == OK
 
 
 ## Contact sheet: the shots of one size scaled to SHEET_CELL_W wide, 3 columns, in KINDS order, on a dark background.

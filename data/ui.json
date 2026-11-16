@@ -397,11 +397,22 @@
 	},
 	"radar": {
 		"_placeholder": true,
-		"_todo": "OQ-RADAR (M2 H1b commit 1 reserves the place; commit 4 draws it): a round radar left of the minimap, size_frac_of_minimap of its side, gap_units apart. Passive (no touch target). range_m from DESIGN.md (25 m). Not drawn yet (enabled false).",
-		"enabled": false,
+		"_todo": "OQ-RADAR (M2 H1b commit 4, scripts/ui/hud_radar.gd): a round radar left of the minimap, size_frac_of_minimap of its side, gap_units apart, inside the minimap's panel plate. Passive (mouse_filter IGNORE, no touch target). range_m from DESIGN.md:26 (25 m). Every number here is a placeholder.",
+		"enabled": true,
 		"size_frac_of_minimap": 0.9,
 		"gap_units": 0.3,
-		"range_m": 25.0
+		"range_m": 25.0,
+		"_rule_note": "OQ-RADAR, the rule as coded (DESIGN.md:26 only): every other living pawn the local peer has (not DEAD, not hidden by the LAN snapshot, not ABOARD the carrier) within range_m (inclusive) is a blip: an enemy (another squad) as a solid diamond, a squad mate as a ringed dot in the squad colour. An ENEMY whose cover crouch_amount is at least cover_crouch_min while in cover (pawn.in_cover()) is hidden; standing behind high cover or risen over low cover shows. A DOWNED enemy shows (the plain rule). Falling pawns follow the distance rule. Proposals NOT built: only moving or firing enemies show; downed enemies hidden.",
+		"distance": "flat",
+		"_distance_note": "OQ-RADAR: 'flat' = horizontal (x, z) distance, the default: the radar is a flat disc and shows ground bearing and range, so a soldier one floor up or down at 20 m reads as 20 m (as the reference genre's radar, minus its height hint). '3d' = straight-line distance.",
+		"cover_crouch_min": 0.5,
+		"update_hz": 10.0,
+		"_rate_note": "OQ-RADAR: blips are rebuilt update_hz times a second (who shows, where). The blip layer turns with the player's heading on every frame as a node transform (no redraw), so a turn never lags; a move shows at the next update. The radar is always heading up (forward = up), whatever the minimap's north-up setting.",
+		"rings": [0.5],
+		"disc_alpha": 0.78,
+		"marks": {"enemy_units": 0.36, "mate_units": 0.26, "self_units": 0.5, "rim_width_units": 0.08, "ring_width_units": 0.045, "tick_units": 0.36, "outline_units": 0.08},
+		"sweep": {"enabled": true, "period_s": 2.5, "alpha": 0.2, "trail_deg": 50.0},
+		"colors": {"enemy": "warn", "outline": "night", "mate_ring": "marble", "disc": "field", "rim": "gold", "ring": "gold", "tick": "gold_hi", "self": "gold_hi", "sweep": "gold_hi"}
 	},
 	"zone_wall": {
 		"_placeholder": true,

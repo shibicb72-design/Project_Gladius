@@ -65,8 +65,8 @@ func test_default_placement_is_above_row_and_layout_version_kept() -> void:
 	assert_eq(HudArrangement.placement(), HudArrangement.ABOVE_ROW, "no override: data placement")
 	assert_eq(HudLayoutModel.current_version(), 2, "above_row moves no button default: layout_version stays 2")
 	assert_true(not bool(ui["hud"]["roman_numerals"]), "OQ-38: no Roman numerals")
-	# M2 H1b commit 3: the minimap is drawn (data switch on); the radar stays reserved until commit 4.
-	assert_true(bool(ui["minimap"]["enabled"]) and not bool(ui["radar"]["enabled"]), "minimap drawn, radar reserved, not drawn yet")
+	# M2 H1b commit 4: the minimap and the radar are both drawn (data switches on).
+	assert_true(bool(ui["minimap"]["enabled"]) and bool(ui["radar"]["enabled"]), "minimap and radar drawn")
 
 
 ## split_row is used only where the view is wide enough; the near-square sizes keep above_row.
@@ -137,6 +137,14 @@ func _check_state(touch: Control, pm: PauseMenu, game: GameHud, sz: Vector2, tag
 		assert_true(not mm.intersects(passive[n]) and not radar.intersects(passive[n]), "%s: panel clear of %s" % [tag, n])
 	var gear: Rect2 = ctrls["gear"]
 	assert_true(not gear.intersects(mm) and not gear.intersects(radar), "%s: gear %s not under the panel" % [tag, gear])
+	# M2 H1b commit 4: the drawn radar disc (passive) sits inside the reserved circle, clear of every touch target
+	# (the minimap tap target included) and of the other passive displays (objective line, kill banner above all).
+	var disc := HudRadar.disc_rect(sz)
+	assert_true(radar.encloses(disc) and view.encloses(disc), "%s: radar disc %s inside the reserved circle %s" % [tag, disc, radar])
+	for key in ctrls:
+		assert_true(not disc.intersects(ctrls[key]), "%s: radar disc %s covers touch target %s %s" % [tag, disc, key, ctrls[key]])
+	for n in names + ["status"]:
+		assert_true(not disc.intersects(passive[n]), "%s: radar disc %s overlaps %s %s" % [tag, disc, n, passive[n]])
 
 
 ## The gear, the reserved minimap tap target, Aim and Fire never overlap; the tap target is >= 48 dp, outside the look

@@ -12,6 +12,9 @@ var interact_button: InteractButton
 var interact_prompt: InteractPrompt
 ## M2 H1b commit 3: the minimap (scripts/ui/hud_minimap.gd, data ui.json minimap, OQ-MINIMAP).
 var minimap: HudMinimap
+## M2 H1b commit 4: the radar (scripts/ui/hud_radar.gd, data ui.json radar, OQ-RADAR), a passive sibling right after the
+## minimap (drawn over its panel plate).
+var radar: HudRadar
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
 
@@ -82,6 +85,8 @@ func _exit_tree() -> void:
 		interact_prompt.queue_free()
 	if is_instance_valid(minimap) and minimap.get_parent() != self:
 		minimap.queue_free()
+	if is_instance_valid(radar) and radar.get_parent() != self:
+		radar.queue_free()
 
 
 ## M2 H1b commit 3: the map json of the match this HUD is in (MatchRoot.map_def), {} outside a match.
@@ -455,6 +460,15 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 		else:
 			add_child(minimap)
 	minimap.bind(director, pawn, get_node_or_null("../PauseMenu") as PauseMenu, _map_def(), self)
+	# M2 H1b commit 4 (OQ-RADAR): the radar, right after the minimap (the deferred insertion above runs first), so it
+	# draws over the minimap's panel plate at the same z_index. Passive: no _input, every node IGNORE.
+	if radar == null:
+		radar = HudRadar.new()
+		if touch_for_interact != null:
+			minimap.add_sibling.call_deferred(radar)
+		else:
+			add_child(radar)
+	radar.bind(director, pawn, self)
 	pawn.reload_rejected.connect(_on_reload_rejected)
 	pawn.fire_empty.connect(_on_fire_empty)
 	pawn.weapon_switched.connect(_on_weapon_switched)
