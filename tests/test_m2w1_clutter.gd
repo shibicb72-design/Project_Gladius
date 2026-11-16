@@ -93,14 +93,11 @@ func test_built_instances_break_no_rule_on_the_real_lanes() -> void:
 	var def := DataRegistry.parse_quiet(MAP_1KM)
 	var ctx := WorldClutter.context(builder, def)
 	# The real lanes: the navigation path on the saved mesh between the two lane ends.
-	var nav_map := NavigationServer3D.map_create()
-	var mesh := MapNav.load_saved(MAP_1KM)
-	NavigationServer3D.map_set_cell_size(nav_map, mesh.cell_size)
-	NavigationServer3D.map_set_cell_height(nav_map, mesh.cell_height)
-	var region := NavigationServer3D.region_create()
-	NavigationServer3D.region_set_map(region, nav_map)
-	NavigationServer3D.region_set_navigation_mesh(region, mesh)
-	NavigationServer3D.map_set_active(nav_map, true)
+	# On the map's own Nav region and the world's navigation map, as tests/test_stuck_spots.gd does (a map made
+	# with map_create printed an edge-merge warning for this mesh that the world's map does not print).
+	var nav := map.get_node("Nav") as NavigationRegion3D
+	nav.navigation_mesh = MapNav.load_saved(MAP_1KM)
+	var nav_map := nav.get_navigation_map()
 	var terrain: MapTerrain = builder.terrain
 	var probe := Vector3(60.0, terrain.height_at(60.0, -200.0), -200.0)
 	for n in 600:
@@ -125,8 +122,6 @@ func test_built_instances_break_no_rule_on_the_real_lanes() -> void:
 		for p in path:
 			line.append(Vector2(p.x, p.z))
 		item["line"] = line
-	NavigationServer3D.free_rid(region)
-	NavigationServer3D.free_rid(nav_map)
 	WorldClutter.index(ctx)
 	assert_true(lanes >= 100, "nonvacuous: %d doorway lanes" % lanes)
 	var scatter: Dictionary = _cfg()["scatter"]

@@ -633,8 +633,9 @@ android/              debug.keystore (shared debug key only)
   - `"reserved_spots"`: `[{id, kind, at: [x, z]}]`, kind `jump_pad`, `man_cannon` or `lily_trap`,
     places for J1 only, no nodes. Validated: known kind, inside `play_radius_m`, outside every
     collider footprint (`DataRegistry.collider_footprints` / `footprint_at`, from the data).
-  - `"backdrop": false` (honoured by `ArtBuilder`, `backdrop_wanted`): the outer wall and the
-    fields are the edge; a backdrop for 1 km is W1's job.
+  - `"backdrop": true` since M2W1 (honoured by `ArtBuilder`, `backdrop_wanted`): the outer wall and the
+    fields are still the play edge; beyond them the far backdrop of `data/art_backdrop.json` `maps.alesia_1km`
+    is drawn (see "World art (M2W1)" below). It was `false` until then.
   - `"ground_paint"`: the art_materials `ground` keys for this map, plus `roads` (false: no spokes)
     and `baked`: the paint is painted offline into an Image `.res` (1024 px; footsteps read its
     pixels) and loaded at runtime with an inputs-hash stale check; a stale or missing bake paints at
@@ -773,6 +774,51 @@ android/              debug.keystore (shared debug key only)
   - Finding: the big clusters (camp ring S and N, Castra Sexta, inner_band SE and NW) are not map faults. The bot walks
     at full speed with no wall frames and flips between a loot or hunt goal outside 0.85 x the next circle's radius and
     the zone goal (`bot_brain.gd` `_inside_target` / `_zone_pressure`, no deadband). Left open: OQ-BOT-FLIP.
+- **World art (M2W1, Nov 16 2026).** Looks only; every look and number is a trial (OQ-ART-WORLD). The play space is
+  pinned: `tests/test_m2w1_colliders.gd` compares every collision shape under `Nav` and `ArtBuilder/Props`, the
+  `cover_wall` order, the builder lists and the ground paint inputs hash with
+  `data/maps/snapshots/alesia_1km_colliders.json` (`tools/m2w1_collider_snapshot.gd` rewrites it after an INTENDED
+  collider change), and `tests/test_m2w1_backdrop.gd` pins the three saved navs' `mesh_sha256`.
+  - **Structure looks from Blender.** `tools/blender/m2w1_world_kit.py` (`blender.cmd -b --python ...`, then import,
+    then `tools/asset_hashes.gd -- --write`) writes `assets/generated/world/m2w1_world_kit.glb`: one node per type
+    (`<type>`) and far level (`<type>_lod1`), carrying the kit's vertex data (paint as sRGB vertex colour, UV in
+    metres, UV2 = surface id and shade), so `WorldKitMeshes` (`scripts/visual/world_kit_meshes.gd`) turns each into
+    ONE surface with the one shared `WorldSurface` material and builds the tangents. `data/art_world_kit.json` names
+    the nodes, `lod_swap_m`, `fit_tolerance_m` (0.15: every vertex lies within it of the type's colliders; open
+    volumes stay open; nothing rises over a walk surface), the triangle caps and `joint_skew` (overlapping wall
+    pieces are skewed 1.5 cm so shared faces do not z-fight). `WorldKit.mesh_for(type)` answers the glb mesh when
+    the preset's `art_world_kit_enabled` is on, the kit mesh otherwise or when an entry, file or node is missing
+    (one error line). The "parts" in `alesia_structures.json` stay (a nav input) and are the fallback look.
+  - **LOD pairs.** `MapChunks.pair_lod`: per chunk one MultiMesh per type and level; the near batch ends at
+    `lod_swap_m` + radius + margin, the far batch begins there and ends at the class range; both measure from the
+    near batch's AABB centre (the far one takes it as `custom_aabb`), so exactly one draws. A far batch has meta
+    `lod_level` 1 and is not counted as instances of its own. A type under `lod_required_over_tris` may have none.
+  - **Door, gate and ladder looks** are the `look` parts in `data/props.json` (behaviour untouched).
+  - **Light.** Every look change lives in `data/art_look.json` `variants` (`light`, `fog`, `sky`, `post`);
+    `art_greybox.json` and `art_astra.json` keep the old base numbers, which the variant `dusk_deep` (not in the
+    rotation) still shows. `dusk` is now a clear late-day look. Optional variant keys (absent = engine default):
+    `ambient_source`, `ambient_sky_contribution`, `reflected_light_source`, `tonemap_white`, `fog_height`,
+    `fog_height_density`, `shadow_blur`, `shadow_bias`, `shadow_normal_bias`, `shadow_opacity`,
+    `shadow_fade_start`, `shadow_blend_splits`, `glow_hdr_scale`, `glow_levels`, and the sky's `cloud_light_*`,
+    `cloud_base*`, `cloud2_*`, `horizon_haze*`. No Light3D was added.
+  - **WorldAmbient per map.** On a terrain map `WorldAmbient` reads `data/art_world_maps.json` (the map's block,
+    else `terrain_default`, empty) and lifts each point onto the terrain; flat maps keep `art_world.json`.
+  - **Ground.** `data/art_ground_detail.json` (never hashed; `art_materials.json` `ground` is, by
+    `GroundPaint.inputs_hash`) feeds `ground.gdshader` when `art_ground_detail_enabled` is on: macro patches, rock
+    by slope, paving edges, near grain, tiling faded with distance; 8 texture fetches per pixel (was 6).
+  - **Clutter.** `scripts/visual/world_clutter.gd` (`WorldClutter`), `data/art_clutter.json`,
+    `tools/blender/m2w1_clutter.py` -> `m2w1_clutter.glb`: draw-only MultiMesh instances (source `clutter`, classes
+    `clutter_prop` and `clutter_scatter`, no shadows), only on maps with a block in `maps` and with
+    `art_clutter_enabled`. Dressing sets sit in a piece type's local space; scatter follows the ground paint and
+    noise; the placement is a hash of the position (no gameplay RNG). The builder drops an instance that breaks a
+    rule (0.6 m height, lanes through doorways and gates, door pockets, ladders, chests, landmark loot centres,
+    cover edges, collider footprints, walk and open volumes, reserved spots, slope); the test checks the built
+    result against the real saved-nav paths. Ground loot is rolled per match, so only landmark centres are kept
+    clear.
+  - **Far backdrop.** `Backdrop.build(material, map_json, terrain)`: a map named in `art_backdrop.json` `maps`
+    gets its own set (alesia_1km: ground skirt to 3 km, three hill rings, a far aqueduct, beacons, cypresses beyond
+    the wall; 5 draws, about 10,000 triangles, inside the default 4 km far plane); other maps build the old ring.
+  - **Capture.** `tools/m2w1_capture.gd` with `data/m2w1_capture.json` (named shots per look and size).
 
 ### 4.21 Cover
 
