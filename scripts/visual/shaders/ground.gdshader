@@ -3,6 +3,7 @@ shader_type spatial;
 // R = paving, G = grass, the rest earth) with noisy edges, a large-scale shade so the tiling does not show,
 // and puddles where the wet amount reaches. World-space mapping, so it needs no UVs.
 // Cost: six texture fetches per pixel (paint map, two noise scales, three surface tiles); flagged in the report.
+// M2W1 detail path: eight (paint, place map, two noise scales, four surface tiles).
 uniform sampler2DArray surfaces : filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D paint_map : filter_linear, repeat_disable;
 uniform sampler2D noise_pack : filter_linear_mipmap, repeat_enable;
@@ -22,9 +23,9 @@ uniform float wet_roughness = 0.12;
 uniform float puddle_level = 0.62;
 uniform float puddle_soft = 0.08;
 // M2W1 ground detail (data/art_ground_detail.json, graphics preset art_ground_detail_enabled). Off = the S2 path
-// below the branch, unchanged. On: eight fetches instead of six (paint, two macro noise scales, the near noise,
-// earth, grass, paving and rock tiles). The macro scales come from two noise fetches: the 360 m tile's G gives
-// ~60 m patches, the 90 m tile's G ~15 m and its B ~2-3 m grain; the near noise (4 m tile) only within ~10 m.
+// below the branch, unchanged. On: eight fetches instead of six (paint, the place map, the mid and near noise,
+// earth, grass, paving and rock tiles). The broad ~60 m patches are the place map's A (the 360 m noise tile's G,
+// baked at load); the 90 m tile's G gives ~15 m and its B ~2-3 m grain; the near noise (4 m tile) within ~10 m.
 uniform bool detail_enabled = false;
 uniform float detail_large_m = 360.0;
 uniform float detail_mid_m = 90.0;
@@ -63,6 +64,42 @@ uniform float near_bump = 0.6;
 uniform float fade_start_m = 25.0;
 uniform float fade_end_m = 140.0;
 uniform float fade_amount = 0.75;
+// M2W1 astraB: the place map (scripts/visual/place_map.gd, built at map load from the placed pieces; R trodden,
+// G shelter, B contact, A the broad noise that used to be the 360 m noise fetch) and the citadel hill's bands.
+// Still eight fetches: paint, place, mid noise, near noise and the four surface tiles. place_enabled 0 (no place
+// map: a material made outside a map build) reads no masks and a flat broad noise.
+uniform sampler2D place_map : filter_linear, repeat_disable;
+uniform float place_enabled = 0.0;
+uniform vec3 trodden_color : source_color = vec3(0.62, 0.55, 0.45);
+uniform float trodden_amount = 0.0;
+uniform float trodden_contrast = 0.35;
+uniform float trodden_smooth = 0.7;
+uniform vec3 shelter_color : source_color = vec3(0.3, 0.29, 0.2);
+uniform float shelter_amount = 0.0;
+uniform float shelter_grass = 0.0;
+uniform float contact_dark = 0.0;
+uniform float open_dark = 0.0;
+uniform float open_calm = 0.0;
+uniform float near_break = 0.0;
+uniform float hill_amount = 0.0;
+uniform float hill_from_m = 0.4;
+uniform float hill_skirt_m = 5.0;
+uniform float hill_crown_m = 17.0;
+uniform float hill_band_m = 3.2;
+uniform float hill_band_noise_m = 2.5;
+uniform vec2 hill_band_tilt = vec2(0.03, -0.02);
+uniform vec3 hill_skirt_color : source_color = vec3(0.34, 0.29, 0.24);
+uniform vec3 hill_ochre_a : source_color = vec3(0.62, 0.46, 0.3);
+uniform vec3 hill_ochre_b : source_color = vec3(0.5, 0.38, 0.27);
+uniform vec3 hill_crown_color : source_color = vec3(0.82, 0.78, 0.7);
+uniform float hill_rock_keep = 0.5;
+uniform float hill_paving_absorb = 0.0;
+// Storm puddles and wet ground (defaults: the item-4 look).
+uniform float puddle_roughness = 0.04;
+uniform float puddle_specular = 0.9;
+uniform float wet_rough_vary = 0.0;
+uniform float puddle_far_m = 100000.0;  // puddles fade out between half this and this camera distance
+uniform float ground_specular = 0.5;  // dry ground's specular (0.5 = the item-4 look); lower = less sheen towards the sun
 
 varying vec3 v_world;
 varying vec3 v_normal_world;
@@ -75,15 +112,28 @@ void vertex() {
 void fragment() {
 	vec2 p = v_world.xz;
 	if (detail_enabled) {
-		vec4 paint_d = texture(paint_map, p / map_size_m + 0.5);
-		vec4 L = texture(noise_pack, p / detail_large_m + vec2(0.37, 0.11));
+		vec2 ground_uv = p / map_size_m + 0.5;
+		vec4 paint_d = texture(paint_map, ground_uv);
+		vec4 P = texture(place_map, ground_uv);
 		vec4 M = texture(noise_pack, p / detail_mid_m + vec2(0.71, 0.29));
 		vec4 Nn = texture(noise_pack, p / detail_near_m + vec2(0.13, 0.53));
+		// Outside the ground square (the backdrop skirt) and without a place map: no masks, a flat broad noise.
+		float inside = place_enabled * (1.0 - step(0.5, max(abs(ground_uv.x - 0.5), abs(ground_uv.y - 0.5))));
+		P = mix(vec4(0.0, 0.0, 0.0, 0.5), P, inside);
+		vec4 L = vec4(mix(M.a, 1.0 - P.a, 0.5), P.a, 0.0, 0.0);  // the broad noise (was a 360 m noise fetch)
 		float dist = length(v_world - CAMERA_POSITION_WORLD);
 		float far_k = smoothstep(fade_start_m, fade_end_m, dist) * fade_amount;  // tiling detail fades into macro colour
 		float near_k = 1.0 - smoothstep(near_detail_m * 0.5, near_detail_m, dist);
 		vec2 warp = (M.rg - 0.5) * warp_m;  // bends the tiles' grid a little so the repeat does not line up
 		float paving = smoothstep(0.42, 0.58, paint_d.r + (M.b - 0.5) * edge_noise * 0.9 + (M.g - 0.5) * edge_noise * 0.3);
+		// The citadel hill (the only ground above the plain): its height drives the bands; the paint's pale paving
+		// halo at its foot goes under the base skirt (the summit's paving stays).
+		float h = v_world.y;
+		float hill_w = smoothstep(hill_from_m, hill_from_m + 1.0, h) * hill_amount;
+		paving *= 1.0 - smoothstep(0.05, hill_from_m + 0.6, h) * (1.0 - smoothstep(hill_crown_m, hill_crown_m + 2.0, h)) * hill_paving_absorb;
+		float trod = P.r * (1.0 - paving);
+		float shel = P.g * (1.0 - paving) * (1.0 - trod * 0.6) * (1.0 - hill_w);
+		float openness = (1.0 - smoothstep(0.0, 0.35, max(P.r, P.g))) * inside * (1.0 - hill_w);
 		// Rock and scree on the slopes (the hill's steepest is 29 degrees: planar xz stretches 14% there at most).
 		// It also covers most of the paint's paving there (looks only: the paint map and footsteps are unchanged).
 		float slope = 1.0 - normalize(v_normal_world).y;
@@ -94,6 +144,10 @@ void fragment() {
 		float bare = smoothstep(bare_level, bare_level + 0.1, M.g * 0.65 + L.r * 0.35 + (M.b - 0.5) * 0.15) * bare_amount;
 		float grass = grass_paint * (1.0 - bare) * (1.0 - paving);
 		float creep = (1.0 - grass_paint) * smoothstep(0.55, 0.78, L.g * 0.5 + M.g * 0.35 + M.b * 0.15) * creep_amount * (1.0 - paving);
+		// Trodden ground has no grass; sheltered ground grows weeds and grass in pockets.
+		grass *= 1.0 - trod * 0.95;
+		creep *= 1.0 - trod;
+		grass = max(grass, shel * shelter_grass * smoothstep(0.35, 0.65, M.g * 0.5 + Nn.r * 0.25 + M.b * 0.25));
 		rock *= 1.0 - paving;
 		vec4 te = texture(surfaces, vec3((p + warp) * tiles_per_m.x, layer_ids.x));
 		vec4 tg = texture(surfaces, vec3((p - warp) * tiles_per_m.y, layer_ids.y));
@@ -101,7 +155,7 @@ void fragment() {
 		vec4 tr = texture(surfaces, vec3((p + warp * 0.5) * rock_tiles_per_m, rock_layer));
 		te.ba = mix(vec2(0.5), te.ba, earth_bump);  // the dirt tile's pebble bumps repeat: keep them low
 		tr.ba = mix(vec2(0.5), tr.ba, rock_bump);  // grazing sun on a shaded slope: strong bumps light up as flecks
-		float er = mix(te.r, 0.5, far_k);
+		float er = mix(te.r, 0.5, clamp(far_k + near_break * Nn.r + open_calm * openness * 0.5, 0.0, 1.0));  // breaks the pebble repeat
 		float gr = mix(tg.r, 0.5, far_k);
 		float rr = mix(tr.r, 0.5, far_k * 0.6);
 		vec3 earth_col = mix(earth_umber, earth_ochre, smoothstep(0.3, 0.7, L.g * 0.55 + M.r * 0.45));
@@ -116,27 +170,44 @@ void fragment() {
 		// Grass in the paving joints near the grass, a darker dirt band where the paving meets the earth.
 		float joint = 1.0 - smoothstep(0.18, 0.32, tp.r);
 		stone = mix(stone, green_col * 0.7, joint * grass_paint * paving_joint_grass);
+		// Compacted aprons and tracks: paler, smoother earth; sheltered edges: darker, damp and greener.
+		earth = mix(earth, trodden_color * (1.0 + (er - 0.5) * trodden_contrast), trod * trodden_amount);
 		vec3 albedo_d = mix(earth, creep_col, creep * smoothstep(0.45, 0.6, gr));
+		albedo_d = mix(albedo_d, shelter_color * (1.0 + (gr - 0.5) * grass_contrast * 0.5), shel * shelter_amount);
 		albedo_d = mix(albedo_d, green, grass);
+		albedo_d = mix(albedo_d, grass_lush * 0.72 * (1.0 + (gr - 0.5) * grass_contrast * 0.5), shel * grass * shelter_amount);  // lusher, darker grass in shelter
 		albedo_d = mix(albedo_d, rock_c, rock);
+		// The hill: a dark scree skirt at the base, tilted ochre strata up the flank, a pale limestone crown.
+		float hb = h + (M.g - 0.5) * hill_band_noise_m * 2.0 + dot(p, hill_band_tilt);
+		float strata = smoothstep(-0.35, 0.35, sin(hb * 6.2831853 / hill_band_m) + (M.b - 0.5) * 0.6);
+		vec3 hill_col = mix(hill_ochre_b, hill_ochre_a, strata) * (1.0 + (rr - 0.5) * rock_contrast);
+		hill_col = mix(hill_col, hill_skirt_color * (1.0 + (er - 0.5) * earth_contrast), 1.0 - smoothstep(hill_skirt_m * 0.6, hill_skirt_m * 1.4, hb));
+		hill_col = mix(hill_col, hill_crown_color * (1.0 + (rr - 0.5) * rock_contrast * 0.6), smoothstep(hill_crown_m - 2.5, hill_crown_m + 2.5, hb));
+		albedo_d = mix(albedo_d, hill_col, hill_w * (1.0 - rock * hill_rock_keep));
 		float edge = clamp(paving * (1.0 - paving) * 4.0, 0.0, 1.0);
 		albedo_d = mix(albedo_d, stone, paving);
 		albedo_d = mix(albedo_d, paving_edge_color, edge * paving_edge * (1.0 - grass_paint * 0.5));
-		// One value term over all of it at the three scales, then the near grain.
-		albedo_d *= 1.0 + (L.g * 0.45 + M.g * 0.35 + M.b * 0.2 - 0.5) * 2.0 * macro_value;
+		// One value term over all of it at the three scales (calmer on open ground), then the near grain.
+		albedo_d *= 1.0 + (L.g * 0.45 + M.g * 0.35 + M.b * 0.2 - 0.5) * 2.0 * macro_value * (1.0 - open_calm * openness);
 		albedo_d *= 1.0 + (Nn.b - 0.5) * near_strength * near_k;
+		// Open earth far from everything is a step darker than the aprons; contact darkens under clutter and wall feet.
+		albedo_d *= 1.0 - open_dark * openness;
+		albedo_d *= 1.0 - contact_dark * P.b;
 		vec4 t_d = mix(mix(mix(te, tg, grass), tr, rock), tp, paving);
 		float low_d = 1.0 - M.r * 0.6 - t_d.r * 0.25 - M.g * 0.15;
 		float puddle_d = smoothstep(puddle_level, puddle_level + puddle_soft, low_d + wet * 0.5 - 0.5) * (1.0 - grass * 0.8) * (1.0 - rock) * step(0.001, wet);
+		puddle_d *= 1.0 - smoothstep(puddle_far_m * 0.5, puddle_far_m, dist);  // no distant mirror glints of the sun
 		float damp_d = wet * (1.0 - grass * 0.5) * (1.0 - rock * 0.6);  // rain runs off the slopes
 		albedo_d *= mix(1.0, wet_dark, max(damp_d * 0.7, puddle_d));
 		ALBEDO = albedo_d;
-		ROUGHNESS = mix(mix(t_d.g, wet_roughness + 0.25, damp_d * 0.6), 0.04, puddle_d);
-		vec2 n_d = (t_d.ba * 2.0 - 1.0) * (1.0 - puddle_d) * (1.0 - far_k * 0.8) + (Nn.gb - 0.5) * near_bump * near_k;
+		// Wet: the roughness varies with the near and mid noise, so the rain never makes one mirror of the ground.
+		float wet_rough_d = wet_roughness + 0.25 + (Nn.g - 0.5) * wet_rough_vary + (M.r - 0.5) * wet_rough_vary;
+		ROUGHNESS = mix(mix(t_d.g, wet_rough_d, damp_d * 0.6), puddle_roughness, puddle_d);
+		vec2 n_d = (t_d.ba * 2.0 - 1.0) * (1.0 - puddle_d) * (1.0 - far_k * 0.8) * (1.0 - trod * trodden_smooth) + (Nn.gb - 0.5) * near_bump * near_k;
 		vec3 tangent_d = normalize((VIEW_MATRIX * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
 		vec3 bitangent_d = normalize((VIEW_MATRIX * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
 		NORMAL = normalize(NORMAL + tangent_d * n_d.x * 1.2 + bitangent_d * n_d.y * 1.2);
-		SPECULAR = mix(0.5 - rock * 0.25, 0.9, puddle_d);
+		SPECULAR = mix(ground_specular - rock * 0.25, puddle_specular, puddle_d);
 	} else {
 	vec4 paint = texture(paint_map, p / map_size_m + 0.5);
 	vec4 nz = texture(noise_pack, p * macro_per_m);

@@ -67,7 +67,9 @@ func test_meshes_load_with_the_kit_vertex_data_low_and_within_caps() -> void:
 		assert_true(m.surface_get_material(0) == want, "%s: the %s material" % [type, "foliage" if WorldClutter.uses_foliage(type) else "world"])
 		var tris := Perf.triangles(m)
 		var info := WorldClutter.info(type)
-		assert_true(tris >= 12 and tris <= int(WorldClutter.type_cfg(type)["max_tris"]) and tris <= 250, "%s: %d triangles within its cap" % [type, tris])
+		# M2W1 astraB: a composed group (data "compose", merged at load from glb meshes) may pass 250 up to its own cap.
+		var composed := WorldClutter.type_cfg(type).has("compose")
+		assert_true(tris >= 12 and tris <= int(WorldClutter.type_cfg(type)["max_tris"]) and (tris <= 250 or composed), "%s: %d triangles within its cap" % [type, tris])
 		assert_true(float(info["top"]) <= cap_h, "%s: top %.3f m <= %.2f (upright: instances turn about y only)" % [type, info["top"], cap_h])
 		print("M2W1_CLUTTER_TYPE %s kind=%s tris=%d top=%.3f radius=%.2f footprint=%s" % [type, WorldClutter.type_cfg(type)["kind"], tris, info["top"], info["radius"], str((info["half"] as Vector2) * 2.0)])
 
@@ -191,6 +193,8 @@ func test_budgets() -> void:
 	for k: String in per_chunk:
 		worst = maxi(worst, int(per_chunk[k]))
 	assert_true(worst <= int(budgets["batches_per_chunk"]), "at most %d clutter batches in a chunk (%d)" % [budgets["batches_per_chunk"], worst])
+	# M2W1 astraB: clutter batches map-wide (was 503 at 18bb0ab).
+	assert_true(_batches(map).size() <= int(budgets["batches"]), "%d clutter batches, cap %d" % [_batches(map).size(), budgets["batches"]])
 	assert_true(instances <= int(budgets["instances"]), "%d clutter instances, cap %d" % [instances, budgets["instances"]])
 	var terrain: MapTerrain = map.get_node("ArtBuilder").terrain
 	var gate := preload("res://tools/gen_alesia.gd").dir_of(0.0) * float(DataRegistry.parse_quiet(MAP_1KM)["generator"]["outer_wall"]["radius_m"])

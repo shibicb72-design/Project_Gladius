@@ -13,6 +13,9 @@ var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and d
 var decor_types := {}
 ## M2W1 item 5: WorldClutter.populate's report ({} = no clutter on this map or the switch is off).
 var clutter_report := {}
+## M2W1 astraB: the place map (PlaceMap; null when the ground has no detail path).
+var place_map: PlaceMap
+const PlaceMap := preload("res://scripts/visual/place_map.gd")
 ## The map json this scene builds. MatchRoot sets it before the map enters the tree; scenes built
 ## directly keep the default.
 @export var map_json: String = "res://data/maps/alesia_section.json"
@@ -130,7 +133,18 @@ func _ready() -> void:
 	# M2W1 item 5: the paint is made from the bodies' data only, so it comes before chunks.build(): the clutter
 	# (looks only, MapChunks source "clutter") reads the paint and every body, door and ladder built above.
 	_paint_ground(nav)
+	# M2W1 astraB: the place map (looks only; from the built bodies, never saved, never a hashed input) for the ground
+	# shader and the clutter; the clutter adds its contact blobs, then the texture goes to the ground material.
+	place_map = null
+	if ground_material != null and bool(ground_material.get_shader_parameter("detail_enabled")):
+		place_map = PlaceMap.build(self, ground_size_m)
 	clutter_report = WorldClutter.populate(self, chunks, map_def)
+	if place_map != null:
+		var contact_started := Time.get_ticks_usec()
+		place_map.add_contact(clutter_report.get("contact", []))
+		ground_material.set_shader_parameter("place_map", place_map.texture())
+		ground_material.set_shader_parameter("place_enabled", 1.0)
+		place_map.build_ms += int((Time.get_ticks_usec() - contact_started) / 1000)
 	chunks.build()
 	for body in chest_bodies:
 		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed

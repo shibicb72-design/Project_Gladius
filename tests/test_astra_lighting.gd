@@ -22,7 +22,8 @@ func test_mobile_lighting_depth_fog_and_one_hard_sun() -> void:
 	assert_eq(env.fog_mode, Environment.FOG_MODE_DEPTH, "explicit nonvolumetric depth fog")
 	assert_eq(env.fog_light_color, GreyboxArt.color_value(cfg["fog_color"]), "fog color from data")
 	assert_true(is_equal_approx(env.fog_density, float(cfg["fog_density"])), "fog density from data")
-	assert_eq(env.tonemap_mode, Environment.TONE_MAPPER_ACES, "ACES placeholder")
+	# M2W1 astraB: the variant may choose its tonemapper (dusk, night and storm: AgX; dusk_deep keeps ACES).
+	assert_eq(env.tonemap_mode, GreyboxArt.TONEMAPPERS[String(cfg["tonemap"])], "the base variant's tonemapper")
 	assert_true(not env.ssao_enabled and not env.ssil_enabled and not env.ssr_enabled and not env.sdfgi_enabled and not env.volumetric_fog_enabled, "advanced effects disabled")
 	var lights := _shadow_lights(match_scene)
 	# Shibi Oct 29 2026 5:05 AM: no lighting perf caps. Always verify the actual sun.

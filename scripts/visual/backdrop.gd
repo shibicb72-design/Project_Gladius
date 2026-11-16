@@ -292,6 +292,13 @@ func _build_far_hills(cfg: Dictionary) -> void:
 			var fine := noise.get_noise_2d(cos(angle) * 6.1 + 2.0, sin(angle) * 6.1 + ring_index * 3.0) * 0.5 + 0.5
 			var r := radius * (1.0 + wobble * (broad - 0.5) * 2.0)
 			var h := lerpf(h_lo, h_hi, clampf(broad * 0.75 + fine * 0.45 - 0.1, 0.0, 1.0)) * (1.0 if i % 2 == 0 else lerpf(0.72, 0.92, fine))
+			if ring.has("profile"):
+				# M2W1 astraB: a composed skyline by compass bearing ([bearing deg, height m, radius scale, rough]),
+				# the noise only roughening it by `rough` (0 = a clean table edge).
+				var bearing := fposmod(rad_to_deg(angle) + 90.0, 360.0)  # ring angle (x = cos, z = sin) to compass (0 = north = -z)
+				var pr := profile_at(ring["profile"], bearing)
+				r = radius * pr.y * (1.0 + wobble * pr.z * (broad - 0.5) * 2.0)
+				h = pr.x * (1.0 + pr.z * (fine - 0.5) * 0.5) * (1.0 if i % 2 == 0 else lerpf(1.0 - 0.28 * pr.z, 1.0, fine))
 			var foot := dir * r
 			var ground := skirt_height(foot.x, foot.z)
 			(rows[0] as Array).append(foot + Vector3.UP * (ground - 3.0))
@@ -314,6 +321,9 @@ func _build_far_hills(cfg: Dictionary) -> void:
 				LowpolyKit._triangle(st, a, d, c, colour)
 				LowpolyKit._triangle(st, a, b, d, colour)
 		ring_index += 1
+	# M2W1 astraB: flat pale bands on the skirt (a river or lake in the open direction), part of this mesh: no draw.
+	for band: Dictionary in cfg.get("bands", []):
+		_band(st, band)
 	LowpolyKit._surface = -1
 	var mesh := st.commit()
 	mesh.surface_set_material(0, WorldSurface.material())
@@ -322,6 +332,48 @@ func _build_far_hills(cfg: Dictionary) -> void:
 	node.mesh = mesh
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(node)
+
+
+## M2W1 astraB: a ring's skyline at a compass bearing: Vector3(height m, radius scale, rough), linear between the
+## profile's points [bearing deg, height m, radius scale, rough] (sorted by bearing; it wraps round 360).
+static func profile_at(profile: Array, bearing: float) -> Vector3:
+	var n := profile.size()
+	if n == 0:
+		return Vector3(0.0, 1.0, 1.0)
+	for k in n:
+		var a: Array = profile[k]
+		var b: Array = profile[(k + 1) % n]
+		var b0 := float(a[0])
+		var b1 := float(b[0]) + (360.0 if k == n - 1 else 0.0)
+		var at := bearing if bearing >= b0 else bearing + 360.0
+		if at >= b0 and at <= b1:
+			var t := (at - b0) / maxf(b1 - b0, 0.001)
+			t = t * t * (3.0 - 2.0 * t)
+			return Vector3(lerpf(float(a[1]), float(b[1]), t), lerpf(float(a[2]), float(b[2]), t), lerpf(float(a[3]), float(b[3]), t))
+	var first: Array = profile[0]
+	return Vector3(float(first[1]), float(first[2]), float(first[3]))
+
+
+## A flat band on the skirt along an arc: {bearings_deg: [from, to], radius_m: [inner, outer], segments, lift_m, color}.
+func _band(st: SurfaceTool, band: Dictionary) -> void:
+	var from := float(band["bearings_deg"][0])
+	var to := float(band["bearings_deg"][1])
+	var r0 := float(band["radius_m"][0])
+	var r1 := float(band["radius_m"][1])
+	var segs := int(band.get("segments", 12))
+	var colour := GreyboxArt.color_value(band["color"])
+	LowpolyKit._shade = 0.5
+	for i in segs:
+		var pts: Array[Vector3] = []
+		for k in 2:
+			var ang := deg_to_rad(lerpf(from, to, float(i + k) / segs) - 90.0)
+			var dir := Vector3(cos(ang), 0.0, sin(ang))
+			for r: float in [r0, r1]:
+				var p := dir * r
+				pts.append(Vector3(p.x, skirt_height(p.x, p.z) + float(band.get("lift_m", 0.3)), p.z))
+		# pts: [i inner, i outer, i+1 inner, i+1 outer]; faces up.
+		LowpolyKit._triangle(st, pts[0], pts[3], pts[1], colour)
+		LowpolyKit._triangle(st, pts[0], pts[2], pts[3], colour)
 
 
 ## A far aqueduct line: the kit's far aqueduct span (its LOD mesh) scaled up, one every span length on a straight line.
@@ -376,8 +428,21 @@ func _build_far_trees(cfg: Dictionary) -> void:
 	var r1 := float(cfg["radius_m"][1])
 	var min_r := float(cfg["wall_radius_m"]) + float(cfg["min_from_wall_m"])
 	var clear := float(cfg.get("clear_of_square_m", 150.0))
+	# M2W1 astraB (optional): "sectors" [[compass bearing, spread deg, weight], ...] put the clumps in those
+	# directions (the wooded west) instead of all round.
+	var sectors: Array = cfg.get("sectors", [])
+	var total := 0.0
+	for s: Array in sectors:
+		total += float(s[2])
 	for k in int(cfg["clumps"]):
 		var angle := rng.randf() * TAU
+		if total > 0.0:
+			var pick := angle / TAU * total
+			for s: Array in sectors:
+				pick -= float(s[2])
+				if pick <= 0.0:
+					angle = deg_to_rad(float(s[0]) + (rng.randf() - 0.5) * float(s[1]) - 90.0)
+					break
 		var c := Vector2(cos(angle), sin(angle)) * lerpf(r0, r1, rng.randf())
 		for m in rng.randi_range(int(cfg["per_clump"][0]), int(cfg["per_clump"][1])):
 			var p := c + Vector2(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0)) * float(cfg["clump_spread_m"])

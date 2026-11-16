@@ -52,6 +52,13 @@
 		{"name": "48_cover_rubble", "cam": [-13.2, -3.4], "look": [-9.5, 0.45, -0.5], "note": "M2W1 astraA close-up: the rubble pile Cover_006 on the Arx from 4.7 m"},
 		{"name": "49_cover_chest", "cam": [59.0, -181.0], "look": [63.0, 0.4, -181.5], "note": "M2W1 astraA close-up: Chest_000 (closed; its front faces -x) from 4 m"},
 		{"name": "50_cover_field", "cam": [-24.0, -12.0], "look": [-2.0, 1.0, 0.0], "note": "M2W1 astraA: eye height on the Arx among its cover (low and tall walls, barrier, pillars, arch, rubble, sandbags) at 10-25 m"},
-		{"name": "51_cover_rock_ring", "cam": [-213.5, 301.5], "look": [-209.0, 0.6, 306.0], "note": "M2W1 astraA close-up: the outer-ring boulder Ring_004 from 6.4 m"}
+		{"name": "51_cover_rock_ring", "cam": [-213.5, 301.5], "look": [-209.0, 0.6, 306.0], "note": "M2W1 astraA close-up: the outer-ring boulder Ring_004 from 6.4 m"},
+		{"name": "52_camp_roof", "cam": [73.6, -221.7], "eye_m": 5.2, "look": [52.0, 0.0, -200.0], "note": "M2W1 astraB: Castra Prima from the roof of Castra1_Barracks_1 (3.4 m up): the camp's composition, aprons, tracks, groups"},
+		{"name": "53_wall_foot", "cam": [3.0, -147.0], "look": [-6.0, 0.3, -141.5], "note": "M2W1 astraB: the outer foot of InnerRing_002 and its neighbours: shelter band, stone and weed patches, contact"},
+		{"name": "54_pier_foot", "cam": [22.0, -196.0], "look": [4.5, 0.3, -214.0], "note": "M2W1 astraB: along the feet of Aquaeductus Magnus' piers: patches and shelter at the pier feet"},
+		{"name": "55_orient_n", "cam": [-159.0, -437.0], "look": [-159.0, 30.0, -1437.0], "note": "M2W1 astraB: one field spot, eye height, looking north (the massif, the far aqueduct)"},
+		{"name": "56_orient_e", "cam": [-159.0, -437.0], "look": [841.0, 30.0, -437.0], "note": "M2W1 astraB: the same spot looking east (the table ridge)"},
+		{"name": "57_orient_s", "cam": [-159.0, -437.0], "look": [-159.0, 30.0, 563.0], "note": "M2W1 astraB: the same spot looking south (the outer wall, the open plain beyond)"},
+		{"name": "58_orient_w", "cam": [-159.0, -437.0], "look": [-1159.0, 30.0, -437.0], "note": "M2W1 astraB: the same spot looking west (rounded wooded hills)"}
 	]
 }

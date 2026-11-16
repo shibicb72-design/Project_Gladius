@@ -135,6 +135,28 @@ func test_optional_keys_default_to_the_look_before_m2w1() -> void:
 	fresh.free()
 
 
+## M2W1 astraB: glow_gain (world glow per variant) and the sky's round cloud light are optional; their defaults
+## draw as before, and the variants that set them reach the materials.
+func test_astra_b_optional_keys() -> void:
+	assert_eq(float(MatchLook.resolved("dusk_deep")["glow_gain"]), 1.0, "dusk_deep: glow gain 1 (as authored)")
+	var surface_code := (load(WorldSurface.SHADER_PATH) as Shader).code
+	assert_true(surface_code.contains("uniform float glow_gain = 1.0;"), "world shader default: glow_gain 1")
+	var sky_code := (load("res://scripts/visual/shaders/sky_astra.gdshader") as Shader).code
+	for decl: String in ["uniform float cloud_sun_3d = 0.0;", "uniform float sun_halo_wide = 0.18;"]:
+		assert_true(sky_code.contains(decl), "sky default: " + decl)
+	var stage := _stage()
+	var world := stage.get_node("WorldEnvironment") as WorldEnvironment
+	world.call("_apply_environment", world, "night")
+	assert_true(float(MatchLook.resolved("night")["glow_gain"]) > 1.0, "night raises the world glow")
+	assert_true(is_equal_approx(float(WorldSurface.material().get_shader_parameter("glow_gain")), float(MatchLook.resolved("night")["glow_gain"])), "night's glow gain reaches the world material")
+	world.call("_apply_environment", world, "dusk")
+	var sky_mat := world.environment.sky.sky_material as ShaderMaterial
+	assert_eq(float(sky_mat.get_shader_parameter("cloud_sun_3d")), 1.0, "dusk: clouds lit round the sun (no vertical glow column)")
+	world.call("_apply_environment", world, "dusk_deep")
+	assert_true(is_equal_approx(float(WorldSurface.material().get_shader_parameter("glow_gain")), 1.0), "dusk_deep: glow gain back to 1")
+	stage.free()
+
+
 func test_no_light_increase_and_decor_out_of_the_hill() -> void:
 	for path: String in ["res://data/maps/alesia_1km.json", "res://data/maps/alesia_section.json"]:
 		var stage := _stage(path)

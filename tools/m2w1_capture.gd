@@ -132,6 +132,16 @@ func _run() -> bool:
 	if _look != null:
 		_look.set("_flash_wait", -1.0)  # no storm lightning: every capture shows the variant's steady light
 	print("M2W1_BUILD map=%s variant=%s build_ms=%d" % [_map_path, _variant, Time.get_ticks_msec() - t0])
+	# M2W1 astraB: the place map (when the map built one), saved beside the shots for review.
+	var place: Variant = map.get_node("ArtBuilder").get("place_map")
+	if place != null:
+		var clutter: Dictionary = map.get_node("ArtBuilder").get("clutter_report")
+		print("M2W1_PLACE px=%d build_ms=%d stamps=%d clutter_instances=%d clutter_ms=%d" % [place.px, place.build_ms, place.stamps,
+				int(clutter.get("instances", 0)), int(clutter.get("ms", 0))])
+		print("M2W1_CLUTTER scatter=%s dressing=%s dropped=%s capped=%d" % [str(clutter.get("scatter", {})), str(clutter.get("dressing", {})),
+				str(clutter.get("dropped", {})), int(clutter.get("capped", 0))])
+		print("M2W1_CLUTTER_DROPPED_BY %s" % str(clutter.get("dropped_by", {})))
+		place.image().save_png(_out.path_join("%s_place_map.png" % _tag))
 	_soldier = _PawnScene.instantiate()
 	_soldier.name = "M2W1Soldier"
 	_stage.add_child(_soldier)

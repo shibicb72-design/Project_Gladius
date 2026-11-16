@@ -89,7 +89,10 @@ func test_fetch_budget_and_one_branch() -> void:
 	var on: String = _branches()[0]
 	var fetches := on.count("texture(")
 	assert_true(fetches <= MAX_DETAIL_FETCHES, "detail branch: %d fetches, at most %d" % [fetches, MAX_DETAIL_FETCHES])
-	assert_eq(fetches, 8, "detail branch: paint, 3 noise, 4 surface tiles")
+	# M2W1 astraB: the 360 m noise fetch is gone (its value is the place map's A, baked at load); the place map
+	# takes that fetch: still eight.
+	assert_eq(fetches, 8, "detail branch: paint, place map, 2 noise, 4 surface tiles")
+	assert_true(on.contains("texture(place_map,") and not on.contains("p / detail_large_m"), "the place map replaces the 360 m noise fetch")
 	var frag := _code().substr(_code().find("void fragment()"))
 	assert_eq(frag.count("if ("), 1, "one branch in the fragment (on the uniform detail_enabled)")
 	assert_true(on.contains("puddle_d") and on.contains("wet"), "the detail branch keeps the wet and puddle terms")

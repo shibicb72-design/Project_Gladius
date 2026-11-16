@@ -18,7 +18,7 @@
 		"max_slope_scatter_deg": 30,
 		"clutter_gap_m": 0.1,
 		"scatter_prop_gap_m": 0.25,
-		"max_batches_per_chunk": 12,
+		"max_batches_per_chunk": 8,
 		"min_kept_share": 0.6
 	},
 	"_paints_note": "Paints the palette (data/art_astra.json, read-only) lacks: sRGB and the surface (data/art_materials.json surface_order) the world shader shows.",
@@ -38,87 +38,92 @@
 		"broom": {"srgb": [0.98, 0.8, 0.2, 1], "surface": "plain"}
 	},
 	"_types_note": "kind prop (dressing, class clutter_prop) or scatter (class clutter_scatter); material kit = the shared world material (WorldKit.material()), foliage = the swaying grass shader (vertex colours as linear albedo, no culling); max_tris = the triangle cap.",
+	"_astraB_note": "M2W1 astraB (F1, F10; OQ-ART-WORLD placeholders): the palette is cut to the forms that read (helmet_rack, caltrops, cippus and stakes_lying are no longer placed; the glb still holds them) and the placed types are mostly GROUPS merged at load from the glb's meshes (\"compose\": [[member, x, z, yaw degrees, scale]], each member's footprint centre at x, z; WorldClutter._composed): three camp groups in the world material (supply_row, fire_ring, arms_trough) and two ground patches in the foliage material (veg_patch: grass, scrub and weeds; stone_patch: stones with a weed and a scrub; the stones keep their own shading). kind part = a member only, never placed by itself. Fewer, bigger, purposeful groups against walls and cover instead of an even sprinkle; every group is checked by the same rules as one instance (its whole footprint). ground_shade [height m, darkest]: a composed group's vertex colour darkens towards its foot (baked at load; the glb is unchanged). contact_prop / a type's contact / a scatter kind's contact: the strength of the soft dark blob the place map (scripts/visual/place_map.gd, channel B) lays under each placed group or patch.",
+	"ground_shade": [0.22, 0.55],
+	"contact_prop": 0.7,
 	"types": {
 		"stores": {"kind": "prop", "material": "kit", "max_tris": 250},
 		"supply_crate": {"kind": "prop", "material": "kit", "max_tris": 250},
-		"arms": {"kind": "prop", "material": "kit", "max_tris": 250},
-		"trough": {"kind": "prop", "material": "kit", "max_tris": 250},
-		"bench": {"kind": "prop", "material": "kit", "max_tris": 200},
+		"arms": {"kind": "part", "material": "kit", "max_tris": 250},
+		"trough": {"kind": "part", "material": "kit", "max_tris": 250},
+		"bench": {"kind": "part", "material": "kit", "max_tris": 200},
 		"brazier_bowl": {"kind": "prop", "material": "kit", "max_tris": 200},
-		"campfire": {"kind": "prop", "material": "kit", "max_tris": 250},
+		"campfire": {"kind": "part", "material": "kit", "max_tris": 250},
 		"bedrolls": {"kind": "prop", "material": "kit", "max_tris": 250},
-		"helmet_rack": {"kind": "prop", "material": "kit", "max_tris": 250},
-		"caltrops": {"kind": "prop", "material": "kit", "max_tris": 200},
 		"ammo_case": {"kind": "prop", "material": "kit", "max_tris": 250},
-		"cippus": {"kind": "prop", "material": "kit", "max_tris": 150},
 		"rubble": {"kind": "prop", "material": "kit", "max_tris": 250},
-		"stakes_lying": {"kind": "prop", "material": "kit", "max_tris": 200},
-		"grass_clump": {"kind": "scatter", "material": "foliage", "max_tris": 64},
-		"weeds": {"kind": "scatter", "material": "foliage", "max_tris": 30},
-		"scrub": {"kind": "scatter", "material": "foliage", "max_tris": 64},
-		"stones": {"kind": "scatter", "material": "kit", "max_tris": 100}
+		"grass_clump": {"kind": "part", "material": "foliage", "max_tris": 64},
+		"weeds": {"kind": "part", "material": "foliage", "max_tris": 30},
+		"scrub": {"kind": "part", "material": "foliage", "max_tris": 64},
+		"stones": {"kind": "part", "material": "kit", "max_tris": 100},
+		"supply_row": {"kind": "group", "material": "kit", "max_tris": 700, "compose": [["stores", -0.7, 0.0, 0, 1.0], ["supply_crate", 1.0, 0.02, 0, 1.0], ["ammo_case", 0.1, 0.66, 8, 1.0]]},
+		"fire_ring": {"kind": "group", "material": "kit", "max_tris": 750, "compose": [["campfire", 0.0, 0.0, 0, 1.0], ["bedrolls", -1.5, 0.1, 90, 1.0], ["bedrolls", 1.5, -0.15, -88, 1.0], ["bench", 0.05, 1.3, 180, 1.0]]},
+		"arms_trough": {"kind": "group", "material": "kit", "max_tris": 400, "compose": [["arms", 0.0, 0.0, 0, 1.0], ["trough", 0.2, 0.95, 0, 1.0]]},
+		"veg_patch": {"kind": "scatter", "material": "foliage", "max_tris": 250, "contact": 0.4, "compose": [["grass_clump", 0.0, 0.0, 0, 1.0], ["grass_clump", 1.1, 0.5, 130, 0.8], ["scrub", -0.9, 0.35, 40, 1.0], ["weeds", 0.4, -0.75, 200, 1.1], ["weeds", -0.5, -0.6, 80, 0.9]]},
+		"stone_patch": {"kind": "scatter", "material": "foliage", "max_tris": 250, "contact": 0.5, "compose": [["stones", 0.0, 0.0, 0, 1.25], ["stones", 0.75, 0.25, 120, 0.85], ["weeds", -0.6, 0.15, 30, 1.0], ["scrub", 0.2, -0.5, 300, 0.75]]}
 	},
-	"foliage": {"height_m": 0.42, "amplitude_m": 0.05, "speed": 1.3, "frequency": 0.9, "roughness": 0.95},
+	"foliage": {"height_m": 0.42, "amplitude_m": 0.05, "speed": 1.3, "frequency": 0.9, "roughness": 0.95, "fade_from_m": 42.0, "fade_to_m": 60.0},
 	"_dressing_note": "Per structure type (source structure) or cover type (source cover): [{type, at: [x, z] in the piece's frame, yaw (degrees, in the piece's frame; a clutter mesh's back is its -z), chance}]. Whether an entry is placed is a hash of the piece id and the entry index (no RNG stream). The ground under it decides its height (the lowest of its centre and footprint corners: it sinks rather than floats).",
 	"dressing": {
+		"_astraB": "M2W1 astraB: groups tight against walls (backs to the wall, clear of doors, windows and ladders), patches of stones and weeds at the feet of walls, piers, rocks and low cover.",
 		"barracks": [
-			{"type": "stores", "at": [-5.24, -1.05], "yaw": -90, "chance": 1.0},			{"type": "supply_crate", "at": [-5.12, 1.45], "yaw": -90, "chance": 0.9},
-			{"type": "arms", "at": [-2.05, 3.86], "yaw": 0, "chance": 1.0},
-			{"type": "bench", "at": [0.4, 3.55], "yaw": 0, "chance": 0.8},
-			{"type": "brazier_bowl", "at": [0.1, -3.75], "yaw": 180, "chance": 1.0},
-			{"type": "trough", "at": [5.15, -2.3], "yaw": 90, "chance": 0.9},
-			{"type": "supply_crate", "at": [5.12, 2.2], "yaw": 90, "chance": 0.7}
+			{"type": "supply_row", "at": [-5.45, 0.4], "yaw": -90, "chance": 1.0},
+			{"type": "arms_trough", "at": [-2.0, 4.0], "yaw": 0, "chance": 0.9},
+			{"type": "brazier_bowl", "at": [0.2, -3.75], "yaw": 180, "chance": 1.0},
+			{"type": "stone_patch", "at": [5.7, -2.3], "yaw": 90, "chance": 0.8}
 		],
 		"tent": [
-			{"type": "campfire", "at": [3.45, 1.7], "yaw": 0, "chance": 0.5},
-			{"type": "bedrolls", "at": [-0.2, -2.8], "yaw": 180, "chance": 0.8},
-			{"type": "helmet_rack", "at": [-2.12, 0.0], "yaw": -90, "chance": 0.6},
-			{"type": "supply_crate", "at": [2.6, -1.95], "yaw": 0, "chance": 0.5},
-			{"type": "arms", "at": [0.4, 2.85], "yaw": 0, "chance": 0.35}
+			{"type": "fire_ring", "at": [4.3, 3.0], "yaw": 0, "chance": 0.45},
+			{"type": "bedrolls", "at": [-0.2, -2.8], "yaw": 180, "chance": 0.6},
+			{"type": "supply_crate", "at": [-2.6, 1.6], "yaw": 90, "chance": 0.35}
 		],
 		"gate": [
 			{"type": "stores", "at": [-3.3, -1.95], "yaw": 180, "chance": 1.0},
-			{"type": "caltrops", "at": [-3.0, -4.3], "yaw": 160, "chance": 1.0},
 			{"type": "ammo_case", "at": [3.1, -2.05], "yaw": 180, "chance": 1.0},
-			{"type": "cippus", "at": [-3.4, 1.95], "yaw": 0, "chance": 1.0},
-			{"type": "supply_crate", "at": [3.2, 2.1], "yaw": 0, "chance": 0.8}
+			{"type": "supply_crate", "at": [3.2, 2.1], "yaw": 0, "chance": 0.8},
+			{"type": "stone_patch", "at": [-3.6, 2.4], "yaw": 0, "chance": 0.8}
 		],
 		"watchtower": [
 			{"type": "ammo_case", "at": [-1.0, 2.95], "yaw": 0, "chance": 0.9},
-			{"type": "caltrops", "at": [-3.05, -1.0], "yaw": -90, "chance": 0.6},
-			{"type": "cippus", "at": [1.0, 2.8], "yaw": 0, "chance": 0.7}
+			{"type": "stone_patch", "at": [-4.2, -1.0], "yaw": 90, "chance": 0.7}
 		],
 		"aqueduct_span": [
-			{"type": "rubble", "at": [4.5, 2.25], "yaw": 0, "chance": 0.35},
-			{"type": "rubble", "at": [-4.5, -2.25], "yaw": 180, "chance": 0.35}
-		],
-		"wall_stair": [
-			{"type": "cippus", "at": [4.6, 2.6], "yaw": 0, "chance": 0.5}
+			{"type": "rubble", "at": [4.5, 2.25], "yaw": 0, "chance": 0.3},
+			{"type": "rubble", "at": [-4.5, -2.25], "yaw": 180, "chance": 0.3},
+			{"type": "stone_patch", "at": [4.5, -2.5], "yaw": 0, "chance": 0.5},
+			{"type": "veg_patch", "at": [-4.5, 2.8], "yaw": 0, "chance": 0.5}
 		],
 		"wall_walk": [
-			{"type": "supply_crate", "at": [2.0, 1.75], "yaw": 0, "chance": 0.05},
-			{"type": "rubble", "at": [-1.5, -2.25], "yaw": 180, "chance": 0.05}
+			{"type": "stone_patch", "at": [2.0, 2.7], "yaw": 0, "chance": 0.12},
+			{"type": "veg_patch", "at": [-1.5, -2.7], "yaw": 0, "chance": 0.15}
 		],
 		"stake_row": [
-			{"type": "stakes_lying", "at": [0.0, 1.15], "yaw": 0, "chance": 0.35}
+			{"type": "veg_patch", "at": [0.0, 1.6], "yaw": 0, "chance": 0.3}
 		],
 		"crate_stack": [
 			{"type": "supply_crate", "at": [2.3, 0.6], "yaw": 90, "chance": 0.35}
 		],
 		"sandbags": [
 			{"type": "ammo_case", "at": [1.6, 1.85], "yaw": 0, "chance": 0.25},
-			{"type": "caltrops", "at": [-1.5, -1.85], "yaw": 180, "chance": 0.2}
+			{"type": "stone_patch", "at": [-2.9, 0.0], "yaw": 90, "chance": 0.35}
 		],
 		"low_wall": [
-			{"type": "rubble", "at": [1.9, -1.8], "yaw": 180, "chance": 0.25}
+			{"type": "stone_patch", "at": [2.9, 0.1], "yaw": 90, "chance": 0.5},
+			{"type": "veg_patch", "at": [-4.1, 0.3], "yaw": 0, "chance": 0.3}
+		],
+		"rock": [
+			{"type": "stone_patch", "at": [2.7, 0.2], "yaw": 90, "chance": 0.6},
+			{"type": "veg_patch", "at": [-3.9, -0.3], "yaw": 0, "chance": 0.4}
+		],
+		"barrier": [
+			{"type": "stone_patch", "at": [-2.7, 0.0], "yaw": 90, "chance": 0.3}
 		]
 	},
 	"_scatter_note": "Per kind: surface = the ground paint it grows on (grass: G >= grass_min; earth: neither paving nor grass; paving_edge (optional): where the paving is between paving_min and paving_max every cell takes one, on any surface), density = instances per 100 m2 inside a patch, outside = per 100 m2 outside the patches, noise_m = the patch noise's feature size, threshold = the noise level (-1..1) a patch starts at, soft = the noise span over which a patch fades in, min_spacing_m, scale [min, max] (capped so the top stays under max_height_m), seed (a FastNoiseLite seed: no gameplay stream).",
+	"_scatter_astraB": "M2W1 astraB: two patch kinds instead of four single kinds. shelter = chance per unit of the place map's shelter (G: the lee foot of walls, piers and buildings), any unpaved ground; trodden_max = no patch where the place map's trodden (R) is above it; noise place = the patch noise is the place map's broad noise (the ground shader's macro patches), so field pockets sit on the shader's grass patches; contact = its contact blob.",
 	"scatter": {
-		"grass_clump": {"surface": "grass", "grass_min": 0.5, "density": 7.0, "outside": 0.2, "noise_m": 24, "threshold": 0.0, "soft": 0.35, "min_spacing_m": 1.6, "scale": [0.8, 1.35], "seed": 501},
-		"scrub": {"surface": "grass", "grass_min": 0.6, "density": 1.2, "outside": 0.06, "noise_m": 45, "threshold": 0.1, "soft": 0.3, "min_spacing_m": 2.0, "scale": [0.8, 1.2], "seed": 502},
-		"stones": {"surface": "any", "grass_min": 0.0, "density": 2.0, "outside": 0.1, "noise_m": 11, "threshold": 0.25, "soft": 0.25, "min_spacing_m": 1.2, "scale": [0.7, 1.5], "seed": 503},
-		"weeds": {"surface": "earth", "grass_min": 0.0, "density": 4.0, "outside": 0.4, "noise_m": 14, "threshold": 0.0, "soft": 0.3, "min_spacing_m": 0.9, "scale": [0.8, 1.3], "seed": 504, "paving_edge": {"paving_min": 0.12, "paving_max": 0.5}}
+		"veg_patch": {"surface": "grass", "grass_min": 0.55, "density": 2.0, "outside": 0.0, "noise": "place", "noise_m": 40, "threshold": 0.0, "soft": 0.25, "min_spacing_m": 3.5, "scale": [0.85, 1.2], "seed": 501, "shelter": 0.75, "trodden_max": 0.25, "contact": 0.4, "ground_green": 0.8, "ground_green_reach": 2.4},
+		"stone_patch": {"surface": "earth", "grass_min": 0.0, "density": 1.0, "outside": 0.0, "noise_m": 30, "threshold": 0.3, "soft": 0.25, "min_spacing_m": 3.0, "scale": [0.8, 1.2], "seed": 503, "shelter": 0.35, "trodden_max": 0.45, "contact": 0.5}
 	},
 	"_maps_note": "Clutter is built only for a map with a block here (the fixture maps alesia_section and test_300 have none, so they build exactly as before). scatter_half_m: scatter covers the square of this half width round the origin (the ground).",
 	"maps": {
@@ -128,6 +133,7 @@
 	"budgets": {
 		"visible_tris": 80000,
 		"instances": 40000,
-		"batches_per_chunk": 12
+		"batches_per_chunk": 8,
+		"batches": 250
 	}
 }

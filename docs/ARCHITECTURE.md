@@ -818,7 +818,30 @@ android/              debug.keystore (shared debug key only)
   - **Far backdrop.** `Backdrop.build(material, map_json, terrain)`: a map named in `art_backdrop.json` `maps`
     gets its own set (alesia_1km: ground skirt to 3 km, three hill rings, a far aqueduct, beacons, cypresses beyond
     the wall; 5 draws, about 10,000 triangles, inside the default 4 km far plane); other maps build the old ring.
-  - **Capture.** `tools/m2w1_capture.gd` with `data/m2w1_capture.json` (named shots per look and size).
+  - **Capture.** `tools/m2w1_capture.gd` with `data/m2w1_capture.json` (named shots per look and size);
+    `tools/m2w1_pixel_probe.gd` samples screen values from a capture.
+  - **After the Astra review (Nov 16 2026).** Built without Blender (it was refused in that session; the two glb
+    files are unchanged, and `tools/blender/m2w1_world_kit.py` was last RUN at commit 1046309):
+    - Cover looks: `data/art_world_kit.json` `cover` holds kit parts per cover type (`same_as`, `swap_xz` share
+      one); `WorldKitMeshes.cover_mesh` builds them with `LowpolyKit.merge` when the kit switch is on, else
+      `LowpolyKit.build_cover` on the hashed file's parts. Breakable and chest looks are the `look` keys in
+      `data/props.json`, built through `WorldKit.prop_look`. One box collider each, unchanged; no far levels.
+    - Shade bake: `WorldKitMeshes.bake_shade` (`shade_bake` keys) multiplies each glb vertex's shade by a value
+      per paint, a ground-contact term, an up/down facing term and a per-type gain, at load. The loader writes
+      CUSTOM0 (x = variation weight, y = shade range, z = grime share); `world_surface.gdshader` takes its new
+      path only for meshes that carry CUSTOM0, so kit meshes, doors and ladders render as before.
+    - Variation: value and warm/cool shift per piece from a hash of its instance origin (`variation` keys), the
+      same for a piece's near and far level.
+    - Place map: `scripts/visual/place_map.gd` paints a 512 px RGBA image at map build from the placed bodies
+      and the clutter (R trodden aprons and tracks, G shelter, B contact shadow, A the old 360 m noise); never
+      saved, no hashed input. The ground shader reads it in place of that noise fetch (still 8 fetches) and
+      adds height bands on the hill (`data/art_ground_detail.json`).
+    - Clutter: composed groups merged at load (supply_row, fire_ring, arms_trough, veg_patch, stone_patch),
+      placed against walls and in sheltered pockets; 246 batches (was 503), `budgets.batches` 250.
+    - Looks: dusk is a low golden hour (sun 13.5 degrees, AgX tonemapper in dusk, night and storm; `dusk_deep`
+      keeps ACES); optional keys `glow_gain` (scales surface glow per variant), `cloud_sun_3d`,
+      `sun_halo_wide`, `wet_far_m`. The backdrop's hill rings take a compass profile (massif north, table
+      east, opening south, wooded hills west).
 
 ### 4.21 Cover
 

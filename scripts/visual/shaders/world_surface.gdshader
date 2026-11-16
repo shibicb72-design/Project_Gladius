@@ -32,6 +32,12 @@ uniform float variation_warm = 0.0;
 uniform float variation_broad = 0.0;
 uniform float variation_cell_m = 8.0;
 uniform float variation_broad_m = 70.0;
+// M2W1 astraB: the look variant's "glow_gain" (data/art_look.json; absent = 1.0, the emission as before) scales the
+// surfaces' own glow (energy lines, lamps, beacons), not the bounce term.
+uniform float glow_gain = 1.0;
+// M2W1 astraB: the wet gloss fades out between half this and this camera distance (default: never), so far hills
+// in the storm do not flash the light back.
+uniform float wet_far_m = 100000.0;
 
 varying flat int v_surface;
 varying vec3 v_world;
@@ -79,7 +85,7 @@ void fragment() {
 	float foot = (1.0 - smoothstep(0.0, grime_height, v_world.y)) * (1.0 - max(up, 0.0)) * v_grime;
 	paint *= mix(1.0, grime_dark, foot * (0.6 + 0.4 * t.r));
 	float rough = clamp(t.g * b.x + b.y, 0.04, 1.0);
-	float soaked = wet * smoothstep(0.2, 0.9, up) * (1.0 - b.z);
+	float soaked = wet * smoothstep(0.2, 0.9, up) * (1.0 - b.z) * (1.0 - smoothstep(wet_far_m * 0.5, wet_far_m, length(v_world - CAMERA_POSITION_WORLD)));
 	paint *= mix(1.0, wet_dark, wet * (1.0 - b.z) * 0.6);
 	ALBEDO = paint;
 	ROUGHNESS = mix(rough, wet_roughness, soaked);
@@ -90,5 +96,5 @@ void fragment() {
 	AO = mix(ambient_down, 1.0, up * 0.5 + 0.5);
 	AO_LIGHT_AFFECT = 0.0;
 	float pulse = 1.0 + glow_pulse * sin(TIME * glow_pulse_speed + v_world.x * 0.35 + v_world.z * 0.35);
-	EMISSION = paint * (b.w * pulse) + paint * bounce_color * (bounce * (0.5 - 0.5 * up));
+	EMISSION = paint * (b.w * pulse * glow_gain) +paint * bounce_color * (bounce * (0.5 - 0.5 * up));
 }

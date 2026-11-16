@@ -88,13 +88,20 @@
 			"hills": {
 				"seed": 23,
 				"surface": "rock",
+				"_astraB_note": "M2W1 astraB (F8; OQ-ART-WORLD placeholders): profile = the ring's skyline by compass bearing (0 = north = -z, past Porta Aquilae; 90 = east): [bearing, height m, radius scale, rough 0..1] (smooth between points; rough 0 = a clean table edge). North: a high broken massif (two peaks and a saddle on the far ring, foothills in front); east: one long flat table ridge; south: the open plain (low far hills only, a pale river band); west: rounded wooded hills (the cypresses concentrate there). Near ring darker and warmer, far ring paler and bluer; bands = flat pale strips on the skirt (part of the hills mesh: no draw).",
 				"rings": [
-					{"radius_m": 1050, "depth_m": 380, "height_m": [30, 135], "segments": 96, "radius_noise": 0.14, "color": [0.47, 0.44, 0.3, 1], "ridge_color": [0.53, 0.5, 0.38, 1]},
-					{"radius_m": 1750, "depth_m": 500, "height_m": [60, 200], "segments": 72, "radius_noise": 0.1, "color": [0.46, 0.47, 0.44, 1], "ridge_color": [0.5, 0.53, 0.55, 1]},
-					{"radius_m": 2650, "depth_m": 420, "height_m": [150, 290], "segments": 60, "radius_noise": 0.08, "color": [0.5, 0.55, 0.62, 1], "ridge_color": [0.58, 0.63, 0.7, 1]}
+					{"radius_m": 1050, "depth_m": 380, "height_m": [30, 135], "segments": 96, "radius_noise": 0.14, "color": [0.33, 0.3, 0.22, 1], "ridge_color": [0.38, 0.35, 0.26, 1],
+						"profile": [[0, 30, 1.0, 0.9], [40, 28, 1.0, 0.7], [70, 35, 1.05, 0.3], [110, 35, 1.05, 0.3], [140, 22, 1.0, 0.5], [165, 8, 1.1, 0.4], [200, 6, 1.15, 0.3], [235, 30, 1.0, 0.6], [270, 62, 0.95, 0.4], [305, 55, 0.95, 0.5], [330, 35, 1.0, 0.8]]},
+					{"radius_m": 1750, "depth_m": 500, "height_m": [60, 200], "segments": 72, "radius_noise": 0.1, "color": [0.42, 0.43, 0.42, 1], "ridge_color": [0.46, 0.48, 0.5, 1],
+						"profile": [[0, 110, 1.0, 0.8], [35, 90, 1.0, 0.6], [55, 235, 1.0, 0.05], [130, 235, 1.0, 0.05], [150, 50, 1.0, 0.3], [180, 18, 1.1, 0.3], [215, 20, 1.1, 0.3], [245, 80, 1.0, 0.4], [285, 115, 0.95, 0.35], [320, 95, 0.95, 0.4], [345, 100, 1.0, 0.7]]},
+					{"radius_m": 2650, "depth_m": 420, "height_m": [150, 290], "segments": 90, "radius_noise": 0.08, "color": [0.5, 0.55, 0.62, 1], "ridge_color": [0.6, 0.65, 0.73, 1],
+						"profile": [[5, 230, 1.0, 0.3], [16, 430, 1.0, 0.5], [30, 240, 1.0, 0.5], [60, 150, 1.0, 0.1], [125, 150, 1.0, 0.1], [150, 90, 1.0, 0.4], [180, 45, 1.05, 0.3], [215, 50, 1.05, 0.3], [250, 140, 1.0, 0.4], [300, 150, 1.0, 0.4], [325, 210, 1.0, 0.5], [340, 300, 1.0, 0.5], [353, 480, 1.0, 0.5]]}
+				],
+				"bands": [
+					{"bearings_deg": [150, 215], "radius_m": [780, 840], "segments": 14, "lift_m": 0.4, "color": [0.62, 0.66, 0.68, 1]}
 				]
 			},
-			"aqueduct": {"type": "aqueduct_span", "from": [-1250, 700], "to": [-650, 1100], "scale": 3.0, "sink_m": 1.0},
+			"aqueduct": {"type": "aqueduct_span", "from": [-150, -680], "to": [210, -1080], "scale": 3.0, "sink_m": 1.0},
 			"beacons": {
 				"bearings_deg": [40, 165, 290],
 				"parts": [
@@ -103,7 +110,7 @@
 					{"shape": "block", "size": [2.4, 2.4, 2.4], "at": [0, 24.2, 0], "color": "lit_accent"}
 				]
 			},
-			"trees": {"seed": 41, "clumps": 30, "per_clump": [3, 6], "clump_spread_m": 18, "radius_m": [620, 1000], "wall_radius_m": 330, "min_from_wall_m": 150, "clear_of_square_m": 120,
+			"trees": {"seed": 41, "clumps": 30, "sectors": [[270, 70, 0.75], [340, 40, 0.12], [110, 40, 0.13]], "per_clump": [3, 6], "clump_spread_m": 18, "radius_m": [620, 1000], "wall_radius_m": 330, "min_from_wall_m": 150, "clear_of_square_m": 120,
 				"cone": {"height_m": 13, "radius_m": 1.7, "segments": 5}, "color": [0.16, 0.2, 0.12, 1]},
 			"budgets": {"draws": 8, "tris": 15000}
 		}

@@ -97,6 +97,27 @@ func test_1km_backdrop_is_a_cheap_look_outside_the_play_space() -> void:
 	map.free()
 
 
+## M2W1 astraB (F8): the 1 km map's skyline is composed by direction: the far ring's two northern peaks stand
+## over its saddle, the east is one flat table on the middle ring, the south is the lowest opening, the west's
+## cypresses outnumber the rest.
+func test_1km_skyline_has_a_direction_each_way() -> void:
+	var rings: Array = Backdrop.config()["maps"]["alesia_1km"]["hills"]["rings"]
+	var far: Array = rings[2]["profile"]
+	var mid: Array = rings[1]["profile"]
+	var near: Array = rings[0]["profile"]
+	var peak_w := Backdrop.profile_at(far, 353.0).x
+	var saddle := Backdrop.profile_at(far, 5.0).x
+	var peak_e := Backdrop.profile_at(far, 16.0).x
+	assert_true(peak_w > saddle * 1.5 and peak_e > saddle * 1.5, "north: two peaks (%.0f, %.0f m) over a saddle (%.0f m)" % [peak_w, peak_e, saddle])
+	assert_true(absf(Backdrop.profile_at(mid, 70.0).x - Backdrop.profile_at(mid, 115.0).x) < 1.0 and Backdrop.profile_at(mid, 90.0).z < 0.1, "east: a flat table ridge")
+	for ring: Array in [near, mid, far]:
+		var south := Backdrop.profile_at(ring, 195.0).x
+		for bearing: float in [0.0, 90.0, 270.0]:
+			assert_true(south < Backdrop.profile_at(ring, bearing).x, "south is the open side (bearing %.0f)" % bearing)
+	var sectors: Array = Backdrop.config()["maps"]["alesia_1km"]["trees"]["sectors"]
+	assert_true(absf(float(sectors[0][0]) - 270.0) < 1.0 and float(sectors[0][2]) > 0.5, "most cypress clumps stand west")
+
+
 func test_small_maps_build_exactly_todays_backdrop() -> void:
 	for path: String in ["res://data/maps/alesia_section.json", "res://data/maps/test_300.json"]:
 		var map := _build(path)

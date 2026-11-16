@@ -14,6 +14,7 @@ static var _ids := {}
 static var _materials := {}
 static var _grounds := {}  # map key -> the ground ShaderMaterial of that map
 static var _wet := 0.0
+static var _glow_gain := 1.0
 
 
 static func config() -> Dictionary:
@@ -72,6 +73,9 @@ static func _apply_shared(material: ShaderMaterial) -> void:
 	material.set_shader_parameter("wet_dark", float(cfg["wet"]["dark"]))
 	material.set_shader_parameter("wet_roughness", float(cfg["wet"]["roughness"]))
 	material.set_shader_parameter("wet", _wet)
+	material.set_shader_parameter("glow_gain", _glow_gain)
+	if (cfg["wet"] as Dictionary).has("far_m"):  # M2W1 astraB, optional
+		material.set_shader_parameter("wet_far_m", float(cfg["wet"]["far_m"]))
 
 
 ## The shared world material for one tint (cached: every caller with the same tint gets the same resource).
@@ -171,6 +175,18 @@ static func set_wet(amount: float) -> void:
 
 static func wet() -> float:
 	return _wet
+
+
+## M2W1 astraB: how strongly the world's own glow shows (the look variant's "glow_gain", 1 = as authored).
+## Applies to every world material made here (not the ground, which has no glow).
+static func set_glow_gain(gain: float) -> void:
+	_glow_gain = maxf(gain, 0.0)
+	for key in _materials:
+		(_materials[key] as ShaderMaterial).set_shader_parameter("glow_gain", _glow_gain)
+
+
+static func glow_gain() -> float:
+	return _glow_gain
 
 
 ## True for a material that takes light: a per-pixel StandardMaterial3D, or one of the shaders above

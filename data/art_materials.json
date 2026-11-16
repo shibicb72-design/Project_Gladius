@@ -84,8 +84,10 @@
 	},
 	"wet": {
 		"_note": "The wet look (storm variant, puddles): wet surfaces get darker and smoother on faces that look up. amount 0..1 is set per sky variant (data/art_look.json).",
-		"dark": 0.62,
-		"roughness": 0.12
+		"_astraB": "M2W1 astraB (F9; OQ-ART-WORLD): darker rain-soaked surfaces with a restrained sheen (was dark 0.62, roughness 0.12: a mirror-bright ground under a grey sky).",
+		"dark": 0.52,
+		"roughness": 0.32,
+		"far_m": 300.0
 	},
 	"ground": {
 		"_note": "The ground is one blend of three tiles by a small map painted from the map data at load (scripts/visual/ground_paint.gd): paving around the citadel and the landmarks and on the roads, grass in the outer ring, trodden earth elsewhere. Colours are sRGB.",

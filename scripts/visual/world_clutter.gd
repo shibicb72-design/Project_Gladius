@@ -75,6 +75,9 @@ static func foliage_material() -> ShaderMaterial:
 		_foliage.set_shader_parameter("roughness", float(f.get("roughness", 0.95)))
 		_foliage.set_shader_parameter("height_m", float(f.get("height_m", 0.4)))
 		_foliage.set_shader_parameter("base_color", Color(1, 1, 1, 1))
+		_foliage.set_shader_parameter("solid_by_alpha", 1.0)  # M2W1 astraB: stones merged into a patch stay solid
+		_foliage.set_shader_parameter("fade_from_m", float(f.get("fade_from_m", 0.0)))
+		_foliage.set_shader_parameter("fade_to_m", float(f.get("fade_to_m", 0.0)))
 	return _foliage
 
 
@@ -89,8 +92,11 @@ static func mesh(type: String) -> ArrayMesh:
 		return _meshes[type]
 	var made: ArrayMesh = null
 	var glb := String(config().get("glb", ""))
-	var source := WorldKitMeshes._source_mesh(glb, type)
-	if source == null:
+	var compose: Array = type_cfg(type).get("compose", [])
+	var source: Mesh = null if not compose.is_empty() else WorldKitMeshes._source_mesh(glb, type)
+	if not compose.is_empty():
+		made = _composed(type, compose)
+	elif source == null:
 		push_error("WorldClutter: no mesh node %s in %s; that type is not placed" % [type, glb])
 	else:
 		made = WorldKitMeshes.rebuild(source)
@@ -103,8 +109,83 @@ static func mesh(type: String) -> ArrayMesh:
 			made = ArrayMesh.new()
 			made.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 			made.surface_set_material(0, foliage_material())
+	if made != null:
 		made.resource_name = "M2W1_clutter_" + type
 	_meshes[type] = made
+	return made
+
+
+## M2W1 astraB: a composed type (data "compose": [[member type, x, z, yaw degrees, scale], ...]): the members'
+## meshes merged at load into one surface, each member's footprint centre at (x, z), so a group draws as one
+## instance of one batch. A foliage composition (material "foliage") keeps blade colours linear with alpha 1 and
+## turns kit members' colours linear with alpha 0 (the foliage shader neither sways nor re-normals those: stones
+## stay stones); a kit composition keeps the kit's sRGB colours. Every member's colour is darkened towards its foot
+## (data "ground_shade": [height m, darkest]): the grounding a clutter piece without a shadow gets, baked at load
+## (the glb is unchanged). Null when a member is missing.
+static func _composed(type: String, parts: Array) -> ArrayMesh:
+	var foliage := uses_foliage(type)
+	var shade: Array = config().get("ground_shade", [0.0, 1.0])
+	var shade_h := float(shade[0])
+	var shade_min := float(shade[1])
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var tangents := PackedFloat32Array()
+	var colours := PackedColorArray()
+	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for part: Array in parts:
+		var member := String(part[0])
+		var m := mesh(member)
+		if m == null:
+			return null
+		var arrays := m.surface_get_arrays(0)
+		var centre: Vector2 = info(member)["centre"]
+		var s := float(part[4]) if part.size() > 4 else 1.0
+		var basis := Basis(Vector3.UP, deg_to_rad(float(part[3]))).scaled(Vector3.ONE * s)
+		var origin := Vector3(float(part[1]), 0.0, float(part[2])) - basis * Vector3(centre.x, 0.0, centre.y)
+		var turn := Basis(Vector3.UP, deg_to_rad(float(part[3])))
+		var base := verts.size()
+		var mv: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var mn: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var mt: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT]
+		var mc: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+		var member_foliage := uses_foliage(member)
+		for i in mv.size():
+			verts.append(origin + basis * mv[i])
+			normals.append(turn * mn[i])
+			var tg := turn * Vector3(mt[i * 4], mt[i * 4 + 1], mt[i * 4 + 2])
+			tangents.append_array([tg.x, tg.y, tg.z, mt[i * 4 + 3]])
+			var c: Color = mc[i]
+			if foliage and not member_foliage:
+				c = c.srgb_to_linear()
+				c.a = 0.0
+			elif foliage:
+				c.a = 1.0
+			if shade_h > 0.0:
+				var k := lerpf(shade_min, 1.0, smoothstep(0.0, shade_h, mv[i].y * s))
+				c = Color(c.r * k, c.g * k, c.b * k, c.a)
+			colours.append(c)
+		uvs.append_array(arrays[Mesh.ARRAY_TEX_UV])
+		uv2s.append_array(arrays[Mesh.ARRAY_TEX_UV2])
+		if arrays[Mesh.ARRAY_INDEX] != null:
+			for idx: int in (arrays[Mesh.ARRAY_INDEX] as PackedInt32Array):
+				indices.append(base + idx)
+		else:
+			for idx in mv.size():
+				indices.append(base + idx)
+	var out := []
+	out.resize(Mesh.ARRAY_MAX)
+	out[Mesh.ARRAY_VERTEX] = verts
+	out[Mesh.ARRAY_NORMAL] = normals
+	out[Mesh.ARRAY_TANGENT] = tangents
+	out[Mesh.ARRAY_COLOR] = colours
+	out[Mesh.ARRAY_TEX_UV] = uvs
+	out[Mesh.ARRAY_TEX_UV2] = uv2s
+	out[Mesh.ARRAY_INDEX] = indices
+	var made := ArrayMesh.new()
+	made.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
+	made.surface_set_material(0, foliage_material() if foliage else WorldKit.material())
 	return made
 
 
@@ -513,6 +594,11 @@ static func populate(builder: Node, chunks: MapChunks, map_def: Dictionary) -> D
 			pieces.append([String(e["type"]), String(e["id"]), Transform3D(Basis.IDENTITY, at)])
 	var dressing: Dictionary = cfg.get("dressing", {})
 	var gap := float(r["clutter_gap_m"])
+	# M2W1 astraB: a contact spot (the place map's B: a soft dark blob) under every placed group and patch.
+	var contact: Array = []
+	report["contact"] = contact
+	var contact_prop := float(cfg.get("contact_prop", 0.7))
+	var place: Variant = builder.get("place_map")
 	for piece: Array in pieces:
 		var entries: Array = dressing.get(piece[0], [])
 		if entries.is_empty():
@@ -537,10 +623,14 @@ static func populate(builder: Node, chunks: MapChunks, map_def: Dictionary) -> D
 				why = "clutter"
 			if why != "":
 				report["dropped"][why] = int((report["dropped"] as Dictionary).get(why, 0)) + 1
+				var by: Dictionary = report.get_or_add("dropped_by", {})
+				var by_key := "%s/%s/%s" % [piece[0], type, why]
+				by[by_key] = int(by.get(by_key, 0)) + 1
 				continue
 			_gap_add(gaps, o)
 			placed.append([type, t])
 			counts[1] += 1
+			contact.append({"c": o["c"], "r": float(info(type)["radius"]), "v": float(type_cfg(type).get("contact", contact_prop))})
 		report["dressing"][piece[0]] = counts
 	# Scatter by the ground paint and patch noise.
 	var paint: Image = builder.get("ground_paint")
@@ -553,7 +643,7 @@ static func populate(builder: Node, chunks: MapChunks, map_def: Dictionary) -> D
 			continue
 		var k: Dictionary = scatter[kind]
 		var kind_ms := Time.get_ticks_msec()
-		var made := _scatter(kind, k, ctx, paint, size_m, half, gaps, prop_gap, placed)
+		var made := _scatter(kind, k, ctx, paint, size_m, half, gaps, prop_gap, placed, place, contact)
 		report["scatter"][kind] = made
 		report["scatter_ms_" + kind] = Time.get_ticks_msec() - kind_ms
 	# At most max_batches_per_chunk clutter types in one chunk: the types with the fewest instances there go first.
@@ -592,8 +682,15 @@ static func _paint_at(paint: Image, size_m: float, p: Vector2) -> Color:
 
 
 ## One scatter kind on a jittered grid: a cell holds at most one instance; in a noise patch every cell may, outside
-## one only `outside / density` of them. Returns the number placed.
-static func _scatter(kind: String, k: Dictionary, ctx: Dictionary, paint: Image, size_m: float, half: float, gaps: Dictionary, prop_gap: float, placed: Array) -> int:
+## one only `outside / density` of them. M2W1 astraB: with a place map, "shelter" adds that chance per unit of the
+## map's shelter (pockets at the lee foot of walls and piers), "trodden_max" keeps the kind off trodden ground, and
+## each instance adds a contact spot ("contact" value). Returns the number placed.
+static func _scatter(kind: String, k: Dictionary, ctx: Dictionary, paint: Image, size_m: float, half: float, gaps: Dictionary, prop_gap: float, placed: Array, place: Variant = null, contact: Array = []) -> int:
+	var shelter_chance := float(k.get("shelter", 0.0))
+	var trodden_max := float(k.get("trodden_max", 1.0))
+	var contact_v := float(k.get("contact", 0.0))
+	var contact_r := float(info(kind)["radius"]) * 0.8
+	var by_place := place != null and String(k.get("noise", "")) == "place"
 	var density := maxf(float(k["density"]), 0.01)
 	var step := sqrt(100.0 / density)
 	var cells := ceili(half * 2.0 / step)
@@ -620,21 +717,31 @@ static func _scatter(kind: String, k: Dictionary, ctx: Dictionary, paint: Image,
 			# The patch noise at the cell's centre first: most cells end here (cheap), before the paint is read.
 			var cx := -half + (float(ix) + 0.5) * step
 			var cz := -half + (float(iz) + 0.5) * step
-			var w := clampf((noise.get_noise_2d(cx, cz) - threshold) / soft, 0.0, 1.0)
+			# M2W1 astraB: "noise": "place" = the place map's broad noise (the ground shader's macro patches) instead.
+			var n := noise.get_noise_2d(cx, cz) if not by_place else (place.sample(Vector2(cx, cz)) as Color).a * 2.0 - 1.0
+			var w := clampf((n - threshold) / soft, 0.0, 1.0)
 			var roll := hash01(seed + 2, ix, iz)
-			if edge.is_empty() and roll >= w + (1.0 - w) * outside:
+			var sheltered := 0.0
+			if place != null and (shelter_chance > 0.0 or trodden_max < 1.0):
+				var pc: Color = place.sample(Vector2(cx, cz))
+				if pc.r > trodden_max:
+					continue
+				sheltered = pc.g * shelter_chance
+			if edge.is_empty() and roll >= w + (1.0 - w) * outside + sheltered:
 				continue
 			var h1 := hash01(seed, ix, iz)
 			var h2 := hash01(seed + 1, ix, iz)
 			var p := Vector2(cx + (h1 - 0.5) * jitter * step, cz + (h2 - 0.5) * jitter * step)
 			var c := _paint_at(paint, size_m, p)
 			var ok := false
-			var chance := w + (1.0 - w) * outside
+			var chance := w + (1.0 - w) * outside + sheltered
+			if sheltered > 0.0 and c.r < 0.5:
+				ok = true  # a sheltered pocket grows on any unpaved ground
 			match surface:
 				"grass":
-					ok = c.r < 0.5 and c.g >= grass_min
+					ok = ok or (c.r < 0.5 and c.g >= grass_min)
 				"earth":
-					ok = c.r < 0.5 and c.g < 0.5
+					ok = ok or (c.r < 0.5 and c.g < 0.5)
 				_:
 					ok = c.r < 0.5
 			if not edge.is_empty() and c.r >= float(edge["paving_min"]) and c.r <= float(edge["paving_max"]):
@@ -651,6 +758,10 @@ static func _scatter(kind: String, k: Dictionary, ctx: Dictionary, paint: Image,
 				continue
 			if not _gap_free(gaps, o, prop_gap):
 				continue
+			_gap_add(gaps, o)
 			placed.append([kind, t])
+			if contact_v > 0.0:
+				contact.append({"c": o["c"], "r": contact_r * grow, "v": contact_v, "g": float(k.get("ground_green", 0.0)),
+						"g_reach": float(k.get("ground_green_reach", 2.2))})
 			made += 1
 	return made

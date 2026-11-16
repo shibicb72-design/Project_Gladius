@@ -43,6 +43,7 @@ static func resolved(variant: String = "") -> Dictionary:
 		"sky": (cfg["sky"] as Dictionary).merged(over.get("sky", {}), true),
 		"post": (cfg["post"] as Dictionary).merged(over.get("post", {}), true),
 		"wet": float(over.get("wet", cfg["wet"])),
+		"glow_gain": float(over.get("glow_gain", cfg.get("glow_gain", 1.0))),  # M2W1 astraB, optional (1 = as before)
 		"weather": String(over.get("weather", cfg["weather"])),
 	}
 
