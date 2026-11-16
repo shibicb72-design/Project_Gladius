@@ -20,7 +20,7 @@ static func cfg() -> Dictionary:
 ## bottom front centre of the boot part's bind-pose box (the toe is the -Z end). A rolling foot touches with one or
 ## the other, so each is a contact point of its own.
 static func sole_points(skeleton: Skeleton3D) -> Array:
-	var parts: Array = LowpolyKit.config()["soldier"]["parts"]
+	var parts: Array = SoldierLook.parts()
 	var bounds := SoldierRig.part_local_bounds(parts, skeleton)
 	var out: Array = []
 	for side in ["l", "r"]:

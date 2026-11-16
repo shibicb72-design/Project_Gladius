@@ -2,7 +2,6 @@ class_name SoldierModel
 extends Node3D
 ## One shared vertex-colour surface, no hitboxes. Only reads pawn velocity.
 static var _mesh: ArrayMesh
-static var _rifle: ArrayMesh
 var skeleton: Skeleton3D
 var armor: MeshInstance3D
 var local_part_bounds: Array[AABB] = []
@@ -14,6 +13,9 @@ var _replica_velocity := Vector3.ZERO
 var _upper_cfg: Dictionary
 var reload_duration_s := 0.0
 var rifle: MeshInstance3D
+var rifle_far: MeshInstance3D  # M2 AN1 commit 6: the gun's far detail level (child of rifle)
+var shown_gun := ""  # the weapon art id of the gun in the hands
+var stock_point := Vector3.ZERO  # the butt of the shown gun, in the rifle mesh's frame
 var hand_attachment: BoneAttachment3D
 var foregrip: Marker3D
 var barrel_tip: Marker3D
@@ -52,7 +54,9 @@ var _replica_vy := 0.0
 var _last_hp := -1.0
 
 func _ready() -> void:
-	_cfg = LowpolyKit.config()["soldier"]
+	# M2 AN1 commit 6: the parts are art_astra.json's (read-only) with data/art_soldier.json soldier's overrides on top.
+	_cfg = (LowpolyKit.config()["soldier"] as Dictionary).duplicate(false)
+	_cfg["parts"] = SoldierLook.parts()
 	_pawn = get_parent() as CharacterBody3D
 	var parts: Array = _cfg["parts"]
 	skeleton = SoldierRig.build(parts, (_pawn.get_node("Head") as Node3D).position)
@@ -136,11 +140,9 @@ func _cache_pose() -> void:
 		hand_error_m = hand.origin.distance_to(foregrip.global_position)
 
 static func add_rifle(parent: MeshInstance3D) -> MeshInstance3D:
-	if _rifle == null:
-		_rifle = LowpolyKit.merge(LowpolyKit.config()["rifle"]["parts"])
 	var rifle := MeshInstance3D.new()
 	rifle.name = "RifleModel"
-	rifle.mesh = _rifle
+	rifle.mesh = SoldierLook.gun_mesh("", "near")
 	parent.add_child(rifle)
 	parent.layers = 0
 	var model := parent.get_parent().get_parent().get_node_or_null("SoldierModel") as SoldierModel
@@ -157,21 +159,24 @@ func mount_rifle(mesh: MeshInstance3D) -> void:
 	hand_attachment.bone_name = &"RightHand"
 	skeleton.add_child(hand_attachment)
 	rifle.reparent(hand_attachment, false)
-	var rifle_parts: Array = LowpolyKit.config()["rifle"]["parts"]
 	foregrip = Marker3D.new()
 	foregrip.name = "Foregrip"
 	rifle.add_child(foregrip)
 	barrel_tip = Marker3D.new()
 	barrel_tip.name = "BarrelTip"
 	rifle.add_child(barrel_tip)
-	for part: Dictionary in rifle_parts:
-		if part["name"] == "grip":
-			rifle.position = -LowpolyKit.vec(part["at"])
-		elif part["name"] == "handguard":
-			foregrip.position = LowpolyKit.vec(part["at"])
-		elif part["name"] == "barrel":
-			barrel_tip.position = LowpolyKit.vec(part["at"]) + Vector3.FORWARD * float(part["size"][2]) * 0.5
-	_rifle_rest = rifle.transform
+	# M2 AN1 commit 6: a far copy of the gun (silhouette parts only) takes over past gun.far_m (visibility ranges).
+	rifle_far = MeshInstance3D.new()
+	rifle_far.name = "RifleFar"
+	rifle.add_child(rifle_far)
+	var far_m := float(SoldierLook.config()["gun"]["far_m"])
+	rifle.visibility_range_end = far_m
+	rifle_far.visibility_range_begin = far_m
+	var weapon := (_pawn as Pawn).loadout.get_active() if _pawn != null and (_pawn as Pawn).loadout != null else null
+	var first := weapon.def.id if weapon != null and not weapon.def.is_melee() else ""
+	if first == "" and _pawn != null:
+		first = String(DataRegistry.new().get_loadout_ids((_pawn as Pawn).class_id).get("primary", ""))
+	show_gun(first)
 	# S4: the blade shares the hand with the rifle; only the active weapon's model is shown (_process).
 	var blade_cfg: Dictionary = _cfg["blade"]
 	if _blade == null:
@@ -202,6 +207,24 @@ func mount_rifle(mesh: MeshInstance3D) -> void:
 	pole.position = skeleton.get_bone_global_rest(skeleton.find_bone("LeftUpperArm")).origin + LowpolyKit.vec(_upper_cfg["left_pole"])
 	skeleton.add_child(pole)
 	left_ik.set_pole_node(0, left_ik.get_path_to(pole))
+
+
+## M2 AN1 commit 6: the gun in the hands is the active gun's own model (data/art_soldier.json soldier.gun): the
+## Pilum BR, the Sagittarii rifle with its scope, ... Only the visible mesh and its hand markers move; the gameplay
+## muzzle and the shot effects' origin do not.
+func show_gun(id: String) -> void:
+	var key := SoldierLook.gun_id(id)
+	if key == shown_gun or rifle == null:
+		return
+	shown_gun = key
+	rifle.mesh = SoldierLook.gun_mesh(key, "near")
+	rifle_far.mesh = SoldierLook.gun_mesh(key, "far")
+	_rifle_rest = Transform3D(Basis.IDENTITY, -SoldierLook.gun_point(key, "grip_m"))
+	rifle.transform = _rifle_rest
+	foregrip.position = SoldierLook.gun_point(key, "foregrip_m")
+	barrel_tip.position = SoldierLook.gun_point(key, "muzzle_m")
+	stock_point = SoldierLook.gun_point(key, "stock_m")
+	_update_recoil(0.0)
 
 func _process(delta: float) -> void:
 	if _pawn == null:
@@ -258,7 +281,12 @@ func _show_weapon() -> void:
 	var pawn := _pawn as Pawn
 	var weapon := pawn.loadout.get_active() if pawn.loadout != null else null
 	var melee := weapon != null and weapon.def.is_melee()
-	rifle.visible = not melee
+	if weapon != null and not melee and weapon.def.id != shown_gun:
+		show_gun(weapon.def.id)
+	# M2 AN1 commit 6: a downed soldier crawls on both hands; the gun is slung (hidden) instead of dragging on the
+	# ground from the right hand (data/art_soldier.json soldier.gun.hide_downed_weight).
+	var downed := pose != null and float(pose.weights["downed"]) >= float(SoldierLook.config()["gun"]["hide_downed_weight"])
+	rifle.visible = not melee and not downed
 	blade.visible = melee
 	if left_ik != null and pose != null:
 		left_ik.influence = 1.0 - pose.arms_weight

@@ -8,6 +8,88 @@
 		"measured_triangles": {"pilum_br": 3372, "sagittarii_rifle": 3476, "gladius_lux": 2372, "per_arm": 992, "pilum_br_with_flash": 3386, "sagittarii_rifle_with_flash": 3490},
 		"measured_draw_calls": {"pilum_br": 7, "sagittarii_rifle": 7, "gladius_lux": 4, "gun_with_flash_and_light": 9}
 	},
+	"soldier": {
+		"_placeholder": true,
+		"_todo": "OQ-ART-SOLDIER (M2 AN1 commit 6): the third-person soldier's look layer (scripts/visual/soldier_look.gd). data/art_astra.json soldier stays read-only (it is hashed into saved navigation); part_overrides replace keys of its parts by name, parts_add appends parts (their bones: data/anim_third_person.json part_bones), surfaces sets the soldier material's own material classes, gun builds the third-person gun from the first-person part lists. Every number is a trial look, not a design decision. Presentation only: the head hitbox, the capsule, the muzzle and everything a shot reads are unchanged.",
+		"part_overrides": {
+			"_note": "Proportions toward a trained legionary with the head hitbox (0.22 m sphere at 1.75 m, which the helmet must enclose) and the capsule unchanged: the hips stand 5 cm higher and the thighs and shins are longer (hip pivot 0.91 -> 0.96, knee 0.475 -> 0.49, leg 0.81 -> 0.87 of a 1.99 m top of helmet); the belt, tassets and strips move up with the hips; a broader, deeper chest so the helmet no longer reads as wide as the torso; the shoulder domes become smaller, flatter plates over two lorica bands (pauldron_rim and the added pauldron_band). Pivot parts (pelvis, thighs, shins) set the rig: changing their at or height changes the skeleton (data/art_astra.json _parts_note).",
+			"pelvis": {"at": [0, 0.96, 0]},
+			"thigh_l": {"size": [0.17, 0.38, 0.19], "at": [-0.135, 0.68, 0]},
+			"thigh_r": {"size": [0.17, 0.38, 0.19], "at": [0.135, 0.68, 0]},
+			"shin_l": {"size": [0.11, 0.31, 0.14], "at": [-0.135, 0.335, -0.01]},
+			"shin_r": {"size": [0.11, 0.31, 0.14], "at": [0.135, 0.335, -0.01]},
+			"cuisse_l": {"size": [0.24, 0.25, 0.24], "at": [-0.135, 0.7, 0]},
+			"cuisse_r": {"size": [0.24, 0.25, 0.24], "at": [0.135, 0.7, 0]},
+			"knee_l": {"at": [-0.135, 0.5, -0.105]},
+			"knee_r": {"at": [0.135, 0.5, -0.105]},
+			"greave_l": {"size": [0.18, 0.29, 0.21], "at": [-0.135, 0.33, -0.01]},
+			"greave_r": {"size": [0.18, 0.29, 0.21], "at": [0.135, 0.33, -0.01]},
+			"belt": {"at": [0, 1.05, 0]},
+			"belt_buckle": {"at": [0, 1.05, -0.16]},
+			"strip_1": {"at": [-0.108, 0.895, -0.14]},
+			"strip_2": {"at": [-0.036, 0.895, -0.14]},
+			"strip_3": {"at": [0.036, 0.895, -0.14]},
+			"strip_4": {"at": [0.108, 0.895, -0.14]},
+			"tasset_l": {"at": [0, 0.915, 0]},
+			"tasset_r": {"at": [0, 0.915, 0]},
+			"cuirass_upper": {"size": [0.65, 0.18, 0.39]},
+			"cuirass_mid": {"size": [0.58, 0.15, 0.355]},
+			"chest_plate": {"at": [0, 1.385, -0.2]},
+			"pauldron_l": {"size": [0.28, 0.12, 0.31], "at": [-0.34, 1.4, 0], "profile": [[0, 0], [1, 0], [0.96, 0.45], [0.72, 0.85], [0, 1]]},
+			"pauldron_r": {"size": [0.28, 0.12, 0.31], "at": [0.34, 1.4, 0], "profile": [[0, 0], [1, 0], [0.96, 0.45], [0.72, 0.85], [0, 1]]},
+			"pauldron_rim_l": {"size": [0.3, 0.07, 0.33], "at": [-0.35, 1.345, 0]},
+			"pauldron_rim_r": {"size": [0.3, 0.07, 0.33], "at": [0.35, 1.345, 0]}
+		},
+		"parts_add": [
+			{"name": "neck_guard", "_note": "a collar on the Neck bone over the gorget, under the helmet's neck guard (top 1.485: the head hitbox clearance starts at 1.51 and must hold in a corpse's end pose too)", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.24, 0.07, 0.23], "at": [0, 1.45, 0], "color": "plate_dark"},
+			{"name": "pauldron_band_l", "shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, 90, 0], "profile": [[0, 0], [0.9, 0], [1, 0.5], [0.92, 1], [0, 1]], "size": [0.31, 0.065, 0.33], "at": [-0.36, 1.28, 0], "color": "plate"},
+			{"name": "pauldron_band_r", "shape": "lathe", "axis": true, "sweep_deg": 210, "segments": 6, "rot": [0, -90, 0], "profile": [[0, 0], [0.9, 0], [1, 0.5], [0.92, 1], [0, 1]], "size": [0.31, 0.065, 0.33], "at": [0.36, 1.28, 0], "color": "plate"}
+		],
+		"budgets": {
+			"_note": "Per soldier, visible meshes only (armor + the shown gun; the hidden legacy weapon box and the hidden blade excluded), tested by tests/test_soldier_budget.gd. LODs by camera distance: near below gun.far_m, far from gun.far_m on (Godot visibility ranges on the gun; the armor is one LOD). Why these numbers: 18 soldiers x near is about 2.5% of the 175k primitives a match frame draws today, and two draws per soldier (armor, gun) is what one skinned surface plus one held model costs, so the budget is the measured cost plus a small headroom for tuning, not room to grow. far: a distant soldier is a few dozen pixels tall on the Fold, so the gun drops to its silhouette parts; the far budget is set so 18 distant soldiers cost no more than 18 of the commit-4 soldiers did (2420 triangles each). measured_* are written by hand from the test's SOLDIER_BUDGET prints and are not read by code.",
+			"near": {"max_triangles": 3100, "max_draw_calls": 2},
+			"far": {"max_triangles": 2420, "max_draw_calls": 2},
+			"far_test_m": 30.0,
+			"measured_before_commit6": {"triangles": 2420, "draw_calls": 2, "lods": 1},
+			"measured": {"armor": 2060, "pilum_br": {"near": [2540, 2], "far": [2228, 2]}, "sagittarii_rifle": {"near": [2544, 2], "far": [2316, 2]},
+				"gun_triangles": {"pilum_br": [480, 168], "sagittarii_rifle": [484, 256]}, "_units": "[triangles, draw calls] per LOD; gun_triangles [near, far]"}
+		},
+		"surfaces": {
+			"_note": "Material classes of the soldier, written into the soldier material's copy of data/art_materials.json surfaces (the world keeps its own): contrast and bump scale the surface texture, roughness = texture x rough_scale + rough_bias, metallic, glow (emission x paint). armor = steel plate, armor_dark = dark steel, squad_plate = enamelled squad plate, bronze / tier_trim / gold = bronze trim, leather = straps, undersuit = cloth suit, squad_cape / squad_cloth = red wool cape and crest, steel = the gun's metal.",
+			"armor": {"metallic": 0.6, "rough_scale": 0.55, "rough_bias": 0.3, "contrast": 0.16, "bump": 0.35},
+			"armor_dark": {"metallic": 0.6, "rough_scale": 0.6, "rough_bias": 0.28, "contrast": 0.25, "bump": 0.5},
+			"squad_plate": {"metallic": 0.4, "rough_scale": 0.5, "rough_bias": 0.3, "contrast": 0.2, "bump": 0.4},
+			"bronze": {"metallic": 1.0, "rough_scale": 0.45, "rough_bias": 0.16, "contrast": 0.35},
+			"tier_trim": {"metallic": 1.0, "rough_scale": 0.45, "rough_bias": 0.18, "contrast": 0.3},
+			"gold": {"metallic": 1.0, "rough_scale": 0.4, "rough_bias": 0.14},
+			"leather": {"metallic": 0.0, "rough_scale": 0.4, "rough_bias": 0.55, "contrast": 0.7, "bump": 1.6},
+			"undersuit": {"metallic": 0.0, "rough_scale": 0.3, "rough_bias": 0.68, "contrast": 0.55},
+			"squad_cape": {"metallic": 0.0, "rough_scale": 0.3, "rough_bias": 0.7, "contrast": 0.6, "bump": 1.1},
+			"squad_cloth": {"metallic": 0.0, "rough_scale": 0.3, "rough_bias": 0.7, "contrast": 0.6, "bump": 1.1},
+			"steel": {"metallic": 0.75, "rough_scale": 0.5, "rough_bias": 0.25, "contrast": 0.2, "bump": 0.4}
+		},
+		"gun": {
+			"_note": "The gun a soldier holds, built from weapons.<id> (the first-person part lists) by scripts/visual/soldier_look.gd: only the parts named in near / far, chamfers dropped, lathes at most detail.max_sides sides, scaled by scale (the first-person gun is natural size about 0.63-0.66 m long; scaled it is a 0.85-1.0 m rifle), one surface on the soldier material (surface_of_mat maps a first-person material class to a soldier surface; glass is left out). grip_m sits on the right hand bone, foregrip_m is the left hand's IK target, stock_m the butt, all in first-person units. The gameplay muzzle and the shot effects' origin are unchanged: this is the visible mesh only. far: shown from far_m on (visibility range), the silhouette parts only. The gun shown is the active weapon's (any gun without its own entry shows default). hide_downed_weight: from this weight of the downed pose on, the gun is slung (hidden) so it does not drag on the ground in the knee-crawl.",
+			"default": "pilum_br",
+			"far_m": 30.0,
+			"hide_downed_weight": 0.5,
+			"detail": {"chamfer": false, "max_sides": 6},
+			"surface_of_mat": {"gunmetal": "steel", "gunmetal_dark": "armor_dark", "gunmetal_black": "visor", "polymer": "armor_dark", "steel": "steel", "armor": "armor_dark",
+				"bronze": "bronze", "bronze_dark": "bronze", "leather": "leather", "leather_light": "leather", "cloth": "squad_cloth", "red_trim": "squad_cloth",
+				"energy": "glow", "energy_soft": "glow", "blade_core": "glow", "reticle": "visor", "scope_bore": "visor"},
+			"weapons": {
+				"pilum_br": {"scale": 1.35, "grip_m": [0.0, -0.03, 0.03], "foregrip_m": [0.0, 0.02, -0.22], "stock_m": [0.0, 0.075, 0.12],
+					"near": ["receiver", "lower", "grip", "grip_cap", "trim", "rail", "sight_mount", "sight_hood", "sight_rim", "handguard", "vent_glow_r", "vent_glow_l",
+						"handguard_cap", "shroud", "shank", "fin_0", "fin_1", "fin_2", "pilum_point", "stock", "stock_band", "rear_cap", "charge_light", "red_band",
+						"cell_body", "cell_cap", "cell_strip"],
+					"far": ["receiver", "lower", "grip", "handguard", "shroud", "pilum_point", "stock", "cell_body"]},
+				"sagittarii_rifle": {"scale": 1.5, "grip_m": [0.0, -0.03, 0.03], "foregrip_m": [0.0, 0.02, -0.22], "stock_m": [0.0, 0.07, 0.155],
+					"near": ["receiver", "lower", "grip", "trim_top", "rail", "mount_rear", "mount_front", "scope", "scope_ring_front", "turret_top", "handguard", "handguard_trim", "vent_glow", "barrel", "barrel_band", "brake", "brake_glow", "stock", "cheek_rest",
+						"cell_body", "cell_cap", "cell_strip_a"],
+					"far": ["receiver", "lower", "grip", "scope", "handguard", "barrel", "brake", "stock", "cell_body"]}
+			}
+		}
+	},
 	"lighting": {
 		"_note": "M2 AN1 3b (OQ-ART-SOLDIER): a fill light fixed to the camera for the opaque view-model pass (view space: +x right, +y up, +z toward the eye), so gun facets separate and the gunmetal stays neutral under any sky; lift is a flat ambient floor; rim and rim_tint are Godot's RIM. Presentation only.",
 		"fill_dir": [-0.4, 0.75, 0.55],

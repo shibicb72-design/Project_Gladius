@@ -1,6 +1,10 @@
 {
 	"_placeholder": true,
 	"_todo": "OQ-ANIM (M2 AN1 commit 4): the third-person soldier's animation numbers added in commit 4, laid over data/anim.json by SoldierRig.config() (a deep merge: a key here replaces the same key there, dictionaries merge). Kept in its own file because data/anim.json also holds the first-person coder's 'first_person' block. Every number is a presentation trial, not a design value.",
+	"part_bones": {
+		"_look_note": "M2 AN1 commit 6: the bones of the parts data/art_soldier.json soldier.parts_add adds (the neck guard rides the Neck so it covers the gap between helmet and gorget when the chest leans; the shoulder bands ride the Chest like the pauldrons).",
+		"neck_guard": "Neck", "pauldron_band_l": "Chest", "pauldron_band_r": "Chest"
+	},
 	"upper_body": {
 		"_reload_note": "M2 AN1 commit 4: staged reload. reload_key_fractions are fractions of WeaponDef.reload_s; per key the left hand's offset from its foregrip target (aim, magazine, magazine out and down, belt pouch, new magazine seated, charging handle, back on the foregrip), the right hand's cant of the rifle (degrees about the barrel) and the chest's lean in (degrees, forward = negative). fire_*_deg: the per-shot kick through spine, chest and shoulders (they replace anim.json's smaller values; reload_hand_offset_m and reload_key_weights there are no longer read).",
 		"reload_key_fractions": [0, 0.12, 0.28, 0.44, 0.62, 0.8, 1],
@@ -14,6 +18,10 @@
 		"blend_s": 0.12, "arm_follow": 0.7
 	},
 	"poses": {
+		"blade": {
+			"_note": "M2 AN1 commit 6: a lower guard between swings (was upper arm 30 / forearm 64 degrees, which held the blade up in front of the visor): the sword hand sits at the belly with the blade pointed forward and up, the left fist lower. The swing itself (Sword_Attack) is unchanged.",
+			"bones": {"RightUpperArm": [14, 0, 12], "RightForeArm": [48, 0, 0], "RightHand": [-40, 0, 0], "LeftUpperArm": [10, 0, -14], "LeftForeArm": [36, 0, 0]}
+		},
 		"swing": {
 			"_clip_note": "M2 AN1 commit 4: with the library swing (anim_sources blade_swing, UAL Sword_Attack) the clip from clip_from_s to clip_to_s plays over s on clip_bones (its fast cut, 0.31-0.51 s of the clip, lands in the strike window), fading in over fade_in of the swing; raised/struck stay the fallback.",
 			"clip_from_s": 0.26, "clip_to_s": 1.25, "fade_in": 0.08,
@@ -36,6 +44,8 @@
 		"chest_upright": 0.85,
 		"hips_bob_scale": 0.2,
 		"leg_reach": 0.97,
+		"_cycle_scale_note": "M2 AN1 commit 6: a per-slot factor on the measured cycle_m (SoldierAnimation.build). The longer legs of data/art_soldier.json soldier.part_overrides lengthen the sprint's raw stride more than the re-solved, hip-locked legs show it; this corrects the playback rate, not the foot_slide_max_m limit.",
+		"cycle_scale": {"run_fwd": 0.95, "walk_slow": 1.05},
 		"foot_floor_slack_m": 0.02,
 		"neck_drop_max_m": 0.1,
 		"upper_keeps_lower": ["Spine"],
@@ -53,6 +63,8 @@
 		"_todo": "OQ-COVER / OQ-ANIM (M2 AN1 commit 4): third-person cover look only (scripts/visual/cover_anim.gd; data/cover.json keeps the gameplay and its pose angles). The crouched cover pose takes crouch_bones from the library crouch (anim_sources cover_crouch_idle, UAL Crouch_Idle) at crouch_hold_s, the pelvis staying at the crouched hitbox height; peek_lean_deg rolls the spine toward the peek side. Presentation trials, not design values.",
 		"crouch_bones": ["Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"],
 		"crouch_hold_s": 1.0,
+		"_rest_note": "M2 AN1 commit 6: the arms while hugging the wall (replaces data/cover.json animation.rest_upper_pose_deg for the look only; cover.json is unchanged): the gun held at a low ready angle across the body instead of straight up. Same bones, so the lean still blends back to the aimed pose.",
+		"rest_upper_pose_deg": {"RightUpperArm": [10, 0, 8], "RightForeArm": [55, 0, 0], "RightHand": [-30, 0, 0]},
 		"peek_lean_deg": 9.0
 	}
 }

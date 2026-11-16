@@ -76,10 +76,15 @@ func _build_graph() -> void:
 	rest_clip.loop_mode = Animation.LOOP_LINEAR
 	var rest_mix := AnimationNodeBlend2.new()
 	rest_mix.filter_enabled = true
-	for bone: String in _cfg["animation"]["rest_upper_pose_deg"]:
+	# M2 AN1 commit 6: the hugging soldier's arms come from data/anim_third_person.json cover.rest_upper_pose_deg when
+	# it is there (the gun at a low ready angle against the wall), else from data/cover.json as before.
+	var rest_pose: Dictionary = (SoldierRig.config()["cover"] as Dictionary).get("rest_upper_pose_deg", _cfg["animation"]["rest_upper_pose_deg"])
+	for bone: String in rest_pose:
+		if bone.begins_with("_"):
+			continue
 		var path := NodePath("Skeleton3D:" + bone)
 		rest_mix.set_filter_path(path, true)
-		var angles: Array = _cfg["animation"]["rest_upper_pose_deg"][bone]
+		var angles: Array = rest_pose[bone]
 		var rotation := Quaternion.from_euler(Vector3(deg_to_rad(float(angles[0])), deg_to_rad(float(angles[1])), deg_to_rad(float(angles[2]))))
 		var track := rest_clip.add_track(Animation.TYPE_ROTATION_3D)
 		rest_clip.track_set_path(track, path)

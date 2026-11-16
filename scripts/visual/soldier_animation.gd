@@ -36,7 +36,9 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 		if clip != "idle" and clips.source_for(clip) != "procedural":
 			var gait := SoldierClips.gait(resolved, skeleton, clip == "walk_back")
 			resolved = gait["clip"]
-			cycles[clip] = gait["cycle_m"]
+			# M2 AN1 commit 6: gait.cycle_scale corrects a measured stride where the gait's leg re-solve (SoldierGait)
+			# moves the planted foot away from the raw clip's (data, per slot; 1 = as measured).
+			cycles[clip] = float(gait["cycle_m"]) * float((gait_cfg.get("cycle_scale", {}) as Dictionary).get(clip, 1.0))
 		library.add_animation(clip, resolved)
 	var extras: Dictionary = {}
 	for clip in ["jump_air", "hit_chest", "hit_head"]:
