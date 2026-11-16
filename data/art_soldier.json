@@ -2,7 +2,7 @@
 	"_placeholder": true,
 	"_todo": "OQ-ART-SOLDIER (M2 AN1): the first-person hands and weapons (scripts/visual/view_mesh.gd, view_hands.gd, view_weapons.gd). Every shape, colour, material value, finger pose and hand placement here is a trial look for Shibi on the Fold, a placeholder, not a design decision. Metres are natural size before camera.json first_person.view_model.scale. Weapon frame: origin at the right hand's grip point (the blade: the hilt's middle), -z forward, +y up. Hand frame (right hand; the left is its mirror in x): origin at the wrist, fingers along -z, back of the hand +y, thumb on -x. Shapes: box (size, chamfer), slab (a profile polygon extruded along axis by width, chamfered), lathe (a [radius, height] profile turned around axis with sides; closed = the profile is a ring polygon, e.g. a hollow tube). Rotations are degrees, Godot YXZ euler.",
 	"budget": {
-		"_note": "OQ-ART-SOLDIER: the whole view model (both arms + the shown weapon, visible meshes only, tracer and flash excluded) must stay under these (tests/test_view_model_art.gd). measured_* are written by hand from the test's print (FP VIEW BUDGET lines) and are not read by code.",
+		"_note": "OQ-ART-SOLDIER: the whole view model (both arms + the shown weapon, visible meshes only, the muzzle flash and its light included, the world tracer excluded) must stay under these (tests/test_view_model_art.gd). measured_* are written by hand from the test's print (FP VIEW BUDGET lines) and are not read by code.",
 		"max_triangles": 4000,
 		"max_draw_calls": 12,
 		"measured_triangles": {"pilum_br": 3372, "sagittarii_rifle": 3476, "gladius_lux": 2372, "per_arm": 992, "pilum_br_with_flash": 3386, "sagittarii_rifle_with_flash": 3490},
