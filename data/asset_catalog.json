@@ -1395,6 +1395,13 @@
 			"sha256": "8ac1d5c18f7b862cfe75a78cf590c6dd0f1d4f2215ae3d237cfe30df35c2dc4d"
 		},
 		{
+			"path": "res://assets/generated/characters/view_arms.glb",
+			"made_by": "tools/blender/build_view_arms.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 95976,
+			"sha256": "82e0aad58a4592021231411659a49b8e6502dd2a686d027ec931ad43cb88ac36"
+		},
+		{
 			"path": "res://assets/generated/textures/noise_pack.png",
 			"made_by": "tools/gen_textures.gd",
 			"licence": "generated in this project (no source material)",
@@ -1407,6 +1414,27 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 7250923,
 			"sha256": "1d0e55c3243989cc8e3de7c92b2405d7060a82b3b78c7459bd03510c059a425d"
+		},
+		{
+			"path": "res://assets/generated/weapons/gladius_lux.glb",
+			"made_by": "tools/blender/build_weapons.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 28804,
+			"sha256": "bf44b360fbea86afd875b6900e1d4d3fdb21a4f4dd7b1289916b375bf9f531a2"
+		},
+		{
+			"path": "res://assets/generated/weapons/pilum_br.glb",
+			"made_by": "tools/blender/build_weapons.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 175648,
+			"sha256": "b143aab561cf9292e3aec1ba1ca619a3251f1a20e202f8520ccae7d04db3f678"
+		},
+		{
+			"path": "res://assets/generated/weapons/sagittarii_rifle.glb",
+			"made_by": "tools/blender/build_weapons.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 173236,
+			"sha256": "31e03efd416595c5c345005cbe7440ec7dd5824548b168f5188ea21eecbc008c"
 		}
 	],
 	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that CC0 asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."

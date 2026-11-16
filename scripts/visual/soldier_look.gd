@@ -105,6 +105,10 @@ static func gun_mesh(id: String, lod: String) -> ArrayMesh:
 	var cache_key := key + "/" + lod
 	if _guns.has(cache_key):
 		return _guns[cache_key]
+	var glb := _glb_gun(key, lod)
+	if glb != null:
+		_guns[cache_key] = glb
+		return glb
 	var g: Dictionary = config()["gun"]
 	var art := ViewWeapons.art(key)
 	var keep: Array = gun_cfg(key)[lod]
@@ -128,6 +132,25 @@ static func gun_mesh(id: String, lod: String) -> ArrayMesh:
 	var mesh := st.commit()
 	mesh.surface_set_material(0, SoldierSquadColour.material())
 	_guns[cache_key] = mesh
+	return mesh
+
+
+## M2 AN2 item 4a: the third-person gun from the weapon's Blender-built .glb (weapons.<id>.mesh_source, objects
+## ThirdNear / ThirdFar: already in the soldier stream and at gun scale, tools/blender/build_weapons.py), copied into a
+## new mesh with the one soldier material; null when the switch is unset or the object is missing (the part path).
+static func _glb_gun(key: String, lod: String) -> ArrayMesh:
+	var src := ViewWeapons.mesh_source(key)
+	if src == "":
+		return null
+	var node := "ThirdNear" if lod == "near" else "ThirdFar"
+	var source: Mesh = (ViewMesh.glb_nodes(src).get(node, {}) as Dictionary).get("mesh", null)
+	if source == null or source.get_surface_count() != 1:
+		push_error("SoldierLook: %s has no one-surface %s" % [src, node])
+		return null
+	var mesh := ArrayMesh.new()
+	mesh.resource_name = node
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, source.surface_get_arrays(0))
+	mesh.surface_set_material(0, SoldierSquadColour.material())
 	return mesh
 
 

@@ -7,11 +7,14 @@ extends RefCounted
 ## Hand frame (right hand): origin at the wrist, fingers along -z, back of the hand +y, thumb on -x; the forearm
 ## runs from the wrist along +z at rest and is turned toward the elbow by aim_forearm.
 ## Finger poses are per-joint curl angles in degrees (flexion toward the palm), blendable (blend_poses).
+## M2 AN2 item 4a: with hands.mesh_source set, the arm mesh is the Blender-built gauntlet (tools/blender/
+## build_view_arms.py: blended weights, up to 4 bones per vertex) on the same data-built skeleton; the part list is the
+## fallback.
 
 const FINGERS: Array[String] = ["index", "middle", "ring", "pinky", "thumb"]
 const SEGMENTS := 3
 
-static var _cache := {}  # side -> {"mesh", "rests", "verts", "bones", "triangles"}
+static var _cache := {}  # side -> {"mesh", "rests", "verts", "bones", "weights", "triangles"}
 
 
 static func cfg() -> Dictionary:
@@ -78,11 +81,29 @@ static func mirror_q(q: Quaternion) -> Quaternion:
 	return Quaternion(q.x, -q.y, -q.z, q.w)
 
 
+## M2 AN2 item 4a: the Blender-built arm (hands.mesh_source, tools/blender/build_view_arms.py), "" when unset or absent.
+static func mesh_source() -> String:
+	var path := String(cfg().get("mesh_source", ""))
+	return path if ViewMesh.has_source(path) else ""
+
+
+## Per side: "mesh", "rests" (local, mirrored for the left), "verts" (bind-pose triangle corners, mesh space, in the
+## order posed_vertices returns them), "bones" and "weights" (4 per corner), "triangles".
 static func _side_data(side: String) -> Dictionary:
 	if _cache.has(side):
 		return _cache[side]
 	var names := bone_names()
 	var local := _right_rests()
+	var rests := {}
+	for n in names:
+		rests[n] = mirror_xf(local[n]) if side == "l" else local[n]
+	var src := mesh_source()
+	if src != "":
+		var data := _glb_side(src, side, names)
+		if not data.is_empty():
+			data["rests"] = rests
+			_cache[side] = data
+			return data
 	var global := {}
 	for n in names:
 		var p := _parent_of(n)
@@ -118,13 +139,67 @@ static func _side_data(side: String) -> Dictionary:
 				var cap: Dictionary = (c["finger_cap"] as Dictionary).duplicate()
 				ViewMesh.add_part(b, cap, global[bone])
 	b.xf = Transform3D.IDENTITY
-	var rests := {}
-	for n in names:
-		rests[n] = mirror_xf(local[n]) if side == "l" else local[n]
 	var vb := b.vertices_and_bones()
-	var data := {"mesh": b.finish(), "rests": rests, "verts": vb[0], "bones": vb[1], "triangles": b.triangle_count()}
+	var bones4 := PackedInt32Array()
+	var weights4 := PackedFloat32Array()
+	for bone: int in (vb[1] as PackedInt32Array):
+		bones4.append_array(PackedInt32Array([bone, 0, 0, 0]))
+		weights4.append_array(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
+	var data := {"mesh": b.finish(), "rests": rests, "verts": vb[0], "bones": bones4, "weights": weights4,
+			"triangles": b.triangle_count()}
 	_cache[side] = data
 	return data
+
+
+## The arm of the .glb (object "Arm", skinned to the 17 named bones): joints remapped by bone NAME onto bone_names()
+## order, colours made linear, mirrored in x for the left arm, the game's opaque material. The runtime skeleton keeps
+## its rests from the data (the .glb's rests equal them: tests/test_view_glb.gd). Empty when the file lacks the arm.
+static func _glb_side(path: String, side: String, names: Array[String]) -> Dictionary:
+	var packed := load(path) as PackedScene
+	if packed == null:
+		push_error("ViewHands: %s does not load" % path)
+		return {}
+	var scene := packed.instantiate()
+	var mi := scene.find_child("Arm", true, false) as MeshInstance3D
+	if mi == null or mi.mesh == null or mi.skin == null:
+		push_error("ViewHands: %s has no skinned mesh Arm" % path)
+		scene.free()
+		return {}
+	var skel := mi.get_node_or_null(mi.skeleton) as Skeleton3D
+	var bind_to_bone := PackedInt32Array()
+	for k in mi.skin.get_bind_count():
+		var bone_name := String(mi.skin.get_bind_name(k))
+		if bone_name == "" and skel != null:
+			bone_name = String(skel.get_bone_name(mi.skin.get_bind_bone(k)))
+		var bone := names.find(bone_name)
+		if bone < 0:
+			push_error("ViewHands: %s binds %s, not an arm bone" % [path, bone_name])
+			scene.free()
+			return {}
+		bind_to_bone.append(bone)
+	var arrays := mi.mesh.surface_get_arrays(0)
+	scene.free()
+	var bones: PackedInt32Array = (arrays[Mesh.ARRAY_BONES] as PackedInt32Array).duplicate()
+	for i in bones.size():
+		bones[i] = bind_to_bone[bones[i]]
+	arrays[Mesh.ARRAY_BONES] = bones
+	var view := ViewMesh._view_arrays(arrays, side == "l")
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, view)
+	mesh.surface_set_material(0, ViewMesh.material("opaque"))
+	var pos: PackedVector3Array = view[Mesh.ARRAY_VERTEX]
+	var weights: PackedFloat32Array = view[Mesh.ARRAY_WEIGHTS]
+	var idx: PackedInt32Array = view[Mesh.ARRAY_INDEX]
+	var per := bones.size() / maxi(pos.size(), 1)
+	var verts := PackedVector3Array()
+	var bones4 := PackedInt32Array()
+	var weights4 := PackedFloat32Array()
+	for v in idx:
+		verts.append(pos[v])
+		for k in 4:
+			bones4.append(bones[v * per + k] if k < per else 0)
+			weights4.append(weights[v * per + k] if k < per else 0.0)
+	return {"mesh": mesh, "verts": verts, "bones": bones4, "weights": weights4, "triangles": idx.size() / 3}
 
 
 ## A new arm node: "RightArm" / "LeftArm" (origin = the wrist) > Skeleton3D "Skeleton" > MeshInstance3D "Mesh".
@@ -217,8 +292,8 @@ static func aim_forearm(arm: Node3D, to_elbow: Vector3) -> void:
 	skel.set_bone_pose_rotation(skel.find_bone("forearm"), Quaternion(Vector3.BACK, to_elbow.normalized()))
 
 
-## The arm's vertices posed on the CPU (rigid skinning), in the arm node's space: tests and reach checks see the
-## pose the GPU draws.
+## The arm's vertices posed on the CPU (linear blend skinning, up to 4 bones per vertex, as the GPU skins), in the arm
+## node's space: tests and reach checks see the pose the GPU draws.
 static func posed_vertices(arm: Node3D) -> PackedVector3Array:
 	var data := _side_data(String(arm.get_meta(&"side", "r")))
 	var skel := arm.get_node("Skeleton") as Skeleton3D
@@ -227,11 +302,19 @@ static func posed_vertices(arm: Node3D) -> PackedVector3Array:
 		mats.append(skel.get_bone_global_pose(i) * skel.get_bone_global_rest(i).affine_inverse())
 	var verts: PackedVector3Array = data["verts"]
 	var bones: PackedInt32Array = data["bones"]
+	var weights: PackedFloat32Array = data["weights"]
 	var skel_xf := skel.transform
 	var out := PackedVector3Array()
 	out.resize(verts.size())
 	for i in verts.size():
-		out[i] = skel_xf * (mats[bones[i]] * verts[i])
+		var p := Vector3.ZERO
+		var total := 0.0
+		for k in 4:
+			var w := weights[i * 4 + k]
+			if w > 0.0:
+				p += (mats[bones[i * 4 + k]] * verts[i]) * w
+				total += w
+		out[i] = skel_xf * (p / total if total > 0.0 else verts[i])
 	return out
 
 

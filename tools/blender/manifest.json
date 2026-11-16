@@ -12,6 +12,22 @@
 		"res://assets/generated/characters/soldier_clips.glb": {
 			"made_by": "tools/blender/build_soldier_clips.py",
 			"derived_from": "quaternius_ual_standard_glb"
+		},
+		"res://assets/generated/characters/view_arms.glb": {
+			"made_by": "tools/blender/build_view_arms.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/gladius_lux.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/pilum_br.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/sagittarii_rifle.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
 		}
 	}
 }
