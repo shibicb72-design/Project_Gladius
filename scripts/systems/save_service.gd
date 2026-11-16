@@ -24,7 +24,25 @@ static func defaults() -> Dictionary:
 				"layout_notice_pending": false,  # M2 H1a: true once a layout migration reset an edited layout; the touch HUD clears it
 				"haptics": HapticsService.default_settings(),  # G2f: master switch, category toggles, High/Low quality
 				"left_fire_enabled": _left_fire_default(),  # G3e: optional left Fire button, default from data (false)
-				"shooting_mode": shooting_mode_default()}  # M2 H1a: "advanced" | "simple", default from data (OQ-SHOOT-MODE)
+				"shooting_mode": shooting_mode_default(),  # M2 H1a: "advanced" | "simple", default from data (OQ-SHOOT-MODE)
+				"match_length": match_length_default()}  # M2 Z2: a br.json match_length option id, default from data (OQ-BR-LENGTH)
+
+
+## M2 Z2: the br config the lobby sees (data/br.json through modes.json, no map overrides).
+static func _br_cfg() -> Dictionary:
+	return ModeRegistry.merged_config(MatchDirector.MODE_ID, DataRegistry.new().load_file("res://data/modes.json"))
+
+
+## M2 Z2: data/br.json match_length.default (OQ-BR-LENGTH placeholder, "15").
+static func match_length_default() -> String:
+	return MatchDirector.match_length_default_id(_br_cfg())
+
+
+## M2 Z2: a match length id from a file or menu; only br.json match_length option ids are kept, anything else
+## (missing, unknown, not a string) means the data default.
+static func match_length(value: Variant) -> String:
+	var cfg := _br_cfg()
+	return MatchDirector.validated_match_length_id(cfg, str(value) if value is String else "")
 
 
 ## M2 H1a: data/input.json shooting.default_mode (OQ-SHOOT-MODE placeholder, "advanced").
@@ -108,6 +126,7 @@ func load_profile() -> Dictionary:
 	profile["haptics"] = HapticsService.sanitize(data.get("haptics", null))
 	profile["left_fire_enabled"] = _left_fire(data.get("left_fire_enabled", null))
 	profile["shooting_mode"] = shooting_mode(data.get("shooting_mode", null))
+	profile["match_length"] = match_length(data.get("match_length", null))
 	# M2 H1a layout migration (OQ-H1A-LAYOUT): saved layouts without the current layout version (or a pre-G2e file with
 	# only the legacy sprint_lock_pos) were made for the old placement. They are reset to the new defaults once, the
 	# legacy sprint_lock_pos with them, the touch HUD shows a one-time notice when something was discarded, and the
@@ -138,5 +157,6 @@ func save_profile(profile: Dictionary) -> bool:
 	out["haptics"] = HapticsService.sanitize(profile.get("haptics", null))
 	out["left_fire_enabled"] = _left_fire(profile.get("left_fire_enabled", null))
 	out["shooting_mode"] = shooting_mode(profile.get("shooting_mode", null))
+	out["match_length"] = match_length(profile.get("match_length", null))
 	f.store_string(JSON.stringify(out, "\t"))
 	return true

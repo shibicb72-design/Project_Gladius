@@ -153,8 +153,11 @@ func begin() -> bool:
 	map_path = String(chosen["path"])
 	# M2L1 (binding fix 21): the map's overrides merge at config load, once; a config loaded (and edited) by the
 	# caller before begin() is used as it is.
+	# M2 Z2 (OQ-BR-LENGTH): the host's match length from the lobby ("" without a lobby: the map's own schedule).
+	# Every peer reads the same lobby field, so host and clients stretch the zone schedule alike.
+	var lobby := lobby_override if lobby_override != null else AppFlow.lobby
 	if director.mode_cfg.is_empty():
-		director.load_config(map_path)
+		director.load_config(map_path, lobby.match_length if lobby != null else "")
 	map_def = DataRegistry.new().load_file(map_path)
 	var scene: PackedScene = load(str(map_def.get("scene", ""))) as PackedScene
 	if scene == null:
@@ -193,7 +196,6 @@ func begin() -> bool:
 	var session := session_override
 	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
 		session = AppFlow.session
-	var lobby := lobby_override if lobby_override != null else AppFlow.lobby
 	var local_peer := session.get_unique_id() if session != null else 0
 	var networked := local_peer != 0
 	networked_match = networked
