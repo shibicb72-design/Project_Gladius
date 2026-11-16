@@ -75,10 +75,33 @@ static func build_mesh(definition: Dictionary) -> ArrayMesh:
 	return mesh
 
 
+## The look a batch draws for `type`. M2W1: with art_world_kit_enabled on and an entry in
+## data/art_world_kit.json, the Blender near mesh (WorldKitMeshes); "<type>_lod1" names its far mesh. Otherwise,
+## or when the glb or node is missing (one error line), the kit mesh built from the type's parts.
 static func mesh_for(type: String) -> ArrayMesh:
-	if not _meshes.has(type):
-		_meshes[type] = build_mesh(config()["types"][type])
-	return _meshes[type]
+	var split := WorldKitMeshes.split_level(type)
+	var base := String(split[0])
+	var level := int(split[1])
+	var glb := WorldKitMeshes.enabled() and WorldKitMeshes.has_entry(base)
+	var key := "%s/%d/%s" % [base, level, "glb" if glb else "kit"]
+	if not _meshes.has(key):
+		var made: ArrayMesh = WorldKitMeshes.mesh(base, level) if glb else null
+		_meshes[key] = made if made != null else build_mesh(config()["types"][base])
+	return _meshes[key]
+
+
+## M2W1: [far mesh, swap distance] when `type` draws a far LOD (the glb look is on and has both meshes), else [].
+static func lod_for(type: String) -> Array:
+	if not (WorldKitMeshes.enabled() and WorldKitMeshes.has_entry(type)) or WorldKitMeshes.swap_m(type) <= 0.0:
+		return []
+	if WorldKitMeshes.mesh(type, 0) == null or WorldKitMeshes.mesh(type, 1) == null:
+		return []
+	return [mesh_for(type + WorldKitMeshes.LOD1_SUFFIX), WorldKitMeshes.swap_m(type)]
+
+
+## Tests: forgets the cached looks (after switching art_world_kit_enabled).
+static func clear_mesh_cache() -> void:
+	_meshes.clear()
 
 
 ## The eight corners of a collider entry's size box (a wedge lies inside its box), in piece space.
@@ -246,5 +269,12 @@ static func populate(nav: Node, chunks: MapChunks, pieces: Array, terrain: MapTe
 		var body := build_body(String(entry["id"]), type, types[type], at, float(entry.get("yaw", 0.0)))
 		nav.add_child(body)
 		bodies.append(body)
-		chunks.add("structure", type, mesh_for(type), null, body.transform, not (types[type]["colliders"] as Array).is_empty())
+		var collides := not (types[type]["colliders"] as Array).is_empty()
+		chunks.add("structure", type, mesh_for(type), null, body.transform, collides)
+		# M2W1: the far look of the same piece (MapChunks draws one of the two by distance).
+		var lod := lod_for(type)
+		if not lod.is_empty():
+			var far_type := type + WorldKitMeshes.LOD1_SUFFIX
+			chunks.add("structure", far_type, lod[0], null, body.transform, collides)
+			chunks.pair_lod("structure", type, far_type, float(lod[1]))
 	return bodies

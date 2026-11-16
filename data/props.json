@@ -75,12 +75,38 @@
 			"move_time_s": 1.0,
 			"look_size": [2.0, 4.5, 0.25],
 			"look": {
+				"_m2w1": "M2W1: a bronze-bound plank leaf (-x = the meeting edge, +x = the pocket side): a dark core, five timber planks, a bronze frame (stiles, top, bottom and two middle rails), a diagonal brace in each outer panel, gold bosses on the rails (both faces), a bronze lock plate and a thin energy seam on the meeting edge. Every part stays inside the leaf's 2.0 x 4.5 x 0.25, so it slides into the pocket slot.",
 				"parts": [
-					{"size": [1.96, 4.46, 0.2], "at": [0, 0, 0], "color": "trim"},
-					{"size": [2.0, 0.2, 0.25], "at": [0, 1.6, 0], "color": "dark"},
-					{"size": [2.0, 0.2, 0.25], "at": [0, 0, 0], "color": "dark"},
-					{"size": [2.0, 0.2, 0.25], "at": [0, -1.6, 0], "color": "dark"},
-					{"size": [0.3, 0.3, 0.3], "at": [-0.85, 0.4, 0], "color": "bronze"}
+					{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1.9, 4.36, 0.1], "at": [0, 0, 0], "color": "dark"},
+					{"size": [0.36, 4.36, 0.15], "at": [-0.76, 0, 0], "color": "timber"},
+					{"size": [0.36, 4.36, 0.15], "at": [-0.38, 0, 0], "color": "timber"},
+					{"size": [0.36, 4.36, 0.15], "at": [0.0, 0, 0], "color": "timber"},
+					{"size": [0.36, 4.36, 0.15], "at": [0.38, 0, 0], "color": "timber"},
+					{"size": [0.36, 4.36, 0.15], "at": [0.76, 0, 0], "color": "timber"},
+					{"size": [0.14, 4.5, 0.22], "at": [-0.93, 0, 0], "color": "bronze"},
+					{"size": [0.14, 4.5, 0.22], "at": [0.93, 0, 0], "color": "bronze"},
+					{"size": [2.0, 0.16, 0.22], "at": [0, 2.17, 0], "color": "bronze"},
+					{"size": [2.0, 0.16, 0.22], "at": [0, -2.17, 0], "color": "bronze"},
+					{"size": [1.72, 0.13, 0.2], "at": [0, 0.75, 0], "color": "bronze"},
+					{"size": [1.72, 0.13, 0.2], "at": [0, -0.75, 0], "color": "bronze"},
+					{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1.95, 0.1, 0.19], "at": [0, 1.46, 0], "rot": [0, 0, 39], "color": "bronze"},
+					{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1.95, 0.1, 0.19], "at": [0, -1.46, 0], "rot": [0, 0, -39], "color": "bronze"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [-0.55, 2.17, -0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.0, 2.17, -0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.55, 2.17, -0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [-0.55, -2.17, -0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.0, -2.17, -0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.55, -2.17, -0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [-0.55, 0.75, -0.1], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.55, 0.75, -0.1], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [-0.55, -0.75, -0.1], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.55, -0.75, -0.1], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [-0.55, 2.17, 0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.55, 2.17, 0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [-0.55, -2.17, 0.11], "color": "gold"},
+					{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.09, 0.03, 0.09], "at": [0.55, -2.17, 0.11], "color": "gold"},
+					{"size": [0.3, 0.6, 0.24], "at": [-0.82, 0, 0], "color": "bronze"},
+					{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.03, 4.2, 0.23], "at": [-0.985, 0, 0], "color": "lit_accent"}
 				]
 			}
 		}

@@ -24,6 +24,11 @@
 		{"name": "20_landmark_300_tower", "cam": [-162.1, -387.5], "look": [126.3, 5.0, -304.9], "note": "Specula from 300 m in the fields outside the outer wall"},
 		{"name": "21_landmark_300_aqueduct", "cam": [-235.0, -410.0], "look": [12.0, 4.0, -235.0], "note": "Aquaeductus Magnus (landmark centre) from 303 m in the fields, across the outer wall"},
 		{"name": "22_sky_sunward", "cam": [-159.0, -437.0], "look_mode": "sun", "pitch_deg": 15.0, "note": "the fields, looking 15 degrees up towards the sun"},
-		{"name": "23_sky_antisun", "cam": [-159.0, -437.0], "look_mode": "antisun", "pitch_deg": 15.0, "note": "the fields, looking 15 degrees up away from the sun"}
+		{"name": "23_sky_antisun", "cam": [-159.0, -437.0], "look_mode": "antisun", "pitch_deg": 15.0, "note": "the fields, looking 15 degrees up away from the sun"},
+		{"name": "24_wall_outer_close", "cam": [3.0, -145.5], "look": [-0.5, 2.3, -141.2], "note": "M2W1 close-up: InnerRing_002's outer face (plinth, courses, pilaster, string course, parapet) from 4.5 m"},
+		{"name": "25_wall_inner_close", "cam": [2.5, -133.0], "look": [0.0, 1.7, -138.8], "note": "M2W1 close-up: InnerRing_002's inner face (blind arch, cornice, energy line) from 6 m"},
+		{"name": "26_merlon_line", "cam": [5.0, -139.4], "eye_m": 4.7, "look": [-8.0, 4.0, -141.0], "note": "M2W1 close-up: along the parapet of InnerRing_002 from its walkway (merlons, sills, joints)"},
+		{"name": "27_gate_outer_close", "cam": [4.0, -343.0], "look": [0.0, 3.6, -331.2], "note": "M2W1 close-up: Porta Aquilae's outer face (pylons, shields, portal, voussoirs, tablet, roundels, open leaves) from 12 m"},
+		{"name": "28_tower_foot", "cam": [125.4, -292.9], "look": [126.3, 3.2, -304.9], "note": "M2W1 close-up: Specula (OuterRing_022) from 12 m inside: quoins, arrow loop, belt course, parapet, beacon"}
 	]
 }

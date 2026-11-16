@@ -1,0 +1,27 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-ART-WORLD: every number here (LOD swap distances, the fit tolerance, the triangle budgets, the joint bend) is a first guess for Shibi in M2W1, not measured on the Fold and not approved.",
+	"_note": "M2W1: the world kit's Blender looks (tools/blender/m2w1_world_kit.py writes glb; scripts/visual/world_kit_meshes.gd loads it). types.<type>: node = the near mesh's node in glb, lod1_node = the far mesh's, lod_swap_m = every piece of a batch is drawn near at least out to this camera distance and far beyond it (MapChunks LOD pairs; the far batch ends where the structure class says). A type without an entry, or with a missing glb or node, keeps its kit look (data/maps/alesia_structures.json parts). The switch is data/graphics_presets.json art_world_kit_enabled.",
+	"glb": "res://assets/generated/world/m2w1_world_kit.glb",
+	"_fit_note": "tests/test_m2w1_world_kit.gd: every vertex of a near and a far mesh lies within fit_tolerance_m of its type's colliders (what you see is what blocks), no vertex lies deeper than fit_tolerance_m inside an open volume, and no vertex inside a walk surface's footprint (shrunk by walk_edge_m) lies between walk_clear_m and walk_head_m above it (nothing to trip over or walk into).",
+	"fit_tolerance_m": 0.15,
+	"walk_clear_m": 0.05,
+	"walk_head_m": 2.0,
+	"walk_edge_m": 0.02,
+	"lod1_max_tris": 250,
+	"_joint_note": "Wall pieces of one side overlap 0.5 to 1.4 m (centres 6.6 to 7.5 m apart on alesia_1km). The script skews every wall piece a little so overlapping faces never share a plane (no z-fighting): a point moves by offset_m * clamp(x / half_length_m, -1, 1) * f, f = min(y / y_knee_m, 1) up and clamp(z / z_knee_m, -1, 1) sideways.",
+	"joint": {"types": ["wall_walk", "wall_stair"], "offset_m": 0.015, "half_length_m": 4.0, "y_knee_m": 3.0, "z_knee_m": 1.2},
+	"types": {
+		"wall_walk": {"node": "wall_walk", "lod1_node": "wall_walk_lod1", "lod_swap_m": 120},
+		"wall_stair": {"node": "wall_stair", "lod1_node": "wall_stair_lod1", "lod_swap_m": 120},
+		"gate": {"node": "gate", "lod1_node": "gate_lod1", "lod_swap_m": 150},
+		"watchtower": {"node": "watchtower", "lod1_node": "watchtower_lod1", "lod_swap_m": 150}
+	},
+	"budgets": {
+		"_note": "Triangle caps (placeholders): near per type, far per type, and the triangles of the structure batches in range at the four perf points of tests/test_alesia_1km.gd (instances x mesh triangles).",
+		"near_tris": {"wall_walk": 1000, "wall_stair": 1300, "gate": 2500, "watchtower": 2200},
+		"lod1_tris": {"wall_walk": 80, "wall_stair": 120, "gate": 250, "watchtower": 200},
+		"visible_structure_tris": 400000
+	}
+}

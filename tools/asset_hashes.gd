@@ -7,7 +7,7 @@ extends SceneTree
 
 const ROOT := "res://assets/generated"
 const CATALOG := "res://data/asset_catalog.json"
-const TOOLS := {"textures": "tools/gen_textures.gd", "audio": "tools/gen_audio.gd"}
+const TOOLS := {"textures": "tools/gen_textures.gd", "audio": "tools/gen_audio.gd", "world": "tools/blender/m2w1_world_kit.py"}
 
 
 static func files(path: String) -> Array[String]:

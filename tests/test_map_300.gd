@@ -207,7 +207,9 @@ func test_chunks_on_test_300() -> void:
 			for xform: Transform3D in batch.get_meta(&"transforms"):
 				assert_eq(MapChunks.index_for(xform.origin.x, xform.origin.z, chunks.half_m, chunks.chunk_size_m, chunks.per_side), index, String(batch.name) + ": instance in its chunk")
 			batch_count += 1
-			instances += batch.multimesh.instance_count
+			# M2W1: a far LOD batch draws the same pieces as its near batch (one of the two at a time): not counted again.
+			if int(batch.get_meta(&"lod_level", 0)) != 1:
+				instances += batch.multimesh.instance_count
 	# Decor: one instance per entry, totals per kind and size by the name rule (tests/test_map_chunks.gd).
 	var decor: Array = cover["decor"]
 	var decor_expected: Dictionary = _Chunks.decor_expected(decor)

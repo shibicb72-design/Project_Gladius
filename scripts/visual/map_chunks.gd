@@ -40,6 +40,12 @@ var _taken_ids := {}
 var error_sink: Callable = Callable()
 ## M2P1C: the "classes" block build() uses; empty = data/map_build.json's (tests pass their own).
 var classes_override := {}
+## M2W1: LOD pairs. "<source>/<far type>" -> {"near": near type, "swap_m": m} and "<source>/<near type>" ->
+## {"far": far type, "swap_m": m} (pair_lod). In each chunk the near batch ends and the far batch begins at
+## swap_m + radius + margin (both measured from the NEAR batch's world AABB centre: the far batch takes it as its
+## custom_aabb, as the terrain's Mesh / Far pair does), the far batch ends where the class says (the pair
+## together keeps the class range and so the sight floor). Both have the near type's class and shadow.
+var _lod := {}
 
 
 static func config() -> Dictionary:
@@ -105,6 +111,20 @@ func add(source: String, type: String, mesh: Mesh, material: Material, xform: Tr
 	(chunk[key]["transforms"] as Array).append(xform)
 	if collides:
 		chunk[key]["collides"] = true
+
+
+## M2W1: draws `far_type` (its own add() calls, the same transforms as `near_type`) instead of `near_type`
+## beyond `swap_m` (the data meaning: every piece is drawn near at least out to swap_m). swap_m <= 0 = no pair.
+func pair_lod(source: String, near_type: String, far_type: String, swap_m: float) -> void:
+	if swap_m <= 0.0:
+		return
+	_lod[source + "/" + far_type] = {"near": near_type, "swap_m": swap_m}
+	_lod[source + "/" + near_type] = {"far": far_type, "swap_m": swap_m}
+
+
+## M2W1: the near type of a far LOD batch type ("" when `type` is no far LOD of `source`).
+func near_of(source: String, type: String) -> String:
+	return String((_lod.get(source + "/" + type, {}) as Dictionary).get("near", ""))
 
 
 ## M2P1C: the class name of a batch from a "classes" block: by_type "<source>/<type>", then "<source>/<kind>"
@@ -205,7 +225,14 @@ func build() -> void:
 			node.set_meta(&"transforms", transforms)  # a headless renderer keeps no instance data to read back
 			node.set_meta(&"source", entry["source"])
 			node.set_meta(&"type", entry["type"])
-			var cls := class_of(String(entry["source"]), String(entry["type"]), classes)
+			# M2W1: a far LOD batch takes its near batch's class, centre and radius (pair_lod).
+			var lod: Dictionary = _lod.get(key, {})
+			var near_entry: Dictionary = entries.get(String(entry["source"]) + "/" + String(lod.get("near", "")), {})
+			if lod.has("near") and near_entry.is_empty():
+				push_error("MapChunks: far LOD batch %s without its near batch in %s; drawn as a plain batch" % [key, chunk.name])
+				lod = {}
+			var class_type := String(lod.get("near", entry["type"]))
+			var cls := class_of(String(entry["source"]), class_type, classes)
 			if not list.has(cls):
 				push_error("MapChunks: no visibility class for %s/%s; never culled, no shadow" % [entry["source"], entry["type"]])
 			var spec: Dictionary = list.get(cls, {})
@@ -213,9 +240,28 @@ func build() -> void:
 			node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(spec.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			var collides: bool = entry["collides"]
 			var range_m := effective_range(float(spec.get("range_m", 0.0)), collides, floor_m)
-			var radius_m := _bounds(entry["mesh"], transforms).size.length() * 0.5
+			var centre_box := _bounds(near_entry["mesh"], near_entry["transforms"]) if lod.has("near") else _bounds(entry["mesh"], transforms)
+			var radius_m := centre_box.size.length() * 0.5
+			var swap_m := float(lod.get("swap_m", 0.0))
+			if swap_m > 0.0 and range_m > 0.0 and swap_m >= range_m:
+				swap_m = 0.0  # the near look already covers the whole range: no far batch drawn
 			node.visibility_range_end = range_end_for(range_m, radius_m, margin_m)
 			node.visibility_range_end_margin = margin_m if range_m > 0.0 else 0.0
+			if lod.has("far") and swap_m > 0.0:
+				node.visibility_range_end = range_end_for(swap_m, radius_m, margin_m)
+				node.visibility_range_end_margin = margin_m
+				node.set_meta(&"lod_level", 0)
+				node.set_meta(&"lod_swap_m", swap_m)
+			elif lod.has("near"):
+				node.custom_aabb = centre_box  # the near batch's centre: both swap at the same measured distance
+				node.set_meta(&"lod_level", 1)
+				node.set_meta(&"lod_of", lod["near"])
+				node.set_meta(&"lod_swap_m", swap_m)
+				if swap_m > 0.0:
+					node.visibility_range_begin = range_end_for(swap_m, radius_m, margin_m)
+					node.visibility_range_begin_margin = margin_m
+				else:
+					node.visible = false
 			node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED  # fading blends alpha on Mobile
 			node.set_meta(&"class", cls)
 			node.set_meta(&"collides", collides)
@@ -303,7 +349,10 @@ func _set_instance(e: Dictionary, xform: Transform3D) -> void:
 ## M2P1C: the world point the renderer measures a batch's visibility range from: the centre of the union of
 ## its instances' world AABBs (mesh AABB moved by each world transform), derived from the "transforms" meta
 ## because a headless renderer keeps no instance data. Needs the batch's global transform (identity here).
+## M2W1: a batch with a custom_aabb (a far LOD batch: its near batch's box) measures from that box's centre.
 static func range_centre(batch: MultiMeshInstance3D) -> Vector3:
+	if batch.custom_aabb.has_volume():
+		return batch.global_transform * batch.custom_aabb.get_center()
 	return batch.global_transform * _bounds(batch.multimesh.mesh, batch.get_meta(&"transforms", [])).get_center()
 
 
@@ -322,7 +371,7 @@ static func visible_at(map: Node, point: Vector3) -> Dictionary:
 		for batch in chunks.batches():
 			out["batches_total"] += 1
 			var d := point.distance_to(range_centre(batch))
-			if (batch.visibility_range_end > 0.0 and d > batch.visibility_range_end) or (batch.visibility_range_begin > 0.0 and d < batch.visibility_range_begin):
+			if not batch.visible or (batch.visibility_range_end > 0.0 and d > batch.visibility_range_end) or (batch.visibility_range_begin > 0.0 and d < batch.visibility_range_begin):
 				continue
 			out["batches"] += 1
 			out["colliding" if bool(batch.get_meta(&"collides", false)) else "non_colliding"] += 1
@@ -398,10 +447,13 @@ static func in_range(node: GeometryInstance3D, point: Vector3) -> bool:
 	return (node.visibility_range_end <= 0.0 or d <= node.visibility_range_end) and (node.visibility_range_begin <= 0.0 or d >= node.visibility_range_begin)
 
 
-## Instances drawn for one source, across chunks; `type` "" counts every type.
+## Instances drawn for one source, across chunks; `type` "" counts every type. M2W1: a far LOD batch draws the
+## same pieces as its near batch (one of the two at a time), so it is not counted again.
 func instance_total(source: String, type: String = "") -> int:
 	var total := 0
 	for node in batches(source):
+		if int(node.get_meta(&"lod_level", 0)) == 1:
+			continue
 		if type == "" or String(node.get_meta(&"type", "")) == type:
 			total += node.multimesh.instance_count
 	return total
