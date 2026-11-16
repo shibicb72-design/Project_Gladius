@@ -54,5 +54,15 @@
 		"bot_jump_window": [0.15, 0.85],
 		"glide_speed_mps": 8.0,
 		"max_fall_mps": 15.0
+	},
+	"match_length": {
+		"_placeholder": true,
+		"_todo": "OQ-BR-LENGTH: Shibi asked only for the three options 12, 15 and 20 minutes. That minutes = the nominal time at which the last circle finishes closing (every phase's wait_s and shrink_s of the map in use are multiplied by minutes x 60 / their sum; radii, damage, the drop and loot are not scaled) and the default \"15\" are Lanista's interpretation and guess for Shibi (OQ-BR-LENGTH). More options can be added here in data alone ({\"id\", \"minutes\"}); an option shorter than the map's own schedule (factor below 1) is rejected (MatchDirector.apply_match_length).",
+		"default": "15",
+		"options": [
+			{"id": "12", "minutes": 12},
+			{"id": "15", "minutes": 15},
+			{"id": "20", "minutes": 20}
+		]
 	}
 }

@@ -169,7 +169,19 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	m.map_path_override = MAP  # binding fix 21: the one allowed override use
 	tree.root.add_child(m)
 	await tree.physics_frame
-	m.director.load_config(MAP)  # merges the map's overrides (zone, drop, loot); the scaling below survives begin()
+	# Merges the map's overrides (zone, drop, loot) and, with --sim-length=<id> (M2 Z2), applies that match length
+	# preset first; the --sim-scale multiply below composes with it. The scaling survives begin().
+	var length_id := _Metrics.cli_length()
+	m.director.load_config(MAP, length_id)
+	var wall_cap_ms := WALL_CAP_MS
+	if length_id != "":
+		# last_close_s is the preset's nominal last close BEFORE --sim-scale. A rejected id keeps the map's own
+		# schedule (factor 1) and says rejected=true.
+		var li: Dictionary = m.director.match_length_info
+		print("SIM_LENGTH id=%s minutes=%s factor=%s last_close_s=%s%s" % [length_id, String.num(float(li["minutes"])).trim_suffix(".0"),
+				String.num(float(li["factor"]), 6), String.num(float(li["last_close_s"]), 3),
+				"" if bool(li["applied"]) else " rejected=true"])
+		wall_cap_ms = int(WALL_CAP_MS * float(li["factor"]))  # the wall cap stretches with the preset
 	m.director.mode_cfg["teams"]["mode"]["value"] = mode
 	var z: Dictionary = m.director.mode_cfg["zone"]
 	var want_phases: Array = []
@@ -255,7 +267,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	var n := 0
 	var capped := false
 	while results.is_empty():
-		if Time.get_ticks_msec() - wall_start > WALL_CAP_MS:
+		if Time.get_ticks_msec() - wall_start > wall_cap_ms:
 			capped = true
 			break
 		await tree.physics_frame
@@ -331,7 +343,7 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 		print("SIM result map=alesia_1km mode=%s winner=%s draw=%s" % [mode, results[0]["winner"], results[0]["draw"]])
 	else:
 		print("SIM UNFINISHED map=alesia_1km mode=%s seed=%d: no result after %.1f s wall (cap %d s); game_s=%.1f alive=%d squads_alive=%d zone_phase=%d of %d zone_state=%s zone_r=%.0f" % [
-				mode, seed_value, wall_s, WALL_CAP_MS / 1000, n / 60.0, m.director.players_alive(), m.director.squads_alive(),
+				mode, seed_value, wall_s, wall_cap_ms / 1000, n / 60.0, m.director.players_alive(), m.director.squads_alive(),
 				m.director.rules.zone_phase(), m.director.rules.phase_count(), m.director.rules.zone_state(), m.director.rules.zone_radius()])
 	print("SIM_UNSTICK map=alesia_1km mode=%s seed=%d total=%d bots_with_any=%d by_band=%s by_area=%s per_bot=%s" % [
 			mode, seed_value, unstick_total, unstick_per_bot.size(), _top(unstick_bands, 12), _top(unstick_areas, 14), unstick_per_bot])

@@ -34,12 +34,21 @@ var _slot_in_squad: Dictionary = {}  # player id -> index within its squad
 var _reviving: Dictionary = {}  # reviver player id -> target player id (revive input)
 
 
+# --- M2 Z2 match length (OQ-BR-LENGTH) ---
+## The last match length info (apply_match_length's return) from load_config; {} before the first load. The sim
+## prints it.
+var match_length_info: Dictionary = {}
+
+
 ## Loads mode_cfg (data/br.json through modes.json), match_cfg and loot_cfg (data/loot.json). M2L1 (binding fixes
 ## 3, 21): with a map json, its "overrides" {"br": {...}, "loot": {...}} are deep-merged over br and loot for this
 ## match only (merge_overrides). This is the one place the merge happens: MatchRoot.begin calls load_config(map)
 ## only while mode_cfg is empty, so a caller that loads the config and then edits it (the sim's faster phases)
 ## keeps its edits. Without a map (every existing caller) the configs are the plain files.
-func load_config(map_json: String = "") -> void:
+## M2 Z2 (OQ-BR-LENGTH): with a `length_id` (an id of br.json "match_length".options), the zone schedule of the
+## merged config is then stretched to that length (apply_match_length), before any caller can edit the phases;
+## the result is kept in match_length_info. With length_id "" the phases are not touched at all.
+func load_config(map_json: String = "", length_id: String = "") -> void:
 	var reg := DataRegistry.new()
 	mode_cfg = ModeRegistry.merged_config(MODE_ID, reg.load_file("res://data/modes.json"))
 	match_cfg = reg.load_file("res://data/match.json").duplicate(true)
@@ -48,6 +57,108 @@ func load_config(map_json: String = "") -> void:
 		var overrides := map_overrides(map_json)
 		mode_cfg = merge_overrides(mode_cfg, overrides.get("br", {}))
 		loot_cfg = merge_overrides(loot_cfg, overrides.get("loot", {}))
+	match_length_info = apply_match_length(mode_cfg, length_id)
+
+
+## The nominal zone schedule of `cfg`: the sum of every phase's wait_s + shrink_s (the time at which the last
+## circle finishes closing); 0.0 when the phases are missing or malformed. Pure.
+static func zone_nominal_s(cfg: Dictionary) -> float:
+	var zone: Variant = cfg.get("zone", {})
+	var phases: Variant = zone.get("phases", []) if typeof(zone) == TYPE_DICTIONARY else []
+	if typeof(phases) != TYPE_ARRAY:
+		return 0.0
+	var total := 0.0
+	for ph: Variant in phases:
+		if typeof(ph) != TYPE_DICTIONARY or not _length_num(ph.get("wait_s")) or not _length_num(ph.get("shrink_s")):
+			return 0.0
+		total += float(ph["wait_s"]) + float(ph["shrink_s"])
+	return total
+
+
+static func _length_num(v: Variant) -> bool:
+	return typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
+
+
+## Stretches the zone schedule of `cfg` IN PLACE to the "match_length" option `length_id`: minutes = the nominal
+## time at which the last circle finishes closing (Lanista's reading, OQ-BR-LENGTH). factor = minutes x 60 / the
+## sum of every phase's wait_s + shrink_s; every wait_s and shrink_s is multiplied by it (floats, never rounded).
+## radius_m, damage_per_s, the phase order, the start circle, the drop (carrier_s ...) and loot are not touched.
+## Returns {id, minutes, factor, last_close_s, nominal_s, applied}. length_id "" changes nothing (applied false,
+## no warning). An unknown id, a malformed option or schedule, or a factor below 1.0 is rejected with one
+## push_warning and changes nothing (applied false). Why factor < 1.0 is rejected: a shorter schedule than the
+## map's own would move the zone edge faster than the generator's edge-speed cap (alesia_1km.json
+## zone_gen.edge_speed_cap_mps, 4 m/s, tools/gen_zone.gd) and could break the drop rule (the last forced drop
+## must land before the first wait ends).
+static func apply_match_length(cfg: Dictionary, length_id: String) -> Dictionary:
+	var nominal := zone_nominal_s(cfg)
+	var info := {"id": length_id, "minutes": 0.0, "factor": 1.0, "last_close_s": nominal, "nominal_s": nominal,
+			"applied": false}
+	if length_id == "":
+		return info
+	var opt := match_length_option(cfg, length_id)
+	var why := ""
+	if opt.is_empty():
+		why = "unknown id"
+	elif not _length_num(opt.get("minutes")) or float(opt["minutes"]) <= 0.0:
+		why = "malformed option (minutes must be a number > 0)"
+	elif nominal <= 0.0:
+		why = "malformed zone phases"
+	else:
+		info["minutes"] = float(opt["minutes"])
+		var factor := float(opt["minutes"]) * 60.0 / nominal
+		if factor < 1.0:
+			why = "factor %.3f < 1.0 (shorter than the map's own %.0f s schedule)" % [factor, nominal]
+		else:
+			for ph: Dictionary in cfg["zone"]["phases"]:
+				ph["wait_s"] = float(ph["wait_s"]) * factor
+				ph["shrink_s"] = float(ph["shrink_s"]) * factor
+			info["factor"] = factor
+			info["last_close_s"] = zone_nominal_s(cfg)
+			info["applied"] = true
+			return info
+	push_warning("match_length '%s' rejected: %s; the map's own zone schedule is used (OQ-BR-LENGTH)" % [length_id, why])
+	return info
+
+
+## The "match_length" option dictionary with this id in `cfg`, or {} (unknown id, missing or malformed block).
+static func match_length_option(cfg: Dictionary, length_id: String) -> Dictionary:
+	for opt: Dictionary in match_length_options(cfg):
+		if str(opt.get("id", "")) == length_id:
+			return opt
+	return {}
+
+
+## The option dictionaries of cfg["match_length"]["options"] (non-dictionary entries skipped), in data order.
+static func match_length_options(cfg: Dictionary) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var block: Variant = cfg.get("match_length", {})
+	var opts: Variant = block.get("options", []) if typeof(block) == TYPE_DICTIONARY else []
+	if typeof(opts) == TYPE_ARRAY:
+		for opt: Variant in opts:
+			if typeof(opt) == TYPE_DICTIONARY:
+				out.append(opt)
+	return out
+
+
+## The data default id (cfg["match_length"]["default"]); "" when the block has none.
+static func match_length_default_id(cfg: Dictionary) -> String:
+	var block: Variant = cfg.get("match_length", {})
+	return str(block.get("default", "")) if typeof(block) == TYPE_DICTIONARY else ""
+
+
+## A short label for an option from its data, e.g. "15 min"; "" for an unknown id.
+static func match_length_label(cfg: Dictionary, length_id: String) -> String:
+	var opt := match_length_option(cfg, length_id)
+	if opt.is_empty() or not _length_num(opt.get("minutes")):
+		return ""
+	var minutes := float(opt["minutes"])
+	return "%s min" % (str(int(minutes)) if is_equal_approx(minutes, roundf(minutes)) else "%.1f" % minutes)
+
+
+## `length_id` when it names an option, else the data default (quiet: for saved profiles and lobby values).
+static func validated_match_length_id(cfg: Dictionary, length_id: String) -> String:
+	return length_id if not match_length_option(cfg, length_id).is_empty() else match_length_default_id(cfg)
+# --- end M2 Z2 match length ---
 
 
 ## M2L1: the "overrides" block of a map json ({} when it has none or the file is unreadable). Quiet.
