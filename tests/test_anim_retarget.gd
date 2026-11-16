@@ -76,7 +76,10 @@ func test_target_bone_map_and_native_capability() -> void:
 		var ankle := source.get_bone_global_rest(foot)
 		ankle.origin.z = -0.3
 		source.set_bone_rest(foot, source.get_bone_global_rest(source.get_bone_parent(foot)).affine_inverse() * ankle)
-		var toes := source.add_bone(side + "Toes")
+		# M2 AN2 item 1: the target now has toe bones of its own, which _source() copies; reuse them.
+		var toes := source.find_bone(side + "Toes")
+		if toes < 0:
+			toes = source.add_bone(side + "Toes")
 		source.set_bone_parent(toes, foot)
 		var desired := source.get_bone_global_rest(foot)
 		desired.origin.z = 0.3

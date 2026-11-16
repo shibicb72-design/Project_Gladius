@@ -226,6 +226,39 @@ def summary(path: str) -> dict:
     }
 
 
+SOLDIER_ARMATURE = "Armature"
+
+
+def soldier_armature(name: str = SOLDIER_ARMATURE) -> bpy.types.Object:
+    """The soldier's armature, built in the current scene from the game's own rest data (tools/blender/soldier_data.py
+    rest_table(): data/anim.json "bones" + data/anim_third_person.json "bones_add", pivots from the merged part data),
+    exactly as scripts/visual/soldier_rig.gd builds the runtime skeleton. Every bone's head is its Godot rest origin,
+    it points along Blender +Z with roll 0 (an identity rest basis in Godot), Neck stays a second root. Item 2's clip
+    script calls this to get the same armature soldier.glb carries (object and data named `name`)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import soldier_data  # noqa: E402 (pure Python, no bpy)
+    rests = soldier_data.rest_table()
+    data = bpy.data.armatures.new(name)
+    arm = bpy.data.objects.new(name, data)
+    bpy.context.scene.collection.objects.link(arm)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="EDIT")
+    for bone, _parent, at in rests:
+        eb = data.edit_bones.new(bone)
+        head = godot_to_blender(at)
+        tail_len = 0.04 if bone.endswith(("Toes", "Fingers")) or bone == "Prop" else 0.08
+        eb.head = head
+        eb.tail = (head[0], head[1], head[2] + tail_len)
+        eb.roll = 0.0
+        eb.use_connect = False
+        eb.use_deform = True
+    for bone, parent, _at in rests:
+        if parent != "":
+            data.edit_bones[bone].parent = data.edit_bones[parent]
+    bpy.ops.object.mode_set(mode="OBJECT")
+    return arm
+
+
 def update_manifest(out_rel: str, made_by: str, derived_from: str = "") -> None:
     """Records in tools/blender/manifest.json that made_by (a repo-relative tools/blender/*.py) wrote out_rel.
     derived_from is the data/asset_catalog.json id of a CC0 source the file is derived from, or ""."""

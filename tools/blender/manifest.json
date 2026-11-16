@@ -4,6 +4,10 @@
 		"res://assets/generated/characters/pipeline_proof.glb": {
 			"made_by": "tools/blender/build_pipeline_proof.py",
 			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier.glb": {
+			"made_by": "tools/blender/build_soldier.py",
+			"derived_from": ""
 		}
 	}
 }

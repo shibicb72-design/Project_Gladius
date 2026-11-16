@@ -4,6 +4,7 @@ extends Node3D
 static var _mesh: ArrayMesh
 var skeleton: Skeleton3D
 var armor: MeshInstance3D
+var armor_far: MeshInstance3D  # M2 AN2 item 1: the body's far LOD (null with the code-built mesh)
 var local_part_bounds: Array[AABB] = []
 var part_bones := PackedInt32Array()
 var animation_tree: AnimationTree
@@ -68,6 +69,22 @@ func _ready() -> void:
 	armor.skin = SoldierRig.skin
 	armor.skeleton = NodePath("..")
 	skeleton.add_child(armor)
+	# M2 AN2 item 1: the Blender-built body has a far LOD; it takes over from the near one at the gun's far
+	# distance (the same hand-over as the gun). Both instances share the skeleton, the skin and the one material,
+	# and one culling box, so the hand-over distance is measured from the same centre.
+	if SoldierRig.mesh_far != null:
+		armor_far = MeshInstance3D.new()
+		armor_far.name = "ArmorFar"
+		armor_far.mesh = SoldierRig.mesh_far
+		armor_far.skin = SoldierRig.skin
+		armor_far.skeleton = NodePath("..")
+		var far_m := float(SoldierLook.config()["gun"]["far_m"])
+		var box := _mesh.get_aabb().grow(float(SoldierLook.config().get("lod_aabb_grow_m", 0.6)))
+		armor.custom_aabb = box
+		armor_far.custom_aabb = box
+		armor.visibility_range_end = far_m
+		armor_far.visibility_range_begin = far_m
+		skeleton.add_child(armor_far)
 	local_part_bounds = SoldierRig.part_local_bounds(parts, skeleton)
 	pose_cache.resize(skeleton.get_bone_count())
 	_cache_pose()
@@ -124,6 +141,8 @@ func _ready() -> void:
 func _show_squad() -> void:
 	shown_squad = (_pawn as Pawn).squad_id
 	SoldierSquadColour.apply(armor, shown_squad)
+	if armor_far != null:
+		SoldierSquadColour.apply(armor_far, shown_squad)
 
 
 ## Fill a caller-owned array; no allocation in the animation path.
@@ -236,6 +255,8 @@ func _process(delta: float) -> void:
 	if (_pawn as Pawn).armor_tier != shown_tier:
 		shown_tier = (_pawn as Pawn).armor_tier
 		SoldierSquadColour.apply_tier(armor, shown_tier)
+		if armor_far != null:
+			SoldierSquadColour.apply_tier(armor_far, shown_tier)
 	if not is_visible_in_tree():
 		return
 	_show_weapon()
@@ -267,8 +288,13 @@ func _process(delta: float) -> void:
 	var lift := clampf(-local.z / maxf(pawn.get_max_move_speed(), 0.01), 0.0, 1.0)
 	if pawn.drop_state == Pawn.Drop.FALLING:
 		lift = 1.0
+	# M2 AN2 item 1: downed (body pitched forward, knee-crawl) the cape rides the chest along the tilted back and its
+	# hem would stick up like a plank; a negative lift drapes the hem down and in over the hips instead.
+	lift = lerpf(lift, float(SoldierLook.config().get("cape_downed_lift", 0.0)), clampf(float(pose.weights["downed"]), 0.0, 1.0))
 	_cape_lift = lerpf(_cape_lift, lift, 1.0 - exp(-delta / float(cape["smooth_s"])))
 	armor.set_instance_shader_parameter(&"cape_lift", _cape_lift)
+	if armor_far != null:
+		armor_far.set_instance_shader_parameter(&"cape_lift", _cape_lift)
 	var pitch_limit := deg_to_rad(float(_upper_cfg["aim_pitch_limit_deg"]))
 	animation_tree.set("parameters/aim/blend_position", clampf(pawn.pitch / pitch_limit, -1.0, 1.0))
 

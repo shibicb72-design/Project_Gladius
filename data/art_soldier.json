@@ -11,6 +11,11 @@
 	"soldier": {
 		"_placeholder": true,
 		"_todo": "OQ-ART-SOLDIER (M2 AN1 commit 6): the third-person soldier's look layer (scripts/visual/soldier_look.gd). data/art_astra.json soldier stays read-only (it is hashed into saved navigation); part_overrides replace keys of its parts by name, parts_add appends parts (their bones: data/anim_third_person.json part_bones), surfaces sets the soldier material's own material classes, gun builds the third-person gun from the first-person part lists. Every number is a trial look, not a design decision. Presentation only: the head hitbox, the capsule, the muzzle and everything a shot reads are unchanged.",
+		"_mesh_source_note": "M2 AN2 item 1 (OQ-ART-SOLDIER): the soldier's mesh comes from this Blender-built .glb (tools/blender/build_soldier.py: SoldierNear and SoldierFar on the data-built 22-bone skeleton, scripts/visual/soldier_rig.gd); an empty string or no key builds it from the parts below instead (the code mesh). The parts stay the data proxy of the mesh: the part boxes bound the .glb's regions (tests/test_soldier_glb.gd) and drive the helmet, hitbox-clearance and foot-slide checks. lod_aabb_grow_m: the near and far body share one culling box, the near mesh's grown by this, so they hand over at gun.far_m from the same centre.",
+		"mesh_source": "res://assets/generated/characters/soldier.glb",
+		"lod_aabb_grow_m": 0.6,
+		"_cape_downed_note": "M2 AN2 item 1 round 2: the cape's sway value (shader cape_lift) while downed, blended in with the downed pose: negative moves the hem down and toward the body, so it lies along the back in the knee-crawl instead of standing up.",
+		"cape_downed_lift": -1.6,
 		"part_overrides": {
 			"_note": "Proportions toward a trained legionary with the head hitbox (0.22 m sphere at 1.75 m, which the helmet must enclose) and the capsule unchanged: the hips stand 5 cm higher and the thighs and shins are longer (hip pivot 0.91 -> 0.96, knee 0.475 -> 0.49, leg 0.81 -> 0.87 of a 1.99 m top of helmet); the belt, tassets and strips move up with the hips; a broader, deeper chest so the helmet no longer reads as wide as the torso; the shoulder domes become smaller, flatter plates over two lorica bands (pauldron_rim and the added pauldron_band). Pivot parts (pelvis, thighs, shins) set the rig: changing their at or height changes the skeleton (data/art_astra.json _parts_note).",
 			"pelvis": {"at": [0, 0.96, 0]},
@@ -38,7 +43,12 @@
 			"pauldron_l": {"size": [0.28, 0.12, 0.31], "at": [-0.34, 1.4, 0], "profile": [[0, 0], [1, 0], [0.96, 0.45], [0.72, 0.85], [0, 1]]},
 			"pauldron_r": {"size": [0.28, 0.12, 0.31], "at": [0.34, 1.4, 0], "profile": [[0, 0], [1, 0], [0.96, 0.45], [0.72, 0.85], [0, 1]]},
 			"pauldron_rim_l": {"size": [0.3, 0.07, 0.33], "at": [-0.35, 1.345, 0]},
-			"pauldron_rim_r": {"size": [0.3, 0.07, 0.33], "at": [0.35, 1.345, 0]}
+			"pauldron_rim_r": {"size": [0.3, 0.07, 0.33], "at": [0.35, 1.345, 0]},
+			"_helmet_note": "M2 AN2 item 1: the helmet parts' boxes follow the Blender helmet (its rim at 1.522 m, not 1.49), so the part data stays a truthful proxy of the mesh (tests/test_soldier_glb.gd); they still enclose the head hitbox. helmet_bowl is not a rig pivot (Head sits on the hitbox centre).",
+			"helmet_bowl": {"size": [0.49, 0.47, 0.49], "at": [0, 1.755, 0]},
+			"helmet_neck": {"size": [0.515, 0.1, 0.515], "at": [0, 1.57, 0]},
+			"helmet_cheek_l": {"size": [0.5, 0.165, 0.5], "at": [0, 1.6045, 0]},
+			"helmet_cheek_r": {"size": [0.5, 0.165, 0.5], "at": [0, 1.6045, 0]}
 		},
 		"parts_add": [
 			{"name": "neck_guard", "_note": "a collar on the Neck bone over the gorget, under the helmet's neck guard (top 1.485: the head hitbox clearance starts at 1.51 and must hold in a corpse's end pose too)", "shape": "lathe", "axis": true, "segments": 8, "profile": [[0, 0], [1, 0], [0.86, 1], [0, 1]], "size": [0.24, 0.07, 0.23], "at": [0, 1.45, 0], "color": "plate_dark"},
@@ -50,9 +60,11 @@
 			"near": {"max_triangles": 3100, "max_draw_calls": 2},
 			"far": {"max_triangles": 2420, "max_draw_calls": 2},
 			"far_test_m": 30.0,
+			"body": {"_note": "M2 AN2 item 1: the Blender-built body alone (tests/test_soldier_glb.gd), inside the near and far totals above: near = the near total less the largest gun (up to 500 triangles) and some tuning room; far about half of that, the same silhouette and colours.", "near_max_triangles": 2550, "far_max_triangles": 1200},
 			"measured_before_commit6": {"triangles": 2420, "draw_calls": 2, "lods": 1},
-			"measured": {"armor": 2060, "pilum_br": {"near": [2540, 2], "far": [2228, 2]}, "sagittarii_rifle": {"near": [2544, 2], "far": [2316, 2]},
-				"gun_triangles": {"pilum_br": [480, 168], "sagittarii_rifle": [484, 256]}, "_units": "[triangles, draw calls] per LOD; gun_triangles [near, far]"}
+			"measured_before_an2": {"armor": 2060, "pilum_br": {"near": [2540, 2], "far": [2228, 2]}, "sagittarii_rifle": {"near": [2544, 2], "far": [2316, 2]}},
+			"measured": {"armor": [2536, 1152], "pilum_br": {"near": [3016, 2], "far": [1320, 2]}, "sagittarii_rifle": {"near": [3020, 2], "far": [1408, 2]},
+				"gun_triangles": {"pilum_br": [480, 168], "sagittarii_rifle": [484, 256]}, "_units": "[triangles, draw calls] per LOD; armor and gun_triangles [near, far] (M2 AN2 item 1: the Blender body, near and far)"}
 		},
 		"surfaces": {
 			"_note": "Material classes of the soldier, written into the soldier material's copy of data/art_materials.json surfaces (the world keeps its own): contrast and bump scale the surface texture, roughness = texture x rough_scale + rough_bias, metallic, glow (emission x paint). armor = steel plate, armor_dark = dark steel, squad_plate = enamelled squad plate, bronze / tier_trim / gold = bronze trim, leather = straps, undersuit = cloth suit, squad_cape / squad_cloth = red wool cape and crest, steel = the gun's metal.",

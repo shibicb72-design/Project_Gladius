@@ -1,0 +1,108 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-ART-SOLDIER (M2 AN2 item 1): the shape numbers of the Blender-built legionary (tools/blender/build_soldier.py, soldier_geom.py). Every number here is a trial look for Shibi, not a design decision. Godot metres, +Y up, the soldier faces -Z, his right is +X; left-side pieces are the mirror of the right. Rings are [y, rx, rz_front, rz_back] around the body axis (x = 0) or a limb axis. Bones: the 17 of data/anim.json plus data/anim_third_person.json bones_add. Hard constraints (tests/test_soldier_glb.gd): Head-skinned vertices enclose the head hitbox (r 0.22 at 1.75) and stay within the helmet margin box (|x|,|z| <= 0.26, 1.49 <= y; crest exempt, top <= 2.10); every other vertex stays out of the hitbox box grown by body_clearance (|x|,|z| < 0.24 and 1.51 < y < 1.99).",
+	"sharp_deg": 38.0,
+	"styles": {
+		"_note": "style -> [paint (data/art_astra.json colors), surface (data/art_materials.json surface_order)]. A paint with alpha 0 (squad) marks a squad field.",
+		"steel": ["plate", "armor"],
+		"steel_shade": ["plate_shade", "armor"],
+		"steel_dark": ["plate_dark", "armor_dark"],
+		"face": ["visor", "visor"],
+		"glow": ["accent", "glow"],
+		"bronze": ["bronze", "bronze"],
+		"trim": ["bronze", "tier_trim"],
+		"gold": ["gold", "gold"],
+		"leather": ["leather", "leather"],
+		"suit": ["undersuit", "undersuit"],
+		"squad_plate": ["squad", "squad_plate"],
+		"crest": ["squad", "squad_cloth"],
+		"cape": ["squad", "squad_cape"]
+	},
+	"lods": {
+		"near": {"helmet_n": 16, "torso_n": 16, "band_n": 12, "limb_n": 8, "detail": true, "pteruges": 5, "cape_cols": 6, "cape_rows": 4, "cape_inner_cols": 3, "crest_stations": 6, "pauldron_cols": 5},
+		"far": {"helmet_n": 12, "torso_n": 12, "band_n": 12, "limb_n": 6, "detail": false, "pteruges": 4, "cape_cols": 4, "cape_rows": 2, "cape_inner_cols": 2, "crest_stations": 4, "pauldron_cols": 4}
+	},
+	"helmet": {
+		"centre_y": 1.76, "rx": 0.232, "ry": 0.232, "rz": 0.238,
+		"bowl_lat_deg": [0, 30, 56, 78, 90],
+		"lower": [[1.776, 0.231, 0.237, 0.238], [1.745, 0.231, 0.236, 0.236], [1.724, 0.229, 0.236, 0.234], [1.665, 0.218, 0.228, 0.23], [1.6, 0.188, 0.206, 0.214], [1.53, 0.152, 0.17, 0.188]],
+		"_taper_note": "Round 2: below the slit the mask follows the head hitbox sphere inward to the jaw (chin ring 0.30 m wide, 0.36 m deep at 1.53 m); every ring stays outside the sphere's own radius at its height by at least 1.5 cm after faceting.",
+		"nasal": {"y": [1.724, 1.655], "half_w": 0.012, "proud": 0.003},
+		"_lower_note": "rows of the lower shell (the mask), top to bottom: under the brow (visor glass in front), the energy slit between rows 1 and 2 (front sector within slit_deg, recessed by slit_recess), the mouth plate, the jaw. Plates over it: cheek_rows and neck_lames are [y, from deg, to deg, out] rows (degrees from the front toward the side, out = metres off the mask), each with a lip of plate_lip turned in at the bottom (cheeks also at the front, in bronze).",
+		"face_deg": 48, "slit_deg": 50, "cheek_deg": 116, "slit_recess": 0.009, "face_ridge": 0.007,
+		"seal": [1.535, 0.1, 0.1, 0.1],
+		"plate_cols": 4, "plate_lip": 0.012, "edge_m": 0.016, "edge_deg": 7,
+		"cheek_rows": [[1.74, 52, 114, 0.012], [1.64, 34, 112, 0.018], [1.53, 20, 84, 0.024]],
+		"neck_lames": [[[1.705, 112, 248, 0.012], [1.615, 114, 246, 0.034]], [[1.632, 118, 242, 0.026], [1.525, 124, 236, 0.066]]],
+		"brow": {"y": [1.757, 1.762, 1.8, 1.806], "out": [0.0, 0.014, 0.012, 0.0], "ridge": 0.004},
+		"ear": {"y": 1.69, "deg": 96, "out": 0.017, "r": 0.03, "depth": 0.012, "sides": 0, "_note": "Round 2: ear discs off (sides 0) to pay for the round limbs."},
+		"crest": {"z": [-0.13, 0.19], "peak_z": 0.02, "height": 0.105, "end_height": 0.035, "base_w": 0.028, "top_w": 0.034, "holder_w": 0.036, "holder_h": 0.014, "top": 2.1}
+	},
+	"neck": {"_note": "Round 2: the neck seal, [y, rx, rz front, rz back, Head share] bottom to top; the rest rides the Chest. Rings above 1.51 m are dominantly Head (inside the helmet, counted as helmet); the bellows step out and in so it reads as a flexible collar.",
+		"rings": [[1.44, 0.098, 0.098, 0.098, 0.0], [1.49, 0.09, 0.09, 0.09, 0.3], [1.535, 0.094, 0.094, 0.094, 0.75], [1.62, 0.084, 0.084, 0.084, 1.0]]},
+	"torso": {
+		"power": 2.8,
+		"gorget": [[1.47, 0.1, 0.1, 0.1], [1.503, 0.118, 0.106, 0.1], [1.506, 0.16, 0.146, 0.136], [1.462, 0.2, 0.182, 0.168]],
+		"gorget_n": 12,
+		"chest": [[1.486, 0.18, 0.162, 0.15], [1.468, 0.275, 0.192, 0.165], [1.425, 0.302, 0.222, 0.18], [1.355, 0.296, 0.22, 0.182], [1.296, 0.272, 0.19, 0.16], [1.302, 0.258, 0.174, 0.148]],
+		"chest_ridge": 0.02,
+		"bands": [
+			{"bone": "Chest", "style": "steel_shade", "rings": [[1.312, 0.256, 0.166, 0.138], [1.25, 0.266, 0.176, 0.146], [1.256, 0.254, 0.164, 0.136]]},
+			{"bone": "Chest", "style": "steel", "rings": [[1.264, 0.244, 0.158, 0.131], [1.204, 0.254, 0.168, 0.139], [1.21, 0.242, 0.156, 0.129]]},
+			{"bone": "Spine", "style": "steel_shade", "rings": [[1.218, 0.232, 0.15, 0.124], [1.158, 0.242, 0.16, 0.132], [1.164, 0.23, 0.148, 0.122]]},
+			{"bone": "Spine", "style": "steel", "rings": [[1.172, 0.22, 0.142, 0.117], [1.112, 0.23, 0.152, 0.125], [1.118, 0.218, 0.14, 0.115]]}
+		],
+		"band_ridge": 0.006,
+		"belt": [[1.125, 0.214, 0.138, 0.114], [1.088, 0.236, 0.158, 0.132], [1.012, 0.236, 0.158, 0.132], [1.018, 0.224, 0.146, 0.12]],
+		"buckle": {"y": 1.05, "w": 0.09, "h": 0.064, "depth": 0.014},
+		"emblem": {"y": 1.392, "w": 0.11, "h": 0.074, "depth": 0.014},
+		"cell": {"y": 1.335, "w": 0.22, "h": 0.2, "z": [0.16, 0.234, 0.254], "chamfer": 0.03, "glow_x": 0.045, "glow_w": 0.014, "glow_h": 0.12, "glow_proud": 0.003}
+	},
+	"cape": {"top_y": 1.455, "bottom_y": 0.72, "top_half_w": 0.16, "bottom_half_w": 0.28, "z": [[1.455, 0.165], [1.4, 0.192], [1.3, 0.196], [1.1, 0.176], [0.9, 0.195], [0.72, 0.225]], "fold": [0.014, 0.05], "wrap": 0.05,
+		"_note": "Round 2: narrow at the collar, wide at the hem (mid-thigh), three shallow vertical folds: a zig-zag cross-section of cape_cols columns whose depth grows from fold[0] at the collar to fold[1] at the hem. The inside is a coarser copy (inner_cols)."},
+	"pauldron": {
+		"centre": [0.36, 1.395, 0.0], "r": [0.165, 0.13, 0.15],
+		"_round2_note": "A spaulder of three steel lames on the shoulder joint (centre at the arm pivot): the top lame is a cap whose inner edge sits on the gorget; each lower lame is slightly smaller at its top (tucked under the one above) and flares out at its lower edge, sweeping down and out over the upper arm. The squad colour is an inset stripe (field_row) on the top lame with bronze ends and a bronze tier rim. arm: share of the lame on the upper arm (top mostly Chest), so a raised arm stacks the lames upward.",
+		"bands": [
+			{"theta_deg": [30, 90], "phi_deg": 150, "cols": 8, "scale": 1.0, "rows": 3, "style": "steel", "field_row": 1, "flare": 0.04, "rim": "trim", "arm": 0.2},
+			{"theta_deg": [-4, 36], "phi_deg": 112, "cols": 6, "scale": 0.97, "rows": 1, "style": "steel_shade", "flare": 0.07, "rim": "steel_dark", "arm": 0.6},
+			{"theta_deg": [-36, 2], "phi_deg": 104, "cols": 6, "scale": 0.94, "rows": 1, "style": "steel", "flare": 0.09, "rim": "steel_dark", "arm": 0.95}
+		],
+		"_weights_note": "arm: the share of a lame that follows the upper arm (the rest stays on the Chest), fading to the Chest from chest_from_x to chest_to_x toward the neck.",
+		"lip": 0.012,
+		"chest_from_x": 0.31, "chest_to_x": 0.25
+	},
+	"arm": {
+		"tube": [[1.47, 0.072], [1.4, 0.072], [1.17, 0.06], [1.11, 0.056], [0.99, 0.055], [0.885, 0.045]],
+		"blend": [[1.43, 0.04], [1.14, 0.035], [0.875, 0.02]],
+		"elbow_cap": {"back": 0.034, "r": [0.05, 0.055, 0.03]},
+		"vambrace": [[1.078, 0.052], [1.074, 0.065], [0.928, 0.054]],
+		"band": [[0.966, 0.063], [0.942, 0.061]],
+		"cuff": [[0.895, 0.05], [0.86, 0.057]],
+		"_hand_note": "Round 2: an armoured glove gripping a vertical grip at the hand origin: the palm/back block lies outside the grip (0.05 thick, 0.095 across the knuckles, 0.10 from wrist to knuckles), the finger block runs on from the knuckles and bends round in front of the grip (0.08 long), the thumb crosses over the top inside. Hand-relative metres, x toward the hand's own outside.",
+		"hand_back": {"at": [0.03, 0.0, 0.0], "size": [0.05, 0.095, 0.1]},
+		"fingers": {"path": [[0.03, 0.0, -0.045], [0.014, 0.0, -0.088], [-0.036, -0.004, -0.07]], "half_t": 0.022, "half_h": 0.044},
+		"thumb": {"path": [[0.004, 0.032, 0.0], [-0.03, 0.036, -0.05]], "half_t": 0.012, "half_h": 0.012},
+		"far_fist": [0.09, 0.095, 0.12],
+		"rerebrace": [[1.33, 0.078], [1.19, 0.07]]
+	},
+	"leg": {
+		"tube": [[0.99, 0.1, 0.1], [0.9, 0.1, 0.1], [0.72, 0.09, 0.092], [0.58, 0.076, 0.078], [0.5, 0.066, 0.068], [0.19, 0.05, 0.054]],
+		"blend": [[0.88, 0.05], [0.49, 0.04], [0.155, 0.03]],
+		"ankle": [0.0, 0.155, -0.03],
+		"cuisse": {"rows": [0.845, 0.71, 0.59], "out": 0.016, "deg": [-110, 90], "cols": 7, "lip": 0.012},
+		"knee": {"front": 0.066, "r": [0.074, 0.078, 0.036], "stud": 0.0},
+		"greave": {"rows": [0.445, 0.36, 0.27, 0.19], "out": [0.012, 0.016, 0.012, 0.01], "calf": 0.012, "deg": 180, "cols": 8, "ridge": 0.008, "lip": 0.012},
+		"_round2_note": "Round 2: round limbs. The cuisse wraps 200 deg of the thigh (front and outside), the greave is a full wrap (calf about 0.075 m, ankle 0.06 m) ridged in front; the knee stud is dropped for budget.",
+		"collar": [[0.205, 0.064], [0.15, 0.07]],
+		"sole": {"y": [0.014, 0.036], "toe_z": -0.225, "heel_z": 0.0, "half": [[-0.225, 0.0], [-0.212, 0.05], [-0.16, 0.086], [-0.08, 0.09], [0.0, 0.08]]},
+		"heel": {"y": [0.01, 0.05], "z": [0.025, 0.105], "half_w": 0.072},
+		"boot": [[0.036, 0.0, -0.218, 0.1, 0.088], [0.085, 0.0, -0.2, 0.098, 0.085], [0.128, 0.0, -0.1, 0.094, 0.076], [0.17, 0.0, -0.07, 0.062, 0.066]],
+		"_boot_note": "boot rings: [y, unused, toe z, heel z, half width], each a rounded outline; faces ahead of toe_cap_z are the steel toe cap (weighted to *Toes past toes_from_z).",
+		"toe_cap_z": -0.13, "toes_from_z": -0.1, "toes_full_z": -0.14
+	},
+	"waist": {
+		"tasset": {"deg": [-38, 38], "rows": [[1.035, 0.236, 0.16], [0.95, 0.256, 0.172], [0.865, 0.272, 0.182]], "cols": 4, "lip": 0.0, "leg_share": 0.2},
+		"pteruges": {"arc_deg": 72, "top": 1.02, "bottom": 0.82, "tip": 0.03, "half_w": 0.032, "flare": 0.03, "leg_share": 0.6}
+	}
+}

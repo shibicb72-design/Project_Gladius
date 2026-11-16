@@ -5,6 +5,14 @@
 		"_look_note": "M2 AN1 commit 6: the bones of the parts data/art_soldier.json soldier.parts_add adds (the neck guard rides the Neck so it covers the gap between helmet and gorget when the chest leans; the shoulder bands ride the Chest like the pauldrons).",
 		"neck_guard": "Neck", "pauldron_band_l": "Chest", "pauldron_band_r": "Chest"
 	},
+	"_bones_add_note": "M2 AN2 item 1: bones the Blender-built soldier (assets/generated/characters/soldier.glb, tools/blender/build_soldier.py) adds after data/anim.json's 17, in this order. SoldierRig.build appends them to the runtime skeleton and the Blender script builds its armature from the same rows (tools/blender/soldier_data.py), so both agree. pivot offset: the named part's at plus offset_m (Godot metres), so moving the boot or glove part moves them too. Toes at the ball of the foot, Fingers one curl bone per hand at the knuckles, Prop at the right grip for held objects (nothing is skinned to it). Every rest basis is identity. Presentation only.",
+	"bones_add": [
+		{"name": "LeftToes", "parent": "LeftFoot", "part": "boot_l", "pivot": "offset", "offset_m": [0.0, -0.05, -0.085]},
+		{"name": "RightToes", "parent": "RightFoot", "part": "boot_r", "pivot": "offset", "offset_m": [0.0, -0.05, -0.085]},
+		{"name": "LeftFingers", "parent": "LeftHand", "part": "glove_l", "pivot": "offset", "offset_m": [-0.03, 0.0, -0.017]},
+		{"name": "RightFingers", "parent": "RightHand", "part": "glove_r", "pivot": "offset", "offset_m": [0.03, 0.0, -0.017]},
+		{"name": "Prop", "parent": "RightHand", "part": "glove_r", "pivot": "offset", "offset_m": [0.0, 0.0, 0.0]}
+	],
 	"upper_body": {
 		"_reload_note": "M2 AN1 commit 4: staged reload. reload_key_fractions are fractions of WeaponDef.reload_s; per key the left hand's offset from its foregrip target (aim, magazine, magazine out and down, belt pouch, new magazine seated, charging handle, back on the foregrip), the right hand's cant of the rifle (degrees about the barrel) and the chest's lean in (degrees, forward = negative). fire_*_deg: the per-shot kick through spine, chest and shoulders (they replace anim.json's smaller values; reload_hand_offset_m and reload_key_weights there are no longer read).",
 		"reload_key_fractions": [0, 0.12, 0.28, 0.44, 0.62, 0.8, 1],

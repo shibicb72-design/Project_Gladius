@@ -1380,6 +1380,13 @@
 			"sha256": "2b904a3a3e898b9f2b37be521c07a8dc8245cb5b574b6b27ba554cdb735a48d7"
 		},
 		{
+			"path": "res://assets/generated/characters/soldier.glb",
+			"made_by": "tools/blender/build_soldier.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 383344,
+			"sha256": "84245cfed83d4d1789f69343d46d35e34830fa82a75f4bbe176e91cf5587596c"
+		},
+		{
 			"path": "res://assets/generated/textures/noise_pack.png",
 			"made_by": "tools/gen_textures.gd",
 			"licence": "generated in this project (no source material)",
