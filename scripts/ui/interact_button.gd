@@ -53,6 +53,10 @@ func get_touch_rect() -> Rect2:
 	var side: float = touch_hud._button_size()
 	var off: Array = cfg["offset_buttons"]
 	var center: Vector2 = touch_hud._rest_center(str(cfg["anchor"])) + Vector2(float(off[0]), float(off[1])) * side
+	# M2 H1b (OQ-HUD): the "split_row" HUD arrangement keeps it above Swap, which moved beside the weapon block.
+	var split: Variant = HudArrangement.split_center("interact", touch_hud._area())
+	if split != null:
+		center = split
 	var s := side * float(cfg["size_buttons"])
 	return Rect2(touch_hud.global_position + center - Vector2.ONE * s * 0.5, Vector2.ONE * s)
 

@@ -36,6 +36,9 @@ var back_button: Button
 var element_label: Label
 var warn_label: Label
 var _marks: Control
+var _fixed: Control
+## M2 H1b commit 5: names of the fixed elements the last _draw_fixed drew (tests).
+var drawn_fixed: Array = []
 var _check_view: SubViewport
 var _checkers: Dictionary = {}  # Vector2i -> {touch, hud, pause}
 var _dragging: bool = false
@@ -68,6 +71,14 @@ func build() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	# M2 H1b commit 5: the fixed (not movable) HUD pieces, drawn under the live buttons so the player sees what they must
+	# stay clear of.
+	_fixed = Control.new()
+	_fixed.name = "FixedElements"
+	_fixed.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fixed.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fixed.draw.connect(_draw_fixed)
+	add_child(_fixed)
 	preview = _TouchScene.instantiate()
 	MenuStyle.skip(preview)  # the live HUD keeps its own look; the kit must not wire or size it
 	preview.theme = preload("res://scenes/ui/theme.tres")  # editor chrome uses the menu theme; the HUD keeps its own until H1
@@ -319,6 +330,11 @@ func check_slot(slot_i: int, sz: Vector2i) -> Array:
 	for n in ["shield_bar", "health_bar", "weapon_label", "ammo_label", "alive_label", "zone_label", "downed_label"]:
 		bars[n] = (hud.get(n) as Control).get_global_rect()
 	bars["gear"] = gear_rect(Vector2(sz))
+	# M2 H1b (OQ-HUD): the whole weapon block (slots too) and the reserved minimap's tap target.
+	bars["weapon_block"] = hud.weapon_block.get_global_rect()
+	bars["minimap"] = HudArrangement.minimap_tap_rect(Vector2(sz))
+	# M2 H1b commit 5 (OQ-COACH): the first-play coach's Skip (a fixed touch target while the coach runs). Warn only.
+	bars["coach_skip"] = HudCoach.skip_rect(Vector2(sz))
 	var look_area: Rect2 = touch.get_look_area_rect()
 	for key in touch.get_element_keys():
 		var r: Rect2 = touch.get_element_rect(key)
@@ -335,6 +351,69 @@ func check_slot(slot_i: int, sz: Vector2i) -> Array:
 				out.append(_issue(slot_i, sz, key, "overlap", "%s overlaps %s at %dx%d" % [element_name(key), what, sz.x, sz.y]))
 				break
 	return out
+
+
+## M2 H1b commit 5: the fixed (not movable) HUD pieces the editor shows, in view space for a HUD of `view` size, in draw
+## order: the passive weapon block, objective line, alive / zone chip and radar + minimap panel; the fixed touch targets
+## (the minimap's tap target, the gear, the coach's Skip). Same rects as the match (HudArrangement, PauseMenu, HudCoach).
+static func fixed_elements(view: Vector2) -> Dictionary:
+	var ui := HudArrangement.ui()
+	return {"weapon_block": HudArrangement.weapon_block_rect(view), "objective": HudArrangement.objective_rect(view),
+		"chip": HudArrangement.chip_rect(view), "panel": HudArrangement.panel_rect(view),
+		"minimap_tap": HudArrangement.minimap_tap_rect(view), "gear": PauseMenu.gear_touch_rect(ui["pause_gear"], view),
+		"coach_skip": HudCoach.skip_rect(view)}
+
+
+## The fixed touch targets among fixed_elements (outlined solid; the passive displays get a dashed look).
+const FIXED_TOUCH := ["minimap_tap", "gear", "coach_skip"]
+const _FIXED_NAMES := {"weapon_block": "Weapon block", "objective": "Objective line", "chip": "Alive / zone",
+	"panel": "Radar + map", "minimap_tap": "Map tap", "gear": "Menu", "coach_skip": "Coach Skip"}
+
+
+func _draw_fixed() -> void:
+	drawn_fixed.clear()
+	if preview == null:
+		return
+	var view: Vector2 = preview.size
+	if view.x <= 0.0 or view.y <= 0.0:
+		return
+	var off: Vector2 = preview.global_position - get_global_rect().position
+	var u := HudArrangement.unit(view)
+	var font := get_theme_default_font()
+	var px := maxi(10, roundi(u * 0.5))
+	var gold := MenuStyle.color("gold")
+	var marble := MenuStyle.color("marble_dim")
+	var els := fixed_elements(view)
+	for key in els:
+		var r: Rect2 = els[key]
+		if r.size.x <= 0.0:
+			continue
+		r.position += off
+		var touch: bool = FIXED_TOUCH.has(key)
+		var fill := MenuStyle.color("surface")
+		fill.a = 0.55 if touch else 0.35
+		var line := gold
+		line.a = 0.85 if touch else 0.45
+		if key == "panel":
+			var radar := HudArrangement.radar_rect(view)
+			radar.position += off
+			_fixed.draw_circle(radar.get_center(), radar.size.x * 0.5, fill)
+			_fixed.draw_arc(radar.get_center(), radar.size.x * 0.5, 0.0, TAU, 48, line, 2.0, true)
+			var mm := HudArrangement.minimap_rect(view)
+			mm.position += off
+			_fixed.draw_rect(mm, fill)
+			_fixed.draw_rect(mm, line, false, 2.0)
+		else:
+			_fixed.draw_rect(r, fill)
+			_fixed.draw_rect(r, line, false, 3.0 if touch else 2.0)
+		var name_text := str(_FIXED_NAMES.get(key, key))
+		var at := r.position + Vector2(u * 0.2, u * 0.2 + font.get_ascent(px))
+		if key == "panel":
+			# Under the panel, from the minimap's left edge (the editor's own panel covers the top centre).
+			at = Vector2(HudArrangement.minimap_rect(view).position.x + off.x, r.end.y + u * 0.2 + font.get_ascent(px))
+		_fixed.draw_string_outline(font, at, name_text, HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - u * 0.4, u * 3.0), px, 3, MenuStyle.color("night"))
+		_fixed.draw_string(font, at, name_text, HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - u * 0.4, u * 3.0), px, gold if touch else marble)
+		drawn_fixed.append(key)
 
 
 ## The (not editable) gear's touch rect for a viewport size; it stays top-right, data ui.json pause_gear.
@@ -389,6 +468,7 @@ func refresh() -> void:
 	if is_blocked():
 		warn_label.text += "\nFix it or press Reset to save."
 	_marks.queue_redraw()
+	_fixed.queue_redraw()
 
 
 func _draw_marks() -> void:

@@ -7,7 +7,7 @@ extends SceneTree
 
 const ROOT := "res://assets/generated"
 const CATALOG := "res://data/asset_catalog.json"
-const TOOLS := {"textures": "tools/gen_textures.gd", "audio": "tools/gen_audio.gd"}
+const TOOLS := {"textures": "tools/gen_textures.gd", "audio": "tools/gen_audio.gd", "ui": "tools/render_layout.gd"}  # M2 H1b: ui = the minimap pictures (--minimap)
 
 
 static func files(path: String) -> Array[String]:
@@ -56,7 +56,7 @@ func _initialize() -> void:
 	if write:
 		catalog["version"] = int(catalog.get("version", 1))  # JSON numbers parse as floats; keep the file's integer
 		catalog["generated"] = now
-		catalog["_generated_note"] = "S2 / S5: files made by the project's own tools (tools/gen_textures.gd, tools/gen_audio.gd) from noise and maths, no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
+		catalog["_generated_note"] = "S2 / S5: files made by the project's own tools (tools/gen_textures.gd, tools/gen_audio.gd; M2 H1b: tools/render_layout.gd --minimap from the map data) from noise and maths, no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 		var file := FileAccess.open(CATALOG, FileAccess.WRITE)
 		file.store_string(JSON.stringify(catalog, "\t", false) + "\n")
 		file.close()

@@ -340,6 +340,7 @@ func _on_state_changed() -> void:
 
 
 func _on_match_starting() -> void:
+	AppFlow.coach_route = true  # M2 H1b commit 5 (OQ-COACH): a real match from the menu / lobby route
 	AppFlow.go(get_tree(), AppFlow.MATCH_SCENE)
 
 

@@ -194,6 +194,10 @@ static func gear_touch_rect(gear: Dictionary, view_size: Vector2) -> Rect2:
 	var side := float(gear["touch_dp"]) * s
 	var corner := Vector2(float(gear["anchor"][0]) * view_size.x, float(gear["anchor"][1]) * view_size.y)
 	var margin := Vector2(float(gear["margin_dp"][0]), float(gear["margin_dp"][1])) * s
+	# M2 H1b (OQ-HUD, OQ-MINIMAP): position only. With below_panel the gear sits under the reserved minimap / radar panel
+	# (HudArrangement.gear_top), still margin_dp[0] in from the right edge.
+	if bool(gear.get("below_panel", false)):
+		return Rect2(Vector2(corner.x - margin.x - side, HudArrangement.gear_top(view_size)), Vector2(side, side))
 	return Rect2(Vector2(corner.x - margin.x - side, corner.y + margin.y), Vector2(side, side))
 
 

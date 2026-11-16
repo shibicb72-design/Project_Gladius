@@ -828,6 +828,12 @@ func _cell_rect(action: String) -> Rect2:
 		var spec: Dictionary = _layout["buttons"][action]
 		var o: Array = spec["offset"]
 		default_c = _rest_center(str(spec.get("anchor", "button_anchor"))) + Vector2(float(o[0]), float(o[1])) * s
+		# M2 H1b (OQ-HUD): in the "split_row" HUD arrangement Swap and Cover / Shoulder default to either side of the
+		# weapon block (HudArrangement.split_center); "above_row" (the default) leaves every data offset as it is.
+		if HudArrangement.SPLIT_KEYS.has(action):
+			var split: Variant = HudArrangement.split_center(action, _area())
+			if split != null:
+				default_c = split
 	var c := _center_px(action, default_c)
 	var side := _button_side(action)
 	return Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side)

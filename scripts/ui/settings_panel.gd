@@ -33,6 +33,12 @@ var sprint_lock_pos: Array = []  # kept so saving does not drop the layout edito
 ## M2 H1a: the touch shooting mode ("advanced" | "simple", data/input.json shooting, OQ-SHOOT-MODE).
 var shooting_mode_button: Button
 var shooting_mode: String = "advanced"
+## M2 H1b (OQ-MINIMAP): the small minimap turns with the heading (true, default) or stays north up.
+var minimap_button: Button
+var minimap_rotate: bool = true
+## M2 H1b commit 5 (OQ-COACH): "Replay the coach" sets the profile's coach_done false, so the next real match shows the
+## first-play coach again. A coach running in this match is not restarted (it shows on the next match).
+var coach_button: Button
 
 
 func _ready() -> void:
@@ -62,7 +68,12 @@ func _ready() -> void:
 	shooting_mode = SaveService.shooting_mode(profile.get("shooting_mode", null))
 	shooting_mode_button = _button("", toggle_shooting_mode, "target")  # M2 H1a: Advanced / Simple (touch)
 	_refresh_shooting_mode_text()
+	minimap_rotate = SaveService.minimap_rotate(profile.get("minimap_rotate", null))
+	minimap_button = _button("", toggle_minimap_rotate, "layout")  # M2 H1b: Minimap: Rotates / North up
+	_refresh_minimap_text()
 	layout_button = _button("HUD layout", open_layout_editor, "layout")  # G2e
+	coach_button = _button("", replay_coach, "target")  # M2 H1b commit 5: Replay the coach
+	_refresh_coach_text(SaveService.coach_done(profile.get("coach_done", null)))
 	add_child(MenuStyle.caption("VIBRATION"))
 	haptics_button = _button("Haptics", open_haptics, "vibrate")  # G2f
 	UiScale.apply_to(self)
@@ -210,6 +221,33 @@ func _refresh_shooting_mode_text() -> void:
 	shooting_mode_button.text = "Shooting mode: %s" % shooting_mode.capitalize()
 
 
+## M2 H1b: Minimap: Rotates <-> North up (profile minimap_rotate; the minimap reads AppFlow.profile, so a match picks it
+## up at once).
+func toggle_minimap_rotate() -> void:
+	minimap_rotate = not minimap_rotate
+	_refresh_minimap_text()
+	persist()
+
+
+func _refresh_minimap_text() -> void:
+	minimap_button.text = "Minimap: %s" % ("Rotates" if minimap_rotate else "North up")
+
+
+## M2 H1b commit 5: coach_done = false in the stored profile at once (persist() never writes coach_done, so it keeps it).
+func replay_coach() -> void:
+	var profile := save.load_profile()
+	profile["coach_done"] = false
+	save.save_profile(profile)
+	persist()
+	_refresh_coach_text(false)
+
+
+## The row's wording (data/coach.json settings): "Replay the coach", or the pending text once the replay is set.
+func _refresh_coach_text(done: bool) -> void:
+	var s: Dictionary = HudCoach.data().get("settings", {})
+	coach_button.text = str(s.get("replay_text", "Replay the coach")) if done else str(s.get("replay_pending_text", "Coach: shows next match"))
+
+
 func _refresh_stick_text() -> void:
 	move_stick_button.text = "Move stick: %s" % move_stick_mode.capitalize()
 	stick_layout_button.text = "Stick: %s" % vjoy_layout.capitalize()
@@ -245,7 +283,7 @@ func _refresh_sprint_text() -> void:
 func fields() -> Dictionary:
 	return {"move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
 			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos,
-			"left_fire_enabled": left_fire_enabled, "shooting_mode": shooting_mode}
+			"left_fire_enabled": left_fire_enabled, "shooting_mode": shooting_mode, "minimap_rotate": minimap_rotate}
 
 
 ## Writes the stored profile + the host screen's extra keys + this panel's keys, then reloads AppFlow.profile.

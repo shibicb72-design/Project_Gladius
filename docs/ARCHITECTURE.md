@@ -332,7 +332,7 @@ android/              debug.keystore (shared debug key only)
 ### 4.15 HUD and touch HUD
 - `hud.tscn`: presentation only. Binds to signals from MatchDirector (or its replicated mirror on
   clients) and the local pawn. Classic Halo layout, red/gold theme (`theme.tres`), Roman numerals via
-  `roman_numerals.gd`. Later: radar (25 m, crouch/prone hide, jammer blanking, smoke animation),
+  `roman_numerals.gd` (off by default, OQ-38). The radar (25 m, cover-crouch hide) is built (M2 H1b, below). Later: prone hide, jammer blanking, smoke animation,
   streak/deployable slots, killfeed, Latin medal popups, bad-trait banner.
 - `touch_hud.tscn`: a separate CanvasLayer above the HUD. Floating move stick bottom left; a look
   area (right half, no control in it by default) where a touch only turns the view; action buttons hung off
@@ -370,6 +370,77 @@ android/              debug.keystore (shared debug key only)
 - Tools: `tools/layout_probe.gd` (headless; prints every control rect per size and dpi and any overlap, off-screen or
   under-48-dp problem) and `tools/h1a_capture.tscn` (windowed; advanced, simple, cover, editor and look-area shots plus a
   contact sheet per size: 2176x1812, 2520x1080, 3120x1440).
+
+#### M2 H1b: in-match HUD, prompts, minimap, radar, coach
+New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json` (`hud_arrangement`, `interact_prompt`,
+`minimap`, `radar`, `pause_gear`) and `data/coach.json`, every one a placeholder (OQ-HUD, OQ-MINIMAP, OQ-RADAR, OQ-COACH):
+- `hud_arrangement.gd` (`HudArrangement`): the single source of rects. Static getters for the weapon block, chip,
+  objective strip, kill banner, radar disc, minimap square, panel, minimap tap target and gear top, from the view size,
+  one HUD unit (`unit_frac_of_height` of the height, floor `unit_min_dp`) and the touch layout's button side. Placement is
+  `above_row` (data default; no button moves, `layout_version` stays 2) or `split_row` (only at aspect 2.0 or wider, else
+  above_row; it hooks Swap, Cover / Shoulder and Interact in `touch_hud.gd`, `fire_mode_button.gd`, `interact_button.gd`
+  `get_touch_rect`; a saved slot position still wins). `placement_override` is a seam for tests and tools. Match, tests,
+  layout editor and tools all read the same getters.
+- `hud_style.gd` (`HudStyle`): menu-style plates (surface fill, gold hairline, cut corners) and HUD labels that ignore
+  touches and keep a fixed rect. `hud_weapon_block.gd` (`HudWeaponBlock`) and `hud_chip.gd` (`HudChip`): the passive
+  weapon block (slots, ammo, name, shield and health bars, own drawn icons) and the top-left alive / zone chip. `hud.gd`
+  (`GameHud`) owns them, keeps the old public vars (`shield_bar`, `health_bar`, `ammo_label`, `weapon_label`,
+  `alive_label`, `zone_label`, `downed_label`), places them in `_arrange()` on every resize, and picks the objective key in
+  the static `objective_key_for()` (read-only from the pawn and `rules`; wording from data).
+- Touch target vs passive display. Only touch targets obey the look-area and 48 dp rules: `tests/test_h1a_layout.gd`
+  `_controls()` lists them (`minimap_tap`, `minimap_close` while expanded, `coach_skip`, the gear) and runs both placements.
+  Passive displays are `mouse_filter` IGNORE, may overlay either half, and are checked by `tests/test_h1b_hud.gd`: on
+  screen, apart, clear of every `_controls()` rect and the stick's rest visual, every node IGNORE, and a look drag and a
+  stick start both work through each. The prompt is the named exception: it may sit in the look area.
+- `interact_prompt.gd` (`InteractPrompt`): one prompt at the Interact button's target. It reads the target the same way
+  (`revive_target_for`, `pickup_target_for`, `chest_target_for`, `door_target_for`, in that order) and shows only while the
+  button is visible, so a LAN client has none. It never consumes a touch (its `_input` only watches the finger); a tap or
+  the revive hold calls `touch_hud.provider.trigger_action("interact")` / `release_action`, the button's own calls, and it
+  releases on hide. Its one `set_input_as_handled` swallows a press on the Interact button while the prompt holds interact.
+  Screen point: `Camera3D.unproject_position`, converted from viewport pixels to canvas units with the viewport's final
+  transform (`to_canvas`; the two differ under `canvas_items` stretch). `MatchDirector.player(id)` already gave the revive
+  position, so no getter was added to the director.
+- `minimap_math.gd` (`MinimapMath`): the one world-to-minimap mapping (`frame_for`, `to_px`, `to_world`, `world_to_px`).
+  `hud_minimap.gd` (`HudMinimap`): the display and its input; every drawing and every test goes through `MinimapMath`.
+  `HudRadar.to_px(offset_m, yaw, range, radius_px, centre)` in `hud_radar.gd` (`HudRadar`) is the radar's one mapping (the
+  same rotation as the minimap's rotating frame) and `HudRadar.classify_with` is its one show / hide rule (see CONTROLS.md).
+- Overlays run at a data rate with per-frame transforms: marks lists, circles, mates, landmark names and radar blips are
+  rebuilt `update_hz` (10) times a second; the view (the map's pan and turn, the arrow, the radar's blip layer turning
+  with the heading) follows every frame as node transforms, with no redraw. The minimap and radar sit after the touch HUD
+  at `z_index` -1, so buttons and displays draw above them. Only the minimap's `_input` consumes a press, and only inside
+  its tap rect (`set_input_as_handled`, like the gear); the radar has no `_input`.
+- Baked minimap textures: `tools/render_layout.gd --minimap[=ids] [--minimap_dir=...]` bakes a top-down picture per map from
+  the map data (ground paint, hill shading, 5 m contours, collider footprints by class, the map scene's box colliders), no
+  text. Output is `assets/generated/ui/minimap_<map>.png` (1024 px for alesia_1km, 512 px for test_300 and alesia_section),
+  hashed through `tools/asset_hashes.gd` (its `TOOLS` has a `ui` entry). The texture and the world extent
+  `[x, z, width, depth]` per map are data: `ui.json` `minimap.maps`. `tests/test_h1b_minimap.gd` checks each extent and
+  size against the tool's `minimap_extent` / `minimap_px`, so they cannot drift. A map with no entry or texture shows a
+  plain panel with the circles and arrows. Landmark names are drawn at runtime from the map's landmarks json.
+- Profile keys (`SaveService`, in `defaults()`, `load_profile()` and `save_profile()`): `minimap_rotate` (default true;
+  Settings row "Minimap") and `coach_done` (default false; only a bool `true` counts; Settings row "Replay the coach").
+- Coach: `hud_coach.gd` (`HudCoach`, steps and text in `data/coach.json`). Gate: `HudCoach.wanted(route_flag, profile)` is
+  `coach.enabled` and `AppFlow.coach_route` and not `coach_done`. `AppFlow.coach_route` is a static bool set only by
+  `lobby.gd _on_match_starting` (a test scans `scripts/` and `tools/` for any other writer), taken and cleared once per
+  match by `GameHud.bind` (`take_coach_route()`), and cleared by `end_session()`. So `auto_start`, `use_map_select`, tests,
+  sims and capture tools never show it. It reads state and signals only, never consumes input, never touches the tree's
+  pause or `Engine.time_scale`; its `_input` takes only a press on Skip. It needs the touch HUD shown (`require_touch_hud`).
+  The layout editor draws the fixed pieces with `LayoutEditor.fixed_elements(view)` (same rects as the match).
+- Order in `GameHud.bind`: the prompt after the Interact button, then the minimap after the touch HUD, the radar after the
+  minimap, the coach after the radar (all by deferred `add_sibling`, so the tree order is fixed and the coach's `_input`
+  runs before the touch HUD's).
+- Tools: `tools/h1b_capture.tscn` (`h1b_capture.gd`; windowed; `--out=<dir> [--kinds=a,b] [--sizes=WxH,...]`; every piece,
+  both placements, each prompt kind, the minimap small and expanded, the radar with blips, the coach steps and the editor,
+  at 2176x1812, 2520x1080 and 3120x1440 with contact sheets); `tools/minimap_cost.gd` (`--frames=N --rounds=N [--radar]`;
+  render CPU and GPU, draw calls and the overlay's script time, states alternating in blocks, on the desktop proxy);
+  `tools/layout_probe.gd` now loops over both placements and prints the passive rects, with the passive-display and
+  `minimap_tap` / `coach_skip` checks.
+- New files (each with its `.uid`): `scripts/ui/hud_arrangement.gd`, `hud_style.gd`, `hud_weapon_block.gd`, `hud_chip.gd`,
+  `interact_prompt.gd`, `minimap_math.gd`, `hud_minimap.gd`, `hud_radar.gd`, `hud_coach.gd`; `data/coach.json`;
+  `tests/test_h1b_hud.gd`, `test_h1b_prompt.gd`, `test_h1b_minimap.gd`, `test_h1b_radar.gd`, `test_h1b_coach.gd`;
+  `tools/h1b_capture.gd` (+ `.tscn`), `tools/minimap_cost.gd`; `assets/generated/ui/minimap_alesia_1km.png`,
+  `minimap_test_300.png`, `minimap_alesia_section.png`.
+- LAN: no protocol change. What a client lacks for the minimap and radar (zone progress, match seed, cover state, downed,
+  drop state) is listed under OQ-MINIMAP and OQ-RADAR for M3.
 
 ### 4.16 Camera and FOV per aspect ratio
 - `CameraRig` (SpringArm3D + Camera3D, third person). FOV and offset come from `camera.json`: a table

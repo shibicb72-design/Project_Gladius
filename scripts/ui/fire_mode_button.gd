@@ -51,6 +51,10 @@ static func touch_rect(settings: Dictionary, view_size: Vector2) -> Rect2:
 	var a: Array = tl[str(settings["touch_anchor"])]
 	var o: Array = settings["offset_buttons"]
 	var c := Vector2(float(a[0]), float(a[1])) * view_size + Vector2(float(o[0]), float(o[1])) * s
+	# M2 H1b (OQ-HUD): the "split_row" HUD arrangement puts it left of Swap, beside the weapon block.
+	var split: Variant = HudArrangement.split_center("fire_mode", view_size)
+	if split != null:
+		c = split
 	return Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side)
 
 

@@ -79,13 +79,18 @@ func _run() -> void:
 		dpis.append(float(d))
 	var lf_modes: Array = [false, true] if _arg("left_fire", "") == "" else [_arg("left_fire", "0") == "1"]
 	var saved_profile := AppFlow.profile
-	for dpi in dpis:
-		PlatformServices.dpi_override = dpi
-		var dp := PlatformServices.new().get_dp_scale()
-		for sz in SIZES:
-			for lf in lf_modes:
-				AppFlow.profile = {"left_fire_enabled": lf, "shooting_mode": "advanced"}
-				await _probe(sz, dpi, dp, lf, ui)
+	# M2 H1b: both HUD arrangements (--placement=above_row or split_row for one).
+	var placements: Array = ["above_row", "split_row"] if _arg("placement", "") == "" else [_arg("placement", "")]
+	for placement in placements:
+		HudArrangement.placement_override = placement
+		for dpi in dpis:
+			PlatformServices.dpi_override = dpi
+			var dp := PlatformServices.new().get_dp_scale()
+			for sz in SIZES:
+				for lf in lf_modes:
+					AppFlow.profile = {"left_fire_enabled": lf, "shooting_mode": "advanced"}
+					await _probe(sz, dpi, dp, lf, ui)
+	HudArrangement.placement_override = ""
 	AppFlow.profile = saved_profile
 	PlatformServices.dpi_override = 0.0
 	print("PROBE_DONE problems=%d" % problems)
@@ -126,9 +131,11 @@ func _probe(sz: Vector2, dpi: float, dp: float, lf: bool, ui: Dictionary) -> voi
 	interact.touch_hud = touch
 	ctrls["interact"] = interact.get_touch_rect()
 	interact.free()
+	ctrls["minimap_tap"] = HudArrangement.minimap_tap_rect(sz)  # M2 H1b: the reserved minimap's touch target
+	ctrls["coach_skip"] = HudCoach.skip_rect(sz)  # M2 H1b commit 5: the first-play coach's Skip (OQ-COACH)
 	var look: Rect2 = touch.get_look_area_rect()
 	var view := Rect2(Vector2.ZERO, sz)
-	var tag := "%dx%d dpi=%d left_fire=%s" % [sz.x, sz.y, dpi, lf]
+	var tag := "%dx%d dpi=%d left_fire=%s %s(%s)" % [sz.x, sz.y, dpi, lf, HudArrangement.placement(), HudArrangement.placement_for(sz)]
 	print("PROBE_AREA %s look_area=[%d,%d %dx%d] = %.1f%% of screen (%.1f%% of the right half) button=%.0fpx" % [tag,
 		look.position.x, look.position.y, look.size.x, look.size.y, 100.0 * look.get_area() / view.get_area(),
 		200.0 * look.get_area() / view.get_area(), touch._button_size()])
@@ -139,6 +146,24 @@ func _probe(sz: Vector2, dpi: float, dp: float, lf: bool, ui: Dictionary) -> voi
 	for n in ["shield_bar", "health_bar", "weapon_label", "ammo_label", "alive_label", "zone_label", "downed_label"]:
 		hud_rects[n] = (game.get(n) as Control).get_global_rect()
 		print("PROBE_HUD %s %-14s %s" % [tag, n, _fmt(hud_rects[n], sz, dp)])
+	# M2 H1b: the passive displays (and the reserved, not yet drawn, radar / minimap pictures).
+	var passive := {"weapon_block": game.weapon_block.get_global_rect(), "chip": game.chip.get_global_rect(),
+		"objective": game.objective_label.get_global_rect(), "banner": game.banner_label.get_global_rect(),
+		"radar": HudArrangement.radar_rect(sz), "minimap": HudArrangement.minimap_rect(sz)}
+	var move_vis: Rect2 = touch.get_move_visual_rect()
+	for n in passive:
+		print("PROBE_PASSIVE %s %-14s %s" % [tag, n, _fmt(passive[n], sz, dp)])
+		if not view.encloses(passive[n]):
+			_problem("%s passive %s off-screen %s" % [tag, n, passive[n]])
+		if passive[n].intersects(move_vis):
+			_problem("%s passive %s %s covers the move stick %s" % [tag, n, passive[n], move_vis])
+	var pnames: Array = passive.keys()
+	for i in pnames.size():
+		for j in range(i + 1, pnames.size()):
+			if passive[pnames[i]].intersects(passive[pnames[j]]):
+				_problem("%s passive %s overlaps passive %s" % [tag, pnames[i], pnames[j]])
+	for n in ["weapon_block", "chip", "objective", "banner"]:
+		hud_rects[n] = passive[n]
 	var names: Array = ctrls.keys()
 	for i in names.size():
 		var a: Rect2 = ctrls[names[i]]

@@ -8,17 +8,36 @@ var director: MatchDirector
 var pawn: Pawn
 var fire_mode_button: FireModeButton
 var interact_button: InteractButton
+## M2 H1b commit 2: the prompt at the object (InteractPrompt), a sibling right after the Interact button.
+var interact_prompt: InteractPrompt
+## M2 H1b commit 3: the minimap (scripts/ui/hud_minimap.gd, data ui.json minimap, OQ-MINIMAP).
+var minimap: HudMinimap
+## M2 H1b commit 4: the radar (scripts/ui/hud_radar.gd, data ui.json radar, OQ-RADAR), a passive sibling right after the
+## minimap (drawn over its panel plate).
+var radar: HudRadar
+## M2 H1b commit 5: the first-play coach (scripts/ui/hud_coach.gd, data/coach.json, OQ-COACH); null unless this match
+## came through the menu / lobby route (AppFlow.coach_route) and the profile's coach_done is not set.
+var coach: HudCoach
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
 
-var stats: VBoxContainer
+## M2 H1b (OQ-HUD): the displays are placed by HudArrangement (data/ui.json hud_arrangement). The weapon block (bottom
+## centre: slots, ammo, bars) owns shield_bar / health_bar / ammo_label / weapon_label; the top-left chip owns
+## alive_label / squads_label / zone_label; the top-centre strip shows objective_label, or downed_label (DOWNED,
+## spectating) in its place. Every node of them ignores the mouse and touches.
+var weapon_block: HudWeaponBlock
+var chip: HudChip
 var shield_bar: ProgressBar
 var health_bar: ProgressBar
 var ammo_label: Label
 var weapon_label: Label
 var alive_label: Label
+var squads_label: Label
 var zone_label: Label
 var downed_label: Label
+var objective_label: Label
+## The objective rule's current key (objective_key; "" = hidden). Tests read it.
+var objective_key: String = ""
 var respawn_label: Label
 var own_death_label: Label
 ## Set by MatchRoot while the eliminated local player spectates ("Spectating Squad III"; placeholder text).
@@ -65,35 +84,67 @@ func _exit_tree() -> void:
 		fire_mode_button.queue_free()
 	if is_instance_valid(interact_button):
 		interact_button.queue_free()
+	if is_instance_valid(interact_prompt):
+		interact_prompt.queue_free()
+	if is_instance_valid(minimap) and minimap.get_parent() != self:
+		minimap.queue_free()
+	if is_instance_valid(radar) and radar.get_parent() != self:
+		radar.queue_free()
+	if is_instance_valid(coach) and coach.get_parent() != self:
+		coach.queue_free()
+
+
+## M2 H1b: deferred insertion of `node` right after `anchor`, which is itself awaiting its own deferred insertion. When
+## the match is freed before the deferred calls run, the anchor never got a parent: nothing is inserted (no engine error)
+## and _exit_tree frees the node.
+func _add_after(anchor: Node, node: Node) -> void:
+	if not is_instance_valid(node) or node.get_parent() != null:
+		return
+	if is_instance_valid(anchor) and anchor.get_parent() != null:
+		anchor.add_sibling(node)
+
+
+## M2 H1b commit 3: the map json of the match this HUD is in (MatchRoot.map_def), {} outside a match.
+func _map_def() -> Dictionary:
+	var n := get_parent()
+	while n != null:
+		if n is MatchRoot:
+			return (n as MatchRoot).map_def
+		n = n.get_parent()
+	return {}
+
+
+## M2 H1b commit 5: the profile the coach gate reads (the menu's loaded profile, else the file, as MatchRoot does).
+func _coach_profile() -> Dictionary:
+	return AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
 
 
 func _build() -> void:
 	if alive_label != null:
 		return
-	var top := HBoxContainer.new()
-	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(top)
-	alive_label = _label(top, "")
-	alive_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	zone_label = _label(top, "")
-	downed_label = _label(top, "")
-
-	stats = VBoxContainer.new()
-	stats.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(stats)
-	shield_bar = _bar(stats, Color(0.4, 0.6, 0.95))
-	health_bar = _bar(stats, Color(0.8, 0.15, 0.15))
-	weapon_label = _label(stats, "")
-	ammo_label = _label(stats, "")
-	resized.connect(_place_stats)
-	_place_stats()
+	chip = HudChip.new()
+	add_child(chip)
+	alive_label = chip.alive_label
+	squads_label = chip.squads_label
+	zone_label = chip.zone_label
+	objective_label = HudStyle.label(self, HORIZONTAL_ALIGNMENT_CENTER, HudStyle.role("text"))
+	objective_label.name = "Objective"
+	objective_label.visible = false
+	downed_label = HudStyle.label(self, HORIZONTAL_ALIGNMENT_CENTER, HudStyle.role("status"))
+	downed_label.name = "Status"
+	weapon_block = HudWeaponBlock.new()
+	add_child(weapon_block)
+	shield_bar = weapon_block.shield_bar
+	health_bar = weapon_block.health_bar
+	ammo_label = weapon_block.ammo_label
+	weapon_label = weapon_block.weapon_label
 
 	respawn_label = _label(self, "")
 	respawn_label.set_anchors_preset(Control.PRESET_CENTER)
 	respawn_label.visible = false
 	_build_feedback()
+	resized.connect(_arrange)
+	_arrange()
 
 
 func _build_feedback() -> void:
@@ -121,7 +172,7 @@ func _build_feedback() -> void:
 	hit_marker.text = String(_fb["hit_marker_text"])
 	resized.connect(_size_hit_marker)
 	_banner_cfg = DataRegistry.new().load_file("res://data/ui.json")["kill_feed"]
-	banner_label = _row_label(float(_banner_cfg["anchor_y_frac"]), _color(_banner_cfg["color"]))
+	banner_label = _row_label(0.0, _color(_banner_cfg["color"]))  # M2 H1b: placed by _arrange (under the objective strip)
 	banner_label.add_theme_color_override("font_outline_color", _color(_banner_cfg["outline_color"]))
 	resized.connect(_size_banner)
 	_size_banner()
@@ -342,11 +393,28 @@ func _tick_feedback(delta: float) -> void:
 		hit_marker.visible = _marker_left_s > 0.0
 
 
-## Positions the stat block from data/ui.json (hud_layout.stat_block_pos, fractions of the HUD size).
-func _place_stats() -> void:
-	var cfg := DataRegistry.new().load_file("res://data/ui.json")
-	var p: Array = cfg.get("hud_layout", {}).get("stat_block_pos", [0.01, 0.08])
-	stats.position = Vector2(float(p[0]) * size.x, float(p[1]) * size.y)
+## M2 H1b: places the weapon block, the chip, the objective / status strip and the kill banner (HudArrangement, data
+## ui.json hud_arrangement, OQ-HUD). Called on every resize (folding the phone resizes the HUD at runtime).
+func _arrange() -> void:
+	var view := size
+	var u := HudArrangement.unit(view)
+	weapon_block.layout(view)
+	chip.layout(view)
+	var obj := HudArrangement.objective_rect(view)
+	var o_cfg: Dictionary = HudArrangement.cfg()["objective"]
+	var line := maxf(1.0, u * 0.06)
+	for l: Label in [objective_label, downed_label]:
+		HudStyle.place(l, obj)
+		HudStyle.set_font_px(l, float(o_cfg["font_units"]) * u)
+		l.add_theme_stylebox_override("normal", HudStyle.plate(u * 0.3, line))
+	var warn := HudStyle.role("status")
+	warn.a = 0.7
+	downed_label.add_theme_stylebox_override("normal", HudStyle.plate(u * 0.3, line, -1.0, warn))
+	banner_label.clip_text = true
+	banner_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	banner_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	HudStyle.place(banner_label, HudArrangement.banner_rect(view))
+	banner_label.add_theme_stylebox_override("normal", HudStyle.plate(u * 0.35, line, -1.0, _color(_banner_cfg["color"])))
 
 
 func _label(parent: Node, text: String) -> Label:
@@ -355,16 +423,6 @@ func _label(parent: Node, text: String) -> Label:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(l)
 	return l
-
-
-func _bar(parent: Node, color: Color) -> ProgressBar:
-	var b := ProgressBar.new()
-	b.show_percentage = false
-	b.custom_minimum_size = Vector2(240, 16)
-	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_theme_stylebox_override("fill", _fill_style(color))
-	parent.add_child(b)
-	return b
 
 
 func _fill_style(color: Color) -> StyleBoxFlat:
@@ -401,6 +459,47 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 			add_child(interact_button)
 	else:
 		interact_button.bind(pawn, director, touch_for_interact, get_node_or_null("../PauseMenu") as PauseMenu)
+	# M2 H1b commit 2 (OQ-HUD): the prompt at the object, for the Interact button's target. Inserted right after the button
+	# (deferred calls run in order), so its _input runs before the button's and the touch HUD's (it never consumes a touch).
+	if interact_prompt == null:
+		interact_prompt = InteractPrompt.new()
+		interact_prompt.bind(pawn, director, touch_for_interact, interact_button, get_node_or_null("../PauseMenu") as PauseMenu)
+		if touch_for_interact != null:
+			_add_after.call_deferred(interact_button, interact_prompt)
+		else:
+			add_child(interact_prompt)
+	else:
+		interact_prompt.bind(pawn, director, touch_for_interact, interact_button, get_node_or_null("../PauseMenu") as PauseMenu)
+	# M2 H1b commit 3 (OQ-MINIMAP): the minimap, inserted right after the touch HUD (deferred calls run in order, so it lands
+	# before the Interact button), so its _input sees a press on its tap target before the touch HUD does. It draws under
+	# the HUD (z_index -1): the expanded map never hides a control.
+	if minimap == null:
+		minimap = HudMinimap.new()
+		if touch_for_interact != null:
+			touch_for_interact.add_sibling.call_deferred(minimap)
+		else:
+			add_child(minimap)
+	minimap.bind(director, pawn, get_node_or_null("../PauseMenu") as PauseMenu, _map_def(), self)
+	# M2 H1b commit 4 (OQ-RADAR): the radar, right after the minimap (the deferred insertion above runs first), so it
+	# draws over the minimap's panel plate at the same z_index. Passive: no _input, every node IGNORE.
+	if radar == null:
+		radar = HudRadar.new()
+		if touch_for_interact != null:
+			_add_after.call_deferred(minimap, radar)
+		else:
+			add_child(radar)
+	radar.bind(director, pawn, self)
+	# M2 H1b commit 5 (OQ-COACH): the first-play coach, only on a real match from the menu / lobby route (the flag is taken
+	# here, once) with coach_done not set. Right after the radar (deferred insertion runs after the radar's), so its _input
+	# sees a press on Skip before the touch HUD; z_index 1 draws it over the other HUD siblings.
+	if coach == null and AppFlow.take_coach_route() and HudCoach.wanted(true, _coach_profile()):
+		coach = HudCoach.new()
+		if touch_for_interact != null:
+			_add_after.call_deferred(radar, coach)
+		else:
+			add_child(coach)
+	if coach != null:
+		coach.bind(director, pawn, touch_for_interact, get_node_or_null("../PauseMenu") as PauseMenu, self)
 	pawn.reload_rejected.connect(_on_reload_rejected)
 	pawn.fire_empty.connect(_on_fire_empty)
 	pawn.weapon_switched.connect(_on_weapon_switched)
@@ -436,6 +535,7 @@ func refresh_pawn() -> void:
 		ammo_label.text = "-" if w.def.is_melee() else "%d / %d" % [w.ammo_in_mag, w.reserve]
 		reload_box.visible = w.reloading
 		reload_bar.value = w.reload_fraction(pawn.get_clock())
+	_refresh_slots()
 	var waiting := not pawn.is_alive()
 	respawn_label.visible = false  # no respawn in battle royale (item 6 removes the label)
 	own_death_label.visible = waiting and not pawn.is_downed()  # DOWNED is not dead (item 6 adds its own label)
@@ -443,17 +543,37 @@ func refresh_pawn() -> void:
 	_refresh_match_texts()
 
 
+## M2 H1b: every loadout slot as the weapon block draws it, the held one marked.
+func _refresh_slots() -> void:
+	var entries: Array = []
+	if pawn.loadout != null:
+		for i in pawn.loadout.slots.size():
+			var kind := HudWeaponBlock.kind_of(pawn.loadout.slots[i], i)
+			entries.append({"kind": kind, "held": i == pawn.loadout.active and kind != HudWeaponBlock.KIND_EMPTY})
+	weapon_block.set_slots(entries)
+
+
 func _refresh_match_texts() -> void:
 	if director == null or director.rules == null:
 		alive_label.text = ""
+		squads_label.text = ""
 		zone_label.text = ""
 		downed_label.text = ""
+		_show_top_strip("")
 		return
-	var alive := "Alive %s" % HudNumbers.number(director.players_alive(), roman_numerals)
-	if director.team_mode() == "squads":
-		alive += "   Squads %s" % HudNumbers.number(director.squads_alive(), roman_numerals)
-	alive_label.text = alive
-	zone_label.text = zone_text(director.rules.zone_state(), director.rules.zone_seconds_left())
+	var c: Dictionary = HudArrangement.cfg()["chip"]
+	alive_label.text = String(c["alive_format"]) % HudNumbers.number(director.players_alive(), roman_numerals)
+	chip.show_squads = director.team_mode() == "squads"
+	squads_label.text = String(c["squads_format"]) % HudNumbers.number(director.squads_alive(), roman_numerals) if chip.show_squads else ""
+	var zstate := director.rules.zone_state()
+	chip.zone_state = zstate
+	zone_label.text = String(c["final_text"]) if zstate == "final" else (_clock(director.rules.zone_seconds_left()) if zstate != "" else "")
+	_refresh_status()
+	_show_top_strip(objective_key_for(pawn, director))
+
+
+## The DOWNED countdown, "Jump to drop" (aboard) or the spectating text, in downed_label (shown in the top strip).
+func _refresh_status() -> void:
 	var id := _pawn_player_id()
 	if pawn.drop_state == Pawn.Drop.ABOARD:
 		downed_label.text = "Jump to drop"
@@ -463,6 +583,65 @@ func _refresh_match_texts() -> void:
 		downed_label.text = spectate_text
 	else:
 		downed_label.text = ""
+
+
+## M2 H1b (OQ-HUD): the objective line's state rule, first match wins, from state the HUD can already read (pawn and
+## director rules, read-only). Keys index data/ui.json hud_arrangement.objective.texts; "" = no line.
+##   dead or downed -> "" (the status text takes the strip); aboard -> drop; falling -> falling;
+##   no gun in any slot (empty or melee only) -> loot; outside the current circle -> outside;
+##   zone waiting / shrinking and outside the next circle -> zone_closes / zone_closing (with the timer);
+##   zone final -> final; zone running and inside -> inside; no zone yet -> "".
+static func objective_key_for(p: Pawn, d: MatchDirector) -> String:
+	if p == null or d == null or d.rules == null:
+		return ""
+	if p.life == Pawn.Life.DEAD or p.is_downed():
+		return ""
+	if p.drop_state == Pawn.Drop.ABOARD:
+		return "drop"
+	if p.drop_state == Pawn.Drop.FALLING:
+		return "falling"
+	if not _has_gun(p):
+		return "loot"
+	var zstate := d.rules.zone_state()
+	if zstate == "":
+		return ""
+	var here := Vector2(p.global_position.x, p.global_position.z) if p.is_inside_tree() else Vector2(p.position.x, p.position.z)
+	if d.rules.is_outside(here):
+		return "outside"
+	if zstate == "final":
+		return "final"
+	if here.distance_to(d.rules.zone_target_center()) > d.rules.zone_target_radius():
+		return "zone_closes" if zstate == "waiting" else "zone_closing"
+	return "inside"
+
+
+static func _has_gun(p: Pawn) -> bool:
+	if p.loadout == null:
+		return false
+	for w: Weapon in p.loadout.slots:
+		if w != null and w.def != null and not w.def.is_melee():
+			return true
+	return false
+
+
+## The text of an objective key from data (zone keys get the zone timer).
+func objective_text(key: String) -> String:
+	if key == "":
+		return ""
+	var t := String(HudArrangement.cfg()["objective"]["texts"].get(key, ""))
+	if key.begins_with("zone_") and director != null and director.rules != null:
+		t = t % _clock(director.rules.zone_seconds_left())
+	return t
+
+
+## One line in the top strip: the status (DOWNED, spectating) when there is one, else the objective. "Jump to drop" is
+## not shown while aboard: the objective line says it.
+func _show_top_strip(key: String) -> void:
+	objective_key = key
+	var status := downed_label.text != "" and not (pawn != null and pawn.drop_state == Pawn.Drop.ABOARD)
+	downed_label.visible = status
+	objective_label.text = objective_text(key)
+	objective_label.visible = not status and objective_label.text != ""
 
 
 ## Placeholder wording (S6 restyles it).

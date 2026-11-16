@@ -1,0 +1,61 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-COACH (M2 H1b commit 5, scripts/ui/hud_coach.gd): the first-play coach. A short skippable sequence of one-line hints on the first real match, one at a time, each pointing at its control with a gold ring and a pointer. Every number and every text here is a placeholder. It never blocks input and never pauses the match: the hints and pointers ignore touches; the only touch target is Skip.",
+	"enabled": true,
+	"_enabled_note": "Data switch: false = the coach never shows (Settings still offers the replay row).",
+	"require_touch_hud": true,
+	"_require_touch_hud_note": "Every hint points at a touch control, so the coach shows only while the touch HUD is shown (touch_hud.should_show(): a touch device or force_touch_hud). Mouse / keyboard / gamepad: no coach, coach_done is left as it is. Nothing here asks for an OS.",
+	"start_delay_s": 2.0,
+	"gap_s": 0.6,
+	"layout": {
+		"font_units": 0.8,
+		"max_width_frac": 0.3,
+		"pad_units": 0.45,
+		"gap_units": 0.55,
+		"edge_margin_dp": 8.0,
+		"ring_pad_units": 0.22,
+		"ring_width_units": 0.12,
+		"pointer_width_units": 0.09,
+		"arrow_units": 0.42,
+		"look_ring_units": 1.6,
+		"crosshair_clear_units": 1.2,
+		"pulse_period_s": 1.2,
+		"pulse_alpha": 0.35,
+		"plate_alpha": 0.86,
+		"colors": {"text": "marble", "ring": "gold_hi", "pointer": "gold_hi", "outline": "night", "border": "gold"}
+	},
+	"skip": {
+		"_note": "The coach's ONLY touch target, under the alive / zone chip at the left edge (the top of the left half, outside the look area), shown only while a hint shows (and in the short gap between two). It takes a little of the stick start zone's top-left corner only while the coach runs. width_units is the plate width (never under min_dp; kept narrow so it stays left of the Sprint lock target on 1512x648 at 420 dpi); gap_units is the gap under the chip. Two lines: the word, and the step counter.",
+		"text": "Skip tips",
+		"counter_format": "%d/%d",
+		"min_dp": 48.0,
+		"height_units": 1.7,
+		"width_units": 4.2,
+		"pad_units": 0.3,
+		"gap_units": 0.35,
+		"font_units": 0.62,
+		"counter_font_units": 0.5
+	},
+	"advance": {
+		"_note": "What counts as doing the thing (read-only, never consumes input): moved = the pawn walked move_m on the ground; turned = the view yaw turned look_deg in total; aimed = pawn.aiming; fired = the pawn's fired signal; in_cover = pawn.in_cover(); interacted = an interact press (touch provider's action_triggered, or the interact action); map_opened = the minimap expanded.",
+		"move_m": 2.0,
+		"look_deg": 45.0
+	},
+	"settings": {
+		"replay_text": "Replay the coach",
+		"replay_pending_text": "Coach: shows next match"
+	},
+	"steps": [
+		{"id": "move", "target": "move_stick", "text": "Drag here to move", "advance": "moved", "timeout_s": 10.0, "wait_s": 0.0},
+		{"id": "look", "target": "look_area", "text": "Drag on the right side to look around", "advance": "turned", "timeout_s": 10.0, "wait_s": 0.0},
+		{"id": "aim", "target": "aim", "text": "Tap Aim to raise your sight", "advance": "aimed", "timeout_s": 10.0, "wait_s": 0.0},
+		{"id": "fire", "target_by_mode": {"advanced": "fire_right", "simple": "crosshair"},
+			"text_by_mode": {"advanced": "Tap Fire to shoot", "simple": "Sight up on an enemy and you fire by yourself"},
+			"advance": "fired", "timeout_s": 12.0, "wait_s": 0.0},
+		{"id": "cover", "target": "cover", "text": "Near a wall, tap Cover to take cover", "advance": "in_cover", "timeout_s": 12.0, "wait_s": 0.0},
+		{"id": "pickup", "target": "interact", "text": "Tap the prompt to pick it up", "advance": "interacted", "timeout_s": 12.0, "wait_s": 30.0,
+			"_note": "Applies only while the Interact button offers a pickup or a chest (host or offline; a LAN client never shows Interact, so the step is skipped there). Not applicable when reached: waits up to wait_s (nothing shown, Skip hidden), then is skipped."},
+		{"id": "map", "target": "minimap_tap", "text": "Tap the map to open it. The radar beside it shows enemies within %d m",
+			"text_no_radar": "Tap the map to open it", "advance": "map_opened", "timeout_s": 12.0, "wait_s": 0.0}
+	]
+}
