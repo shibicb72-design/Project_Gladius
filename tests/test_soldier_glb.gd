@@ -41,7 +41,8 @@ func test_glb_armature_equals_the_runtime_skeleton() -> void:
 	var theirs := skeletons[0] as Skeleton3D
 	assert_eq(ours.get_bone_count(), 17 + ADDED.size(), "the runtime skeleton: the 17 bones of data/anim.json and the added ones")
 	assert_eq(theirs.get_bone_count(), ours.get_bone_count(), "the .glb carries the same number of bones")
-	assert_true(ours.get_bone_count() <= 40, "within the 40-bone cap")
+	var max_bones := int(SoldierLook.config()["budgets"]["max_bones"])  # data/art_soldier.json soldier.budgets, placeholder
+	assert_true(ours.get_bone_count() <= max_bones, "within the %d-bone cap" % max_bones)
 	for name: String in ADDED:
 		assert_true(ours.find_bone(name) >= 0 and theirs.find_bone(name) >= 0, "added bone %s in both" % name)
 	var worst_origin := 0.0

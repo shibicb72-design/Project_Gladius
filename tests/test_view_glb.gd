@@ -9,16 +9,17 @@ extends "res://tests/test_case.gd"
 
 const REST_TOLERANCE_M := 0.0001
 const BASIS_TOLERANCE := 0.0001
-const ARM_MAX_TRIANGLES := 1150
-const GUN_MAX_TRIANGLES := 1700  # first person: Mesh + Cell + Charge
-const BLADE_MAX_TRIANGLES := 1200
-const THIRD_MAX_TRIANGLES := 500
 const GUNS: Array[String] = ["pilum_br", "sagittarii_rifle"]
 const IDS: Array[String] = ["pilum_br", "sagittarii_rifle", "gladius_lux"]
 
 
 func _art() -> Dictionary:
 	return ViewMesh.config()
+
+
+## The caps on the Blender files: data/art_soldier.json budget.blender (placeholders). gun = first person Mesh + Cell + Charge.
+func _cap(key: String) -> int:
+	return int(_art()["budget"]["blender"][key])
 
 
 func _triangles(mesh: Mesh) -> int:
@@ -90,7 +91,7 @@ func test_arm_glb_rig_equals_the_runtime_arm_skeleton() -> void:
 			bname = theirs.get_bone_name(arm_mi.skin.get_bind_bone(k))
 		assert_true(ViewHands.bone_names().has(bname), "bind %d is an arm bone (%s)" % [k, bname])
 	var tris := _triangles(arm_mi.mesh)
-	assert_true(tris > 0 and tris <= ARM_MAX_TRIANGLES, "arm: %d triangles <= %d" % [tris, ARM_MAX_TRIANGLES])
+	assert_true(tris > 0 and tris <= _cap("arm_max_triangles"), "arm: %d triangles <= %d" % [tris, _cap("arm_max_triangles")])
 	scene.free()
 	runtime.free()
 
@@ -169,7 +170,7 @@ func test_weapon_glbs_have_their_pieces_on_the_data_points() -> void:
 			assert_true(got.origin.distance_to(want.origin) < 0.0001 and got.basis.is_equal_approx(want.basis),
 					"%s: %s object at the data's rest (%s vs %s)" % [id, piece, got.origin, want.origin])
 			fp_tris += _triangles(ViewMesh.glb_view_mesh(src, piece))
-		var limit := BLADE_MAX_TRIANGLES if id == "gladius_lux" else GUN_MAX_TRIANGLES
+		var limit := _cap("blade_max_triangles") if id == "gladius_lux" else _cap("gun_max_triangles")
 		assert_true(fp_tris > 0 and fp_tris <= limit, "%s: first-person %d triangles <= %d" % [id, fp_tris, limit])
 		var body := ViewMesh.glb_view_mesh(src, "Mesh")
 		assert_true(body.get_surface_count() >= 2, "%s: Mesh has an opaque and a glass pass (%d surfaces)" % [id, body.get_surface_count()])
@@ -186,7 +187,7 @@ func test_weapon_glbs_have_their_pieces_on_the_data_points() -> void:
 			assert_true(nodes.has("ThirdNear") and nodes.has("ThirdFar"), "%s: ThirdNear and ThirdFar" % id)
 			assert_eq(nm.get_surface_count(), 1, "%s: third-person near is one surface" % id)
 			assert_true(nm.surface_get_material(0) == SoldierSquadColour.material(), "%s: on the one soldier material" % id)
-			assert_true(near > 0 and near <= THIRD_MAX_TRIANGLES, "%s: ThirdNear %d <= %d" % [id, near, THIRD_MAX_TRIANGLES])
+			assert_true(near > 0 and near <= _cap("third_max_triangles"), "%s: ThirdNear %d <= %d" % [id, near, _cap("third_max_triangles")])
 			assert_true(far > 0 and far < near, "%s: ThirdFar %d under the near %d" % [id, far, near])
 			var src_near: Mesh = nodes["ThirdNear"]["mesh"]
 			assert_eq(_triangles(src_near), near, "%s: gun_mesh near is the .glb's ThirdNear" % id)

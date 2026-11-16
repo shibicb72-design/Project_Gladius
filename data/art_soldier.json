@@ -5,6 +5,7 @@
 		"_note": "OQ-ART-SOLDIER: the whole view model (both arms + the shown weapon, visible meshes only, the muzzle flash and its light included, the world tracer excluded) must stay under these (tests/test_view_model_art.gd). measured_* are written by hand from the test's print (FP VIEW BUDGET lines) and are not read by code.",
 		"max_triangles": 4000,
 		"max_draw_calls": 12,
+		"blender": {"_placeholder": true, "_note": "M2 AN2 (OQ-ART-SOLDIER placeholders, moved from the tests by Lanista's review fix B1): caps on the Blender-built first-person files, read by tests/test_view_glb.gd and tests/test_view_clips.gd. arm_max_triangles sits just above the measured 1,144 per arm, so it is a ceiling on today's arm, not a design budget; Shibi may set it.", "arm_max_triangles": 1150, "gun_max_triangles": 1700, "blade_max_triangles": 1200, "third_max_triangles": 500, "view_rig_max_bones": 50},
 		"measured_triangles": {"pilum_br": 3832, "sagittarii_rifle": 3950, "gladius_lux": 2818, "per_arm": 1144, "pilum_br_with_flash": 3846, "sagittarii_rifle_with_flash": 3964, "_m2an2_item4a": "Blender-built arms and weapons; before: pilum 3372, sagittarii 3476, gladius 2372, arm 992"},
 		"measured_draw_calls": {"pilum_br": 7, "sagittarii_rifle": 7, "gladius_lux": 4, "gun_with_flash_and_light": 9}
 	},
@@ -60,6 +61,7 @@
 			"near": {"max_triangles": 3100, "max_draw_calls": 2},
 			"far": {"max_triangles": 2420, "max_draw_calls": 2},
 			"far_test_m": 30.0,
+			"max_bones": 40,
 			"body": {"_note": "M2 AN2 item 1: the Blender-built body alone (tests/test_soldier_glb.gd), inside the near and far totals above: near = the near total less the largest gun (up to 500 triangles) and some tuning room; far about half of that, the same silhouette and colours.", "near_max_triangles": 2550, "far_max_triangles": 1200},
 			"measured_before_commit6": {"triangles": 2420, "draw_calls": 2, "lods": 1},
 			"measured_before_an2": {"armor": 2060, "pilum_br": {"near": [2540, 2], "far": [2228, 2]}, "sagittarii_rifle": {"near": [2544, 2], "far": [2316, 2]}},

@@ -49,7 +49,8 @@ func test_every_weapon_has_the_rig_and_the_required_clips() -> void:
 			continue
 		var melee := DataRegistry.new().get_weapon_def(id).is_melee()
 		print("FP CLIPS %s bones=%d clips=%s" % [id, cs.rests.size(), cs.clips.keys()])
-		assert_true(cs.rests.size() <= 50, "%s: %d bones <= 50" % [id, cs.rests.size()])
+		var max_bones := int(ViewMesh.config()["budget"]["blender"]["view_rig_max_bones"])  # data/art_soldier.json, placeholder
+		assert_true(cs.rests.size() <= max_bones, "%s: %d bones <= %d" % [id, cs.rests.size(), max_bones])
 		var need: Array[String] = ["Weapon", "R_hand", "L_hand", "R_elbow", "L_elbow"]
 		if not melee:
 			need.append_array(["Cell", "Charge"])
