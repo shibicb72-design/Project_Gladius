@@ -1,0 +1,29 @@
+{
+	"version": 1,
+	"_note": "M2W1: the shot list of tools/m2w1_capture.gd (the world-art audit captures of alesia_1km). Read by that tool only; nothing in the game reads it. Coordinates are world metres (x, z; y = metres above the terrain under the point). cam = the camera's ground point; eye_m = the camera's height above the terrain there (default 1.7, a standing soldier's eye); look = [x, y above the terrain under (x, z), z]; fov = vertical degrees (default: the game camera's at the window's aspect, data/camera.json fov_table); soldier = one standing soldier (the normal pawn model) 6 m in front of the camera on the ground (or at soldier_at [x, z]), facing the camera. look_mode sun / antisun: look horizontally towards / away from the variant's sun, pitch_deg up (look is ignored). Names start with a number so the files sort in shot order.",
+	"shots": [
+		{"name": "01_camp_outside", "cam": [62.0, -262.0], "look": [55.6, 2.0, -207.7], "note": "Castra Prima from 40 m north of its barracks: barracks, stake rows, tents, cover"},
+		{"name": "02_camp_inside", "cam": [47.0, -207.0], "look": [40.146, 1.2, -218.874], "soldier": true, "note": "between the tents and Castra1_Barracks_0, 13.7 m from its back door Door_001 (closed)"},
+		{"name": "03_gate_outside", "cam": [-6.0, -375.0], "look": [0.0, 3.0, -330.0], "note": "Porta Aquilae (OuterRing_004, Gate_004 starts open) from 45 m outside, Aquaeductus Magnus to the right"},
+		{"name": "04_gate_inside", "cam": [4.0, -305.0], "look": [0.0, 3.0, -330.0], "soldier": true, "note": "Porta Aquilae from 25 m inside"},
+		{"name": "05_gate_close", "cam": [93.34, 93.34], "look": [98.995, 2.25, 98.995], "note": "Gate_001 (Porta Vulcani, inner ring, starts closed) from 8 m inside"},
+		{"name": "06_citadel_hill", "cam": [-54.1, 116.0], "look": [0.0, 6.0, 0.0], "note": "the hill and the Arx from 128 m (inside the inner wall, which stands at 140 m)"},
+		{"name": "07_citadel_top", "cam": [-4.0, 14.0], "look": [1.0, 3.5, -14.0], "note": "on the Arx: columns, eagle, colonnades, the pediment front"},
+		{"name": "08_aqueduct", "cam": [-25.0, -185.0], "look": [12.0, 4.0, -240.0], "note": "Aquaeductus Magnus spans from 37 m, looking out along it towards the outer wall"},
+		{"name": "09_aqueduct_under", "cam": [12.0, -200.0], "look": [0.0, 5.0, -225.0], "note": "standing under AquaeductusMagnus_Span_07, looking out and along"},
+		{"name": "10_inner_wall_walk", "cam": [0.0, -139.8], "eye_m": 4.7, "look": [-29.2, 4.7, -137.1], "note": "on InnerRing_002's walkway (walk surface y 3.0), looking west along the wall to the stair InnerRing_118"},
+		{"name": "11_wall_stair", "cam": [-21.0, -125.8], "look": [-29.6, 1.5, -134.7], "note": "the wall stair of InnerRing_118 from the ground, 12.4 m, three-quarter view"},
+		{"name": "12_tower", "cam": [124.0, -273.4], "look": [126.3, 5.0, -304.9], "note": "Specula (OuterRing_022) from 32 m inside the outer wall"},
+		{"name": "13_fields", "cam": [-159.0, -437.0], "look": [-112.9, 2.0, -310.1], "note": "the fields outside the outer wall (stake rows, low cover) towards the wall"},
+		{"name": "14_fields_low_cover", "cam": [-107.95, -356.8], "look": [-104.5, 0.8, -345.0], "soldier": true, "soldier_at": [-102.5, -352.0], "note": "5 m from the sandbags Ring_155 in the fields, the outer wall behind"},
+		{"name": "15_barracks_door", "cam": [71.146, -228.5], "look": [71.146, 1.2, -221.0], "note": "into Door_002's doorway (Castra1_Barracks_1 front; the door starts open, its leaf in the wall pocket) from 4 m"},
+		{"name": "16_barracks_interior", "cam": [76.8, -220.0], "look": [71.146, 1.3, -224.474], "note": "inside Castra1_Barracks_1 looking at the open Door_002"},
+		{"name": "17_ladder", "cam": [83.0, -219.5], "look": [78.346, 2.0, -221.674], "note": "Ladder_001 on Castra1_Barracks_1's east end wall from 5 m"},
+		{"name": "18_chest_breakables", "cam": [59.0, -182.0], "look": [64.5, 0.5, -184.5], "note": "Chest_000 (closed) from 4 m, crates Breakable_000 / _002 behind it"},
+		{"name": "19_landmark_300_citadel", "cam": [-212.1, 212.1], "look": [0.0, 6.0, 0.0], "note": "the Arx from 300 m (bearing 225, through Porta Cereris' line)"},
+		{"name": "20_landmark_300_tower", "cam": [-162.1, -387.5], "look": [126.3, 5.0, -304.9], "note": "Specula from 300 m in the fields outside the outer wall"},
+		{"name": "21_landmark_300_aqueduct", "cam": [-235.0, -410.0], "look": [12.0, 4.0, -235.0], "note": "Aquaeductus Magnus (landmark centre) from 303 m in the fields, across the outer wall"},
+		{"name": "22_sky_sunward", "cam": [-159.0, -437.0], "look_mode": "sun", "pitch_deg": 15.0, "note": "the fields, looking 15 degrees up towards the sun"},
+		{"name": "23_sky_antisun", "cam": [-159.0, -437.0], "look_mode": "antisun", "pitch_deg": 15.0, "note": "the fields, looking 15 degrees up away from the sun"}
+	]
+}
