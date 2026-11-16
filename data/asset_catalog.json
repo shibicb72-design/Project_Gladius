@@ -1395,6 +1395,13 @@
 			"sha256": "8ac1d5c18f7b862cfe75a78cf590c6dd0f1d4f2215ae3d237cfe30df35c2dc4d"
 		},
 		{
+			"path": "res://assets/generated/characters/soldier_keyed.glb",
+			"made_by": "tools/blender/build_soldier_keyed.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 778436,
+			"sha256": "c6548fb40c698301133475f042157f64026fd156491b6c47708036007125334f"
+		},
+		{
 			"path": "res://assets/generated/characters/view_arms.glb",
 			"made_by": "tools/blender/build_view_arms.py",
 			"licence": "generated in this project (no source material)",

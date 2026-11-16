@@ -165,6 +165,8 @@
 			"procedural": true
 		},
 		"cover_enter": {
+			"_note": "M2 AN2 items 3/5: the hand-keyed clips of assets/generated/characters/soldier_keyed.glb (tools/blender/build_soldier_keyed.py). Cover: CoverAnim plays them per state (keeping its own pelvis/neck heights; the _l slots are the mirrored left-side clips CoverAnim swaps in by CoverController.side). The procedural rows stay the fallback.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_enter", "rig": "soldier", "loop": false}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
@@ -177,30 +179,35 @@
 			"procedural": true
 		},
 		"cover_idle_l": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_hug_high_l", "rig": "soldier", "loop": true}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"cover_idle_l_crouch": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_hug_low_l", "rig": "soldier", "loop": true}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"cover_idle_r": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_hug_high", "rig": "soldier", "loop": true}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"cover_idle_r_crouch": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_hug_low", "rig": "soldier", "loop": true}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"peek_left": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_lean_left", "rig": "soldier", "loop": true}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
@@ -213,6 +220,7 @@
 			"procedural": true
 		},
 		"peek_right": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_lean_right", "rig": "soldier", "loop": true}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
@@ -225,6 +233,7 @@
 			"procedural": true
 		},
 		"cover_exit": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_exit", "rig": "soldier", "loop": false}],
 			"actionforge": [],
 			"ual": [],
 			"mixamo_local": [],
@@ -235,6 +244,45 @@
 			"ual": [],
 			"mixamo_local": [],
 			"procedural": true
+		},
+		"cover_enter_l": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_enter_l", "rig": "soldier", "loop": false}],
+			"procedural": false
+		},
+		"cover_exit_l": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_exit_l", "rig": "soldier", "loop": false}],
+			"procedural": false
+		},
+		"cover_rise": {
+			"_note": "M2 AN2: the risen fire stance from cover (IN_COVER drawn out: CoverAnim blends the hug into it by aim_out_amount).",
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_rise", "rig": "soldier", "loop": true}],
+			"procedural": false
+		},
+		"ladder_up": {
+			"_note": "M2 AN2: SoldierModel plays the ladder clips whole-body through SoldierPose while pawn.climbing, at the time the feet's height on the ladder gives (data/anim_third_person.json keyed.ladder); ladder_top once after the top step. No procedural fallback: without the clip the climb shows the graph as before.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "ladder_up", "rig": "soldier", "loop": true}],
+			"procedural": false
+		},
+		"ladder_down": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "ladder_down", "rig": "soldier", "loop": true}],
+			"procedural": false
+		},
+		"ladder_top": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "ladder_top", "rig": "soldier", "loop": false}],
+			"procedural": false
+		},
+		"door_open": {
+			"_note": "M2 AN2: one-shots SoldierModel.play_action plays (upper body for the door; whole body for the chest and the pickup).",
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "door_open", "rig": "soldier", "loop": false}],
+			"procedural": false
+		},
+		"chest_open": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "chest_open", "rig": "soldier", "loop": false}],
+			"procedural": false
+		},
+		"pickup_ground": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "pickup_ground", "rig": "soldier", "loop": false}],
+			"procedural": false
 		},
 		"cover_slide_l": {
 			"actionforge": [],

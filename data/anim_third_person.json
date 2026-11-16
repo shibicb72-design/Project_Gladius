@@ -74,5 +74,18 @@
 		"_rest_note": "M2 AN1 commit 6: the arms while hugging the wall (replaces data/cover.json animation.rest_upper_pose_deg for the look only; cover.json is unchanged): the gun held at a low ready angle across the body instead of straight up. Same bones, so the lean still blends back to the aimed pose.",
 		"rest_upper_pose_deg": {"RightUpperArm": [10, 0, 8], "RightForeArm": [55, 0, 0], "RightHand": [-30, 0, 0]},
 		"peek_lean_deg": 9.0
+	},
+	"keyed": {
+		"_placeholder": true,
+		"_todo": "OQ-ANIM (M2 AN2 items 3 and 5): hand-keyed clips authored in Blender on the soldier rig (tools/blender/build_soldier_keyed.py -> assets/generated/characters/soldier_keyed.glb; slots in data/anim_sources.json under 'blender'). Read by the Blender script and the runtime alike. ladder: cycle_m is how far the body climbs in one cycle of ladder_up (each hand and foot moves up cycle_m / rung_m rungs per step); the runtime plays ladder_up / ladder_down at the time given by the feet's height on the ladder (fposmod(height / cycle_m, 1)), so hands and feet never slide on the rungs and a held stick holds the pose; rung_m is the rung spacing the clip is authored on (data/props.json ladder look: 0.3 m on its 4.2 m look); climb_offset_m mirrors props.json ladder climb_offset_m (where the rungs are in front of the climber); blend_s fades the climb in and out; dir_mps is the vertical speed that picks up or down; top_catchup_m is the nominal top-step move (old feet minus new feet in the model frame: +y up, +z back toward the ladder) the ladder_top clip is authored with, the runtime adds the difference to the real move and fades it out over top_catchup_s. actions: fade_s in and out of a one-shot; full_body clips own every bone, the others only upper_bones; hide_gun: the gun is slung (hidden) while that clip shows at half weight or more. cover: crouch_hips_y_m is the pelvis height the crouched cover clips are authored at (rest 0.96 - (standing capsule 1.6 - cover.json crouch_height_m)); the runtime keeps CoverAnim's own heights. Presentation trials, not design values.",
+		"ladder": {"cycle_m": 0.9, "rung_m": 0.3, "climb_offset_m": 0.5, "blend_s": 0.15, "dir_mps": 0.05, "turn_deg_s": 720.0,
+			"top_catchup_m": [0.0, 0.08, 1.15], "top_catchup_s": 0.6},
+		"actions": {
+			"fade_s": 0.1,
+			"full_body": ["chest_open", "pickup_ground", "ladder_top"],
+			"upper_bones": ["Spine", "Chest", "Head", "LeftUpperArm", "LeftForeArm", "LeftHand", "LeftFingers"],
+			"hide_gun": ["chest_open", "ladder_top", "ladder_up", "ladder_down"]
+		},
+		"cover": {"crouch_hips_y_m": 0.36}
 	}
 }

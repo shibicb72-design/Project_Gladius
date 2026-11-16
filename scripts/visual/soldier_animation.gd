@@ -162,7 +162,11 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 
 
 ## M2 AN1: library slots used outside the graph (SoldierCorpse, SoldierPose, CoverAnim), baked with the graph.
-const SHARED_SLOTS: Array[String] = ["death", "revive", "blade_swing", "cover_crouch_idle", "cover_crouch_move"]
+## M2 AN2 items 3/5: the keyed clips (soldier_keyed.glb) CoverAnim and SoldierModel's action layer use.
+const SHARED_SLOTS: Array[String] = ["death", "revive", "blade_swing", "cover_crouch_idle", "cover_crouch_move",
+	"cover_idle_l", "cover_idle_r", "cover_idle_l_crouch", "cover_idle_r_crouch", "peek_left", "peek_right",
+	"cover_enter", "cover_exit", "cover_enter_l", "cover_exit_l", "cover_rise",
+	"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground"]
 static var _additive: Dictionary = {}
 
 

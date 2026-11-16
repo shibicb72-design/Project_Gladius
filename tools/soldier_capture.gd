@@ -14,8 +14,12 @@ extends SceneTree
 ## --procedural passes the library over (ClipLibrary.skip_sources) for before-captures of the code-built clips.
 ## Contact sheets: tools/contact_sheet.gd -- --dir=<out>/<state>.
 
+## M2 AN2 items 3/5: ladder_up / ladder_down / ladder_top (a real Ladder prop on a 3.3 m wall, pawn.climbing set the way
+## Pawn._ladder_tick sets it, the feet moved at climb_speed_mps; the top step sets the feet on the ledge's top point)
+## and door_open / chest_open / pickup_ground (SoldierModel.play_action next to a stand-in door, chest, item).
 const STATES: Array[String] = ["idle", "walk", "run", "sprint", "strafe", "strafe_left", "backpedal", "back_diag",
-		"aim_fire", "reload", "hit", "jump", "death", "downed_crawl", "revive", "blade"]
+		"aim_fire", "reload", "hit", "jump", "death", "downed_crawl", "revive", "blade",
+		"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground"]
 
 var _out := "build/an1_after/c4_soldier"
 var _fps := 20
@@ -31,6 +35,7 @@ var _saved := 0
 var _dir := ""
 var _state := ""
 var _vy := 0.0
+var _follow_y := false  # the camera rises with the pawn (ladder states)
 
 
 func _initialize() -> void:
@@ -131,9 +136,30 @@ func _spawn() -> void:
 	_vy = 0.0
 
 
+## A 4 x 3.3 x 1 m wall whose face is z -0.5 with a real Ladder prop (data/props.json "ladder") on it facing -z, so the
+## pawn at the origin stands on its climb line (climb_offset_m out from the plane).
+func _ladder_stage() -> Ladder:
+	_stage.add_child(_box(Vector3(0, 1.65, -1.0), Vector3(4, 3.3, 1)))
+	var ladder := Ladder.make({"id": "Ladder_Cap", "piece": "", "at": [0, 0, -0.5], "yaw": 0.0, "height": 3.3, "width": 0.6, "top": [0, 3.3, -1.1]}, WorldProps.config()["ladder"])
+	_stage.add_child(ladder)
+	return ladder
+
+
+func _box(at: Vector3, size: Vector3) -> MeshInstance3D:
+	var mesh := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = size
+	mesh.mesh = box
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.5, 0.47, 0.42)
+	mesh.material_override = mat
+	mesh.position = at
+	return mesh
+
+
 func _aim_camera() -> void:
-	var at := _pawn.global_position + Vector3(0, 0.95, 0)
-	_camera.global_position = Vector3(_pawn.global_position.x, 0.0, _pawn.global_position.z) + _cam_offset
+	var at := _pawn.global_position + Vector3(0, 1.25 if _follow_y else 0.95, 0)
+	_camera.global_position = Vector3(_pawn.global_position.x, _pawn.global_position.y if _follow_y else 0.0, _pawn.global_position.z) + _cam_offset
 	_camera.look_at(at, Vector3.UP)
 
 
@@ -168,6 +194,7 @@ func _capture(state: String) -> void:
 	_saved = 0
 	_fno = 0
 	_cam_offset = Vector3(3.4, 1.25, -0.6)
+	_follow_y = false
 	var model := _pawn.get_node("SoldierModel") as SoldierModel
 	var speed := _pawn.get_move_speed()
 	var registry := DataRegistry.new()
@@ -249,6 +276,40 @@ func _capture(state: String) -> void:
 			for swing in 2:
 				_pawn.shot.emit(_pawn.get_muzzle_position(), Vector3.FORWARD, _pawn.loadout.get_active().def.id)
 				await _hold(0.8)
+		"ladder_up", "ladder_down", "ladder_top":
+			var ladder := _ladder_stage()
+			var climb := float(ladder.cfg.get("climb_speed_mps", 2.0))
+			_follow_y = true
+			_cam_offset = Vector3(3.6, 1.4, 2.6)
+			var start := 0.3 if state == "ladder_up" else 2.6 if state == "ladder_down" else ladder.top_y() + 0.1 - climb * 0.5
+			_pawn.global_position = ladder.climb_point(start)
+			_pawn.climbing = true
+			_pawn.ladder_id = ladder.prop_id
+			_pawn._ladder = ladder
+			_vy = climb * (-1.0 if state == "ladder_down" else 1.0)
+			await _hold(0.5 if state == "ladder_top" else 1.2)
+			if state == "ladder_down":
+				_vy = 0.0
+				await _hold(0.4)  # a held stick holds the pose
+				_vy = -climb
+				await _hold(0.6)
+			if state == "ladder_top":
+				# Pawn._ladder_tick's top step: let go, the feet set on the ledge's top point.
+				_pawn.climbing = false
+				_pawn._ladder = null
+				_pawn.ladder_id = ""
+				_vy = 0.0
+				_pawn.global_position = ladder.top_point()
+				await _hold(1.3)
+		"door_open", "chest_open", "pickup_ground":
+			_cam_offset = Vector3(2.4, 1.3, -2.4)
+			var prop: Array = {"door_open": [Vector3(-0.1, 1.1, -0.72), Vector3(1.0, 2.2, 0.06)],
+				"chest_open": [Vector3(0, 0.25, -0.75), Vector3(0.7, 0.5, 0.45)],
+				"pickup_ground": [Vector3(-0.24, 0.04, -0.42), Vector3(0.14, 0.08, 0.2)]}[state]
+			_stage.add_child(_box(prop[0], prop[1]))
+			await _hold(0.4)
+			model.play_action(StringName(state))
+			await _hold(1.4)
 	_log("state=%s frames=%d gait_rate=%.3f" % [state, _saved, model.gait_rate if is_instance_valid(model) else 0.0])
 	_stage.queue_free()
 	await process_frame

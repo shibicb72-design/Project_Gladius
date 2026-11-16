@@ -53,6 +53,24 @@ var _sprint := 1.0
 var _air_s := 0.0
 var _replica_vy := 0.0
 var _last_hp := -1.0
+## M2 AN2 items 3/5: keyed whole-body clips (assets/generated/characters/soldier_keyed.glb) played through SoldierPose.
+## Climbing (pawn.climbing, read-only): ladder_up / ladder_down at the time the feet's height on the ladder gives, the
+## model turned to face the ladder, the gun slung; ladder_top once after the top step. One-shots: play_action.
+const ACTIONS: Array[String] = ["door_open", "chest_open", "pickup_ground"]
+var climb_weight := 0.0  # 0..1 shown
+var climb_clip := ""  # "ladder_up" / "ladder_down" while climbing
+var action_name := ""  # the one-shot playing ("" none): an ACTIONS entry or "ladder_top"
+var action_s := 0.0
+var action_count := 0  # one-shots started so far (tests, captures)
+var _keyed: Dictionary = {}
+var _action_clips: Dictionary = {}  # slot -> Animation (only the slots that resolved)
+var _climb_up := true
+var _was_climbing := false
+var _climb_last_pos := Vector3.ZERO
+var _ladder_foot_y := 0.0
+var _ladder_yaw := 0.0  # world yaw that faces into the ladder
+var _yaw_owned := false
+var _top_offset := Vector3.ZERO
 
 func _ready() -> void:
 	# M2 AN1 commit 6: the parts are art_astra.json's (read-only) with data/art_soldier.json soldier's overrides on top.
@@ -134,6 +152,11 @@ func _ready() -> void:
 	crawl.name = "Crawl"
 	skeleton.add_child(crawl)
 	crawl.setup()
+	_keyed = SoldierRig.config().get("keyed", {})
+	for slot: String in ["ladder_up", "ladder_down", "ladder_top"] + ACTIONS:
+		var clip := SoldierAnimation.shared(slot, skeleton)
+		if clip != null:
+			_action_clips[slot] = clip
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.weapon_switched.connect(_on_weapon_switched)
 	pawn.visibility_changed.connect(_on_visibility_changed)
@@ -282,6 +305,7 @@ func _process(delta: float) -> void:
 	crawl.move_local = local
 	crawl.weight = float(pose.weights["downed"])
 	_drive_air(delta)
+	drive_actions(delta)
 	_watch_hits()
 	# S4: the cape swings back with forward speed (and streams up in a fall); a per-instance shader value.
 	var cape: Dictionary = _cfg["material"]["cape"]
@@ -312,10 +336,11 @@ func _show_weapon() -> void:
 	# M2 AN1 commit 6: a downed soldier crawls on both hands; the gun is slung (hidden) instead of dragging on the
 	# ground from the right hand (data/art_soldier.json soldier.gun.hide_downed_weight).
 	var downed := pose != null and float(pose.weights["downed"]) >= float(SoldierLook.config()["gun"]["hide_downed_weight"])
-	rifle.visible = not melee and not downed
+	rifle.visible = not melee and not downed and not gun_slung()
 	blade.visible = melee
 	if left_ik != null and pose != null:
-		left_ik.influence = 1.0 - pose.arms_weight
+		# M2 AN2: the climb and the one-shots take the left arm too (SoldierPose also counts them, a frame later).
+		left_ik.influence = 1.0 - maxf(pose.arms_weight, maxf(climb_weight, action_weight()))
 
 
 func bind_shot_fx(fx: ShotFx) -> void:
@@ -411,7 +436,7 @@ func _drive_air(delta: float) -> void:
 	var pawn := _pawn as Pawn
 	var air: Dictionary = _gait_cfg["air"]
 	var vertical := _replica_vy if pawn.net_mode == Pawn.NetMode.REPLICA else pawn.velocity.y
-	var off := pawn.drop_state == Pawn.Drop.NONE and pawn.is_alive() and absf(vertical) > float(air["min_vertical_mps"])
+	var off := pawn.drop_state == Pawn.Drop.NONE and pawn.is_alive() and absf(vertical) > float(air["min_vertical_mps"]) and not pawn.climbing
 	if pawn.net_mode != Pawn.NetMode.REPLICA:
 		off = off and not pawn.is_on_floor()
 	_air_s = _air_s + delta if off else 0.0
@@ -438,6 +463,122 @@ func flinch(head: bool) -> void:
 	hit_count += 1
 	animation_tree.set("parameters/hit_which/transition_request", "head" if head else "chest")
 	animation_tree.set("parameters/hit/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+
+## M2 AN2 item 5: a visual-only one-shot (door_open, chest_open, pickup_ground) on this soldier. Ignored (false)
+## while downed, dead, climbing or without the keyed clip; it never touches gameplay state. Gameplay has no signal
+## that names the acting pawn yet (WorldProps.prop_changed, MatchDirector.try_pickup): the call is listed for Lanista.
+func play_action(action: StringName) -> bool:
+	var pawn := _pawn as Pawn
+	var key := String(action)
+	if pawn == null or pose == null or not ACTIONS.has(key) or not _action_clips.has(key):
+		return false
+	if not pawn.is_alive() or pawn.is_downed() or pawn.climbing or climb_weight > 0.0 or float(pose.weights["downed"]) > 0.0:
+		return false
+	action_name = key
+	action_s = 0.0
+	action_count += 1
+	return true
+
+
+## True while the model turns itself (on a ladder and stepping off its top); CoverAnim leaves the yaw alone then.
+func owns_yaw() -> bool:
+	return _yaw_owned
+
+
+## The gun is slung (hidden) on the ladder and in the both-hands actions (data/anim_third_person.json keyed.actions.hide_gun).
+func gun_slung() -> bool:
+	var hide: Array = (_keyed.get("actions", {}) as Dictionary).get("hide_gun", [])
+	if climb_weight >= 0.5 and hide.has(climb_clip):
+		return true
+	return not action_name.is_empty() and hide.has(action_name) and action_weight() >= 0.5
+
+
+## The one-shot's weight now: faded in and out over keyed.actions.fade_s.
+func action_weight() -> float:
+	if action_name.is_empty() or not _action_clips.has(action_name):
+		return 0.0
+	var fade := float((_keyed.get("actions", {}) as Dictionary).get("fade_s", 0.1))
+	var length := (_action_clips[action_name] as Animation).length
+	if fade <= 0.0:
+		return 1.0
+	var fade_in := 1.0 if action_name == "ladder_top" else action_s / fade  # the top step continues the climb pose
+	return clampf(minf(fade_in, (length - action_s) / fade), 0.0, 1.0)
+
+
+## Per frame (from _process; tools and tests may call it with their own delta): the climb from pawn.climbing and the
+## feet's height on the ladder, the top step, the one-shots, all handed to SoldierPose's action layer.
+func drive_actions(delta: float) -> void:
+	if pose == null or _pawn == null:
+		return
+	var pawn := _pawn as Pawn
+	var lad: Dictionary = _keyed.get("ladder", {})
+	var acts: Dictionary = _keyed.get("actions", {})
+	var ladder := pawn.current_ladder()
+	var climbing := pawn.climbing and pawn.is_alive() and not pawn.is_downed() and _action_clips.has("ladder_up")
+	# The top step: the climb ended this frame with the feet set forward onto the ledge (Pawn._ladder_tick).
+	if _was_climbing and not pawn.climbing and pawn.is_alive() and _action_clips.has("ladder_top"):
+		var moved := _pawn.global_position - _climb_last_pos
+		if Vector2(moved.x, moved.z).length() > 0.3:
+			var back := Basis(Vector3.UP, _ladder_yaw).inverse() * (-moved)  # old feet minus new, model frame
+			_top_offset = back - LowpolyKit.vec(lad.get("top_catchup_m", [0, 0, 0]))
+			action_name = "ladder_top"
+			action_s = 0.0
+			action_count += 1
+			climb_weight = 0.0  # ladder_top starts in the climbing pose where the body was: it takes over at once
+	_was_climbing = pawn.climbing
+	_climb_last_pos = _pawn.global_position
+	if climbing:
+		if ladder != null:
+			_ladder_foot_y = ladder.foot().y
+			var into := ladder.into_dir()
+			_ladder_yaw = atan2(-into.x, -into.z)
+		action_name = ""
+		var vertical := _replica_vy if pawn.net_mode == Pawn.NetMode.REPLICA else pawn.velocity.y
+		var dir_mps := float(lad.get("dir_mps", 0.05))
+		if vertical > dir_mps:
+			_climb_up = true
+		elif vertical < -dir_mps:
+			_climb_up = false
+	var blend_s := float(lad.get("blend_s", 0.15))
+	climb_weight = move_toward(climb_weight, 1.0 if climbing else 0.0, delta / blend_s if blend_s > 0.0 else 1.0)
+	if not action_name.is_empty():
+		action_s += delta
+		if not _action_clips.has(action_name) or action_s >= (_action_clips[action_name] as Animation).length:
+			action_name = ""
+	if climb_weight > 0.0:
+		climb_clip = "ladder_up" if _climb_up or not _action_clips.has("ladder_down") else "ladder_down"
+		var clip := _action_clips[climb_clip] as Animation
+		var phase := fposmod((_pawn.global_position.y - _ladder_foot_y) / maxf(float(lad.get("cycle_m", 0.9)), 0.01), 1.0)
+		pose.action_clip = clip
+		pose.action_time = (phase if climb_clip == "ladder_up" else 1.0 - phase) * clip.length
+		pose.action_weight = climb_weight
+		pose.action_bones = []
+		pose.action_offset = Vector3.ZERO
+	elif not action_name.is_empty():
+		climb_clip = ""
+		pose.action_clip = _action_clips[action_name]
+		pose.action_time = action_s
+		pose.action_weight = action_weight()
+		var full: Array = acts.get("full_body", [])
+		pose.action_bones = [] if full.has(action_name) else (acts.get("upper_bones", []) as Array)
+		var catchup := float(lad.get("top_catchup_s", 0.6))
+		pose.action_offset = _top_offset * (1.0 - smoothstep(0.0, catchup, action_s)) if action_name == "ladder_top" else Vector3.ZERO
+	else:
+		climb_clip = ""
+		pose.action_weight = 0.0
+		pose.action_clip = null
+	# The climber faces the ladder (the pawn keeps the look yaw); back to the pawn's facing afterwards.
+	var face := climb_weight > 0.0 or action_name == "ladder_top"
+	var turn := deg_to_rad(float(lad.get("turn_deg_s", 720.0))) * delta
+	if face:
+		_yaw_owned = true
+		rotation.y += clampf(angle_difference(rotation.y, _ladder_yaw - _pawn.global_rotation.y), -turn, turn)
+	elif _yaw_owned:
+		rotation.y += clampf(angle_difference(rotation.y, 0.0), -turn, turn)
+		if absf(angle_difference(rotation.y, 0.0)) < 0.0001:
+			rotation.y = 0.0
+			_yaw_owned = false
 
 
 ## Explicit collider-free copy: avoids duplicating scripts or hitboxes and never re-runs _ready.

@@ -29,6 +29,15 @@ var _revive_clip: Animation
 var _tracks := {}
 var _neck_from_chest := Transform3D.IDENTITY
 var _revive_s := 0.0
+## M2 AN2 items 3/5: a keyed action clip (ladder, door, chest, pickup; soldier_keyed.glb) that SoldierModel drives:
+## the clip, its time, its weight, the bones it owns ([] = every bone, the Hips and Neck positions too) and a root
+## offset (model frame, the top step's catch-up) added to the Hips and Neck at that weight. The lean is held off
+## under it; the arms count as away from the rifle (the left-hand IK lets go) by its weight.
+var action_clip: Animation
+var action_time := 0.0
+var action_weight := 0.0
+var action_bones: Array = []
+var action_offset := Vector3.ZERO
 
 
 func setup(new_pawn: Pawn) -> void:
@@ -67,6 +76,9 @@ func _blend_clip(skeleton: Skeleton3D, clip: Animation, t: float, w: float, bone
 	if whole_body and tracks.has("Hips@p"):
 		var hips := int(_bones["Hips"])
 		skeleton.set_bone_pose_position(hips, skeleton.get_bone_pose_position(hips).lerp(clip.position_track_interpolate(int(tracks["Hips@p"]), t), w))
+	if whole_body and clip == action_clip and tracks.has("Neck@p"):
+		var neck := int(_bones["Neck"])
+		skeleton.set_bone_pose_position(neck, skeleton.get_bone_pose_position(neck).lerp(clip.position_track_interpolate(int(tracks["Neck@p"]), t), w))
 
 
 ## The neck is a root bone: carried on the chest top (rest offset) by w, so a kneeling body takes its head along.
@@ -75,6 +87,22 @@ func _carry_neck(skeleton: Skeleton3D, w: float) -> void:
 	var chest := skeleton.get_bone_global_pose(int(_bones["Chest"])) * _neck_from_chest
 	skeleton.set_bone_pose_position(neck, skeleton.get_bone_pose_position(neck).lerp(chest.origin, w))
 	skeleton.set_bone_pose_rotation(neck, skeleton.get_bone_pose_rotation(neck).slerp(chest.basis.get_rotation_quaternion(), w))
+
+
+func _apply_action(skeleton: Skeleton3D) -> void:
+	if not _tracks.has(action_clip):
+		var tracks := {}
+		for track in action_clip.get_track_count():
+			tracks[action_clip.track_get_path(track).get_concatenated_subnames() + ("@p" if action_clip.track_get_type(track) == Animation.TYPE_POSITION_3D else "")] = track
+		_tracks[action_clip] = tracks  # the shared keyed clips are a fixed handful: one map each
+	var w := smoothstep(0.0, 1.0, clampf(action_weight, 0.0, 1.0))
+	var whole := action_bones.is_empty()
+	_blend_clip(skeleton, action_clip, action_time, w, action_bones, whole)
+	if whole and not action_offset.is_zero_approx():
+		for root_name in ["Hips", "Neck"]:
+			var index := int(_bones[root_name])
+			skeleton.set_bone_pose_position(index, skeleton.get_bone_pose_position(index) + action_offset * w)
+	arms_weight = maxf(arms_weight, w)
 
 
 func _on_shot(_origin: Vector3, _direction: Vector3, weapon_id: String) -> void:
@@ -152,6 +180,10 @@ func _process_modification_with_delta(delta: float) -> void:
 	# The whole body (both root bones: Hips, and Neck with the head) moves as one about the pelvis.
 	var pitch := -deg_to_rad(float(lean_cfg["forward_deg"])) * _lean.y
 	var roll := -deg_to_rad(float(lean_cfg["side_deg"])) * _lean.x
+	if action_clip != null and action_bones.is_empty():
+		# M2 AN2: no lean under a whole-body action (the climb's pull toward the ladder would tip the climber).
+		pitch *= 1.0 - clampf(action_weight, 0.0, 1.0)
+		roll *= 1.0 - clampf(action_weight, 0.0, 1.0)
 	var offset := Vector3.ZERO
 	var kneel := 0.0
 	_revive_s = _revive_s + delta if float(weights["revive"]) > 0.0 else 0.0
@@ -195,6 +227,8 @@ func _process_modification_with_delta(delta: float) -> void:
 					var key := _quat(raised[bone]).slerp(_quat(struck.get(bone, raised[bone])), strike)
 					skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(key, out))
 		arms_weight = maxf(arms_weight, out)
+	if action_clip != null and action_weight > 0.0:
+		_apply_action(skeleton)
 	# Breathing: a small rise and fall of the chest.
 	var chest := int(_bones.get("Chest", -1))
 	if chest >= 0:
