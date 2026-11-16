@@ -1402,6 +1402,27 @@
 			"sha256": "82e0aad58a4592021231411659a49b8e6502dd2a686d027ec931ad43cb88ac36"
 		},
 		{
+			"path": "res://assets/generated/characters/view_clips_gladius_lux.glb",
+			"made_by": "tools/blender/build_view_clips.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 344456,
+			"sha256": "22951076806b8e485e6445982d006017745a6dec18bcaee1d2dda55435eb1bbf"
+		},
+		{
+			"path": "res://assets/generated/characters/view_clips_pilum_br.glb",
+			"made_by": "tools/blender/build_view_clips.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 643604,
+			"sha256": "d1ef537e8889e3bcca3d21728ff60fd54ed4b38cd9d715beadb3b7bebec9cab5"
+		},
+		{
+			"path": "res://assets/generated/characters/view_clips_sagittarii_rifle.glb",
+			"made_by": "tools/blender/build_view_clips.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 644052,
+			"sha256": "9357ca88cf5ea7d109cf0689ff97d374e28742cfcb3fe4ddeb39b72b9dfcc830"
+		},
+		{
 			"path": "res://assets/generated/textures/noise_pack.png",
 			"made_by": "tools/gen_textures.gd",
 			"licence": "generated in this project (no source material)",

@@ -34,7 +34,11 @@ extends SceneTree
 
 const STATES: Array[String] = ["standing", "walk", "fire", "reload", "switch", "blade", "blade_swing", "wall", "look_down",
 		"ads_mid", "ads", "ads_fire", "ads_walk", "cover_in", "cover_out", "shadow", "inspect", "breath", "sprint", "reload_seq",
-		"land", "pickup"]
+		"land", "pickup", "dense_reload", "dense_switch", "dense_pickup", "dense_swing", "dense_ads", "dense_sprint",
+		"dense_walk", "dense_idle", "dense_fire"]
+## M2 AN2 item 4b: the dense_* states save a still every --every physics frames (default 2) across a whole motion:
+## <tag>_<motion>_seq_NNN.png (reload, switch, pickup, swing, ads_raise / ads_lower, sprint (in, a stride, out), walk
+## (one stride), idle (one breath, every 8th frame), fire), for judging clips as sequences (tools/contact_sheet.gd).
 const SEQ_FRAMES := 6
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -47,6 +51,8 @@ var _hide_body := false
 var _inspect_blade := false  # --inspect-blade: the inspect state also orbits the blade
 var _pickup_from_blade := false  # --pickup-from-blade: the pickup state starts with the blade out
 var _seed := 0  # --seed: MatchRoot.seed_override (0 = the usual random match seed); picks the match's look and sun
+var _every := 2  # --every: the dense_* states save every n-th physics frame
+var _no_clips := false  # --no-clips: the view model's clip layer off (every motion procedural), for comparison
 var _svp: SubViewport
 var _match: MatchRoot
 var _pawn: Pawn
@@ -78,6 +84,10 @@ func _initialize() -> void:
 			_pickup_from_blade = true
 		elif a.begins_with("--seed="):
 			_seed = int(a.substr(7))
+		elif a.begins_with("--every="):
+			_every = maxi(1, int(a.substr(8)))
+		elif a == "--no-clips":
+			_no_clips = true
 	if _states.is_empty():
 		_states = STATES.duplicate()
 	if not _out.is_absolute_path():
@@ -182,6 +192,12 @@ func _run() -> void:
 		_log("--hide-body is a no-op since stage 4 (the body layer hides the local body in first person)")
 	await _step(40)
 	var vm := _rig.get_view_model()
+	if _no_clips and vm != null:
+		var motion := vm.get_motion()
+		motion.cfg = motion.cfg.duplicate(true)  # this run only: the data file and its cache stay as they are
+		for k in (motion.cfg.get("clips", {}).get("enabled", {}) as Dictionary).keys():
+			motion.cfg["clips"]["enabled"][k] = false
+		_log("NO CLIPS: every motion procedural")
 	_log("START class=%s weapon=%s view_model=%s near=%.3f fov=%.1f meshes=%d nodes=%d" % [_class,
 			_pawn.loadout.get_active().def.id, vm != null, _rig.get_camera().near, _rig.get_camera().fov,
 			vm.mesh_instances().size() if vm else 0, vm.find_children("*", "", true, false).size() if vm else 0])
@@ -235,6 +251,9 @@ func _run() -> void:
 				await _state_pickup()
 			"land":
 				await _state_land()
+			_:
+				if state.begins_with("dense_"):
+					await _state_dense(state.substr(6))
 	_log("RESULT failed=%d" % _failed)
 	quit(1 if _failed > 0 else 0)
 
@@ -840,3 +859,101 @@ func _state_shadow() -> void:
 	cam.cull_mask = mask
 	if ctl[0] >= ctl[1] * 0.8:
 		_log("FP SHADOW the control shows no pawn shadow either: the sun casts no measurable shadow at this spot")
+
+
+# --- M2 AN2 item 4b: dense sequences ---------------------------------------------------------------------------------
+
+## `frames` physics steps, a held-still frame saved every `every` steps: <tag>_<motion>_seq_NNN.png (numbered on from
+## `first`); returns the next number.
+func _seq(motion: String, frames: int, every: int = -1, first: int = 0) -> int:
+	var step := every if every > 0 else _every
+	var vm := _rig.get_view_model()
+	var k := first
+	for i in frames:
+		if i % step == 0:
+			# physics_frame is emitted before the nodes' physics: wait for this frame's physics to run, so pausing for
+			# the still never swallows a view-model tick (one tick per step, the motion plays at its real length)
+			await process_frame
+			_log("SEQ %s %03d motions=%s clip=%s stage=%s" % [motion, k, vm.get_motion_names(), vm.get_clip_motion(), vm.get_reload_stage()])
+			await _save_still("%s_seq_%03d" % [motion, k])
+			k += 1
+		await _step()
+	return k
+
+
+func _vm_s(key: String) -> float:
+	return float(DataRegistry.new().get_camera_cfg()["first_person"]["view_model"][key]["value"])
+
+
+func _state_dense(motion: String) -> void:
+	# at most one physics tick per rendered frame: a slow offscreen render must not let several view-model ticks pass
+	# between two stills (and _seq's wait for the frame's physics never runs more than this frame's tick)
+	var max_steps := Engine.max_physics_steps_per_frame
+	Engine.max_physics_steps_per_frame = 1
+	await _dense(motion)
+	Engine.max_physics_steps_per_frame = max_steps
+
+
+func _dense(motion: String) -> void:
+	match motion:
+		"reload":
+			await _gun_out()
+			_press("fire")
+			await _step(40)
+			_press("reload")
+			await _seq("reload", roundi(_pawn.loadout.get_active().def.reload_s * 60.0) + 8)
+		"switch":
+			await _gun_out()
+			await _step(10)
+			_press("swap_weapon")
+			await _seq("switch", roundi(_vm_s("swap_s") * 60.0) + 8)
+			_press("swap_weapon")
+			await _step(40)
+		"pickup":
+			await _gun_out()
+			await _step(10)
+			var gun := "sagittarii_rifle" if _class == "hastati" else "pilum_br"
+			_pawn.take_item({}, {"kind": "weapon", "weapon": gun})
+			await _seq("pickup", roundi(float(_fp_anim()["pickup"]["s"]) * 60.0) + 8)
+			await _step(30)
+		"swing":
+			await _blade_out()
+			await _step(10)
+			_press("fire")
+			await _seq("swing", roundi(_vm_s("swing_s") * 60.0) + 8)
+			await _step(30)
+		"ads":
+			await _gun_out()
+			await _step(10)
+			_frame.aim_pressed = true
+			await _seq("ads_raise", 26)
+			_frame.aim_pressed = false
+			await _seq("ads_lower", 26)
+		"sprint":
+			await _gun_out()
+			await _step(10)
+			_frame.move = Vector2(0, -1)
+			_frame.sprint = true
+			var k := await _seq("sprint", 60, 3)
+			_frame.sprint = false
+			_frame.move = Vector2.ZERO
+			await _seq("sprint", 36, 3, k)
+			await _step(30)
+		"walk":
+			await _gun_out()
+			_frame.move = Vector2(0, -1)
+			await _step(45)
+			var period := float(_fp_anim()["walk"]["stride_m"]) / maxf(_pawn.get_move_speed(), 0.1)
+			await _seq("walk", roundi(period * 60.0) + 2)
+			_frame.move = Vector2.ZERO
+			await _step(30)
+		"idle":
+			await _gun_out()
+			await _step(20)
+			await _seq("idle", roundi(60.0 / float(_fp_anim()["breath"]["hz"])), 8)
+		"fire":
+			await _gun_out()
+			await _step(20)
+			_press("fire")
+			await _seq("fire", 14)
+			await _step(30)

@@ -17,6 +17,18 @@
 			"made_by": "tools/blender/build_view_arms.py",
 			"derived_from": ""
 		},
+		"res://assets/generated/characters/view_clips_gladius_lux.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_pilum_br.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_sagittarii_rifle.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
 		"res://assets/generated/weapons/gladius_lux.glb": {
 			"made_by": "tools/blender/build_weapons.py",
 			"derived_from": ""
