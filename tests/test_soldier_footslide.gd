@@ -17,7 +17,7 @@ const DT := 1.0 / 60.0
 ## (the library is passed over with ClipLibrary.skip_sources; the code path is then the old one for straight moves).
 func drift(velocity: Vector3, downed: bool, baseline: bool = false, warm_s: float = 1.0, measure_s: float = 2.5) -> Dictionary:
 	var tree: SceneTree = Engine.get_main_loop()
-	ClipLibrary.skip_sources.assign(["ual"] if baseline else [])
+	ClipLibrary.skip_sources.assign(["blender", "ual"] if baseline else [])
 	var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
 	tree.root.add_child(pawn)
 	ClipLibrary.skip_sources.clear()
@@ -112,6 +112,39 @@ func test_library_gait_slides_less_than_the_code_built_baseline() -> void:
 		var after: Dictionary = await drift(Vector3.FORWARD * float(speeds[case[0]]), case[1])
 		print("FOOTSLIDE_BEFORE_AFTER %s speed=%.2f before_max_m=%.3f (contacts %d) after_max_m=%.3f (contacts %d)" % [case[0], speeds[case[0]], before["max_m"], before["contacts"], after["max_m"], after["contacts"]])
 		assert_true(float(after["max_m"]) < float(before["max_m"]) or int(before["contacts"]) == 0, "%s: the library gait slides less than the code-built one" % case[0])
+
+
+## M2 AN2 item 2: at sprint speed the sprint cycle plays at about its authored rate (the runtime-retargeted UAL sprint
+## needed ~1.5x; the Blender bake measures the real stance speed and sets the stride, tools/blender/
+## soldier_clips_design.json). Rate = ground speed / the clip's natural ground speed (SoldierClips.measure, with the
+## slot's gait.cycle_scale), as SoldierModel plays it.
+const SPRINT_RATE_MAX := 0.95
+const JOG_RATE_RANGE := [0.85, 1.15]
+
+
+func test_sprint_and_jog_play_near_their_authored_rate() -> void:
+	var speeds := _speeds()
+	var tree: SceneTree = Engine.get_main_loop()
+	var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	tree.root.add_child(pawn)
+	var skeleton := (pawn.get_node("SoldierModel") as SoldierModel).skeleton
+	var clips := ClipLibrary.new()
+	var scale: Dictionary = SoldierRig.config()["gait"].get("cycle_scale", {})
+	var rates := {}
+	# The runtime-retargeted UAL fallback first (printed for the record, not asserted), then the shipped clips.
+	for skip: Array in [["blender"], []]:
+		ClipLibrary.skip_sources.assign(skip)
+		for case: Array in [["run_fwd", "sprint"], ["walk_fwd", "move"]]:
+			var clip := clips.resolve(case[0], null, skeleton)
+			var gait := SoldierClips.gait(clip, skeleton, false)
+			var natural := float(gait["speed_mps"]) * float(scale.get(case[0], 1.0))
+			rates[case[0]] = float(speeds[case[1]]) / natural
+			print("GAIT_RATE %s source=%s speed=%.2f natural_mps=%.2f cycle_m=%.3f play_rate=%.3f" % [case[0], clips.source_for(case[0]), speeds[case[1]], natural, gait["cycle_m"], rates[case[0]]])
+	ClipLibrary.skip_sources.clear()
+	ClipLibrary.release_sources()
+	pawn.free()
+	assert_true(float(rates["run_fwd"]) <= SPRINT_RATE_MAX, "the sprint plays at %.3fx its authored rate at sprint speed (<= %.2f)" % [rates["run_fwd"], SPRINT_RATE_MAX])
+	assert_true(float(rates["walk_fwd"]) >= JOG_RATE_RANGE[0] and float(rates["walk_fwd"]) <= JOG_RATE_RANGE[1], "the jog plays at %.3fx at move speed" % rates["walk_fwd"])
 
 
 func test_strafe_and_back_pedal_slide_is_measured() -> void:

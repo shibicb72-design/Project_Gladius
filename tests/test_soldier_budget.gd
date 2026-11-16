@@ -52,6 +52,9 @@ func test_each_lod_of_one_soldier_within_its_budget() -> void:
 	var model := pawn.get_node("SoldierModel") as SoldierModel
 	assert_true(model.rifle.visibility_range_end > 0.0 and is_equal_approx(model.rifle.visibility_range_end, model.rifle_far.visibility_range_begin),
 			"near gun hands over to the far gun at one distance")
+	# M2 AN2 item 1: the body has two LODs too; each LOD's cost below counts the body instance its range shows.
+	assert_true(model.armor_far != null and model.armor.visibility_range_end > 0.0 and is_equal_approx(model.armor.visibility_range_end, model.armor_far.visibility_range_begin)
+			and is_equal_approx(model.armor.visibility_range_end, far_m), "near body hands over to the far body at the gun's distance")
 	for gun: String in ["pilum_br", "sagittarii_rifle"]:
 		model.show_gun(gun)
 		var near := cost(model, Vector3.ZERO, far_m * 0.5)

@@ -1,0 +1,49 @@
+{
+	"_note": "M2 AN2: which committed script under tools/blender/ wrote each generated .glb, and the data/asset_catalog.json id of its CC0 source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
+	"files": {
+		"res://assets/generated/characters/pipeline_proof.glb": {
+			"made_by": "tools/blender/build_pipeline_proof.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier.glb": {
+			"made_by": "tools/blender/build_soldier.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier_clips.glb": {
+			"made_by": "tools/blender/build_soldier_clips.py",
+			"derived_from": "quaternius_ual_standard_glb"
+		},
+		"res://assets/generated/characters/soldier_keyed.glb": {
+			"made_by": "tools/blender/build_soldier_keyed.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_arms.glb": {
+			"made_by": "tools/blender/build_view_arms.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_gladius_lux.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_pilum_br.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_sagittarii_rifle.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/gladius_lux.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/pilum_br.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/sagittarii_rifle.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		}
+	}
+}

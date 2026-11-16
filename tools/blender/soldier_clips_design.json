@@ -1,0 +1,36 @@
+{
+	"_note": "M2 AN2 item 2: the clips tools/blender/build_soldier_clips.py bakes from the Quaternius UAL (CC0) onto the soldier's 22-bone rig, and the cleaning numbers. name = the clip name Godot sees (looping clips are exported as <name>_Loop and loop); src = the UAL clip. ik: legs re-solved to the scaled source feet with ground, pinning and reach (fix_legs). gait: the locomotion slot whose ground speed the clip's natural speed is compared with. stride: the feet's fore-aft offset from the pelvis scaled; stance_time: stance frames play this long (the flight frames longer, same cycle), both raise the natural ground speed; lean_deg: extra forward lean of the upper body. lock_hips_xz: the pelvis keeps its mean ground position (SoldierGait turns the feet about it for the strafes). carry_neck: the neck rides the chest top (the clip's consumer carries it). arms: forearms and hands kept out of the torso. ground: the posed mesh's lowest vertex on y = 0 every frame. subloop: the reviver's working loop (data/anim_third_person.json poses.revive keys) closed. Presentation numbers, not design values (OQ-ANIM).",
+	"clean": {
+		"_note": "pin_extra_m: a sole point counts as planted within data/anim_third_person.json gait.contact_height_m plus this of the floor; pin_release_frames: how fast a released foot's pin correction fades; toe_bend_max_deg: how far the toes may bend up to stay on the floor; leg_reach_max: fraction of the leg length an ankle may be from the hip joint (the pelvis drops beyond); seam_frames: frames blended into the loop start; arm_margin_m / arm_step_deg / arm_max_deg: the forearm-torso clearance and the upper-arm turn search; ground_blur_frames: smoothing of the ground fix; press_frames: a new stance eases its lowest planted point onto the floor over this many frames; ground_percentile: the clip's stance level (a low percentile of each foot's lowest sole point per frame) goes to y = 0; pin_speed_tol_mps / pin_speed_tol_frac: how far a near-ground point's speed may differ from the natural ground speed and still count as planted; swing_clear_extra_m: an unplanted foot keeps its sole this far above the contact height; subloop_seam_frames: frames blended into a sub-loop's start.",
+		"pin_extra_m": 0.012,
+		"pin_release_frames": 5,
+		"press_frames": 3,
+		"ground_percentile": 0.12,
+		"pin_speed_tol_mps": 0.35,
+		"pin_speed_tol_frac": 0.5,
+		"swing_clear_extra_m": 0.006,
+		"toe_bend_max_deg": 60.0,
+		"leg_reach_max": 0.985,
+		"seam_frames": 4,
+		"subloop_seam_frames": 10,
+		"arm_margin_m": 0.01,
+		"arm_step_deg": 2.0,
+		"arm_max_deg": 40.0,
+		"ground_blur_frames": 2
+	},
+	"preview_frames": 8,
+	"clips": [
+		{"name": "Idle", "src": "Idle_Loop", "loop": true, "ik": true, "lock_hips_xz": true},
+		{"name": "Walk", "src": "Walk_Loop", "loop": true, "ik": true, "lock_hips_xz": true, "gait": "walk_slow", "stride": 1.2},
+		{"name": "Jog_Fwd", "src": "Jog_Fwd_Loop", "loop": true, "ik": true, "lock_hips_xz": true, "gait": "walk_fwd", "stride": 0.86},
+		{"name": "Sprint", "src": "Sprint_Loop", "loop": true, "ik": true, "lock_hips_xz": true, "gait": "run_fwd", "stride": 0.9, "stance_time": 1.0, "lean_deg": 8.0},
+		{"name": "Jump", "src": "Jump_Loop", "loop": true, "arms": true},
+		{"name": "Hit_Chest", "src": "Hit_Chest", "ik": true, "arms": true, "front_view": true},
+		{"name": "Hit_Head", "src": "Hit_Head", "ik": true, "arms": true, "front_view": true},
+		{"name": "Death01", "src": "Death01", "root_motion": true, "carry_neck": true, "arms": true, "ground": true, "front_view": true},
+		{"name": "Fixing_Kneeling", "src": "Fixing_Kneeling", "carry_neck": true, "arms": true, "ground": true, "subloop": ["clip_loop_from_s", "clip_loop_to_s"]},
+		{"name": "Sword_Attack", "src": "Sword_Attack", "ik": true, "arms": true},
+		{"name": "Crouch_Idle", "src": "Crouch_Idle_Loop", "loop": true, "ik": true},
+		{"name": "Crouch_Fwd", "src": "Crouch_Fwd_Loop", "loop": true, "ik": true, "gait": "cover_crouch_move"}
+	]
+}

@@ -39,6 +39,14 @@ var pickup_total := 0.0
 var swing_t := 0.0
 var swing_total := 0.0
 
+# M2 AN2 item 4b: the clip layer (data/anim.json first_person.clips). A motion whose clip is enabled and present in the
+# shown weapon's file plays the clip; every other motion keeps its procedural curve below.
+const CLIP_OF := {"idle": "idle", "walk": "walk", "sprint": "sprint", "ads": "ads_raise", "fire": "fire",
+		"reload": "reload", "switch": "switch_out", "pickup": "pickup", "swing": "swing"}
+var weapon_id := ""  # the shown weapon (ViewModel._show_weapon): whose clips play
+var fire_t := -1.0  # time into the fire clip (-1 = none)
+var _ads_dir := 1.0  # 1 = the raise clip shapes the ADS path, 0 = the lower clip; eased between on a reversal
+
 
 ## A critically damped-ish spring (x'' = -w^2 x - 2 z w x'), kicked by impulses on its velocity.
 class Spring:
@@ -52,6 +60,96 @@ class Spring:
 		for i in steps:
 			v += (-(w * w) * (x - target) - 2.0 * damping * w * v) * h
 			x += v * h
+
+
+## M2 AN2 item 4b: one weapon's first-person clips (tools/blender/build_view_clips.py -> view_clips_<id>.glb): the
+## view rig's rests and parents and its Animation resources, sampled directly (no AnimationPlayer in the tree). Bones:
+## Weapon (camera frame), Cell / Charge (weapon frame), R_hand / L_hand (weapon frame, or camera frame when a root),
+## R_<finger>_<s> / L_<finger>_<s> (the arm skeletons' finger bones), R_elbow / L_elbow (camera-frame forearm targets).
+class ClipSet:
+	static var _cache := {}  # path -> ClipSet (null when the file is missing or has no rig)
+	var path := ""
+	var rests := {}  # bone -> local rest Transform3D
+	var parents := {}  # bone -> parent bone ("" = root)
+	var clips := {}  # clip name -> {"anim": Animation, "length": float, "tracks": {bone: [position track, rotation track]}}
+
+	static func get_for(file: String) -> ClipSet:
+		if _cache.has(file):
+			return _cache[file]
+		var cs: ClipSet = null
+		if file != "" and ResourceLoader.exists(file):
+			cs = ClipSet.new()
+			if not cs._load(file):
+				cs = null
+		_cache[file] = cs
+		return cs
+
+	func _load(file: String) -> bool:
+		path = file
+		var packed := load(file) as PackedScene
+		if packed == null:
+			return false
+		var scene := packed.instantiate()
+		var skels := scene.find_children("*", "Skeleton3D", true, false)
+		var player := scene.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if skels.is_empty() or player == null:
+			scene.free()
+			return false
+		var skel := skels[0] as Skeleton3D
+		for i in skel.get_bone_count():
+			var n := skel.get_bone_name(i)
+			rests[n] = skel.get_bone_rest(i)
+			var p := skel.get_bone_parent(i)
+			parents[n] = skel.get_bone_name(p) if p >= 0 else ""
+		for clip_name in player.get_animation_list():
+			var anim := player.get_animation(clip_name)
+			var tracks := {}
+			for t in anim.get_track_count():
+				var bone := String(anim.track_get_path(t).get_concatenated_subnames())
+				if not rests.has(bone):
+					continue
+				var pair: Array = tracks.get(bone, [-1, -1])
+				match anim.track_get_type(t):
+					Animation.TYPE_POSITION_3D:
+						pair[0] = t
+					Animation.TYPE_ROTATION_3D:
+						pair[1] = t
+				tracks[bone] = pair
+			clips[String(clip_name)] = {"anim": anim, "length": anim.length, "tracks": tracks}
+		scene.free()
+		return true
+
+	func has(clip_name: String) -> bool:
+		return clips.has(clip_name)
+
+	func length(clip_name: String) -> float:
+		return float((clips[clip_name] as Dictionary)["length"]) if clips.has(clip_name) else 0.0
+
+	## Every bone's local transform at time t (clamped into the clip); a bone without a track keeps its rest.
+	func sample(clip_name: String, t: float) -> Dictionary:
+		var c: Dictionary = clips[clip_name]
+		var anim: Animation = c["anim"]
+		var tt := clampf(t, 0.0, float(c["length"]))
+		var tracks: Dictionary = c["tracks"]
+		var out := {}
+		for bone: String in rests:
+			var rest: Transform3D = rests[bone]
+			var pair: Array = tracks.get(bone, [-1, -1])
+			var pos: Vector3 = anim.position_track_interpolate(pair[0], tt) if pair[0] >= 0 else rest.origin
+			var rot: Quaternion = anim.rotation_track_interpolate(pair[1], tt) if pair[1] >= 0 else rest.basis.get_rotation_quaternion()
+			out[bone] = Transform3D(Basis(rot), pos)
+		return out
+
+	## One bone's local transform at time t.
+	func sample_bone(clip_name: String, bone: String, t: float) -> Transform3D:
+		var c: Dictionary = clips[clip_name]
+		var anim: Animation = c["anim"]
+		var tt := clampf(t, 0.0, float(c["length"]))
+		var rest: Transform3D = rests[bone]
+		var pair: Array = (c["tracks"] as Dictionary).get(bone, [-1, -1])
+		var pos: Vector3 = anim.position_track_interpolate(pair[0], tt) if pair[0] >= 0 else rest.origin
+		var rot: Quaternion = anim.rotation_track_interpolate(pair[1], tt) if pair[1] >= 0 else rest.basis.get_rotation_quaternion()
+		return Transform3D(Basis(rot), pos)
 
 
 func _init(config: Dictionary) -> void:
@@ -109,6 +207,8 @@ func kick(mult: float) -> void:
 	(_kick_rot[0] as Spring).v += float(k["pitch_deg"]) * mult * w * 2.2
 	(_kick_rot[1] as Spring).v += _rng.randf_range(-1.0, 1.0) * float(k["yaw_deg"]) * mult * w * 2.2
 	(_kick_rot[2] as Spring).v += _rng.randf_range(-1.0, 1.0) * float(k["roll_deg"]) * mult * w * 2.2
+	if clip_on("fire"):
+		fire_t = 0.0  # the fire clip rides on top of the kick spring
 
 
 ## A landing: a dip whose depth follows the impact speed (m/s, positive).
@@ -142,6 +242,14 @@ func tick(delta: float, speed: float, run_speed: float, sprint: float, ads: floa
 	var rate := (ads - _ads_prev) / delta if delta > 0.0 else 0.0
 	_ads_prev = ads
 	_settle.step(delta, float(a["settle_hz"]), float(a["settle_damping"]), rate * float(a["settle_lag_s"]))
+	var dir_s := float(_clips_cfg().get("ads_dir_s", 0.1))
+	if absf(rate) > 0.01:
+		_ads_dir = move_toward(_ads_dir, 1.0 if rate > 0.0 else 0.0, delta / dir_s if dir_s > 0.0 else 1.0)
+	if fire_t >= 0.0:
+		fire_t += delta
+		var cs := clip_set()
+		if cs == null or fire_t >= cs.length(_clip_name("fire")):
+			fire_t = -1.0
 	var kc: Dictionary = cfg["kick"]
 	for s in _kick_pos + _kick_rot:
 		(s as Spring).step(delta, float(kc["spring_hz"]), float(kc["damping"]))
@@ -168,6 +276,119 @@ func tick(delta: float, speed: float, run_speed: float, sprint: float, ads: floa
 				set(m + "_total", 0.0)
 
 
+# --- clips (M2 AN2 item 4b) ---------------------------------------------------------------------------------------
+
+func _clips_cfg() -> Dictionary:
+	return cfg.get("clips", {})
+
+
+## The clip set of weapon `id` (default: the shown weapon); null when the data names no file or it has no view rig.
+func clip_set(id: String = "") -> ClipSet:
+	var wid := id if id != "" else weapon_id
+	var c := _clips_cfg()
+	if wid == "" or c.is_empty():
+		return null
+	var sources: Dictionary = c.get("sources", {})
+	return ClipSet.get_for(String(sources.get(wid, "")))
+
+
+func _clip_name(clip: String) -> String:
+	return "%s_%s" % [weapon_id, clip]
+
+
+## True when `motion` (idle, walk, sprint, ads, fire, reload, switch, pickup, swing) plays its clip for the shown
+## weapon: enabled in data (clips.enabled) and present in the weapon's file. Otherwise the procedural curve runs.
+func clip_on(motion: String) -> bool:
+	var en: Dictionary = _clips_cfg().get("enabled", {})
+	if not bool(en.get(motion, false)):
+		return false
+	var cs := clip_set()
+	return cs != null and cs.has(_clip_name(String(CLIP_OF.get(motion, motion))))
+
+
+## The one-shot clip that drives the weapon's parts this frame: {} (procedural) or {"name", "time", "bones", "set"}.
+## Switch: switch_out over the first half of swap_s (the old weapon), switch_in over the second (the new one); pickup,
+## reload and swing are time-scaled to their gameplay lengths (a reload lasts the weapon's reload_s as played).
+func clip_frame() -> Dictionary:
+	var pick := []
+	if switch_total > 0.0 and clip_on("switch"):
+		var p := clampf(switch_t / switch_total, 0.0, 1.0)
+		pick = ["switch_out", p / 0.5] if p < 0.5 else ["switch_in", (p - 0.5) / 0.5]
+	elif pickup_total > 0.0 and clip_on("pickup"):
+		pick = ["pickup", pickup_t / pickup_total]
+	elif reload_total > 0.0 and clip_on("reload"):
+		pick = ["reload", reload_t / reload_total]
+	elif swing_total > 0.0 and clip_on("swing"):
+		pick = ["swing", swing_t / swing_total]
+	if pick.is_empty():
+		return {}
+	var cs := clip_set()
+	var n := _clip_name(String(pick[0]))
+	if not cs.has(n):
+		return {}
+	var t := clampf(float(pick[1]), 0.0, 1.0) * cs.length(n)
+	return {"name": String(pick[0]), "time": t, "bones": cs.sample(n, t), "set": cs}
+
+
+## The grip-space delta of a clip frame's Weapon bone from its rest (the hold): what ViewModel puts on top of the
+## hold / ADS base.
+static func clip_delta(frame: Dictionary) -> Transform3D:
+	if frame.is_empty():
+		return Transform3D.IDENTITY
+	var cs: ClipSet = frame["set"]
+	return (cs.rests["Weapon"] as Transform3D).affine_inverse() * (frame["bones"]["Weapon"] as Transform3D)
+
+
+## The looping and additive clips on the weapon (idle breath, walk bob, sprint pose, fire), weighted as the procedural
+## layers they replace: calm (ADS) damps idle and walk as it damps the procedural bob and breath; `kick_mult` the fire.
+func clip_loop_delta(calm: float, ads: float, kick_mult: float) -> Transform3D:
+	var out := Transform3D.IDENTITY
+	var cs := clip_set()
+	if cs == null:
+		return out
+	var phase := fmod(_step_phase, TAU) / TAU
+	var sprint_clip := clip_on("sprint")
+	var sw := smoothstep(0.0, 1.0, _sprint)
+	if clip_on("idle"):
+		var n := _clip_name("idle")
+		var w := lerpf(1.0, float(cfg["breath"]["moving_mult"]), _walk) * calm * (1.0 - ads)
+		out = out * _loop_delta(cs, n, fmod(_time, maxf(cs.length(n), 0.001)), w)
+	if clip_on("walk"):
+		var n := _clip_name("walk")
+		var w := _walk * calm * ((1.0 - sw) if sprint_clip else lerpf(1.0, float(cfg["sprint"]["bob_mult"]), _sprint))
+		out = out * _loop_delta(cs, n, phase * cs.length(n), w)
+	if sprint_clip:
+		var n := _clip_name("sprint")
+		out = out * _loop_delta(cs, n, phase * cs.length(n), sw)
+	if fire_t >= 0.0 and clip_on("fire"):
+		out = out * _loop_delta(cs, _clip_name("fire"), fire_t, kick_mult)
+	return out
+
+
+func _loop_delta(cs: ClipSet, clip_name: String, t: float, w: float) -> Transform3D:
+	if w <= 0.0:
+		return Transform3D.IDENTITY
+	var d := (cs.rests["Weapon"] as Transform3D).affine_inverse() * cs.sample_bone(clip_name, "Weapon", t)
+	return Transform3D.IDENTITY.interpolate_with(d, clampf(w, 0.0, 1.0))
+
+
+## The ADS path offset: ads_raise / ads_lower are authored from the hold to the ADS pose with the linear blend the
+## game computes (hold.interpolate_with(ads, a)) times a shaping offset that is the identity at both ends, so the end
+## pose is exactly today's ADS pose (the red dot on the centre). Sampled at the ADS weight `a`.
+func clip_ads_offset(hold: Transform3D, ads_xf: Transform3D, a: float) -> Transform3D:
+	if a <= 0.0 or a >= 1.0 or not clip_on("ads"):
+		return Transform3D.IDENTITY
+	var cs := clip_set()
+	var up := _clip_name("ads_raise")
+	var down := _clip_name("ads_lower")
+	var lin := hold.interpolate_with(ads_xf, a).affine_inverse()
+	var o_up := lin * cs.sample_bone(up, "Weapon", a * cs.length(up))
+	if not cs.has(down):
+		return o_up
+	var o_down := lin * cs.sample_bone(down, "Weapon", (1.0 - a) * cs.length(down))
+	return o_down.interpolate_with(o_up, _ads_dir)
+
+
 # --- results ------------------------------------------------------------------------------------------------------
 
 ## Eye-space offset: breathing, the walk bob on the step phase (stronger in sprint), the landing dip, the swing.
@@ -176,10 +397,14 @@ func pivot_xf(calm: float) -> Transform3D:
 	var b: Dictionary = cfg["breath"]
 	# Breathing fades out with ADS (1 - ads) so the red dot rests on the centre at full ADS.
 	var breath_w := lerpf(1.0, float(b["moving_mult"]), _walk) * calm * (1.0 - _ads_prev)
+	if clip_on("idle"):
+		breath_w = 0.0  # the idle clip breathes instead (clip_loop_delta)
 	var bp := sin(_time * TAU * float(b["hz"]))
 	var pos := ViewMesh.vec(b["pos_m"]) * Vector3(sin(_time * TAU * float(b["hz"]) * 0.5), bp, 0.0) * breath_w
 	var rot := ViewMesh.vec(b["rot_deg"]) * Vector3(bp, sin(_time * TAU * float(b["hz"]) * 0.5), cos(_time * TAU * float(b["hz"]) * 0.7)) * breath_w
 	var bob_w := _walk * lerpf(1.0, float(cfg["sprint"]["bob_mult"]), _sprint) * calm
+	if clip_on("walk"):
+		bob_w = 0.0  # the walk clip bobs instead
 	var w: Dictionary = cfg["walk"]
 	var bob := ViewMesh.vec(w["pos_m"]) * bob_w
 	var bob_rot := ViewMesh.vec(w["rot_deg"]) * bob_w
@@ -202,7 +427,7 @@ func pivot_xf(calm: float) -> Transform3D:
 func weapon_xf(kick_mult: float, melee: bool = false) -> Transform3D:
 	var tilt_key := "melee_rot_deg" if melee else "rot_deg"
 	var s: Dictionary = cfg["sprint"]
-	var sw := smoothstep(0.0, 1.0, _sprint)
+	var sw := smoothstep(0.0, 1.0, _sprint) if not clip_on("sprint") else 0.0
 	var pos := ViewMesh.vec(s["pos_m"]) * sw
 	var rot := ViewMesh.vec(s["rot_deg"]) * sw
 	# The settle pushes along the sight line (grip z, away from the eye while raising), so a red dot on the centre ray
@@ -211,7 +436,7 @@ func weapon_xf(kick_mult: float, melee: bool = false) -> Transform3D:
 	for i in 3:
 		pos[i] += (_kick_pos[i] as Spring).x * kick_mult
 		rot[i] += (_kick_rot[i] as Spring).x * kick_mult
-	if reload_total > 0.0:
+	if reload_total > 0.0 and not clip_on("reload"):
 		var r: Dictionary = cfg["reload"]
 		var tilt := _reload_tilt()
 		pos += ViewMesh.vec(r["tilt_pos_m"]) * tilt
@@ -219,13 +444,13 @@ func weapon_xf(kick_mult: float, melee: bool = false) -> Transform3D:
 		if reload_stage() == "charge":
 			var c := sin(PI * reload_stage_progress())
 			rot += ViewMesh.vec(r["charge_rot_deg"]) * c
-	if switch_total > 0.0:
+	if switch_total > 0.0 and not clip_on("switch"):
 		var p := clampf(switch_t / switch_total, 0.0, 1.0)
 		var sc: Dictionary = cfg["switch"]
 		rot += ViewMesh.vec(sc.get(tilt_key, sc["rot_deg"])) * switch_lower()
 		if p > 0.5:  # a small overshoot as the new weapon arrives
 			rot.x += float(sc["overshoot_deg"]) * sin(PI * (p - 0.5) * 2.0)
-	if pickup_total > 0.0:
+	if pickup_total > 0.0 and not clip_on("pickup"):
 		var pc: Dictionary = cfg["pickup"]
 		rot += ViewMesh.vec(pc.get(tilt_key, pc["rot_deg"])) * pickup_lower()
 	return Transform3D(_deg(rot), pos)
@@ -241,7 +466,9 @@ func switch_lower() -> float:
 ## The lowering of a switch or pickup as a pitch about the EYE (degrees, downward): a rotation about the camera keeps
 ## every vertex at its distance, so the model leaves the view without leaving max_reach_m.
 func lower_deg() -> float:
-	return float(cfg["switch"]["drop_deg"]) * switch_lower() + float(cfg["pickup"]["drop_deg"]) * pickup_lower()
+	var s := 0.0 if clip_on("switch") else float(cfg["switch"]["drop_deg"]) * switch_lower()
+	var p := 0.0 if clip_on("pickup") else float(cfg["pickup"]["drop_deg"]) * pickup_lower()
+	return s + p
 
 
 ## 0..1: how far a pickup has lowered the weapon (out by swap_at, then the new one rises).
@@ -358,7 +585,7 @@ func swing_xf() -> Transform3D:
 
 ## The swing keys (anim.json swing.keys over swing_s): [pos, rot_deg] at the current time.
 func _swing_pose() -> Array:
-	if swing_total <= 0.0:
+	if swing_total <= 0.0 or clip_on("swing"):
 		return [Vector3.ZERO, Vector3.ZERO]
 	var p := clampf(swing_t / swing_total, 0.0, 1.0)
 	var keys: Array = cfg["swing"]["keys"]

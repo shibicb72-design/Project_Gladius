@@ -62,7 +62,8 @@ func test_upper_filters_modifier_order_fire_reload_and_both_layer_directions() -
 		assert_true(layer.filter_enabled, node + " filter enabled")
 		for i in model.skeleton.get_bone_count():
 			var bone := String(model.skeleton.get_bone_name(i))
-			var lower := bone == "Hips" or bone.contains("Leg") or bone.contains("Foot")
+			# M2 AN2 item 2: the toes are leg bones (the Blender clips bend them; the aimed layer leaves them alone).
+			var lower := bone == "Hips" or bone.contains("Leg") or bone.contains("Foot") or bone.contains("Toes")
 			var kept: bool = node != "fire" and keeps.has(bone)
 			assert_eq(layer.is_path_filtered(NodePath("Skeleton3D:" + bone)), not lower and not kept, node + " bone " + bone)
 	var sync := model.skeleton.get_node("HandTargetSync")
@@ -93,7 +94,10 @@ func test_upper_filters_modifier_order_fire_reload_and_both_layer_directions() -
 	tree.advance(0.0)
 	await scene.process_frame
 	await scene.process_frame
-	assert_true(model.skeleton.get_bone_pose_rotation(leg).angle_to(idle_leg) < 0.0001, "upper fire does not move idle leg")
+	# M2 AN2 item 2: is_equal_approx as well: angle_to(q, q) of a float32 quaternion whose length is 1 - 1e-7 reads
+	# ~0.0007 rad (acos near 1), which the Blender clips' keys hit although the pose is the same to 6 digits.
+	var fired_leg := model.skeleton.get_bone_pose_rotation(leg)
+	assert_true(fired_leg.is_equal_approx(idle_leg) or fired_leg.angle_to(idle_leg) < 0.0001, "upper fire does not move idle leg")
 	pawn.reload_started.emit()
 	tree.advance(0.0)
 	assert_true(tree.get("parameters/reload/active"), "reload starts")
@@ -103,9 +107,10 @@ func test_upper_filters_modifier_order_fire_reload_and_both_layer_directions() -
 	assert_true(not tree.get("parameters/reload/active") and not tree.get("parameters/fire/active"), "switch aborts both shots")
 	assert_true(model.hand_error_m <= float(SoldierRig.config()["hands"]["ik_tolerance_m"]), "foregrip stays solved")
 	var clips := tree.get_meta(&"clip_library") as ClipLibrary
-	# M2 AN1 commit 4: the locomotion comes from the committed UAL; the rifle layer stays code-built (no rifle clips).
+	# M2 AN1 commit 4: the locomotion comes from the committed library; the rifle layer stays code-built (no rifle
+	# clips). M2 AN2 item 2: the library is the Blender bake of the UAL clips (soldier_clips.glb).
 	for name in ["idle", "walk_fwd", "walk_back", "strafe_l", "strafe_r", "run_fwd"]:
-		assert_eq(clips.source_for(name), "ual", "honest library source " + name)
+		assert_eq(clips.source_for(name), "blender", "honest library source " + name)
 	for name in ["aim_down", "aim", "aim_up", "fire", "reload"]:
 		assert_eq(clips.source_for(name), "procedural", "honest default source " + name)
 	pawn.free()

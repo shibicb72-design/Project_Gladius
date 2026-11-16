@@ -78,6 +78,57 @@ static func basis_change(source: Skeleton3D, target: Skeleton3D, mapping: BoneMa
 		frames.append(Basis(front.cross(Vector3.UP), Vector3.UP, -front))
 	return {"valid": true, "rotation": (frames[1] * frames[0].inverse()).get_rotation_quaternion()}
 
+## M2 AN2 item 2: a source skeleton built on the soldier's own rig (assets/generated/characters/soldier_clips.glb,
+## tools/blender/build_soldier_clips.py): every target bone exists in the source by name with the same global rest
+## within `tolerance_m` and an identity rest basis. Its clips are already baked for this skeleton.
+static func same_rig(source: Skeleton3D, target: Skeleton3D, tolerance_m: float = 0.001) -> bool:
+	for i in target.get_bone_count():
+		var j := source.find_bone(target.get_bone_name(i))
+		if j < 0:
+			return false
+		var want := target.get_bone_global_rest(i)
+		var have := source.get_bone_global_rest(j)
+		if have.origin.distance_to(want.origin) > tolerance_m or not have.basis.is_equal_approx(want.basis):
+			return false
+	return true
+
+
+## M2 AN2 item 2: a clip of a same-rig source played as authored: its rotation keys for every target bone (by name)
+## and the position keys of the root bones (Hips; the Neck where a clip carries it), re-pathed to the soldier's
+## "Skeleton3D:<bone>". No resampling, no retarget: the played clip is the authored one key for key. The Blender
+## clips are in place by construction (the pelvis keeps its own sway under pinned feet; Death01 keeps its root motion),
+## so nothing is stripped. Cached like bake().
+static func same_rig_clip(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_key: String = "") -> Animation:
+	var key := "same:" + (str(clip.get_instance_id()) if cache_key.is_empty() else cache_key)
+	if _baked.has(key):
+		return _baked[key]
+	var result := Animation.new()
+	result.length = clip.length
+	result.loop_mode = clip.loop_mode
+	for track in clip.get_track_count():
+		var path := clip.track_get_path(track)
+		if path.get_subname_count() == 0 or not clip.track_is_enabled(track):
+			continue
+		var bone := String(path.get_subname(0))
+		var index := target.find_bone(bone)
+		if index < 0 or source.find_bone(bone) < 0:
+			continue
+		var kind := clip.track_get_type(track)
+		if kind == Animation.TYPE_POSITION_3D and target.get_bone_parent(index) >= 0:
+			continue
+		if kind != Animation.TYPE_ROTATION_3D and kind != Animation.TYPE_POSITION_3D:
+			continue
+		var out := result.add_track(kind)
+		result.track_set_path(out, NodePath("Skeleton3D:" + bone))
+		for k in clip.track_get_key_count(track):
+			if kind == Animation.TYPE_ROTATION_3D:
+				result.rotation_track_insert_key(out, clip.track_get_key_time(track, k), clip.track_get_key_value(track, k))
+			else:
+				result.position_track_insert_key(out, clip.track_get_key_time(track, k), clip.track_get_key_value(track, k))
+	_baked[key] = result
+	return result
+
+
 ## `root_motion` keeps the pelvis' ground-plane travel (a fall that should land away from the feet); the default
 ## strips it (in-place clips: the pawn moves the soldier).
 static func bake(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_key: String = "", source_map: Dictionary = {}, root_motion: bool = false) -> Animation:

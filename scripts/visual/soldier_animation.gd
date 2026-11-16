@@ -111,7 +111,8 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	var free_bones: Array = gait_cfg["upper_keeps_lower"]
 	for i in skeleton.get_bone_count():
 		var bone := String(skeleton.get_bone_name(i))
-		if bone == "Hips" or bone.contains("Leg") or bone.contains("Foot"):
+		# M2 AN2 item 2: the toes belong to the legs (the Blender clips bend them at the toe-off).
+		if bone == "Hips" or bone.contains("Leg") or bone.contains("Foot") or bone.contains("Toes"):
 			continue
 		var path := NodePath("Skeleton3D:" + bone)
 		upper.set_filter_path(path, not free_bones.has(bone))
@@ -161,7 +162,11 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 
 
 ## M2 AN1: library slots used outside the graph (SoldierCorpse, SoldierPose, CoverAnim), baked with the graph.
-const SHARED_SLOTS: Array[String] = ["death", "revive", "blade_swing", "cover_crouch_idle", "cover_crouch_move"]
+## M2 AN2 items 3/5: the keyed clips (soldier_keyed.glb) CoverAnim and SoldierModel's action layer use.
+const SHARED_SLOTS: Array[String] = ["death", "revive", "blade_swing", "cover_crouch_idle", "cover_crouch_move",
+	"cover_idle_l", "cover_idle_r", "cover_idle_l_crouch", "cover_idle_r_crouch", "peek_left", "peek_right",
+	"cover_enter", "cover_exit", "cover_enter_l", "cover_exit_l", "cover_rise",
+	"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground"]
 static var _additive: Dictionary = {}
 
 

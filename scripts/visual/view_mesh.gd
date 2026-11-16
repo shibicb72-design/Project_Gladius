@@ -2,6 +2,8 @@ class_name ViewMesh
 extends RefCounted
 ## M2 AN1: flat-shaded, faceted geometry for the first-person view model (hands and weapons), built in code from the
 ## part lists of data/art_soldier.json (OQ-ART-SOLDIER: placeholder looks). Presentation only.
+## M2 AN2 item 4a: when a data switch names a Blender-built .glb (hands.mesh_source, weapons.<id>.mesh_source) the
+## meshes come from it instead (glb_view_mesh / from_glb below); the part lists stay as the fallback.
 ## Two primitives, both with flat face normals:
 ##   slab:  a 2D profile polygon extruded along one axis, with a chamfer on both faces (the profile's edges bevelled).
 ##   lathe: a [radius, height] profile turned around one axis with a few sides (octagonal scope tube, finger segments).
@@ -365,6 +367,172 @@ static func build_parts(key: String, parts: Array) -> ArrayMesh:
 			add_part(b, part)
 		_cache[key] = b.finish()
 	return _cache[key]
+
+
+## --- M2 AN2 item 4a: Blender-built meshes (tools/blender/build_view_arms.py, build_weapons.py) ---------------------
+## A view-model .glb carries the same stream as the part builder, except COLOR, which is sRGB there (8-bit sRGB keeps
+## the dark classes precise) and becomes linear here, and UV.y, which names the pass (0 opaque, 1 glass, 2 glow). Each
+## mesh is rebuilt once: one surface per pass in PASSES order with this file's ShaderMaterials (no imported material
+## is left on any surface).
+
+static var _glb_nodes := {}  # path -> {node name: {"xf": Transform3D, "mesh": Mesh or null}}
+static var _glb_meshes := {}  # path:node -> ArrayMesh (view stream)
+
+
+## True when `path` names an imported resource (a data switch such as mesh_source is set and the file is there).
+static func has_source(path: String) -> bool:
+	return path != "" and ResourceLoader.exists(path)
+
+
+## The nodes of a .glb scene by name: their transform (in the scene root's frame) and mesh. Cached; the instanced
+## scene is freed after reading. Empty when the file does not load.
+static func glb_nodes(path: String) -> Dictionary:
+	if _glb_nodes.has(path):
+		return _glb_nodes[path]
+	var out := {}
+	var packed := load(path) as PackedScene if has_source(path) else null
+	if packed == null:
+		push_error("ViewMesh: %s does not load" % path)
+	else:
+		var scene := packed.instantiate() as Node3D
+		for n: Node in scene.find_children("*", "Node3D", true, false):
+			var n3 := n as Node3D
+			var entry := {"xf": _scene_xf(n3, scene), "mesh": null}
+			if n3 is MeshInstance3D:
+				entry["mesh"] = (n3 as MeshInstance3D).mesh
+			out[String(n3.name)] = entry
+		scene.free()
+	_glb_nodes[path] = out
+	return out
+
+
+static func _scene_xf(n: Node3D, root: Node3D) -> Transform3D:
+	var xf := n.transform
+	var p := n.get_parent()
+	while p != null and p != root:
+		if p is Node3D:
+			xf = (p as Node3D).transform * xf
+		p = p.get_parent()
+	return xf
+
+
+## The view-model mesh of node `node_name` in the .glb at `path` (cached), or null when it is not there.
+static func glb_view_mesh(path: String, node_name: String) -> ArrayMesh:
+	var key := path + ":" + node_name
+	if _glb_meshes.has(key):
+		return _glb_meshes[key]
+	var nodes := glb_nodes(path)
+	var src: Mesh = (nodes.get(node_name, {}) as Dictionary).get("mesh", null)
+	var mesh: ArrayMesh = from_glb(src) if src != null else null
+	_glb_meshes[key] = mesh
+	return mesh
+
+
+## One imported mesh in the view stream -> a mesh with one surface per pass and the game's pass materials.
+## `mirror` flips x (normals too) and turns every triangle round (the left arm from the right one).
+static func from_glb(src: Mesh, mirror: bool = false) -> ArrayMesh:
+	var by_pass := {}
+	for s in src.get_surface_count():
+		var arrays := src.surface_get_arrays(s)
+		for part: Array in _split_by_pass(arrays):
+			var pass_name: String = part[0]
+			if by_pass.has(pass_name):
+				push_error("ViewMesh: two surfaces of pass %s in one imported mesh" % pass_name)
+				continue
+			by_pass[pass_name] = _view_arrays(part[1], mirror)
+	var mesh := ArrayMesh.new()
+	for pass_name in PASSES:
+		if not by_pass.has(pass_name):
+			continue
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, by_pass[pass_name])
+		mesh.surface_set_material(mesh.get_surface_count() - 1, material(pass_name))
+	return mesh
+
+
+## [[pass, arrays]]: the surface as it is when every triangle shares one pass (UV.y), else split per pass.
+static func _split_by_pass(arrays: Array) -> Array:
+	var uv: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	var tri_pass := PackedInt32Array()
+	var count := idx.size() if idx.size() > 0 else uv.size()
+	var seen := {}
+	for t in range(0, count, 3):
+		var v := idx[t] if idx.size() > 0 else t
+		var p := clampi(int(roundf(uv[v].y)), 0, PASSES.size() - 1)
+		tri_pass.append(p)
+		seen[p] = true
+	if seen.size() <= 1:
+		return [[PASSES[tri_pass[0] if tri_pass.size() > 0 else 0], arrays]]
+	var out: Array = []
+	for p: int in seen.keys():
+		var remap := {}
+		var keep := PackedInt32Array()
+		for t in tri_pass.size():
+			if tri_pass[t] != p:
+				continue
+			for k in 3:
+				var v := idx[t * 3 + k] if idx.size() > 0 else t * 3 + k
+				if not remap.has(v):
+					remap[v] = remap.size()
+				keep.append(remap[v])
+		var sub := []
+		sub.resize(Mesh.ARRAY_MAX)
+		var order := PackedInt32Array()
+		order.resize(remap.size())
+		for v: int in remap:
+			order[remap[v]] = v
+		for a in Mesh.ARRAY_MAX:
+			if a == Mesh.ARRAY_INDEX or arrays[a] == null:
+				continue
+			sub[a] = _pick(arrays[a], order, _stride(a, arrays))
+		sub[Mesh.ARRAY_INDEX] = keep
+		out.append([PASSES[p], sub])
+	return out
+
+
+static func _stride(a: int, arrays: Array) -> int:
+	if a == Mesh.ARRAY_TANGENT:
+		return 4
+	if a == Mesh.ARRAY_BONES or a == Mesh.ARRAY_WEIGHTS:
+		var n := (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		return (arrays[a] as Variant).size() / maxi(n, 1)
+	return 1
+
+
+static func _pick(src: Variant, order: PackedInt32Array, stride: int) -> Variant:
+	var out: Variant = src.duplicate()
+	out.resize(order.size() * stride)
+	for i in order.size():
+		for k in stride:
+			out[i * stride + k] = src[order[i] * stride + k]
+	return out
+
+
+## sRGB COLOR -> linear, tangents dropped (the view shaders use none), and the optional x mirror.
+static func _view_arrays(arrays: Array, mirror: bool) -> Array:
+	var out := arrays.duplicate()
+	var cols: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	var lin := PackedColorArray()
+	lin.resize(cols.size())
+	for i in cols.size():
+		lin[i] = cols[i].srgb_to_linear()
+	out[Mesh.ARRAY_COLOR] = lin
+	out[Mesh.ARRAY_TANGENT] = null
+	if mirror:
+		var verts: PackedVector3Array = (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).duplicate()
+		var normals: PackedVector3Array = (arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array).duplicate()
+		for i in verts.size():
+			verts[i].x = -verts[i].x
+			normals[i].x = -normals[i].x
+		var idx: PackedInt32Array = (arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).duplicate()
+		for t in range(0, idx.size(), 3):
+			var swap := idx[t + 1]
+			idx[t + 1] = idx[t + 2]
+			idx[t + 2] = swap
+		out[Mesh.ARRAY_VERTEX] = verts
+		out[Mesh.ARRAY_NORMAL] = normals
+		out[Mesh.ARRAY_INDEX] = idx
+	return out
 
 
 ## Triangles in a mesh (all surfaces).

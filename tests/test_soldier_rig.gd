@@ -1,6 +1,8 @@
 extends "res://tests/test_case.gd"
 
-const BONES := ["Hips", "Spine", "Chest", "Neck", "Head", "LeftUpperArm", "LeftForeArm", "LeftHand", "RightUpperArm", "RightForeArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]
+const BONES := ["Hips", "Spine", "Chest", "Neck", "Head", "LeftUpperArm", "LeftForeArm", "LeftHand", "RightUpperArm", "RightForeArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot",
+	# M2 AN2 item 1: the Blender-built soldier's added bones (data/anim_third_person.json bones_add)
+	"LeftToes", "RightToes", "LeftFingers", "RightFingers", "Prop"]
 
 
 func test_rigid_weight_skin_shared_mesh_and_cpu_bounds() -> void:
@@ -25,9 +27,20 @@ func test_rigid_weight_skin_shared_mesh_and_cpu_bounds() -> void:
 	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
 	assert_eq(weights.size(), vertices.size() * 4, "four weights per vertex")
+	# M2 AN2 item 1: the Blender-built mesh blends weights at the joints (plates stay rigid): every vertex's
+	# weights are normalized and every influencing bone index is a bone of the skeleton.
+	var bad_sum := 0
+	var bad_index := 0
 	for i in vertices.size():
-		assert_eq(weights[i * 4], 1.0, "rigid part weight")
-		assert_true(indices[i * 4] >= 0 and indices[i * 4] < BONES.size(), "valid bone index")
+		var total := 0.0
+		for k in 4:
+			total += weights[i * 4 + k]
+			if weights[i * 4 + k] > 0.0 and (indices[i * 4 + k] < 0 or indices[i * 4 + k] >= model.skeleton.get_bone_count()):
+				bad_index += 1
+		if absf(total - 1.0) > 0.002:
+			bad_sum += 1
+	assert_eq(bad_sum, 0, "weights sum to 1 on every vertex")
+	assert_eq(bad_index, 0, "every influencing bone index is a bone of the skeleton")
 	var bounds: Array[AABB] = []
 	bounds.resize(model.part_bounds.size())
 	model.posed_bounds(bounds)
@@ -36,6 +49,7 @@ func test_rigid_weight_skin_shared_mesh_and_cpu_bounds() -> void:
 		assert_true(bounds[i].size.is_equal_approx(model.part_bounds[i].size), "CPU bind pose size")
 	for node in model.find_children("*", "", true, false):
 		assert_true(not node is CollisionObject3D and not node is CollisionShape3D, "rig collider-free")
-	print("RIG bones=", model.skeleton.get_bone_count(), " mesh_tris=", vertices.size() / 3, " shared=true surfaces=1")
+	var index_array: Variant = arrays[Mesh.ARRAY_INDEX]
+	print("RIG bones=", model.skeleton.get_bone_count(), " mesh_tris=", (index_array as PackedInt32Array).size() / 3 if index_array != null else vertices.size() / 3, " shared=true surfaces=1")
 	a.free()
 	b.free()

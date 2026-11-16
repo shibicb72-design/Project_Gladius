@@ -460,8 +460,13 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   from `view_model.show_weight` and already risen by `raise_start`, so leaving cover never shows a frame with
   neither body nor gun. It plays breathing, the walk bob, the sprint pose, switch, pickup, staged reloads, kick,
   the landing dip and the blade swing from the pawn's state and signals (M2 AN1; shapes in `data/anim.json`
-  `first_person`, durations `swap_s`, `swing_s`, `recoil_s` here), draws its own tracer and flash from
-  `ShotFx.shot_shown`, and raises the gun to a red dot on the centre ray in ADS; the long rifle's ADS looks
+  `first_person`, durations `swap_s`, `swing_s`, `recoil_s` here). Since M2 AN2 a clip layer sits under the
+  procedural one: where `first_person.clips.enabled` is on (reload, switch, pickup, blade swing, the ADS
+  path), `ViewMotion` samples the Blender-keyed clip of `view_clips_<weapon>.glb`, time-scaled to the same
+  durations, and that motion's procedural curve steps aside (fade `clips.fade_s`); idle, walk, sprint and fire
+  stay procedural, and the other procedural terms (look sway, kick, landing dip) stay on top. A missing or
+  disabled clip falls back to the curve; aim, recoil numbers, muzzle and fire timing never read either layer.
+  The view model draws its own tracer and flash from `ShotFx.shot_shown`, and raises the gun to a red dot on the centre ray in ADS; the long rifle's ADS looks
   through a modelled scope tube with a reticle (no overlay, no FOV change: OQ-ADS-ZOOM). Presentation only:
   no colliders, the shot never reads it.
 - Body layer (`scripts/visual/local_body_layer.gd`): the rig calls `Pawn.ensure_local_body_layer` every physics
@@ -1087,46 +1092,112 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   `data/ui.json` (`cover_button`, `cover_fire_dim`), `data/haptics.json` (`cover_snap`); read-only
   `stats.json movement.muzzle_height_m` and `combat.auto_reload_on_empty`. See docs/OPEN_QUESTIONS.md OQ-COVER (M2 C1b).
 
-### 4.22 Soldier and view-model art (M2 AN1)
+### 4.22 Soldier and view-model art and animation (M2 AN1, M2 AN2)
 Everything here is presentation: no collider, hitbox, muzzle, speed, ray, timing or net message reads it. Every
-look is a trial for Shibi (OQ-ART-SOLDIER), not a design decision.
+look is a trial for Shibi (OQ-ART-SOLDIER), not a design decision. Since M2 AN2 the soldier, the first-person
+arms, the three weapons and most clips are built in Blender by scripts; the code-built paths below stay as the
+fallback when a `mesh_source` is empty or a clip is missing.
+- **Blender pipeline** (`tools/blender/`, Blender 5.3, bundled glTF exporter). Every file is written by a script
+  from numbers; there is no .blend file and no hand edit. `gladius_bl.py`: the shared glue (`EXPORT_SETTINGS`,
+  every exporter option named; `reset_scene`; `soldier_armature`, the 22-bone rig from the data rests;
+  `godot_to_blender` axes; `update_manifest`). Builds are byte-identical over runs and output paths. Scripts and
+  outputs: `build_pipeline_proof.py` -> `characters/pipeline_proof.glb` (the pipeline test asset);
+  `build_soldier.py` (+ `soldier_geom.py`, `soldier_data.py`, `soldier_design.json`) -> `characters/soldier.glb`;
+  `build_soldier_clips.py` (+ `soldier_clips_design.json`) -> `characters/soldier_clips.glb`;
+  `build_soldier_keyed.py` -> `characters/soldier_keyed.glb`; `build_view_arms.py` (+ `view_geom.py`,
+  `view_bl.py`) -> `characters/view_arms.glb`; `build_weapons.py` (+ `weapon_geom.py`) ->
+  `weapons/pilum_br.glb`, `sagittarii_rifle.glb`, `gladius_lux.glb`; `build_view_clips.py` ->
+  `characters/view_clips_<weapon>.glb` (all under `assets/generated/`, each with its own `.glb.import`). Each
+  script records its output in `tools/blender/manifest.json` (`made_by`, `derived_from`: the UAL id for
+  `soldier_clips.glb`, empty otherwise); `tools/asset_hashes.gd` copies that ledger into `data/asset_catalog.json`
+  `generated`, and `tests/test_generated_assets.gd` pins that every generated .glb has its script. Rebuild one
+  file: `blender.cmd -b --factory-startup --python tools/blender/<script>.py -- [--out=<repo path>]`
+  (`build_weapons.py` takes `--only=<id> --out-dir=<dir>`, `build_view_clips.py` `--only=<ids>`), then
+  `godot --headless --path . --script res://tools/asset_hashes.gd -- --write` and an import pass
+  (`godot --headless --path . --import`). Scripts read the game data (rests, parts, anchors, anim.json stages) so
+  the data stays the source of truth.
 - **Data.** `data/art_soldier.json` (new) owns the hand, weapon and effect art, the soldier override layer and
   the budgets. `data/art_astra.json` is NOT edited by character work: it is hashed into every map's saved
   navigation (`map_nav.gd`). Animation numbers: `data/anim.json` `first_person` (view-model motion) and
   `data/anim_third_person.json` (gait, strafe, crawl, hit, cover arm pose, the foot-slide limit), which
   `SoldierRig.config()` merges over `data/anim.json`.
-- **View model** (`scripts/visual/view_*.gd`): `view_mesh.gd` and `view_weapons.gd` build the Pilum BR, the
-  Sagittarii rifle (with a modelled scope) and the Gladius Lux from part lists (chamfered boxes, lathes), with
-  the energy cell and the charging handle as their own nodes; `view_hands.gd` and `view_rig.gd` build each arm
-  as one skinned mesh on a small code-built skeleton with finger poses as data (grip, trigger, foregrip, open,
-  reach, blade); `view_motion.gd` layers the motions (4.16); `view_fx.gd` holds the flash, which is parented
+- **View model** (`scripts/visual/view_*.gd`). Meshes: each weapon's `mesh_source` (`art_soldier.json`
+  `weapons.<id>.mesh_source`) names its Blender .glb, whose nodes are `Mesh` (first person, one primitive per
+  shading pass), `Cell` and `Charge` (the energy cell and charging handle, own nodes), `ThirdNear` / `ThirdFar`
+  (the third-person gun) and the empties `Muzzle`, `SightAnchor`, `Dot` (copies of the data anchors, which stay
+  the source of truth; `test_view_glb.gd` compares them). `view_mesh.gd` (`glb_nodes`, `from_glb`) puts the
+  game's shader on each pass; `view_weapons.gd` takes `Mesh` / `Cell` / `Charge` from the .glb. The arms:
+  `hands.mesh_source` -> `view_arms.glb` (an armoured gauntlet over a glove, 17 bones, four blended weights),
+  remapped by bone name onto the arm skeleton `view_rig.gd` still builds from data; the left arm is the right
+  one mirrored; finger poses stay data (grip, trigger, foregrip, open, reach, blade). An empty `mesh_source`
+  builds the old part lists (chamfered boxes, lathes, faceted fingers). Motion: `view_motion.gd` (4.16) plays
+  the keyed clips of `view_clips_<weapon>.glb` (an action-only "ViewRig": Weapon, Cell, Charge, both hands, 15
+  finger bones per side and two elbow targets; reload keyed on `anim.json` `reload.stages`, pickup on
+  `pickup.swap_at`) where `data/anim.json` `first_person.clips.enabled` says so: reload, switch, pickup, blade
+  swing and the ADS path now; idle, walk, sprint and fire stay procedural (their clips ship and are tested).
+  `ViewRig.apply_clip` drives the parts and arms from the clip; `ViewHands.aim_forearm` still aims each forearm
+  at the clip's elbow. `view_fx.gd` holds the flash, which is parented
   to the muzzle and follows the gun, a shadowless OmniLight3D lit for the flash time on the local view model
   only, the world-fixed tracer that starts at the muzzle, and the spent cell; `view_probe.gd` measures posed
   vertices for the tests. Pickup is told apart from switch inside the view code by comparing the loadout's slot
   objects on `weapon_switched`; `pawn.gd` has no hook for it.
-- **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json`; the `ual`
-  source is the CC0 Quaternius Universal Animation Library (`assets/third_party/quaternius_ual/`, imported
-  without the mannequin mesh). `anim_retarget.gd` bakes a clip onto the 17-bone soldier once; `soldier_clips.gd`
-  measures each gait's stride on the soldier's own legs and normalizes the cycles, so the graph plays
-  cycles per second = ground speed / stride and the feet stay planted. Every soldier shares the baked clips.
-  Library clips: idle, walk, jog, sprint, reversed jog (back-pedal), airborne loop, hit (added on top), death
-  (the corpse), revive kneel, blade swing, cover crouch legs. Code-built: aim, fire and reload (the library has
-  no rifle clips; hands stay on the gun through the upper layer and the left-hand IK), the downed knee-crawl
-  (`soldier_crawl.gd`), cover hug and rise, landing. `soldier_gait.gd` turns the hips toward a strafe while the
-  chest and rifle keep the aim, and limits the pelvis bob because the helmet stays on the head hitbox.
+- **Soldier mesh.** `art_soldier.json` `soldier.mesh_source` -> `soldier.glb`: one armature of 22 bones (the 17
+  of `anim.json` plus LeftToes, RightToes, LeftFingers, RightFingers and Prop from
+  `anim_third_person.json` `bones_add`; identity rest bases) and two skinned LODs, `SoldierNear` (2,536
+  triangles) and `SoldierFar` (1,152), with blended weights at the joints and rigid armour plates; vertex colour
+  and UV2 surface ids, no texture. `SoldierRig.build` keeps the skeleton built from data, remaps the .glb joints
+  by bone name and caches the meshes per rest signature; `SoldierModel.armor` (near, ends at `gun.far_m`, 30 m)
+  and `armor_far` ("ArmorFar", begins there) share one skin and one custom AABB. The part boxes (`part_bones`,
+  meta "parts") stay computed from the part data and are the tested proxy: `test_soldier_glb.gd` ties the mesh to
+  them (helmet round the head sphere, rests and bind poses within 1 mm). An empty `mesh_source` builds the old
+  merged-parts mesh (one LOD). The corpse keeps the near mesh.
+- **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json` in the
+  order `blender`, `actionforge`, `ual`, `mixamo_local`. `blender` = `soldier_clips.glb` (the CC0 Quaternius
+  UAL clips retargeted in Blender onto the soldier rig, feet and loops cleaned, shipped baked: idle, walk, jog,
+  sprint, jump, crouch idle and move, hit chest and head, death, revive kneel, blade swing) and
+  `soldier_keyed.glb` (hand-keyed: cover hug high and low, lean left and right, rise, enter and exit with left
+  copies, ladder up, down and top, door open, chest open, ground pickup). A clip on the soldier's own rig is
+  copied as authored (`AnimRetarget.same_rig_clip`); the UAL source (`assets/third_party/quaternius_ual/`,
+  imported without the mannequin) is only the fallback, retargeted at runtime by `anim_retarget.gd` when no
+  `blender` clip resolves. `soldier_clips.gd` measures each gait's stride on the soldier's legs, so the graph
+  plays ground speed / stride and the feet stay planted; every soldier shares the clips. Still code-built:
+  third-person aim, fire and reload (hands on the gun through the upper layer and the left-hand IK), the downed
+  knee-crawl (`soldier_crawl.gd`), landing; strafes play the turned jog, the back-pedal the reversed jog.
+  Cover: `cover_anim.gd` asks for the keyed clip per state and falls back to the old procedural pose.
+  Actions: `SoldierPose` has an action layer; `SoldierModel.drive_actions` plays the ladder clips from
+  `pawn.climbing` (clip time from the feet's height on the ladder, the gun slung) and `ladder_top` after the
+  top step; `SoldierModel.play_action(&"door_open" | &"chest_open" | &"pickup_ground")` is the entry point for
+  the rest, but no gameplay signal calls it yet (OQ-ANIM-ACTIONS). `soldier_gait.gd` turns the hips toward a
+  strafe while the chest and rifle keep the aim, and limits the pelvis bob (the helmet stays on the head hitbox).
 - **Soldier look.** `soldier_look.gd` lays `art_soldier.json` `soldier.part_overrides` and `parts_add` over the
-  art_astra soldier parts (longer legs, flatter banded shoulders, a neck guard), writes per-class metallic and
-  roughness into the soldier material's own copy of the surface data (steel, dark steel, squad plate, bronze,
-  leather, cloth, gun steel; one surface), and builds the third-person gun from the first-person part lists at
-  reduced detail: the active weapon's own model, with a silhouette copy beyond `gun.far_m` by visibility range.
-  The third-person flash and tracer keep their older origin, which `tests/test_soldier_hands.gd` locks.
+  art_astra soldier parts (these feed the part boxes and the code-built fallback), writes per-class metallic and
+  roughness into the soldier material's own copy of the surface data (one surface), and gives the hands the
+  active weapon's third-person gun: `ThirdNear` from its .glb (`_glb_gun`), swapped to `ThirdFar` beyond
+  `gun.far_m` by visibility range (the part lists only when the weapon has no `mesh_source`). The third-person
+  flash and tracer keep their older origin, which `tests/test_soldier_hands.gd` locks.
 - **Impacts.** `scripts/visual/shot_impacts.gd`: one pool per world, capped (`fx.impact_cap`), a burst per shot
   by surface (sparks, dust, energy on a soldier), classified like the impact sounds from a short visual probe.
-- **Budgets** (`art_soldier.json`): view model 4,000 triangles and 12 draw calls; soldier near 3,100 / 2, far
-  2,420 / 2. Tests: `test_view_model_art.gd`, `test_view_motion.gd`, `test_view_combat_fx.gd`,
-  `test_soldier_clips.gd`, `test_soldier_footslide.gd`, `test_soldier_budget.gd`.
-- **Tools:** `tools/fp_capture.gd`, `tools/soldier_capture.gd`, `tools/contact_sheet.gd`,
-  `tools/fp_light_cost.gd`, `tools/glb_inspect.gd`.
+- **Budgets** (`art_soldier.json`, unchanged by AN2): view model 4,000 triangles and 12 draw calls; soldier
+  near 3,100 / 2, far 2,420 / 2; rig cap 40 bones (soldier 22), arm rig 50 (view rig 37). Measured at the AN2
+  commits [measured]: view model Pilum 3,846 with the flash, Sagittarii 3,964, blade 2,818; soldier body 2,536
+  near / 1,152 far plus the gun's `ThirdNear` (about 470-490) or `ThirdFar` (about 250-260). Desktop proxy, Nov
+  16 2026 (RTX 3080, not a phone): `tools/anim_cost.gd`, 18 soldiers in mixed states, about 2.3-3.0 ms of
+  main-thread animation per frame (about 130-165 us per soldier: model script 0.8-1.0 ms, AnimationTree
+  0.4-0.6 ms, skeleton modifiers and IK 1.1-1.4 ms); `tools/frame_time.gd` on alesia_1km, 1509x648: 303 draw
+  calls, render CPU 0.69-0.71 ms, GPU 0.87-0.89 ms. Frame time on the Fold is not measured.
+- **Tests** (AN1): `test_view_model_art.gd`, `test_view_motion.gd`, `test_view_combat_fx.gd`,
+  `test_soldier_clips.gd`, `test_soldier_footslide.gd`, `test_soldier_budget.gd`. (AN2):
+  `test_blender_pipeline.gd` (bone axes, weights, colour and UV2 through the importer), `test_soldier_glb.gd`
+  (rig, rests, LODs, the part-box proxy), `test_soldier_clips_glb.gd` (played equals authored),
+  `test_soldier_keyed_glb.gd` (cover, ladder and action clips, contacts), `test_view_glb.gd` (arms, weapons,
+  anchors), `test_view_clips.gd` (rig and clips per weapon, reload length and stages, the cell in the hand, ADS end
+  pose, the procedural fallback), and the made_by pairing in
+  `test_generated_assets.gd`.
+- **Tools:** `tools/fp_capture.gd` (AN2: `dense_*` states for clip sequences, `--every=N`, `--no-clips`),
+  `tools/soldier_capture.gd` (AN2: `ladder_up`, `ladder_down`, `ladder_top`, `door_open`, `chest_open`,
+  `pickup_ground`; `--procedural` for code-built before-captures), `tools/l1c_capture.gd` (`--ladder-seq`),
+  `tools/cover_capture.gd`, `tools/contact_sheet.gd`, `tools/sheet_from_list.gd`, `tools/fp_light_cost.gd`,
+  `tools/glb_inspect.gd`, `tools/anim_cost.gd` (AN2: animation CPU time for 18 soldiers; run `--headless`).
 
 ## 5. Testing
 

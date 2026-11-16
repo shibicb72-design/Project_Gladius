@@ -1,7 +1,9 @@
 class_name ClipLibrary
 extends RefCounted
 ## Explicit candidates only. Resolve at tree construction, never per frame.
-const ORDER: Array[String] = ["actionforge", "ual", "mixamo_local"]
+## M2 AN2 item 2: "blender" = clips baked onto the soldier's own rig in Blender (soldier_clips.glb), first; the UAL
+## runtime retarget stays as the fallback behind it.
+const ORDER: Array[String] = ["blender", "actionforge", "ual", "mixamo_local"]
 static var _clips: Dictionary = {}
 static var _reported: Dictionary = {}
 static var _held: Dictionary = {}
@@ -42,7 +44,7 @@ func resolve(logical: String, procedural: Animation = null, target: Skeleton3D =
 						clip = resource.get_animation(name)
 				elif resource is PackedScene and target != null:
 					var rig: Dictionary = sources.get("rigs", {}).get(String(candidate.get("rig", "")), {})
-					clip = _scene_clip(resource, candidate, target, key, rig.get("bones", {}))
+					clip = _scene_clip(resource, candidate, target, key, rig.get("bones", {}), bool(rig.get("same_rig", false)))
 				_clips[key] = clip
 			var clip: Animation = _clips[key]
 			if clip != null:
@@ -64,7 +66,9 @@ static func release_sources() -> void:
 static func cached_count() -> int:
 	return _clips.size()
 
-static func _scene_clip(scene: PackedScene, candidate: Dictionary, target: Skeleton3D, key: String, source_map: Dictionary = {}) -> Animation:
+## A rig row with "same_rig": the source skeleton is the soldier's own (checked: names and rests); its clips are
+## copied as authored (AnimRetarget.same_rig_clip). A source that fails the check is retargeted like any other.
+static func _scene_clip(scene: PackedScene, candidate: Dictionary, target: Skeleton3D, key: String, source_map: Dictionary = {}, same: bool = false) -> Animation:
 	var instance := scene.instantiate()
 	var rigs := instance.find_children("*", "Skeleton3D", true, false)
 	if instance is Skeleton3D:
@@ -77,6 +81,9 @@ static func _scene_clip(scene: PackedScene, candidate: Dictionary, target: Skele
 	if rigs.size() == 1:
 		var name: StringName = candidate.get("clip", "")
 		for player: AnimationPlayer in players:
+			if player.has_animation(name) and same and AnimRetarget.same_rig(rigs[0], target):
+				result = AnimRetarget.same_rig_clip(player.get_animation(name), rigs[0], target, key)
+				break
 			if player.has_animation(name):
 				result = AnimRetarget.bake(player.get_animation(name), rigs[0], target, key, source_map, bool(candidate.get("root_motion", false)))
 				break

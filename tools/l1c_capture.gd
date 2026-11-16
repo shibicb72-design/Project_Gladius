@@ -8,7 +8,8 @@ extends SceneTree
 ## ramp_before / ramp_after / ramp2_after (PNG, 2520 x 1080) and the contact sheets sheet_doors / sheet_ladder /
 ## sheet_ramp (each a row of the shots scaled to 840 px wide). Prints one L1C_SHOT line per file; exit 1 on a problem.
 ## ladder_fp (the game's own camera on a ladder) needs a real match with its CameraRig: not made here.
-## Options: --map=res://data/maps/alesia_1km.json (default), --sheets-only (rebuild the sheets from the PNGs in --out).
+## Options: --map=res://data/maps/alesia_1km.json (default), --sheets-only (rebuild the sheets from the PNGs in --out),
+## --ladder-seq (M2 AN2: the climb in real time with a JPG sequence in <out>/ladder_seq/).
 
 const MAP_PATH := "res://data/maps/alesia_1km.json"
 const SHOT_SIZE := Vector2i(2520, 1080)
@@ -26,6 +27,8 @@ const STRUCTURES_PATH := "res://data/maps/alesia_1km_structures.json"
 var _view: SubViewport
 var _camera: Camera3D
 var _dir := ""
+var _seq := false  # M2 AN2: --ladder-seq
+var _seq_n := 0
 
 
 func _initialize() -> void:
@@ -38,6 +41,8 @@ func _initialize() -> void:
 			map_path = a.substr(6)
 		elif a == "--sheets-only":
 			sheets_only = true
+		elif a == "--ladder-seq":
+			_seq = true
 	if _dir == "":
 		printerr("l1c_capture: give --out=<absolute dir>")
 		quit(1)
@@ -194,13 +199,16 @@ func _ladder_shots(stage: Node3D, map: Node3D, builder: Node, cover: Dictionary)
 		if not pawn.climbing or pawn.global_position.y >= ladder.foot().y + ladder.height * 0.5:
 			break
 		pawn._physics_process(1.0 / 60.0)
+		await _seq_tick(ladder)
 	ok = await _save("ladder_middle", "%s half way, feet y %.2f (ledge %.2f), climbing=%s" % [ladder.prop_id, pawn.global_position.y, ladder.top_y(), pawn.climbing]) and ok
 	for i in 600:
 		if not pawn.climbing:
 			break
 		pawn._physics_process(1.0 / 60.0)
-	for i in 20:
+		await _seq_tick(ladder)
+	for i in 20 + (50 if _seq else 0):
 		pawn._physics_process(1.0 / 60.0)
+		await _seq_tick(ladder)
 	ok = await _save("ladder_top", "%s on the roof, feet y %.2f (ledge %.2f), climbing=%s floor=%s" % [ladder.prop_id, pawn.global_position.y, ladder.top_y(), pawn.climbing, pawn.is_on_floor()]) and ok
 	pawn.queue_free()
 	return ok
@@ -275,6 +283,23 @@ func _ramp_shots(builder: Node) -> bool:
 func _aim_down(at: Vector2, terrain: MapTerrain) -> void:
 	_camera.global_position = Vector3(at.x, terrain.height_at(at.x, at.y) + RAMP_UP_M, at.y)
 	_camera.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+
+
+## M2 AN2 (--ladder-seq): the climb in real time, one physics tick per rendered frame (the soldier model animates
+## between ticks: ladder_up, the top step's ladder_top), a JPG every 4th tick into <out>/ladder_seq/, the proof camera
+## following the climber's height.
+func _seq_tick(ladder: Ladder) -> void:
+	if not _seq:
+		return
+	_seq_n += 1
+	_aim_ladder(ladder)
+	await process_frame
+	if _seq_n % 4 != 0:
+		return
+	await RenderingServer.frame_post_draw
+	var dir := _dir.path_join("ladder_seq")
+	DirAccess.make_dir_recursive_absolute(dir)
+	_view.get_texture().get_image().save_jpg(dir.path_join("ladder_seq_%03d.jpg" % (_seq_n / 4)), 0.85)
 
 
 func _save(shot_name: String, what: String) -> bool:

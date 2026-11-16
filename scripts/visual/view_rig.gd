@@ -125,6 +125,66 @@ static func apply_parts(weapon: Node3D, motion: ViewMotion, pivot_xf: Transform3
 	ViewHands.aim_forearm(arm, xf.affine_inverse() * elbow)
 
 
+## M2 AN2 item 4b: a clip frame (ViewMotion.clip_frame bones) copied onto the weapon's parts: Cell / Charge local
+## transforms, each arm's placement (R_hand / L_hand; a root hand is in the camera frame and kept there), its finger
+## bones (R_<finger>_<s> -> the arm skeleton's <finger>_<s>) and its forearm aimed at the clip's elbow (camera frame).
+static func apply_clip(weapon: Node3D, bones: Dictionary, cs: ViewMotion.ClipSet) -> void:
+	for sub in ["Cell", "Charge"]:
+		var n := weapon.get_node_or_null(sub) as Node3D
+		if n != null and bones.has(sub):
+			n.transform = bones[sub]
+	for side in ["r", "l"]:
+		var arm := weapon.get_node_or_null("RightArm" if side == "r" else "LeftArm") as Node3D
+		var pre := String(side).to_upper() + "_"
+		if arm == null or not bones.has(pre + "hand"):
+			continue
+		var xf: Transform3D = bones[pre + "hand"]
+		if String(cs.parents.get(pre + "hand", "")) == "":
+			xf = weapon.transform.affine_inverse() * xf  # a camera-frame hand (the blade's free hand) stays in the view
+		arm.transform = xf
+		var skel := arm.get_node("Skeleton") as Skeleton3D
+		for n in ViewHands.bone_names():
+			if n != "hand" and n != "forearm" and bones.has(pre + n):
+				skel.set_bone_pose_rotation(skel.find_bone(n), (bones[pre + n] as Transform3D).basis.get_rotation_quaternion())
+		if bones.has(pre + "elbow"):
+			var elbow: Vector3 = (bones[pre + "elbow"] as Transform3D).origin
+			ViewHands.aim_forearm(arm, (weapon.transform * xf).affine_inverse() * elbow)
+
+
+const _PARTS: Array[String] = ["Cell", "Charge", "RightArm", "LeftArm"]
+
+
+## The parts' current pose (node transforms and arm bone rotations) for a fade.
+static func capture_parts(weapon: Node3D) -> Dictionary:
+	var out := {}
+	for p in _PARTS:
+		var n := weapon.get_node_or_null(p) as Node3D
+		if n == null:
+			continue
+		out[p] = n.transform
+		var skel := n.get_node_or_null("Skeleton") as Skeleton3D
+		if skel != null:
+			var rots: Array[Quaternion] = []
+			for i in skel.get_bone_count():
+				rots.append(skel.get_bone_pose_rotation(i))
+			out[p + ":bones"] = rots
+	return out
+
+
+## Blends the parts from a captured pose `from` toward their current pose by w (0 = from, 1 = as now).
+static func blend_parts(weapon: Node3D, from: Dictionary, w: float) -> void:
+	for p in _PARTS:
+		var n := weapon.get_node_or_null(p) as Node3D
+		if n == null or not from.has(p):
+			continue
+		n.transform = (from[p] as Transform3D).interpolate_with(n.transform, w)
+		var skel := n.get_node_or_null("Skeleton") as Skeleton3D
+		if skel != null and from.has(p + ":bones"):
+			var rots: Array = from[p + ":bones"]
+			for i in mini(rots.size(), skel.get_bone_count()):
+				skel.set_bone_pose_rotation(i, (rots[i] as Quaternion).slerp(skel.get_bone_pose_rotation(i), w))
+
+
 ## The elbow (weapon frame) that goes with a reach target: art_soldier.json hands.l_cell / l_charge "elbow" (weapon
 ## frame), anim.json pickup "reach_elbow_view_m" (camera frame); null = keep the resting elbow.
 static func _left_elbow(weapon: Node3D, target: String, motion: ViewMotion, pivot_xf: Transform3D) -> Variant:

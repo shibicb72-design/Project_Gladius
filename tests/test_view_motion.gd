@@ -238,12 +238,14 @@ func test_melee_poses_and_motions_stay_inside_the_limits() -> void:
 	seen["idle"] = (r[1] as Array).has("idle")
 	_pawn.fired.emit()
 	assert_true(vm.is_swinging(), "fired with the blade: the swing")
-	var swing_rest := (vm.get_node("Pivot") as Node3D).transform
+	# M2 AN2 item 4b: the swing clip moves the blade's node, the procedural swing the Pivot: measure the blade (its
+	# global transform includes the Pivot), which covers both.
+	var swing_rest := _pose_key(vm)
 	var frames := ceili(_vm_f("swing_s") / DT) + 2
 	var most := 0.0
 	for i in frames:
 		await _tree().physics_frame
-		most = maxf(most, _moved(swing_rest, (vm.get_node("Pivot") as Node3D).transform))
+		most = maxf(most, _moved(swing_rest, _pose_key(vm)))
 	moved["swing"] = most
 	seen["swing"] = true
 	r = await _sample(vm, 2, rest, "blade after swing", fails)
@@ -350,4 +352,163 @@ func test_cover_exit_never_shows_neither_body_nor_view_model() -> void:
 			break
 	assert_true(first_shown >= 0, "the view model came back")
 	assert_eq(empty, 0, "no exit frame shows neither the body nor the view model")
+	await _cleanup()
+
+
+# --- M2 AN2 item 4b: the clip layer ---------------------------------------------------------------------------------
+
+## The three fov_table rows (phone, 4:3 tablet, Fold inner screen).
+const CLIP_ASPECTS: Array[float] = [2520.0 / 1080.0, 2048.0 / 1536.0, 2176.0 / 1812.0]
+
+
+static func _inv_smoothstep(y: float) -> float:
+	var lo := 0.0
+	var hi := 1.0
+	for i in 40:
+		var mid := (lo + hi) * 0.5
+		if smoothstep(0.0, 1.0, mid) < y:
+			lo = mid
+		else:
+			hi = mid
+	return (lo + hi) * 0.5
+
+
+## Poses the real view model on one clip key: the motion's state is set so the clip plays time `u` (0..1) of `clip`,
+## then the model is updated twice (the second time without the part fade a new clip starts with).
+func _pose_clip(vm: ViewModel, m: ViewMotion, motion: String, clip: String, u: float) -> void:
+	var cs := m.clip_set()
+	var length := cs.length("%s_%s" % [m.weapon_id, clip])
+	var below := 0.99999
+	m.reload_total = 0.0
+	m.switch_total = 0.0
+	m.pickup_total = 0.0
+	m.swing_total = 0.0
+	m.fire_t = -1.0
+	vm._aim_blend = 0.0
+	match motion:
+		"reload":
+			m.reload_total = _pawn.loadout.get_active().def.reload_s
+			m.reload_t = u * m.reload_total * below
+		"switch":
+			m.switch_total = _vm_f("swap_s")
+			m.switch_t = (u * 0.5 if clip == "switch_out" else 0.5 + u * 0.5 * below) * m.switch_total
+			if clip == "switch_out":
+				m.switch_t = minf(m.switch_t, m.switch_total * 0.5 * below)
+		"pickup":
+			m.pickup_total = float(m.cfg["pickup"]["s"])
+			m.pickup_t = u * m.pickup_total * below
+		"swing":
+			m.swing_total = _vm_f("swing_s")
+			m.swing_t = u * m.swing_total * below
+		"ads":
+			var a := u if clip == "ads_raise" else 1.0 - u
+			m._ads_dir = 1.0 if clip == "ads_raise" else 0.0
+			vm._aim_blend = _inv_smoothstep(a)
+		"idle":
+			m._time = u * length
+		"walk":
+			m._walk = 1.0
+			m._step_phase = u * TAU
+		"sprint":
+			m._sprint = 1.0
+			m._step_phase = u * TAU
+		"fire":
+			m.fire_t = u * length
+	vm._update(0.0)
+	vm._fade_left = 0.0
+	vm._update(0.0)
+
+
+## Every key frame (30 fps) of every ENABLED clip (anim.json first_person.clips.enabled) of every weapon, played
+## through the real view model, at the three fov_table aspects: reach < max_reach_m, nearest vertex past the near
+## plane, no near-plane cut in the view; the end of ads_raise is exactly the ADS pose (the red dot on the centre).
+func test_every_frame_of_every_enabled_clip_stays_inside_the_limits() -> void:
+	var fails: Array = []
+	var enabled: Dictionary = DataRegistry.new().load_file("res://data/anim.json")["first_person"]["clips"]["enabled"]
+	var reach := _vm_f("max_reach_m")
+	var cam_cfg := DataRegistry.new().get_camera_cfg()
+	var sampled := 0
+	for class_id in ["hastati", "sagittarii"]:
+		await _fixture(class_id)
+		var vm := _rig.get_view_model()
+		var cam := _rig.get_camera()
+		var ids: Array = ["pilum_br", "gladius_lux"] if class_id == "hastati" else ["sagittarii_rifle"]
+		for id: String in ids:
+			await _show(id)
+			var m := vm.get_motion()
+			var melee := DataRegistry.new().get_weapon_def(id).is_melee()
+			var worst := {"far": 0.0, "nearest": 9.0, "cuts": 0, "frames": 0}
+			for motion: String in enabled:
+				if not bool(enabled[motion]) or not m.clip_on(motion):
+					continue
+				var clips: Array = [ViewMotion.CLIP_OF[motion]]
+				if motion == "switch":
+					clips = ["switch_out", "switch_in"]
+				elif motion == "ads":
+					clips = ["ads_raise", "ads_lower"]
+				for clip: String in clips:
+					var n := roundi(m.clip_set().length("%s_%s" % [id, clip]) * 30.0)
+					for k in n + 1:
+						var u := float(k) / maxf(n, 1)
+						_pose_clip(vm, m, motion, clip, u)
+						var fov := cam.fov
+						for aspect in CLIP_ASPECTS:
+							cam.fov = fov * CameraRig.fov_for_aspect(cam_cfg, aspect) / maxf(_rig.base_fov, 0.01)
+							var meas := ViewProbe.measure(vm, cam, aspect)
+							worst["far"] = maxf(worst["far"], meas["far"])
+							worst["nearest"] = minf(worst["nearest"], meas["nearest"])
+							worst["cuts"] += int(meas["cuts"])
+							if meas["cuts"] > 0 or meas["far"] >= reach or meas["nearest"] <= cam.near:
+								fails.append("%s %s %d/%d aspect %.2f: cuts %d (%s) reach %.4f nearest %.4f" % [id, clip, k, n, aspect, meas["cuts"], ViewProbe.cut_report(meas), meas["far"], meas["nearest"]])
+						cam.fov = fov
+						worst["frames"] += 1
+						sampled += 1
+					if clip == "ads_raise" and not melee:
+						var w := vm.get_shown_weapon()
+						var err := w.transform.origin.distance_to((w.get_meta(&"ads") as Transform3D).origin)
+						assert_true(err < 1e-4, "%s: the end of ads_raise is the ADS pose (%.6f m)" % [id, err])
+			_pose_clip(vm, m, "", "", 0.0)
+			print("FP CLIP LIMITS %s frames=%d (x%d aspects) reach_m=%.4f nearest_m=%.4f cuts=%d (limit %.2f, near %.3f)" % [id, worst["frames"], CLIP_ASPECTS.size(), worst["far"], worst["nearest"], worst["cuts"], reach, cam.near])
+		await _cleanup()
+	assert_true(sampled > 0, "clip frames sampled (%d)" % sampled)
+	assert_true(fails.is_empty(), "every clip frame inside the limits (%d bad): %s" % [fails.size(), "; ".join(PackedStringArray(fails.slice(0, 6)))])
+
+
+## A reload interrupted by a switch: the parts fade from where they were (no pop larger than the reload's own steps),
+## and once the gun is back the cell, charging handle and left hand are at rest (nothing left displaced).
+func test_reload_interrupted_by_a_switch_leaves_nothing_displaced() -> void:
+	await _fixture("hastati")
+	var vm := _rig.get_view_model()
+	var gun := vm.get_shown_weapon()
+	var left := gun.get_node("LeftArm") as Node3D
+	var cell := gun.get_node("Cell") as Node3D
+	_pawn.reload_started.emit()
+	var reload_steps := 0.0
+	var last := left.global_position
+	for i in ceili(0.5 * _pawn.loadout.get_active().def.reload_s / DT):
+		await _tree().physics_frame
+		reload_steps = maxf(reload_steps, left.global_position.distance_to(last))
+		last = left.global_position
+	var mid_clip := vm.get_clip_motion()
+	var displaced := cell.transform.origin.distance_to((cell.get_meta(&"rest") as Transform3D).origin)
+	_pawn.loadout.swap()
+	_pawn.weapon_switched.emit(_pawn.loadout.active)
+	var switch_steps := 0.0
+	for i in 6:
+		await _tree().physics_frame
+		if vm.get_shown_weapon() == gun:
+			switch_steps = maxf(switch_steps, left.global_position.distance_to(last))
+		last = left.global_position
+	print("FP CLIP INTERRUPT mid=%s cell_out_by=%.3f largest hand step: reload %.4f, after the switch %.4f" % [mid_clip, displaced, reload_steps, switch_steps])
+	assert_eq(mid_clip, "reload" if vm.get_motion().clip_on("reload") else "", "the reload clip ran")
+	assert_true(switch_steps <= reload_steps * 1.5 + 0.002, "no pop on the interrupt (%.4f vs %.4f)" % [switch_steps, reload_steps])
+	await _frames(ceili(_vm_f("swap_s") / DT) + 4)
+	await _show("pilum_br")
+	assert_true(not vm.is_reloading() and vm.get_clip_motion() == "", "no reload left running")
+	var e_cell := cell.transform.origin.distance_to((cell.get_meta(&"rest") as Transform3D).origin)
+	var charge := gun.get_node("Charge") as Node3D
+	var e_charge := charge.transform.origin.distance_to((charge.get_meta(&"rest") as Transform3D).origin)
+	var e_hand := left.transform.origin.distance_to((left.get_meta(&"rest") as Transform3D).origin)
+	print("FP CLIP INTERRUPT back: cell %.6f charge %.6f left hand %.6f m from rest" % [e_cell, e_charge, e_hand])
+	assert_true(e_cell < 1e-4 and e_charge < 1e-4 and e_hand < 1e-4, "cell, charging handle and left hand back at rest")
 	await _cleanup()

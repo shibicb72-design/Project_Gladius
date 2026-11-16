@@ -50,6 +50,14 @@ var _spent_scale := Vector3.ONE
 var _last_stage := ""
 var _dt := 0.0
 
+# M2 AN2 item 4b: the clip layer's part driver and its fade (see _start_fade).
+var _clip_drive := ""
+var _clip_d := Transform3D.IDENTITY
+var _fade_d := Transform3D.IDENTITY
+var _fade_parts := {}
+var _fade_left := 0.0
+var _posed: Node3D
+
 # Look sway state.
 var _sway := Vector2.ZERO  # x = pitch lag, y = yaw lag (degrees)
 var _last_look := Vector2.ZERO
@@ -367,6 +375,7 @@ func _show_weapon(id: String, melee: bool) -> void:
 	if _shown != null:
 		_shown.visible = false
 	_shown_id = id
+	_motion.weapon_id = id  # M2 AN2 item 4b: whose clips play
 	_shown = null
 	_muzzle = null
 	if id == "":
@@ -401,13 +410,56 @@ func _apply_pose(raise: float) -> void:
 	_pivot.transform = rise * Transform3D(_deg(Vector3(_sway.x, _sway.y, 0.0) * calm), Vector3.ZERO) * _motion.pivot_xf(calm)
 	if _shown == null:
 		return
-	# About the grip: sprint pose, ADS settle, kick, reload tilt, switch and pickup.
-	var base: Transform3D = _shown.get_meta(&"hold")
+	# About the grip: the hold / ADS base (its path shaped by the ADS clip when enabled), the one-shot clip's weapon
+	# delta (M2 AN2 item 4b), the looping clips, then the procedural sprint pose, ADS settle, kick, reload tilt, switch
+	# and pickup (each procedural term steps aside when its clip plays).
+	var kick := lerpf(1.0, _f("ads_kick_mult"), ads)
+	var hold: Transform3D = _shown.get_meta(&"hold")
+	var base := hold
 	if ads > 0.0:
-		base = base.interpolate_with(_shown.get_meta(&"ads"), ads)
-	_shown.transform = base * _motion.weapon_xf(lerpf(1.0, _f("ads_kick_mult"), ads), not _shown.has_node("Muzzle"))
-	ViewRig.apply_parts(_shown, _motion, _pivot.transform)  # cell, charging handle, left-hand reach
+		var ads_xf: Transform3D = _shown.get_meta(&"ads")
+		base = hold.interpolate_with(ads_xf, ads) * _motion.clip_ads_offset(hold, ads_xf, ads)
+	var clip := _motion.clip_frame()
+	var drive := String(clip.get("name", ""))
+	if drive != _clip_drive:
+		_start_fade()
+		_clip_drive = drive
+	var fw := smoothstep(0.0, 1.0, 1.0 - _fade_left / _fade_s()) if _fade_left > 0.0 else 1.0
+	var d := ViewMotion.clip_delta(clip)
+	if fw < 1.0:
+		d = _fade_d.interpolate_with(d, fw)
+	_clip_d = d
+	_shown.transform = base * d * _motion.clip_loop_delta(calm, ads, kick) * _motion.weapon_xf(kick, not _shown.has_node("Muzzle"))
+	if clip.is_empty():
+		ViewRig.apply_parts(_shown, _motion, _pivot.transform)  # cell, charging handle, left-hand reach
+	else:
+		ViewRig.apply_clip(_shown, clip["bones"], clip["set"])
+	if fw < 1.0:
+		ViewRig.blend_parts(_shown, _fade_parts, fw)
+	_fade_left = maxf(0.0, _fade_left - _dt)
+	_posed = _shown
 	_tick_spent_cell()
+
+
+## M2 AN2 item 4b: when the part driver changes (a clip starts or stops, or one interrupts another, e.g. a switch
+## during a reload), the cell, charging handle, arms and fingers blend from where they were over clips.fade_s instead of
+## popping; not across a weapon change (the newly shown weapon's nodes hold an old pose).
+func _start_fade() -> void:
+	_fade_left = 0.0
+	if _shown == null or _shown != _posed:
+		return
+	_fade_parts = ViewRig.capture_parts(_shown)
+	_fade_d = _clip_d
+	_fade_left = _fade_s()
+
+
+func _fade_s() -> float:
+	return maxf(float((_motion.cfg.get("clips", {}) as Dictionary).get("fade_s", 0.1)), 0.001)
+
+
+## The one-shot clip driving the weapon's parts now ("" = the procedural curves): tests and tools.
+func get_clip_motion() -> String:
+	return _clip_drive
 
 
 ## Drops a spent cell when the reload passes from cell_out to cell_in, and moves a falling one (presentation only).

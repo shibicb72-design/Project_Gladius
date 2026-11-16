@@ -95,13 +95,16 @@ func _process_modification_with_delta(delta: float) -> void:
 		placed.y = maxf(placed.y, _foot_floor)
 		goals.append([turn * (knee.origin - pivot) + pivot, Transform3D(turn * foot.basis, placed)])
 	var spine_local := skeleton.get_bone_pose(_spine)
-	spine_local.basis = Basis(Quaternion.IDENTITY.slerp(spine_local.basis.get_rotation_quaternion(), float(cfg["spine_follow"])))
+	# M2 AN2: in cover (lift_weight 0) the keyed cover clips own the spine and chest as authored (the hunched low hug,
+	# the lean): the library-follow scale and the upright chest fade out with the lift.
+	var follow := lerpf(1.0, float(cfg["spine_follow"]), lift_weight)
+	spine_local.basis = Basis(Quaternion.IDENTITY.slerp(spine_local.basis.get_rotation_quaternion(), follow))
 	var spine := hips * spine_local
 	var chest := spine * skeleton.get_bone_pose(_chest)
 	# The aimed chest keeps chest_upright of its own (aim) orientation against the library hips and spine lean,
 	# so the rifle does not dip with a jog's forward pitch.
 	var aimed := skeleton.get_bone_pose(_chest).basis.get_rotation_quaternion()
-	chest.basis = Basis(chest.basis.get_rotation_quaternion().slerp(aimed, float(cfg["chest_upright"])))
+	chest.basis = Basis(chest.basis.get_rotation_quaternion().slerp(aimed, float(cfg["chest_upright"]) * lift_weight))
 	var height := _hips_rest.y + minf((hips.origin.y - _hips_rest.y) * float(cfg["hips_bob_scale"]), 0.0)
 	# No higher than both feet can still be reached with the knees a little bent (leg_reach of the full leg).
 	for i in _legs.size():
