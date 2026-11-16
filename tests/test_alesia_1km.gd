@@ -219,13 +219,13 @@ func test_chests_are_built_under_nav_and_spill_on_open_ground() -> void:
 	assert_eq(problems, PackedStringArray(), "WorldProps.problems is clean on the committed cover file")
 
 
-func test_validates_and_has_no_backdrop() -> void:
+func test_validates_and_has_the_1km_backdrop() -> void:
 	var map := _map()
 	var reg := DataRegistry.new()
 	assert_eq(reg.validate_map(MAP).size(), 0, "validate_map is clean: " + ", ".join(reg.validate_map(MAP)))
 	var builder := map.get_node("ArtBuilder")
-	assert_true(builder.get_node_or_null("Backdrop") == null, "no backdrop node on the 1 km map")
-	assert_true(not _Builder.backdrop_wanted(_def(), true), "backdrop false wins over a preset that enables it")
+	assert_true(builder.get_node_or_null("Backdrop/Hills") != null and builder.get_node_or_null("Backdrop/OuterWall") == null, "the 1 km map has its far backdrop (hills, no small-map wall ring; M2W1 item 9)")
+	assert_true(_Builder.backdrop_wanted(_def(), true) and not _Builder.backdrop_wanted({"backdrop": false}, true), "backdrop true with the preset; a map's false still wins over the preset")
 	assert_true(_Builder.backdrop_wanted(DataRegistry.parse_quiet(DataRegistry.MAP_PATH), true), "a map without the key keeps the backdrop")
 	assert_true(not _Builder.backdrop_wanted(DataRegistry.parse_quiet(DataRegistry.MAP_PATH), false), "a preset without it has none")
 

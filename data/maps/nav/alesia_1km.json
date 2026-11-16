@@ -2,7 +2,7 @@
 	"godot": "4.7.2",
 	"inputs": {
 		"res://data/art_astra.json": "4ad5a9bc3218128deb08f3491e2924ad41a4101aa7d5bbfd780133accafed498",
-		"res://data/maps/alesia_1km.json": "b5e81ce07975bc6c3024abfed208fc57d4a95efb9870b6ee7eb1bb1bd84e63fc",
+		"res://data/maps/alesia_1km.json": "df652a7b31654f9e71a238e1403559c3db8ed3b224dd00195d5806b1365b7684",
 		"res://data/maps/alesia_1km_cover.json": "1693ed3f655e9f44b34c911dcb383bf93a4afc4f9895ada3e9448dbd3fffb2f2",
 		"res://data/maps/alesia_1km_structures.json": "77ef3d82dbe6b1a1183707dc270cebd1b8406656ef5fca1c32fae6a472871fa3",
 		"res://data/maps/alesia_cover.json": "54ac19f80114344e7f7b37811fb6605f685fe863b2e30ec6b5928dcbc95f8221",
