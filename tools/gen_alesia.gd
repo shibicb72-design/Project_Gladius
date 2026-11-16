@@ -61,6 +61,10 @@ func _initialize() -> void:
 		int(bk["camps"]) + int(bk["inner_gates"]) + int(bk["outer_gates"]) + int(bk["arx"]) + int(bk["fields"]),
 		int(bk["camps"]), int(bk["inner_gates"]), int(bk["outer_gates"]), int(bk["arx"]), int(bk["fields"]), int(out["cover_walls"]),
 		int(ch["camps"]) + int(ch["arx"]) + int(ch["fields"]), int(ch["camps"]), int(ch["arx"]), int(ch["fields"])])
+	var dc: Dictionary = out["doors"]
+	print("GEN_ALESIA doors: doors=%d gates=%d open=%d closed=%d" % [int(dc["door"]), int(dc["gate"]), int(dc["open"]), int(dc["closed"])])
+	var lc: Dictionary = out["ladders"]
+	print("GEN_ALESIA ladders: ladders=%d blocks=%d first_end=%d other_end=%d none=%d" % [int(lc["ladders"]), int(lc["blocks"]), int(lc["first_end"]), int(lc["other_end"]), int(lc["none"])])
 	for line: String in out["shortfalls"]:
 		print("GEN_ALESIA short: ", line)
 	for p in problems:
@@ -281,11 +285,24 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	# 6. M2 L1b: the loot chests ("props.chests"), appended after the breakables. Permanent bodies under Nav, never
 	# cover walls (so not counted against max_cover_walls).
 	var chest_pass := _chests(state, camp_centres)
+	# 7. M2L1c: a guard beside each aqueduct ramp's foot ("ramp_guard", OQ-MAP-CLEAR), appended after every earlier
+	# pass, so the earlier pieces and their random draws stay exactly as they were.
+	_ramp_guards(state, structures, kit_types)
+	# 8. M2L1c: the doors and gates ("doors", OQ-PROPS-DOOR) in the existing barracks doorways and gate openings,
+	# appended after every earlier pass (their start-state draws come last), so nothing earlier moves.
+	var door_pass := _doors(state, structures, kit_types)
+	# 9. M2 L1c commit 5: the ladders ("ladders", OQ-PROPS-LADDER) on the barracks end walls, appended after the door
+	# pass; no random draw, so nothing earlier moves.
+	var ladder_pass := _ladders(state, structures, kit_types)
 	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
 	if gen.has("props"):
 		cover_file["breakables"] = breakables
 		if (gen["props"] as Dictionary).has("chests"):
 			cover_file["chests"] = chest_pass["entries"]
+	if gen.has("doors"):
+		cover_file["doors"] = door_pass["entries"]
+	if gen.has("ladders"):
+		cover_file["ladders"] = ladder_pass["entries"]
 	var structure_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": structures}
 	var landmark_file := {
 		"version": 1,
@@ -309,6 +326,8 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		"extra": extra,
 		"breakables": props["counts"],
 		"chests": chest_pass["counts"],
+		"doors": door_pass["counts"],
+		"ladders": ladder_pass["counts"],
 		"cover_walls": walls,
 	}
 
@@ -510,6 +529,303 @@ static func _aqueduct(aq: Dictionary) -> Array:
 	pieces.append({"id": "%s_Ramp_In" % base, "type": "aqueduct_ramp", "at": [_r3(inner_at.x), 0.0, _r3(inner_at.y)], "yaw": _yaw_towards(out_dir)})
 	pieces.append({"id": "%s_Ramp_Out" % base, "type": "aqueduct_ramp", "at": [_r3(outer_at.x), 0.0, _r3(outer_at.y)], "yaw": _yaw_towards(-out_dir)})
 	return pieces
+
+
+## M2L1c (generator.ramp_guard, OQ-MAP-CLEAR): guard pieces flush along both long sides of every aqueduct ramp,
+## from its foot up the slope. Measured (runs/M2L1C): the saved navmesh joins the ground to a ramp's side near
+## its foot, where the side is a step the bake connects (agent_max_climb 0.25 m at cell_height 0.25 m) but a pawn
+## (max step 0.12 m, data/physics_baseline.json) cannot climb, so a path from beside the foot runs into the side and
+## the walker stands there. A guard closes that side in physics and in the bake (it is a structure under Nav), so
+## the path enters at the foot. ramp_guard: type (a kit type whose footprint's long axis is local x), along_m (the
+## stretch from the foot that is guarded, in whole guard lengths), overlap_m (into the ramp, so no slit is left).
+## Pieces "<ramp id>_Guard_<L|R><k>" take the ramp's yaw. A guard closer than placement.minimum_gap_m to any other
+## footprint (its own ramp and every guard aside) is a problem, so a guard never makes a slit or sits on a piece.
+static func _ramp_guards(state: Dictionary, structures: Array, kit_types: Dictionary) -> void:
+	var gen: Dictionary = state["gen"]
+	if not gen.has("ramp_guard"):
+		return
+	var cfg: Dictionary = gen["ramp_guard"]
+	var type := String(cfg["type"])
+	var guard_def: Dictionary = kit_types[type]
+	var local_guard := WorldKit.footprint(guard_def, Vector3.ZERO, 0.0)
+	var local_ramp := WorldKit.footprint(kit_types["aqueduct_ramp"], Vector3.ZERO, 0.0)
+	var length := local_guard.size.x
+	var per_side := maxi(int(ceil(float(cfg["along_m"]) / length - 0.001)), 1)
+	var overlap := float(cfg["overlap_m"])
+	var min_gap := float(gen["placement"]["minimum_gap_m"])
+	var own: Array[Rect2] = []
+	var guards: Array = []
+	for entry: Dictionary in structures:
+		if String(entry["type"]) != "aqueduct_ramp":
+			continue
+		var at := Vector3(float(entry["at"][0]), 0.0, float(entry["at"][2]))
+		var yaw := float(entry["yaw"])
+		var turn := Basis(Vector3.UP, deg_to_rad(yaw))
+		own.append(WorldKit.footprint(kit_types["aqueduct_ramp"], at, yaw))
+		for side: float in [-1.0, 1.0]:
+			# Local frame: +x up the slope (the foot at local_ramp.position.x), the sides at local z = the rect's edges.
+			var edge := local_ramp.end.y if side > 0.0 else local_ramp.position.y
+			var z := edge + side * (local_guard.size.y * 0.5 - overlap) - local_guard.get_center().y
+			for k in per_side:
+				var x := local_ramp.position.x + length * (float(k) + 0.5) - local_guard.get_center().x
+				var p := at + turn * Vector3(x, 0.0, z)
+				guards.append({"id": "%s_Guard_%s%d" % [entry["id"], "L" if side < 0.0 else "R", k], "type": type, "at": [_r3(p.x), 0.0, _r3(p.z)], "yaw": yaw})
+	var placed: Array[Rect2] = state["placed"]
+	var guard_rects: Array[Rect2] = []
+	for g: Dictionary in guards:
+		guard_rects.append(WorldKit.footprint(guard_def, Vector3(float(g["at"][0]), 0.0, float(g["at"][2])), float(g["yaw"])))
+	for i in guards.size():
+		for other in placed:
+			if own.has(other) or guard_rects.has(other):
+				continue
+			if WorldRing.rect_gap(guard_rects[i], other) < min_gap:
+				(state["problems"] as PackedStringArray).append("ramp guard %s is %.2f m from another footprint (minimum_gap_m %s)" % [guards[i]["id"], WorldRing.rect_gap(guard_rects[i], other), str(min_gap)])
+	structures.append_array(guards)
+	placed.append_array(guard_rects)
+
+
+## M2L1c (generator.doors, OQ-PROPS-DOOR): one door entry per listed opening of every structure piece of a kind's kit
+## type, in a fixed order (kind "door" then "gate", pieces in structure order, openings in the listed order). No new
+## doorway is cut: an opening is the kit type's "open" box (alesia_structures.json, read-only), so the door's box is
+## that opening's width and height and the kind's thickness_m, centred on it, turned by the piece's yaw. Doors slide
+## (scripts/props/door.gd): slide "inner" = one leaf sliding along local x towards the piece's centre ("left" =
+## towards -x, "right" = +x; an opening at x 0 slides right); "apart" = two half leaves, one each way. Every pocket
+## (where an open leaf rests: its own width past the opening's edge) must lie inside the piece's colliders in the
+## opening's plane (sampled every 0.1 m at three heights), so an open leaf sits inside a wall, and must stay within
+## gates.clear_m of the opening's centre for a gate (problems otherwise). start: one seeded draw per entry, in
+## order, after every other pass: "open" when it is below start_open_share. Ids "Door_%03d" / "Gate_%03d". `at` is the
+## file position (y over flat ground, as every cover-file entry; the builder lifts it), and the terrain under the door
+## must equal the terrain under its piece's origin (a problem otherwise). Returns {entries, counts: {door, gate, open,
+## closed}}.
+static func _doors(state: Dictionary, structures: Array, kit_types: Dictionary) -> Dictionary:
+	var entries: Array = []
+	var counts := {"door": 0, "gate": 0, "open": 0, "closed": 0}
+	var gen: Dictionary = state["gen"]
+	if not gen.has("doors") or not bool((gen["doors"] as Dictionary).get("enabled", true)):
+		return {"entries": entries, "counts": counts}
+	var cfg: Dictionary = gen["doors"]
+	var rng: RandomNumberGenerator = state["rng"]
+	var terrain: MapTerrain = state["terrain"]
+	var problems: PackedStringArray = state["problems"]
+	for kind: String in ["door", "gate"]:
+		if not cfg.has(kind) or not bool((cfg[kind] as Dictionary).get("enabled", true)):
+			continue
+		var k: Dictionary = cfg[kind]
+		var type := String(k["type"])
+		var openings: Array = (kit_types[type] as Dictionary).get("open", [])
+		for piece: Dictionary in structures:
+			if String(piece["type"]) != type:
+				continue
+			var yaw := float(piece["yaw"])
+			var turn := Basis(Vector3.UP, deg_to_rad(yaw))
+			var origin := LowpolyKit.vec(piece["at"])
+			for index: Variant in k["openings"]:
+				var o: Dictionary = openings[int(index)]
+				var local := LowpolyKit.vec(o["at"])
+				var hole := LowpolyKit.vec(o["size"])
+				var at := origin + turn * local
+				var slide := "apart" if String(k["slide"]) == "apart" else ("left" if local.x > 0.0 else "right")
+				var thickness := float(k["thickness_m"])
+				var entry := {
+					"id": ("Door_%03d" if kind == "door" else "Gate_%03d") % int(counts[kind]),
+					"kind": kind,
+					"piece": String(piece["id"]),
+					"at": [_r3(at.x), _r3(at.y), _r3(at.z)],
+					"yaw": yaw,
+					"size": [float(o["size"][0]), float(o["size"][1]), thickness],  # the file's numbers (a Vector3 is float32)
+					"slide": slide,
+				}
+				if absf(terrain.height_at(at.x, at.z) - terrain.height_at(origin.x, origin.z)) > 0.01:
+					problems.append("%s: the ground under the door differs from the ground under %s" % [entry["id"], piece["id"]])
+				var pocket := door_pocket_problem(kit_types[type], local, hole, slide)
+				if pocket != "":
+					problems.append("%s: %s" % [entry["id"], pocket])
+				if kind == "gate":
+					var far := Vector2(hole.x, thickness * 0.5).length()  # the outer edge of an open leaf
+					if far > float(gen["gates"]["clear_m"]):
+						problems.append("%s: an open leaf reaches %.2f m from the opening, past gates.clear_m %s" % [entry["id"], far, str(gen["gates"]["clear_m"])])
+				entries.append(entry)
+				counts[kind] = int(counts[kind]) + 1
+	for entry: Dictionary in entries:
+		var share := float((cfg[String(entry["kind"])] as Dictionary)["start_open_share"])
+		entry["start"] = "open" if rng.randf() < share else "closed"
+		counts[entry["start"]] = int(counts[entry["start"]]) + 1
+	return {"entries": entries, "counts": counts}
+
+
+## M2L1c: "" when every pocket of a sliding door lies inside the colliders of its piece `definition` (piece frame):
+## the stretch of one leaf width past the opening's edge on each side a leaf slides to ("left" -x, "right" +x,
+## "apart" both, each a half leaf), on the opening's centre plane, sampled every 0.1 m at three heights of the
+## opening; otherwise the first point outside. Shared by the generator and tests/test_props_doors.gd.
+static func door_pocket_problem(definition: Dictionary, opening_at: Vector3, opening_size: Vector3, slide: String) -> String:
+	var leaf := opening_size.x / (2.0 if slide == "apart" else 1.0)
+	var sides: Array[float] = []
+	if slide == "apart" or slide == "left":
+		sides.append(-1.0)
+	if slide == "apart" or slide == "right":
+		sides.append(1.0)
+	var boxes: Array[AABB] = []
+	for c: Dictionary in definition.get("colliders", []):
+		if String(c.get("shape", "box")) == "box":
+			var s := LowpolyKit.vec(c["size"])
+			boxes.append(AABB(LowpolyKit.vec(c["at"]) - s * 0.5, s).grow(0.001))
+	for side: float in sides:
+		var edge := opening_at.x + side * opening_size.x * 0.5
+		var steps := maxi(ceili(leaf / 0.1), 1)
+		for i in steps + 1:
+			var x := edge + side * leaf * float(i) / float(steps)
+			for f: float in [0.1, 0.5, 0.9]:
+				var p := Vector3(x, opening_at.y - opening_size.y * 0.5 + opening_size.y * f, opening_at.z)
+				var inside := false
+				for b: AABB in boxes:
+					if b.has_point(p):
+						inside = true
+						break
+				if not inside:
+					return "the pocket point %s is outside every collider of the piece" % p
+	return ""
+
+
+## M2 L1c commit 5 (generator.ladders, OQ-PROPS-LADDER): one ladder per structure piece of kit type `type` (pieces in
+## structure order), on the first end wall in `ends` that can take one; no random draw. From the kit type's colliders
+## (read-only): the roof = the box with the highest top (the ledge top = its top, the ladder plane = its edge on that
+## end, the eave), the end wall = the box across x on that end farthest out (its outer face must not lie in front of
+## the plane). An end can take a ladder when no "open" box (doorway, window) overlaps that end wall, the ladder's width
+## fits the wall, the top-step point (top_step_m from the plane onto the roof, at the ledge top) lies a pawn radius
+## (Ladder.PAWN_RADIUS_M) inside the roof slab, and the clearance (from the plane out front_clear_m, across width_m +
+## side_clear_m each side) overlaps no other footprint in state.placed (the piece's own aside). The ground under the
+## foot must equal the ground under the piece's origin (a problem otherwise, as for doors). Entries {id "Ladder_%03d",
+## piece, at (the foot, y 0 over flat ground: the builder lifts it), yaw (the climber's facing, into the wall), height,
+## width, top}. A piece with no end free is a problem naming it. Returns {entries, counts: {ladders, blocks,
+## first_end, other_end, none}}.
+static func _ladders(state: Dictionary, structures: Array, kit_types: Dictionary) -> Dictionary:
+	var entries: Array = []
+	var counts := {"ladders": 0, "blocks": 0, "first_end": 0, "other_end": 0, "none": 0}
+	var gen: Dictionary = state["gen"]
+	if not gen.has("ladders") or not bool((gen["ladders"] as Dictionary).get("enabled", true)):
+		return {"entries": entries, "counts": counts}
+	var cfg: Dictionary = gen["ladders"]
+	var type := String(cfg["type"])
+	var definition: Dictionary = kit_types[type]
+	var terrain: MapTerrain = state["terrain"]
+	var problems: PackedStringArray = state["problems"]
+	var placed: Array[Rect2] = state["placed"]
+	var ends: Array = cfg["ends"]
+	for piece: Dictionary in structures:
+		if String(piece["type"]) != type:
+			continue
+		counts["blocks"] = int(counts["blocks"]) + 1
+		var origin := LowpolyKit.vec(piece["at"])
+		var yaw := float(piece["yaw"])
+		var own := WorldKit.footprint(definition, origin, yaw)
+		var why: Array[String] = []
+		var chosen := {}
+		for k in ends.size():
+			var spot := ladder_spot(definition, float(ends[k]), cfg)
+			if spot.has("problem"):
+				why.append("end %s: %s" % [str(ends[k]), spot["problem"]])
+				continue
+			var clear := _local_rect(origin, yaw, spot["clear"])
+			var blocked := ""
+			for other in placed:
+				if other == own:
+					continue
+				if clear.intersects(other):
+					blocked = "the clearance %s meets the footprint %s" % [clear, other]
+					break
+			if blocked != "":
+				why.append("end %s: %s" % [str(ends[k]), blocked])
+				continue
+			chosen = spot
+			counts["first_end" if k == 0 else "other_end"] = int(counts["first_end" if k == 0 else "other_end"]) + 1
+			break
+		if chosen.is_empty():
+			counts["none"] = int(counts["none"]) + 1
+			problems.append("%s: no end wall can take a ladder (%s)" % [piece["id"], "; ".join(why)])
+			continue
+		var turn := Basis(Vector3.UP, deg_to_rad(yaw))
+		var foot := origin + turn * (chosen["foot"] as Vector3)
+		var top := origin + turn * (chosen["top"] as Vector3)
+		var into := turn * (chosen["into"] as Vector3)
+		var entry := {
+			"id": "Ladder_%03d" % int(counts["ladders"]),
+			"piece": String(piece["id"]),
+			"at": [_r3(foot.x), _r3(foot.y), _r3(foot.z)],
+			"yaw": _r3(fposmod(rad_to_deg(atan2(-into.x, -into.z)), 360.0)),
+			"height": _r3(float(chosen["height"])),
+			"width": float(cfg["width_m"]),
+			"top": [_r3(top.x), _r3(top.y), _r3(top.z)],
+		}
+		if absf(terrain.height_at(foot.x, foot.z) - terrain.height_at(origin.x, origin.z)) > 0.01:
+			problems.append("%s: the ground under the ladder's foot differs from the ground under %s" % [entry["id"], piece["id"]])
+		entries.append(entry)
+		counts["ladders"] = int(counts["ladders"]) + 1
+	return {"entries": entries, "counts": counts}
+
+
+## M2 L1c commit 5: where a ladder goes on end `end` (+1 = local +x, -1 = -x) of kit piece `definition`, in the
+## piece's frame: {foot, top, into (the climber's facing), height, clear: [x0, x1, z0, z1] (the clearance rectangle)}, or
+## {problem} (see _ladders). Shared by the generator and tests/test_props_ladders.gd.
+static func ladder_spot(definition: Dictionary, end: float, cfg: Dictionary) -> Dictionary:
+	var roof := {}
+	var roof_top := -INF
+	var wall := {}
+	for c: Dictionary in definition.get("colliders", []):
+		if String(c.get("shape", "box")) != "box":
+			continue
+		var s := LowpolyKit.vec(c["size"])
+		var a := LowpolyKit.vec(c["at"])
+		if a.y + s.y * 0.5 > roof_top:
+			roof_top = a.y + s.y * 0.5
+			roof = c
+		if s.z > s.x and a.x * end > 0.0 and (wall.is_empty() or absf(a.x) > absf(float(wall["at"][0]))):
+			wall = c
+	if roof.is_empty() or wall.is_empty():
+		return {"problem": "no roof box or no end wall box"}
+	var rs := LowpolyKit.vec(roof["size"])
+	var ra := LowpolyKit.vec(roof["at"])
+	var ws := LowpolyKit.vec(wall["size"])
+	var wa := LowpolyKit.vec(wall["at"])
+	var plane := ra.x + end * rs.x * 0.5
+	var face := wa.x + end * ws.x * 0.5
+	if (plane - face) * end < 0.0:
+		return {"problem": "the end wall's face %.2f stands in front of the roof's edge %.2f" % [face, plane]}
+	var wall_rect := Rect2(wa.x - ws.x * 0.5, wa.z - ws.z * 0.5, ws.x, ws.z)
+	for o: Dictionary in definition.get("open", []):
+		var os := LowpolyKit.vec(o["size"])
+		var oa := LowpolyKit.vec(o["at"])
+		if Rect2(oa.x - os.x * 0.5, oa.z - os.z * 0.5, os.x, os.z).grow(-0.01).intersects(wall_rect):  # touching is no overlap
+			return {"problem": "an opening at %s is in that end wall" % oa}
+	var half_w := float(cfg["width_m"]) * 0.5
+	if wa.z - half_w < wall_rect.position.y or wa.z + half_w > wall_rect.end.y:
+		return {"problem": "the ladder is wider than the end wall"}
+	var top := Vector3(plane - end * float(cfg["top_step_m"]), roof_top, wa.z)
+	var inset := Ladder.PAWN_RADIUS_M
+	var roof_rect := Rect2(ra.x - rs.x * 0.5 + inset, ra.z - rs.z * 0.5 + inset, rs.x - inset * 2.0, rs.z - inset * 2.0)
+	if not roof_rect.has_point(Vector2(top.x, top.z)):
+		return {"problem": "the top-step point %s is not a pawn radius inside the roof" % top}
+	var side := half_w + float(cfg["side_clear_m"])
+	var x_out := plane + end * float(cfg["front_clear_m"])
+	return {
+		"foot": Vector3(plane, 0.0, wa.z),
+		"top": top,
+		"into": Vector3(-end, 0.0, 0.0),
+		"height": roof_top,
+		"clear": [minf(plane, x_out), maxf(plane, x_out), wa.z - side, wa.z + side],
+	}
+
+
+## The ground rectangle covered by the piece-frame box [x0, x1, z0, z1] of a piece at `origin` turned by `yaw`.
+static func _local_rect(origin: Vector3, yaw: float, box: Array) -> Rect2:
+	var turn := Basis(Vector3.UP, deg_to_rad(yaw))
+	var rect := Rect2()
+	var first := true
+	for x: float in [float(box[0]), float(box[1])]:
+		for z: float in [float(box[2]), float(box[3])]:
+			var p := origin + turn * Vector3(x, 0.0, z)
+			rect = Rect2(Vector2(p.x, p.z), Vector2.ZERO) if first else rect.expand(Vector2(p.x, p.z))
+			first = false
+	return rect
 
 
 ## The 90-degree-step yaw that turns a piece's local +X onto the ground direction `d` (axis-aligned).

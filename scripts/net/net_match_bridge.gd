@@ -90,7 +90,9 @@ func _host_prop_changed(prop_id: String, state: int) -> void:
 
 
 ## M2 L1b: one breakable broke or one chest opened on the host (WorldProps state, prop id). The client applies it
-## (look and collider; no loot roll: the host's spill reaches it as ground loot).
+## (look and collider; no loot roll: the host's spill reaches it as ground loot). States: WorldProps.BROKEN, OPEN
+## and (M2 L1c) CLOSED; a door's state is the ABSOLUTE OPEN / CLOSED, never a toggle, and every door is in
+## WorldProps.states from the start, so the wiring resend in _wire_props carries every door.
 @rpc("authority", "call_remote", "reliable")
 func ev_world_prop(prop_id: String, state: int) -> void:
 	if _props != null and not is_instance_valid(_props):

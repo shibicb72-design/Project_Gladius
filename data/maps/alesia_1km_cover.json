@@ -840,6 +840,790 @@
 			"yaw": 0.0
 		}
 	],
+	"doors": [
+		{
+			"at": [
+				35.146,
+				1.15,
+				-224.474
+			],
+			"id": "Door_000",
+			"kind": "door",
+			"piece": "Castra1_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				40.146,
+				1.15,
+				-218.874
+			],
+			"id": "Door_001",
+			"kind": "door",
+			"piece": "Castra1_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				71.146,
+				1.15,
+				-224.474
+			],
+			"id": "Door_002",
+			"kind": "door",
+			"piece": "Castra1_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				76.146,
+				1.15,
+				-218.874
+			],
+			"id": "Door_003",
+			"kind": "door",
+			"piece": "Castra1_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				187.174,
+				1.15,
+				-72.446
+			],
+			"id": "Door_004",
+			"kind": "door",
+			"piece": "Castra2_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				192.174,
+				1.15,
+				-66.846
+			],
+			"id": "Door_005",
+			"kind": "door",
+			"piece": "Castra2_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				223.174,
+				1.15,
+				-72.446
+			],
+			"id": "Door_006",
+			"kind": "door",
+			"piece": "Castra2_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				228.174,
+				1.15,
+				-66.846
+			],
+			"id": "Door_007",
+			"kind": "door",
+			"piece": "Castra2_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				131.528,
+				1.15,
+				135.228
+			],
+			"id": "Door_008",
+			"kind": "door",
+			"piece": "Castra3_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				136.528,
+				1.15,
+				140.828
+			],
+			"id": "Door_009",
+			"kind": "door",
+			"piece": "Castra3_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				167.528,
+				1.15,
+				135.228
+			],
+			"id": "Door_010",
+			"kind": "door",
+			"piece": "Castra3_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				172.528,
+				1.15,
+				140.828
+			],
+			"id": "Door_011",
+			"kind": "door",
+			"piece": "Castra3_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-76.146,
+				1.15,
+				190.874
+			],
+			"id": "Door_012",
+			"kind": "door",
+			"piece": "Castra4_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-71.146,
+				1.15,
+				196.474
+			],
+			"id": "Door_013",
+			"kind": "door",
+			"piece": "Castra4_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-40.146,
+				1.15,
+				190.874
+			],
+			"id": "Door_014",
+			"kind": "door",
+			"piece": "Castra4_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-35.146,
+				1.15,
+				196.474
+			],
+			"id": "Door_015",
+			"kind": "door",
+			"piece": "Castra4_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-228.174,
+				1.15,
+				38.846
+			],
+			"id": "Door_016",
+			"kind": "door",
+			"piece": "Castra5_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-223.174,
+				1.15,
+				44.446
+			],
+			"id": "Door_017",
+			"kind": "door",
+			"piece": "Castra5_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-192.174,
+				1.15,
+				38.846
+			],
+			"id": "Door_018",
+			"kind": "door",
+			"piece": "Castra5_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-187.174,
+				1.15,
+				44.446
+			],
+			"id": "Door_019",
+			"kind": "door",
+			"piece": "Castra5_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-172.528,
+				1.15,
+				-168.828
+			],
+			"id": "Door_020",
+			"kind": "door",
+			"piece": "Castra6_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-167.528,
+				1.15,
+				-163.228
+			],
+			"id": "Door_021",
+			"kind": "door",
+			"piece": "Castra6_Barracks_0",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "closed",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-136.528,
+				1.15,
+				-168.828
+			],
+			"id": "Door_022",
+			"kind": "door",
+			"piece": "Castra6_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "right",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-131.528,
+				1.15,
+				-163.228
+			],
+			"id": "Door_023",
+			"kind": "door",
+			"piece": "Castra6_Barracks_1",
+			"size": [
+				2.0,
+				2.3,
+				0.12
+			],
+			"slide": "left",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				98.995,
+				2.25,
+				-98.995
+			],
+			"id": "Gate_000",
+			"kind": "gate",
+			"piece": "InnerRing_017",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "open",
+			"yaw": 315.0
+		},
+		{
+			"at": [
+				98.995,
+				2.25,
+				98.995
+			],
+			"id": "Gate_001",
+			"kind": "gate",
+			"piece": "InnerRing_047",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "closed",
+			"yaw": 225.0
+		},
+		{
+			"at": [
+				-98.995,
+				2.25,
+				98.995
+			],
+			"id": "Gate_002",
+			"kind": "gate",
+			"piece": "InnerRing_077",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "open",
+			"yaw": 135.0
+		},
+		{
+			"at": [
+				-98.995,
+				2.25,
+				-98.995
+			],
+			"id": "Gate_003",
+			"kind": "gate",
+			"piece": "InnerRing_107",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "open",
+			"yaw": 45.0
+		},
+		{
+			"at": [
+				0.0,
+				2.25,
+				-330.0
+			],
+			"id": "Gate_004",
+			"kind": "gate",
+			"piece": "OuterRing_004",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "open",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				330.0,
+				2.25,
+				0.0
+			],
+			"id": "Gate_005",
+			"kind": "gate",
+			"piece": "OuterRing_076",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "open",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				0.0,
+				2.25,
+				330.0
+			],
+			"id": "Gate_006",
+			"kind": "gate",
+			"piece": "OuterRing_148",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "open",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				-330.0,
+				2.25,
+				0.0
+			],
+			"id": "Gate_007",
+			"kind": "gate",
+			"piece": "OuterRing_220",
+			"size": [
+				4.0,
+				4.5,
+				0.25
+			],
+			"slide": "apart",
+			"start": "open",
+			"yaw": 90.0
+		}
+	],
+	"ladders": [
+		{
+			"at": [
+				42.346,
+				0.0,
+				-221.674
+			],
+			"height": 3.3,
+			"id": "Ladder_000",
+			"piece": "Castra1_Barracks_0",
+			"top": [
+				41.646,
+				3.3,
+				-221.674
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				78.346,
+				0.0,
+				-221.674
+			],
+			"height": 3.3,
+			"id": "Ladder_001",
+			"piece": "Castra1_Barracks_1",
+			"top": [
+				77.646,
+				3.3,
+				-221.674
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				194.374,
+				0.0,
+				-69.646
+			],
+			"height": 3.3,
+			"id": "Ladder_002",
+			"piece": "Castra2_Barracks_0",
+			"top": [
+				193.674,
+				3.3,
+				-69.646
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				230.374,
+				0.0,
+				-69.646
+			],
+			"height": 3.3,
+			"id": "Ladder_003",
+			"piece": "Castra2_Barracks_1",
+			"top": [
+				229.674,
+				3.3,
+				-69.646
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				138.728,
+				0.0,
+				138.028
+			],
+			"height": 3.3,
+			"id": "Ladder_004",
+			"piece": "Castra3_Barracks_0",
+			"top": [
+				138.028,
+				3.3,
+				138.028
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				174.728,
+				0.0,
+				138.028
+			],
+			"height": 3.3,
+			"id": "Ladder_005",
+			"piece": "Castra3_Barracks_1",
+			"top": [
+				174.028,
+				3.3,
+				138.028
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				-68.946,
+				0.0,
+				193.674
+			],
+			"height": 3.3,
+			"id": "Ladder_006",
+			"piece": "Castra4_Barracks_0",
+			"top": [
+				-69.646,
+				3.3,
+				193.674
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				-32.946,
+				0.0,
+				193.674
+			],
+			"height": 3.3,
+			"id": "Ladder_007",
+			"piece": "Castra4_Barracks_1",
+			"top": [
+				-33.646,
+				3.3,
+				193.674
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				-220.974,
+				0.0,
+				41.646
+			],
+			"height": 3.3,
+			"id": "Ladder_008",
+			"piece": "Castra5_Barracks_0",
+			"top": [
+				-221.674,
+				3.3,
+				41.646
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				-184.974,
+				0.0,
+				41.646
+			],
+			"height": 3.3,
+			"id": "Ladder_009",
+			"piece": "Castra5_Barracks_1",
+			"top": [
+				-185.674,
+				3.3,
+				41.646
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				-165.328,
+				0.0,
+				-166.028
+			],
+			"height": 3.3,
+			"id": "Ladder_010",
+			"piece": "Castra6_Barracks_0",
+			"top": [
+				-166.028,
+				3.3,
+				-166.028
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				-129.328,
+				0.0,
+				-166.028
+			],
+			"height": 3.3,
+			"id": "Ladder_011",
+			"piece": "Castra6_Barracks_1",
+			"top": [
+				-130.028,
+				3.3,
+				-166.028
+			],
+			"width": 0.6,
+			"yaw": 90.0
+		}
+	],
 	"pieces": [
 		{
 			"at": [

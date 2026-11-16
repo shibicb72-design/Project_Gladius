@@ -5,6 +5,8 @@ var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "st
 var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
 var ring_bodies: Array[StaticBody3D] = []  # W3 cover of the outer ring (groups "ring_cover" and "cover_wall")
 var chest_bodies: Array[StaticBody3D] = []  # M2 L1b loot chests under Nav (group "loot_chest", never cover_wall)
+var door_bodies: Array[StaticBody3D] = []  # M2 L1c doors and gates under Props, outside Nav (group "door", never cover_wall)
+var ladders: Array[Area3D] = []  # M2 L1c commit 5 ladders under Props, outside Nav (Area3D, layer 0, group "ladder")
 var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and decor, batched per chunk (node "Chunks")
 ## M2P1A: decor id -> its batch type in source "decor" ("<kind>_<n>", n = the index of the entry's size among
 ## its kind's distinct sizes, first seen first). A decor look is chunks.batch_of("decor", decor_types[id], xform).
@@ -115,6 +117,12 @@ func _ready() -> void:
 	# M2 L1b: the loot chests (the cover file's "chests"), after the wall loop above (a chest has no "Mesh" child).
 	if placed.has("chests"):
 		_build_chests(nav, placed["chests"])
+	# M2 L1c: the doors and gates (the cover file's "doors"), last: outside Nav, outside every body list above.
+	if placed.has("doors"):
+		_build_doors(placed["doors"])
+	# M2 L1c commit 5: the ladders (the cover file's "ladders"), after the doors: outside Nav, non-blocking triggers.
+	if placed.has("ladders"):
+		_build_ladders(placed["ladders"])
 	chunks.build()
 	for body in chest_bodies:
 		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
@@ -143,9 +151,7 @@ func _ready() -> void:
 func _build_breakables(entries: Array) -> void:
 	var props_cfg := WorldProps.config()
 	var types: Dictionary = props_cfg.get("breakables", {})
-	var root := Node3D.new()
-	root.name = "Props"
-	add_child(root)
+	var root := _props_root()
 	var meshes := {}
 	for entry: Dictionary in entries:
 		var type := String(entry["type"])
@@ -193,6 +199,46 @@ func _build_chests(nav: Node, entries: Array) -> void:
 		body.chunks = chunks
 		nav.add_child(body)
 		chest_bodies.append(body)
+
+
+## M2 L1b/L1c: the ArtBuilder/Props node (made on first use): breakables and doors, outside Nav. Attached below
+## this builder: never a sibling while the map root is in _ready.
+func _props_root() -> Node3D:
+	var root := get_node_or_null("Props") as Node3D
+	if root == null:
+		root = Node3D.new()
+		root.name = "Props"
+		add_child(root)
+	return root
+
+
+## M2 L1c: the doors and gates under ArtBuilder/Props: OUTSIDE Nav, so the navigation bake never parses them and
+## paths are planned as if every door were open. Each is a Door (group "door" only: never cover_wall, never in
+## cover_bodies or any body list the paint or the cover index reads; behaviour from data/props.json "door" and its
+## "gate" variant) at the cover file's `at` lifted onto the terrain, in its start state. Its leaves draw as its own
+## MeshInstance3D children (they slide, so they are not batch instances).
+func _build_doors(entries: Array) -> void:
+	var props_cfg := WorldProps.config()
+	var root := _props_root()
+	for entry: Dictionary in entries:
+		var body := Door.make(entry, WorldProps.door_cfg(props_cfg, String(entry.get("kind", Door.KIND_DOOR))))
+		body.position = lifted(LowpolyKit.vec(entry["at"]))
+		root.add_child(body)
+		door_bodies.append(body)
+
+
+## M2 L1c commit 5: the ladders under ArtBuilder/Props: OUTSIDE Nav (the bake never parses them; no nav link is
+## built, bots do not climb). Each is a Ladder (an Area3D on collision layer 0: it blocks no shot, sight or movement;
+## group "ladder" only, never cover_wall, in no body list) at the cover file's foot lifted onto the terrain, its look
+## its own MeshInstance3D child. Behaviour and looks: data/props.json "ladder" (OQ-PROPS-LADDER).
+func _build_ladders(entries: Array) -> void:
+	var ladder_cfg: Dictionary = WorldProps.config().get("ladder", {})
+	var root := _props_root()
+	for entry: Dictionary in entries:
+		var ladder := Ladder.make(entry, ladder_cfg)
+		ladder.position = lifted(LowpolyKit.vec(entry["at"]))
+		root.add_child(ladder)
+		ladders.append(ladder)
 
 
 ## Look parts with every size and position scaled per axis by `k` (a chest look authored for look_size, fitted to a

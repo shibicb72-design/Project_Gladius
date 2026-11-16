@@ -342,10 +342,12 @@ func _on_action_triggered(action: String) -> void:
 		return
 	if action == "interact":
 		# Interact: revive a DOWNED squad mate in range first, else pick up the nearest usable loot item, else (M2 L1b)
-		# open a closed chest in range. A press that picked something up never also opens a chest.
+		# open a closed chest in range, else (M2 L1c) toggle the nearest door or gate in range. One press does one
+		# thing. A client does nothing here (no request path until M3).
 		if director.authoritative and not director.begin_revive(local_player.player_id):
 			if not director.try_pickup(local_player.player_id):
-				director.try_open_chest(local_player.player_id)
+				if not director.try_open_chest(local_player.player_id):
+					director.try_toggle_door(local_player.player_id)
 		return
 	local_player.handle_action_press(action)
 

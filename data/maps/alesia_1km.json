@@ -212,6 +212,30 @@
 			],
 			"rocks": 8.0
 		},
+		"doors": {
+			"_placeholder": true,
+			"_todo": "OQ-PROPS-DOOR: a guess for Shibi, not a design value (M2 L1c). Doors and gates in the doorways the kit already has (no new doorway is cut): kind door = every listed opening of every piece of kit type `type` (barracks: openings 0 and 1, the two 2.0 x 2.3 m doorways of data/maps/alesia_structures.json), one leaf sliding into the wall towards the piece's centre (slide inner); kind gate = the 4 x 4.5 m opening of every gate piece, two half leaves sliding apart into the pillars (slide apart). Sliding, not swinging, so only a soldier standing in the doorway is ever in a door's way (a swing would be blocked by whoever stands in front of it inside, opener included); the generator checks that every pocket lies inside the piece's wall colliders. thickness_m is the leaf's. start_open_share: each door starts open when its seeded draw (one per door, after every other pass, so no other piece or draw changes) is below it; the start state is in the cover file, so host and client start the same. tools/gen_alesia.gd _doors writes alesia_1km_cover.json \"doors\"; behaviour and looks: data/props.json \"door\". Doors are not cover walls (not counted in max_cover_walls) and stand outside the navigation (paths as if open).",
+			"door": {
+				"openings": [
+					0.0,
+					1.0
+				],
+				"slide": "inner",
+				"start_open_share": 0.5,
+				"thickness_m": 0.12,
+				"type": "barracks"
+			},
+			"enabled": true,
+			"gate": {
+				"openings": [
+					0.0
+				],
+				"slide": "apart",
+				"start_open_share": 0.75,
+				"thickness_m": 0.25,
+				"type": "gate"
+			}
+		},
 		"extra_cover": {
 			"_note": "M2 L1b (Shibi, Nov 14 2026: more cover): static cover placed after every earlier pass (tools/gen_alesia.gd _extra_cover), so the earlier pieces stay byte-identical; existing cover types only. camps.cover is per camp; new camp pieces keep lane_gap_m to every footprint. A wall band samples a side of the polygonal ring (apothem radius_m), a place along it clear of both corners by corner_margin_m and a distance from_m..to_m from the side's centre line, half the pieces towards the centre and half away; it keeps gate_clear_m from that ring's gates, stair_clear_m from every wall stair's foot and tower_clear_m from every tower ramp's foot. arx.radius_m: the hill top. Fields: the fields annulus. Budget: cover and ring pieces plus breakables at most 352 cover walls (the cover index validates every wall once per frame). OQ-ALESIA-LAYOUT: every number is a proposal.",
 			"arx": {
@@ -326,6 +350,20 @@
 			"sides": 24.0,
 			"tower_bearings_deg": []
 		},
+		"ladders": {
+			"_placeholder": true,
+			"_todo": "OQ-PROPS-LADDER: a guess for Shibi, not a design value (M2 L1c commit 5). Where: barracks roofs only (the only tops no ramp or stair reaches), one ladder per barracks block on an END wall (no doorway there), outside face, at the wall's middle. ends: the end walls tried in this order (1 = the piece's local +x end, -1 = the -x end); the first whose clearance is free is taken, none free = a problem (the generator reports the block). The ladder plane is the roof's edge (the eave, 0.2 m in front of the end wall's face), the foot on the ground under it, the height the roof slab's top (all read from the kit type's colliders, data/maps/alesia_structures.json, read-only). width_m: the ladder's width. top_step_m: the top-step point lies this far from the plane onto the roof (it must stay a pawn radius inside the roof slab). front_clear_m / side_clear_m: the ground from the plane out front_clear_m, across width_m plus side_clear_m each side, must be free of every other footprint (placement.minimum_gap_m is not applied: the barracks' own footprint ends at the plane). No random draw: nothing else in the cover or structure files changes. tools/gen_alesia.gd _ladders writes alesia_1km_cover.json \"ladders\"; behaviour and looks: data/props.json \"ladder\". Ladders are not cover walls (not counted in max_cover_walls), stand outside the navigation and block nothing; bots do not climb (no nav link).",
+			"enabled": true,
+			"ends": [
+				1.0,
+				-1.0
+			],
+			"front_clear_m": 1.0,
+			"side_clear_m": 0.4,
+			"top_step_m": 0.7,
+			"type": "barracks",
+			"width_m": 0.6
+		},
 		"landmark_radius_m": {
 			"aqueduct": 16.0,
 			"arx": 40.0,
@@ -361,7 +399,7 @@
 				337.5
 			]
 		},
-		"paint_sha256": "8198d7ca55199792099222e4de5a8dbd59cddcf212f790c82f487fc0642532d4",
+		"paint_sha256": "b1916da9b73330ced2990d6a5780d2a8be1fc6b85617aed8e143457b06e7892d",
 		"placement": {
 			"anchor_clear_m": 2.5,
 			"edge_margin_m": 4.0,
@@ -413,6 +451,13 @@
 					]
 				}
 			}
+		},
+		"ramp_guard": {
+			"_placeholder": true,
+			"_todo": "OQ-MAP-CLEAR: a guess for Shibi, not a design value (M2L1c). A guard piece (kit type `type`, its long axis along the ramp) flush along both long sides of every aqueduct ramp from its foot, along_m up the slope (in whole guard lengths), overlap_m into the ramp so no slit is left (tools/gen_alesia.gd _ramp_guards; appended after every other pass, so no other piece moves). Why (measured, runs/M2L1C): the saved navmesh joined the ground to a ramp's side near its foot, a step the bake connects (agent_max_climb 0.25 m) but a pawn (max step 0.12 m) cannot climb; bots beside the foot stood against the side (squads seed 123: 6 unsticks at Aqua Marcia's inner ramp). Over the first 4 m the ramp's side is under 2.2 m high.",
+			"along_m": 4.0,
+			"overlap_m": 0.05,
+			"type": "stake_row"
 		},
 		"reserved": {
 			"_note": "J1 spots (binding fix 14): places only, no nodes. jump pads at the inner foot of the outer wall, past the outer aqueduct ends and at the hill foot; man cannons from the fields to the camp ring and from the camp ring towards the citadel; lily traps in front of the outer gates and on the stake lines of the fields.",

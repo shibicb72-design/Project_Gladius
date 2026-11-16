@@ -391,8 +391,9 @@ android/              debug.keystore (shared debug key only)
   DamageRules, scores, spawns, runs bots and computes payouts.
 - Replication: transforms + health/shield per pawn, score/timer and match state. Discrete events
   (kill, respawn, streak, match over, payout) go as reliable RPCs. Clients never write rules state.
-- World props (M2 L1b): one reliable event `NetMatchBridge.ev_world_prop(prop_id, state)` for breakables and
-  chests. The bridge wires `director.props` (WorldProps) once it exists (MatchRoot.begin makes it after the
+- World props (M2 L1b): one reliable event `NetMatchBridge.ev_world_prop(prop_id, state)` for breakables,
+  chests and (M2 L1c) doors and gates: a door's state is the absolute OPEN or CLOSED, never a toggle; every door is
+  stored from the start, so the wiring resend carries all of them (see 4.20, Props: doors and ladders). The bridge wires `director.props` (WorldProps) once it exists (MatchRoot.begin makes it after the
   bridge's setup: setup, the next physics tick or an incoming event); the host forwards every `prop_changed`, a
   client calls `apply_state` (look and collider; no loot roll: the spill reaches it as ground loot). Events that
   arrive before a client's WorldProps exist are kept and applied when it is wired; detach unwires.
@@ -639,7 +640,8 @@ android/              debug.keystore (shared debug key only)
     `max_ground_y_m` is measured above the terrain at the item, so loot lands on the hill. On flat
     maps identical.
   - Saved nav for three maps: `tools/bake_nav.gd`'s default list names alesia_section, test_300
-    and alesia_1km (about 6 s, 329 kB, 10,352 polygons). The manifest's tool inputs hold the heights
+    and alesia_1km (about 6 s; 10,901 polygons since M2 L1c commit 2, 10,352 and 329 kB when first measured; doors and ladders
+    do not change it, they stand outside Nav). The manifest's tool inputs hold the heights
     `.res`, the paint `.res` and the scene sha256; `tests/test_saved_nav.gd` re-hashes them and
     re-bakes only the two small maps.
   - Tests: `tests/test_alesia_1km.gd` is the ONE suite file that builds the 1 km scene (a static
@@ -693,6 +695,55 @@ android/              debug.keystore (shared debug key only)
     `test_props_chest.gd`, the 1 km checks in `test_alesia_1km.gd`, the host/client agreement in
     `test_net_match.gd`. The sims print `props_broken chests_opened prop_loot prop_loot_taken` at the end of the
     SIM line's deterministic part.
+- **Props: doors, gates and ladders (M2 L1c).** All numbers are placeholders (OQ-PROPS-DOOR, OQ-PROPS-LADDER).
+  - Data split as for chests: WHERE lives in the cover file (`alesia_1km_cover.json` `"doors"` {id, kind door|gate, at,
+    yaw, size, slide left|right|apart, start open|closed} and `"ladders"` {id, piece, at, yaw, height, width, top}),
+    WHAT in `data/props.json` `door` (with a `gate` block merged over it by `WorldProps.door_cfg`) and `ladder`. Neither
+    is a nav input. Generator blocks `doors` and `ladders` in `alesia_1km.json`; passes `_doors` and `_ladders` in
+    `tools/gen_alesia.gd` run after every other pass (and after `_ramp_guards`), so earlier output stays byte-identical.
+    `doors` uses the doorways the kit already has: 24 barracks doors (openings 0 and 1 of 12 barracks, one leaf) and 8
+    gates (two half leaves, `apart`); the start state comes from one seeded draw per door against `start_open_share`
+    (door 0.5, gate 0.75): 17 open, 15 closed. `ladders`: one per barracks block on an end wall (12), no random draw.
+  - Door (`scripts/props/door.gd`, a `StaticBody3D` under `ArtBuilder/Props`, outside Nav, on the world layer, never a
+    cover wall, not in `max_cover_walls`). Doors SLIDE into the wall (pocket doors), they do not swing: only a pawn in
+    the doorway is ever in the way, where a swing would be blocked by the opener standing in front of it. The collider
+    is on only while the door stands closed, so a door never pushes or traps a pawn. A close waits `blocked_retry_s` while
+    a pawn stands in the doorway; an open starts at once. Sound: palette `door`, so the existing wood impact.
+  - `WorldProps`: `doors`, new state `CLOSED` (3) beside `OPEN` (2), every door stored from registration;
+    `set_door(id, state)` (authority, absolute), `toggle_door`, `door_near(pos)`, `apply_state` for doors (a client takes
+    every changed value), and the data checks in `problems`. Net: see 4.17. LAN clients cannot toggle until M3.
+  - Interact priority: revive, pickup, chest, door (`MatchRoot._on_action_triggered`; `MatchDirector.door_target_for`
+    and `try_toggle_door`; `InteractButton` reads "Open/Close door" or "Open/Close gate").
+  - Bots: `MatchDirector._bot_doors` (after the pickup and chest passes; `bot_brain.gd` is untouched). A walking bot in
+    range of a closed door whose NavigationAgent3D path crosses the doorway (`path_crosses_door`, plain getters,
+    `bot_path_lookahead_m`, `bot_path_edge_m`) opens it after `bot_open_delay_s`, counted in director ticks. Bots never
+    close doors. Delay plus move time must stay under `stuck_window_s` 2.0.
+  - Ladder (`scripts/props/ladder.gd`): an `Area3D` trigger on layer 0 (mask 2), under `ArtBuilder/Props`, outside Nav,
+    not on the world mask: it blocks no shot, sight or movement. Pawn (`scripts/classes/pawn.gd`, the "M2 L1c ladder"
+    block): plain state `climbing`, `ladder_id`, `can_climb`. Walking into a ladder from below, or out over the edge
+    from the roof, grabs it; the stick's share into the ladder climbs at `climb_speed_mps` (no input holds); past the top
+    the pawn is stepped onto the roof (`top_rise_m`); Jump lets go with a small push; reaching the ground, downed, dead
+    or the drop state also let go. While climbing: no gravity, no jump, no cover probe, no fire, no melee; reload and
+    swap work. Bots never grab and no nav link is built. Offline only until M3 (`in_lan_session`, as cover): the host's
+    move validation would refuse the top step.
+  - Ladders only on barracks roofs (the only tops no ramp or stair reaches). Not added: colonnade and pediment tops,
+    gate arch tops, mid-run aqueduct deck access, long wall-walk stretches between stairs.
+  - Tests: `test_props_doors.gd`, `test_props_doors_interact.gd`, `test_props_doors_net.gd`, `test_props_doors_bots.gd`,
+    `test_props_ladders.gd`, `test_pawn_ladder.gd`, and the 1 km checks in `test_alesia_1km.gd`.
+- **Map fix and stuck-spot tools (M2 L1c).** Generator block `ramp_guard` (OQ-MAP-CLEAR; `_ramp_guards` in
+  `tools/gen_alesia.gd`): a `stake_row` flush along both sides of each aqueduct ramp for `along_m` 4.0 from the foot,
+  `overlap_m` 0.05 into it, 12 pieces appended after every other pass. Why: the saved nav joined the ground to a ramp's
+  side near the foot over a 0.37 m step (`agent_max_climb` 0.25), and a pawn steps 0.12 m. Nav re-baked: 10,831 to
+  10,901 polygons. Test: `tests/test_stuck_spots.gd`.
+  - Measurement: `tests/sim/test_sim_alesia_1km.gd` prints one `SIM_UNSTICK_AT` line per unstick start (bot, game time,
+    position, area, goal, goal position, nav reachable, next path point; plain getters, no draw), and a `SIM_DOORS`
+    line (doors, closed at start, opened by bots, closed at end); the `SIM` line is unchanged, and `chests_opened`
+    counts chest ids only. `tools/unstick_probe.gd` (`-- --from=<log> | --at="x,z;..."`) clusters the lines at 8 m and
+    prints a PROBE block per cluster (colliders in range, groups, Nav or not, nav polygons under each, gaps, steps).
+    `tests/sim/test_zz_stuck_trace.gd` (on demand) prints what happened in the 121 frames before each unstick.
+  - Finding: the big clusters (camp ring S and N, Castra Sexta, inner_band SE and NW) are not map faults. The bot walks
+    at full speed with no wall frames and flips between a loot or hunt goal outside 0.85 x the next circle's radius and
+    the zone goal (`bot_brain.gd` `_inside_target` / `_zone_pressure`, no deadband). Left open: OQ-BOT-FLIP.
 
 ### 4.21 Cover
 
