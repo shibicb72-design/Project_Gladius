@@ -633,6 +633,83 @@ def uv_axes(normal):
     return u_axis, v_axis
 
 
+# ---------------------------------------------------------------- a quick fit check (the report line)
+# An approximation of tests/test_m2w1_world_kit.gd for iterating in Blender alone (the test is the authority):
+# boxes exact; a wedge by its largest face-plane distance (exact over a face, low near its edges); open volumes and
+# walk surfaces as the test reads them. Only rotations about y are handled (all the kit uses).
+
+def _yaw_of(entry):
+    return math.radians(float(entry.get("rot", [0, 0, 0])[1]))
+
+
+def _to_local(entry, p):
+    at = entry["at"]
+    d = (p[0] - at[0], p[1] - at[1], p[2] - at[2])
+    t = _yaw_of(entry)
+    c, s = math.cos(t), math.sin(t)
+    # inverse of x' = x c + z s, z' = -x s + z c
+    return (d[0] * c - d[2] * s, d[1], d[0] * s + d[2] * c)
+
+
+def _solid_distance(entry, p):
+    q = _to_local(entry, p)
+    h = [entry["size"][i] * 0.5 for i in range(3)]
+    if entry.get("shape", "box") != "wedge":
+        d = [max(abs(q[i]) - h[i], 0.0) for i in range(3)]
+        return length(d)
+    ridge = float(entry.get("ridge", 1.0))
+    zr = -h[2] + 2 * h[2] * ridge
+    worst = max(abs(q[0]) - h[0], -h[1] - q[1])
+    # sloped faces (in y-z): from (z=-h2, y=-h1) to (zr, h1) and from (zr, h1) to (h2, -h1)
+    for (z0, y0, z1, y1) in ((-h[2], -h[1], zr, h[1]), (zr, h[1], h[2], -h[1])):
+        dz, dy = z1 - z0, y1 - y0
+        n = (-dy, dz)   # outward (z, y) for this walk order (from -z to +z over the top)
+        ln = math.hypot(n[0], n[1])
+        if ln < 1e-9:
+            continue
+        sd = ((q[2] - z0) * n[0] + (q[1] - y0) * n[1]) / ln
+        worst = max(worst, sd)
+    return max(worst, 0.0)
+
+
+def fit_check(data, type_name, tris):
+    t = data.types[type_name]
+    cols = t["colliders"]
+    seen = set()
+    worst, at = 0.0, None
+    deep, deep_at = 0.0, None
+    walk_w, walk_at = 0.0, None
+    cfg = data.cfg
+    clear, head, edge = cfg["walk_clear_m"], cfg["walk_head_m"], cfg["walk_edge_m"]
+    for tr in tris:
+        for v in tr[:3]:
+            key = (round(v[0], 5), round(v[1], 5), round(v[2], 5))
+            if key in seen:
+                continue
+            seen.add(key)
+            best = min(_solid_distance(c, v) for c in cols)
+            if best > worst:
+                worst, at = best, v
+            for o in t.get("open", []):
+                q = [abs(v[i] - o["at"][i]) for i in range(3)]
+                h = [o["size"][i] * 0.5 for i in range(3)]
+                if q[0] < h[0] and q[1] < h[1] and q[2] < h[2]:
+                    dpt = min(h[0] - q[0], h[1] - q[1], h[2] - q[2])
+                    if dpt > deep:
+                        deep, deep_at = dpt, v
+            for wk in t.get("walk", []):
+                q = _to_local(wk, v)
+                sx, sz = wk["size"]
+                if abs(q[0]) >= sx * 0.5 - edge or abs(q[2]) >= sz * 0.5 - edge:
+                    continue
+                above = q[1] - float(wk.get("rise", 0.0)) * q[2] / sz
+                if clear < above <= head and above > walk_w:
+                    walk_w, walk_at = above, v
+    fmt = lambda p: "(%.3f,%.3f,%.3f)" % p if p else "-"
+    flag = "" if worst <= cfg["fit_tolerance_m"] + 1e-5 and deep <= cfg["fit_tolerance_m"] + 1e-5 and walk_w == 0.0 else " FIT_FAIL"
+    return "over=%.3f@%s open=%.3f@%s walk=%.3f@%s%s" % (worst, fmt(at), deep, fmt(deep_at), walk_w, fmt(walk_at), flag)
+
+
 # ---------------------------------------------------------------- export
 
 def to_blender(p):
@@ -703,9 +780,25 @@ class WallDims:
         (_, _, pz0), (_, ptop, pin) = bounds(cols[1])
         self.x0, self.x1, self.zo, self.zi, self.wy = x0, x1, zo, zi, wy
         self.pin, self.ptop = pin, ptop
-        self.crenel = ptop - 0.15          # crenel sill height (the notch: 0.15 below the collider top)
-        self.merlons = [-2.4, 0.0, 2.4]    # merlon centres (3 per piece: the joints give a crenel of 0.4..1.3 m)
-        self.merlon_half = 0.7
+        # M2W1 item 2: the crenel floors 0.14 below the collider top and the merlon copings 0.12 above it (a
+        # 0.26 m step; 0.12 because the joint bend lifts the +x end 0.015 and the coping overhangs 0.04: its
+        # corner stays inside the fit tolerance).
+        self.crenel = ptop - 0.14
+        self.merlon_top = ptop + 0.12
+        # Merlon rhythm: both ends of a piece are merlons end_m wide; pieces overlap 0.5 to 1.4 m, so with end_m
+        # >= 1.4 the two end merlons always join into one wider merlon at a joint and no crenel there is ever cut
+        # short. Between them crenels of crenel_m and merlons of merlon_m, evenly: 4 c + 3 m = length - 2 end.
+        end_m, n_cr = 1.4, 4
+        merlon_m = 0.8
+        crenel_m = ((x1 - x0) - 2 * end_m - (n_cr - 1) * merlon_m) / n_cr
+        edges = [(x0, x0 + end_m)]
+        cur = x0 + end_m
+        for i in range(n_cr - 1):
+            a = cur + crenel_m
+            edges.append((a, a + merlon_m))
+            cur = a + merlon_m
+        edges.append((x1 - end_m, x1))
+        self.merlon_edges = edges
         self.string = (2.5, 2.75)          # marble string course (y); the ashlar courses below are 0.5 m (the texture's rows)
         self.cornice_y = 2.70              # inner cornice bottom
 
@@ -721,6 +814,12 @@ P_RED = ("legion_red", "plaster")
 P_GOLD = ("gold", None)
 P_SLIT = ("visor", "plain")
 P_WALK = ("travertine_shade", "paving")
+P_DARKSTONE = ("dark", "rock")
+P_TIMBER = ("timber", None)
+P_LEATHER = ("leather", None)
+P_CANVAS = ("canvas", None)
+P_ROOF = ("roof_tile", None)
+P_PLATE = ("plate_dark", None)
 
 
 def paint(b, p, shade=None, jitter=0.0):
@@ -735,16 +834,15 @@ def wall_section(b, w, level, inner="arcade"):
     s0, s1 = w.string
     near = level == 0
     # segments of the parapet: (x_a, x_b, is_merlon)
-    edges = []
-    for c in w.merlons:
-        edges.append((c - w.merlon_half, c + w.merlon_half))
     segs = []
     cur = X0
-    for a, c in edges:
-        segs.append((cur, a, False))
+    for a, c in w.merlon_edges:
+        if a > cur + 1e-6:
+            segs.append((cur, a, False))
         segs.append((a, c, True))
         cur = c
-    segs.append((cur, X1, False))
+    if cur < X1 - 1e-6:
+        segs.append((cur, X1, False))
     top_of = lambda m: w.ptop if m else w.crenel
     OF = ZO - 0.02  # parapet outer face
 
@@ -798,7 +896,7 @@ def wall_section(b, w, level, inner="arcade"):
         paint(b, P_MARBLE, 0.5)
         for (a, c, m) in segs:
             if m:
-                box(b, (a, w.crenel, ZO - 0.06), (c, w.ptop + 0.1, PIN), skip=("-y",))
+                box(b, (a, w.crenel, ZO - 0.04), (c, w.merlon_top, PIN), skip=("-y",))
 
     # parapet
     for i, (a, c, m) in enumerate(segs if near else []):
@@ -810,8 +908,9 @@ def wall_section(b, w, level, inner="arcade"):
                 holes.append({"u0": cx - 0.06, "u1": cx + 0.06, "v0": 3.2, "v1": 3.85, "depth": 0.12,
                               "back": P_SLIT[0], "surface": P_SLIT[1]})
             elif a > X0 + 1e-6 and c < X1 - 1e-6:
-                holes.append({"u0": a + 0.12, "u1": c - 0.12, "v0": 3.28, "v1": 3.82, "depth": 0.07,
-                              "back": P_BRONZE[0], "shade": 0.45})
+                # the crenel's recessed face: dark stone (bronze read rust-orange at dusk)
+                holes.append({"u0": a + 0.1, "u1": c - 0.1, "v0": 3.28, "v1": w.crenel - 0.12, "depth": 0.07,
+                              "back": P_DARKSTONE[0], "surface": P_DARKSTONE[1], "shade": 0.42})
         paint(b, P_WALL, 0.5, 0.05 if near else 0.0)
         if near:
             face(b, "-z", OF, a, c, s1, top, holes)
@@ -830,7 +929,10 @@ def wall_section(b, w, level, inner="arcade"):
         paint(b, P_MARBLE, 0.5, 0.05)
         for (a, c, m) in segs:
             if m:
-                box(b, (a - 0.05, w.ptop - 0.02, ZO - 0.06), (c + 0.05, w.ptop + 0.10, PIN), chamfer=0.03, skip=("-y",))
+                # copings overhang 0.04 outwards and 0.03 along (none at the piece's ends: the joint merlon)
+                ea = 0.0 if a <= X0 + 1e-6 else 0.03
+                ec = 0.0 if c >= X1 - 1e-6 else 0.03
+                box(b, (a - ea, w.ptop - 0.02, ZO - 0.04), (c + ec, w.merlon_top, PIN), chamfer=0.03, skip=("-y",))
             else:
                 box(b, (a, w.crenel - 0.05, ZO - 0.07), (c, w.crenel + 0.03, PIN), chamfer=0.02, skip=("-y", "-x", "+x"))
 
@@ -854,9 +956,16 @@ def wall_section(b, w, level, inner="arcade"):
     IF = ZI + 0.02
     if inner == "arcade":
         if near:
+            # M2W1 item 2: the proud plinth stops 1.4 m (the largest overlap) short of both ends, so it never runs
+            # across a neighbouring stair's first steps; over the ends a flush base band.
+            pe = 1.4
             paint(b, P_BASE, 0.5)
-            prism(b, "x", [(0.0, ZI), (0.0, ZI + 0.10), (0.42, ZI + 0.10), (0.5, IF), (0.5, ZI)], X0, X1,
-                  skip=("-y", "-z"), caps=(False, False))
+            prism(b, "x", [(0.0, ZI), (0.0, ZI + 0.10), (0.42, ZI + 0.10), (0.5, IF), (0.5, ZI)], X0 + pe, X1 - pe,
+                  skip=("-y", "-z"), caps=(True, True))
+            paint(b, P_BASE, 0.46)
+            for (xa, xb) in ((X0, X0 + pe), (X1 - pe, X1)):
+                b.poly([(xa, 0.0, ZI + 0.004), (xb, 0.0, ZI + 0.004), (xb, 0.5, ZI + 0.004), (xa, 0.5, ZI + 0.004)], (0, 0, 1))
+                b.poly([(xa, 0.5, ZI + 0.004), (xb, 0.5, ZI + 0.004), (xb, 0.5, IF), (xa, 0.5, IF)], (0, -1, 0))
             paint(b, P_MARBLE, 0.5)
             strip(b, "x", [(WY, wz1), (WY - 0.07, wz1), (w.cornice_y + 0.10, ZI + 0.08), (w.cornice_y, IF)], X0, X1)
             paint(b, P_GLOW, 0.5)
@@ -897,7 +1006,7 @@ def wall_section(b, w, level, inner="arcade"):
     out_profile += [(WY, PIN), (WY, wz1)]
     if inner == "arcade":
         if near:
-            out_profile += [(WY - 0.07, wz1), (w.cornice_y + 0.10, ZI + 0.08), (w.cornice_y, IF), (0.5, IF), (0.42, ZI + 0.10), (0.0, ZI + 0.10)]
+            out_profile += [(WY - 0.07, wz1), (w.cornice_y + 0.10, ZI + 0.08), (w.cornice_y, IF), (0.5, IF), (0.5, ZI + 0.004), (0.0, ZI + 0.004)]
         else:
             out_profile += [(WY, IF + 0.09), (WY - 0.3, IF + 0.09), (WY - 0.3, IF), (0.0, IF)]
     else:
@@ -1067,6 +1176,19 @@ def build_gate(b, data, level):
                     paint(b, P_BRONZE, 0.45)
                     for vy in (1.85, 3.05):
                         box(b, (cx - 0.45, vy - 0.035, min(Z + s * 0.045, Z + s * 0.075)), (cx + 0.45, vy + 0.035, max(Z + s * 0.045, Z + s * 0.075)), skip=(back,))
+                else:
+                    # M2W1 item 2: the inner face gets the same pylon panel, simpler: a marble frame round a
+                    # sunk travertine field and one bronze roundel with a gold boss
+                    paint(b, P_MARBLE, 0.47)
+                    for (u0, u1, v0, v1) in ((cx - 0.55, cx + 0.55, 1.45, 1.55), (cx - 0.55, cx + 0.55, 3.35, 3.45),
+                                             (cx - 0.55, cx - 0.45, 1.55, 3.35), (cx + 0.45, cx + 0.55, 1.55, 3.35)):
+                        box(b, (u0, v0, min(Z, Z + s * 0.08)), (u1, v1, max(Z, Z + s * 0.08)), skip=(back,))
+                    paint(b, P_SHADE, 0.44)
+                    b.poly([(cx - 0.45, 1.55, Z + s * 0.045), (cx + 0.45, 1.55, Z + s * 0.045), (cx + 0.45, 3.35, Z + s * 0.045), (cx - 0.45, 3.35, Z + s * 0.045)], nz)
+                    paint(b, P_BRONZE, 0.5)
+                    plate(b, disc_pts(cx, 2.45, 0.27, 10), Z + s * 0.045, Z + s * 0.1)
+                    paint(b, P_GOLD, 0.5)
+                    plate(b, disc_pts(cx, 2.45, 0.1, 6), Z + s * 0.1, Z + s * 0.125)
             # portal frame: two jamb bands and the lintel band (marble), corner brackets in the opening
             paint(b, P_MARBLE, 0.5)
             fw = 0.32
@@ -1268,16 +1390,19 @@ def build_watchtower(b, data, level):
             for i in range(6):
                 ya, yb = 0.5 + 0.5 * i, 1.0 + 0.5 * i
                 la, lb = (0.7, 0.4) if i % 2 == 0 else (0.4, 0.7)
-                paint(b, ("travertine", None), 0.62, 0.05)
+                # M2W1 item 2: 0.085 proud of the collider (0.055 over the courses) with a chamfer, in the darker
+                # travertine so the corner reads from across the field
+                paint(b, P_SHADE, 0.56, 0.05)
+                qp = 0.085
                 x_in, z_in = cx - sx * la, cz - sz * lb
-                mn = (min(cx + sx * 0.06, x_in), ya + 0.01, min(cz + sz * 0.06, z_in))
-                mx = (max(cx + sx * 0.06, x_in), yb - 0.01, max(cz + sz * 0.06, z_in))
+                mn = (min(cx + sx * qp, x_in), ya + 0.012, min(cz + sz * qp, z_in))
+                mx = (max(cx + sx * qp, x_in), yb - 0.012, max(cz + sz * qp, z_in))
                 skip = ("-y",)
                 if (cx, cz) == (bx1, bz0):
                     # beside the ramp: flush on the ramp's side
                     mx = (cx, mx[1], mx[2])
                     skip = ("-y", "+x")
-                box(b, mn, mx, chamfer=0.0, skip=skip)
+                box(b, mn, mx, chamfer=0.02, skip=skip)
         # arrow loops on N, W and S: a marble frame with a dark slit
         for (axis, w, sgn, cu) in (("x", bz0, -1, 0.0), ("z", bx0, -1, 0.0), ("x", bz1, 1, -0.8)):
             paint(b, P_MARBLE, 0.5)
@@ -1414,7 +1539,1011 @@ def build_watchtower(b, data, level):
         b.poly([(xr[0], prev, zr[1]), (xr[1], prev, zr[1]), (xr[1], ry1, zr[1]), (xr[0], ry1, zr[1])], (0, 0, -1))
 
 
+# ---------------------------------------------------------------- item 2: helpers
+
+def slab(b, pts, off, back=True, sides=True):
+    """A planar polygon (3D points, any winding, may be concave) pushed out by the vector `off`: the front at
+    pts + off (facing along off), the back at pts (when `back`), the rim between them (when `sides`)."""
+    pts = [tuple(float(v) for v in p) for p in pts]
+    n = norm(newell(pts))
+    if dot(n, off) < 0:
+        pts = pts[::-1]
+        n = mul(n, -1)
+    b.poly([add(p, off) for p in pts], off)
+    if back:
+        b.poly(pts, mul(off, -1))
+    if sides:
+        for i in range(len(pts)):
+            p, q = pts[i], pts[(i + 1) % len(pts)]
+            b.poly([p, q, add(q, off), add(p, off)], cross(sub(q, p), n))
+
+
+def ring_pts(cx, cz, y, r, segs, phase=0.0, star=None):
+    n = segs * 2 if star else segs
+    out = []
+    for i in range(n):
+        a = phase + 2 * math.pi * i / n
+        rr = r * (star if (star and i % 2 == 1) else 1.0)
+        out.append((cx + rr * math.cos(a), y, cz + rr * math.sin(a)))
+    return out
+
+
+def lathe(b, cx, cz, rings, segs, phase=0.0, star=None, caps=(False, False)):
+    """A turned shape round the vertical axis through (cx, cz): rings [(y, r)] from the bottom up (the same y
+    twice makes a flat step), flat facets; star = every other vertex pulled in to this fraction (flutes)."""
+    pr = [ring_pts(cx, cz, y, r, segs, phase, star) for (y, r) in rings]
+    n = len(pr[0])
+    for k in range(len(rings) - 1):
+        (y0, r0), (y1, r1) = rings[k], rings[k + 1]
+        dr, dy = r1 - r0, y1 - y0
+        if abs(dr) < 1e-9 and abs(dy) < 1e-9:
+            continue
+        A, B = pr[k], pr[k + 1]
+        for i in range(n):
+            j = (i + 1) % n
+            a = phase + 2 * math.pi * (i + 0.5) / n
+            b.poly([A[i], A[j], B[j], B[i]], (math.cos(a) * dy, -dr, math.sin(a) * dy))
+    if caps[0]:
+        b.poly(pr[0], (0, -1, 0))
+    if caps[1]:
+        b.poly(pr[-1], (0, 1, 0))
+
+
+def fpt(normal, w, u, v, d=0.0):
+    """A point on the face (normal, plane w) at (u, v), d out of the face (FACE_FRAMES: +-z: u = x; +-x: u = z;
+    +-y: u = x, v = z)."""
+    sg = 1 if normal[0] == "+" else -1
+    return _fp(normal, w + sg * d, u, v)
+
+
+def fquad(b, normal, w, u0, u1, v0, v1, d=0.0):
+    if u1 - u0 > 1e-6 and v1 - v0 > 1e-6:
+        b.poly([fpt(normal, w, u0, v0, d), fpt(normal, w, u1, v0, d), fpt(normal, w, u1, v1, d), fpt(normal, w, u0, v1, d)], DIRS[normal])
+
+
+def fbox(b, normal, w, u0, u1, v0, v1, d0, d1, chamfer=0.0, skip=()):
+    """A box standing on a face: u0..u1, v0..v1, from d0 to d1 out of the face; its back is left out."""
+    p0 = fpt(normal, w, u0, v0, d0)
+    p1 = fpt(normal, w, u1, v1, d1)
+    mn = tuple(min(p0[i], p1[i]) for i in range(3))
+    mx = tuple(max(p0[i], p1[i]) for i in range(3))
+    back = ("-" if normal[0] == "+" else "+") + normal[1]
+    box(b, mn, mx, chamfer=chamfer, skip=tuple(skip) + (back,))
+
+
+def fplate(b, normal, w, pts_uv, d0, d1):
+    """A flat relief: the (u, v) polygon from d0 out to d1 (no back)."""
+    slab(b, [fpt(normal, w, u, v, d0) for (u, v) in pts_uv], mul(DIRS[normal], d1 - d0), back=False)
+
+
+def wall_rects(b, normal, w, u0, u1, v0, v1, openings, d=0.0):
+    """The face rectangle minus through openings (u0, u1, v0, v1; apart in u) as plain rectangles."""
+    cur = u0
+    for (a0, a1, c0, c1) in sorted(openings):
+        a0c, a1c = max(a0, u0), min(a1, u1)
+        if a1c <= a0c + 1e-6:
+            continue
+        fquad(b, normal, w, cur, a0c, v0, v1, d)
+        fquad(b, normal, w, a0c, a1c, v0, max(v0, min(c0, v1)), d)
+        fquad(b, normal, w, a0c, a1c, min(v1, max(c1, v0)), v1, d)
+        cur = a1c
+    fquad(b, normal, w, cur, u1, v0, v1, d)
+
+
+def band_run(b, normal, w, u0, u1, profile, ends=(0, 0), skip_last=False):
+    """A moulding run along a face from u0 to u1: profile [(v, d)] walked from the face (d = 0) at the bottom,
+    out and up, back to the face. ends: +1 = an outer corner (mitred: the run reaches d further), -1 = an inner
+    corner (stops d short), 0 = a flat end cap. skip_last: the last segment (the top, often hidden) left out."""
+    def U(e, d):
+        return u0 - ends[0] * d if e == 0 else u1 + ends[1] * d
+    nf = DIRS[normal]
+    _, ua, _ = FACE_FRAMES[normal]
+    udir = [0.0, 0.0, 0.0]
+    udir[ua] = 1.0
+    segs = len(profile) - 1 - (1 if skip_last else 0)
+    for i in range(segs):
+        (va, da), (vb, db) = profile[i], profile[i + 1]
+        hint = add(mul((0, 1, 0), -(db - da)), mul(nf, vb - va))
+        b.poly([fpt(normal, w, U(0, da), va, da), fpt(normal, w, U(1, da), va, da),
+                fpt(normal, w, U(1, db), vb, db), fpt(normal, w, U(0, db), vb, db)], hint)
+    for e, sg in ((0, -1), (1, 1)):
+        if ends[e] == 0:
+            b.poly([fpt(normal, w, U(e, d), v, d) for (v, d) in profile], mul(tuple(udir), sg))
+
+
+def ring_run(b, hx, hz, profile, outer=True, skip_last=False, gaps=None):
+    """band_run on the four faces of a rectangle (faces at x = +-hx, z = +-hz), mitred at the corners (outer
+    corners when `outer`, else the inside of a room); gaps {face: [(u0, u1)]} leave openings (flat caps)."""
+    gaps = gaps or {}
+    s = 1 if outer else -1
+    faces = [("-z" if outer else "+z", -hz, -hx, hx), ("+z" if outer else "-z", hz, -hx, hx),
+             ("-x" if outer else "+x", -hx, -hz, hz), ("+x" if outer else "-x", hx, -hz, hz)]
+    for (nm, w, a, c) in faces:
+        cuts = sorted(gaps.get(nm, []))
+        runs = []
+        cur, e0 = a, s
+        for (g0, g1) in cuts:
+            runs.append((cur, g0, e0, 0))
+            cur, e0 = g1, 0
+        runs.append((cur, c, e0, s))
+        for (r0, r1, ea, eb) in runs:
+            if r1 - r0 > 1e-6:
+                band_run(b, nm, w, r0, r1, profile, (ea, eb), skip_last)
+
+
+# ---------------------------------------------------------------- item 2: the citadel order
+
+def column_at(b, cx, cz, near):
+    """A Roman Tuscan-Doric column on its collider (1 x 4.5 x 1): a square plinth, an attic base (torus and
+    cove), a fluted shaft with entasis (10 flutes), an astragal, the echinus and a chamfered abacus."""
+    if near:
+        paint(b, P_MARBLE, 0.47, 0.03)
+        box(b, (cx - 0.56, 0.0, cz - 0.56), (cx + 0.56, 0.2, cz + 0.56), chamfer=0.03, skip=("-y",))
+        paint(b, P_MARBLE, 0.53)
+        lathe(b, cx, cz, [(0.2, 0.5), (0.3, 0.52), (0.42, 0.45)], 10, caps=(False, True))
+        paint(b, P_MARBLE, 0.5, 0.02)
+        lathe(b, cx, cz, [(0.42, 0.41), (1.6, 0.415), (3.9, 0.35)], 10, star=0.86)
+        paint(b, P_MARBLE, 0.56)
+        lathe(b, cx, cz, [(3.9, 0.35), (3.9, 0.385), (3.97, 0.385)], 10)
+        paint(b, P_MARBLE, 0.52)
+        lathe(b, cx, cz, [(3.97, 0.385), (4.12, 0.47), (4.24, 0.53)], 10)
+        paint(b, P_MARBLE, 0.5, 0.03)
+        # (0.57: under the 0.08 skin of the bays' open volumes, tests/test_world_kit.gd)
+        box(b, (cx - 0.57, 4.24, cz - 0.57), (cx + 0.57, 4.5, cz + 0.57), chamfer=0.025, skip=("+y",))
+    else:
+        paint(b, P_MARBLE, 0.48)
+        box(b, (cx - 0.55, 0.0, cz - 0.55), (cx + 0.55, 0.42, cz + 0.55), skip=("-y",))
+        paint(b, P_MARBLE, 0.5)
+        lathe(b, cx, cz, [(0.42, 0.42), (4.0, 0.36)], 6)
+        box(b, (cx - 0.56, 4.0, cz - 0.56), (cx + 0.56, 4.5, cz + 0.56), skip=("+y",))
+
+
+def build_column(b, data, level):
+    near = level == 0
+    column_at(b, 0.0, 0.0, near)
+    if near:
+        # the top of the lone column (seen from the walls)
+        paint(b, P_MARBLE, 0.5)
+        b.poly([(-0.555, 4.5, -0.555), (0.555, 4.5, -0.555), (0.555, 4.5, 0.555), (-0.555, 4.5, 0.555)], (0, 1, 0))
+    else:
+        b.poly([(-0.56, 4.5, -0.56), (0.56, 4.5, -0.56), (0.56, 4.5, 0.56), (-0.56, 4.5, 0.56)], (0, 1, 0))
+
+
+TRIGLYPH_X = (-4.5, -3.0, -1.5, 0.0, 1.5, 3.0, 4.5)
+
+
+def entablature(b, near, X=5.0):
+    """On the 10 x 0.9 x 1.2 collider (y 4.5 .. 5.4): an architrave of two fasciae and a taenia, a recessed
+    frieze with bronze triglyphs over every column and every bay, a thin energy line at its foot, a cornice."""
+    if near:
+        paint(b, P_MARBLE, 0.5, 0.03)
+        prof = [(4.5, -0.58), (4.5, 0.58), (4.68, 0.58), (4.68, 0.62), (4.86, 0.62), (4.86, 0.65), (4.92, 0.65),
+                (4.92, -0.65), (4.86, -0.65), (4.86, -0.62), (4.68, -0.62), (4.68, -0.58)]
+        prism(b, "x", prof, -X, X, skip=("+y",))
+        paint(b, P_WALL, 0.5, 0.03)
+        box(b, (-X, 4.92, -0.56), (X, 5.15, 0.56), skip=("-y", "+y"))
+        paint(b, P_GLOW, 0.5)
+        for s in (-1, 1):
+            z0, z1 = sorted((s * 0.56, s * 0.575))
+            box(b, (-X, 4.92, z0), (X, 4.945, z1), skip=("-y", "-z" if s > 0 else "+z"))
+        for s in (-1, 1):
+            nm = "+z" if s > 0 else "-z"
+            for x in TRIGLYPH_X:
+                paint(b, P_BRONZE, 0.5)
+                fbox(b, nm, s * 0.56, x - 0.17, x + 0.17, 4.95, 5.15, 0.0, 0.04, skip=("+y",))
+                paint(b, P_PLATE, 0.4)
+                for gx in (x - 0.06, x + 0.06):
+                    fquad(b, nm, s * 0.56, gx - 0.025, gx + 0.025, 4.98, 5.15, 0.041)
+        paint(b, P_MARBLE, 0.52, 0.03)
+        cprof = [(5.15, -0.6), (5.15, 0.6), (5.22, 0.66), (5.3, 0.7), (5.4, 0.7), (5.4, -0.7), (5.3, -0.7), (5.22, -0.66)]
+        prism(b, "x", cprof, -X - 0.06, X + 0.06)
+    else:
+        paint(b, P_MARBLE, 0.5)
+        box(b, (-X, 4.5, -0.62), (X, 5.4, 0.62))
+        paint(b, P_GLOW, 0.5)
+        for s in (-1, 1):
+            b.poly([(-X, 4.92, s * 0.625), (X, 4.92, s * 0.625), (X, 4.95, s * 0.625), (-X, 4.95, s * 0.625)], (0, 0, s))
+
+
+def build_colonnade(b, data, level):
+    near = level == 0
+    for cx in (-4.5, -1.5, 1.5, 4.5):
+        column_at(b, cx, 0.0, near)
+    entablature(b, near)
+
+
+def pediment_y(x):
+    return 5.4 + 1.6 * (1.0 - abs(x) / 5.0)
+
+
+def build_pediment_front(b, data, level):
+    """The colonnade with a gable on its wedge collider (y 5.4 .. 7.0): a raking cornice with a tiled top, the
+    tympanum recessed between the cornices, a bronze winged wreath with a gold ring and an energy core on it."""
+    near = level == 0
+    for cx in (-4.5, -1.5, 1.5, 4.5):
+        column_at(b, cx, 0.0, near)
+    entablature(b, near)
+    ex = 5.06
+    up, down = 0.10, 0.20
+    prof = [(-ex, pediment_y(ex) + up), (0.0, 7.0 + up), (ex, pediment_y(ex) + up), (ex, pediment_y(ex) - down),
+            (0.0, 7.0 - down), (-ex, pediment_y(ex) - down)]
+    zr = 0.68
+    if near:
+        paint(b, P_MARBLE, 0.52, 0.03)
+        prism(b, "z", prof, -zr, zr, skip=("+y",))
+        paint(b, P_ROOF, 0.5, 0.04)
+        for sx in (-1, 1):
+            b.poly([(sx * ex, pediment_y(ex) + up, -zr), (0.0, 7.0 + up, -zr), (0.0, 7.0 + up, zr), (sx * ex, pediment_y(ex) + up, zr)], (sx * 0.32, 1, 0))
+        # tympanum: recessed 0.06 behind the collider face, framed by the cornices
+        xb = 5.0 * (1.0 - down / 1.6)
+        for s in (-1, 1):
+            nm = "+z" if s > 0 else "-z"
+            zt = s * 0.54
+            paint(b, P_SHADE, 0.47, 0.03)
+            b.poly([(-xb, 5.4, zt), (xb, 5.4, zt), (0.0, 7.0 - down, zt)], (0, 0, s))
+            # the winged wreath (shallow relief, inside the collider)
+            cx, cy, r0, r1 = 0.0, 5.92, 0.22, 0.31
+            paint(b, P_GOLD, 0.5)
+            n = 8
+            for i in range(n):
+                a0 = 2 * math.pi * i / n + math.pi / 8
+                a1 = 2 * math.pi * (i + 1) / n + math.pi / 8 - 0.06
+                pts = [(cx + r0 * math.cos(a0), cy + r0 * math.sin(a0)), (cx + r1 * math.cos(a0), cy + r1 * math.sin(a0)),
+                       (cx + r1 * math.cos(a1), cy + r1 * math.sin(a1)), (cx + r0 * math.cos(a1), cy + r0 * math.sin(a1))]
+                fplate(b, nm, zt, pts, 0.0, 0.05)
+            paint(b, P_GLOW, 0.5)
+            fplate(b, nm, zt, disc_pts(cx, cy, 0.09, 6, math.pi / 6), 0.0, 0.03)
+            paint(b, P_BRONZE, 0.52)
+            for sx in (-1, 1):
+                wing = [(0.28, 5.84), (0.62, 5.76), (0.78, 5.86), (0.98, 5.8), (1.14, 5.92), (1.34, 5.9), (1.62, 6.12),
+                        (1.0, 6.1), (0.29, 6.04)]
+                fplate(b, nm, zt, [(sx * u, v) for (u, v) in wing], 0.0, 0.055)
+            # the eagle's head and crest over the wreath
+            fplate(b, nm, zt, [(-0.07, 6.22), (0.07, 6.22), (0.09, 6.36), (0.0, 6.44), (-0.09, 6.36)], 0.0, 0.05)
+    else:
+        paint(b, P_MARBLE, 0.5)
+        prism(b, "z", prof, -zr, zr, skip=("+y", "-y"))
+        paint(b, P_ROOF, 0.5)
+        for sx in (-1, 1):
+            b.poly([(sx * ex, pediment_y(ex) + up, -zr), (0.0, 7.0 + up, -zr), (0.0, 7.0 + up, zr), (sx * ex, pediment_y(ex) + up, zr)], (sx * 0.32, 1, 0))
+        paint(b, P_SHADE, 0.47)
+        xb = 5.0 * (1.0 - down / 1.6)
+        for s in (-1, 1):
+            b.poly([(-xb, 5.4, s * 0.58), (xb, 5.4, s * 0.58), (0.0, 7.0 - down, s * 0.58)], (0, 0, s))
+        paint(b, P_BRONZE, 0.5)
+        for s in (-1, 1):
+            b.poly([(-1.5, 5.8, s * 0.6), (1.5, 5.8, s * 0.6), (1.5, 6.1, s * 0.6), (-1.5, 6.1, s * 0.6)], (0, 0, s))
+
+
+# ---------------------------------------------------------------- item 2: the forum blocks
+
+def build_terrace_block(b, data, level):
+    """A 4 x 1.2 x 4 step block: a base course, ashlar sides, a marble nosing course round the top and paving."""
+    near = level == 0
+    if near:
+        paint(b, P_BASE, 0.5)
+        box(b, (-2.08, 0.0, -2.08), (2.08, 0.3, 2.08), chamfer=0.03, skip=("-y",))
+        paint(b, P_WALL, 0.5, 0.05)
+        box(b, (-2.0, 0.3, -2.0), (2.0, 1.04, 2.0), skip=("-y", "+y"))
+        paint(b, P_GLOW, 0.5)
+        box(b, (-2.012, 0.98, -2.012), (2.012, 1.0, 2.012), skip=("-y", "+y"))
+        paint(b, P_MARBLE, 0.5, 0.03)
+        box(b, (-2.07, 1.0, -2.07), (2.07, 1.2, 2.07), chamfer=0.025, skip=("-y", "+y"))
+        for (x0, x1, z0, z1) in ((-2.07, 2.07, -2.07, -2.0), (-2.07, 2.07, 2.0, 2.07), (-2.07, -2.0, -2.0, 2.0), (2.0, 2.07, -2.0, 2.0)):
+            b.poly([(x0, 1.2, z0), (x1, 1.2, z0), (x1, 1.2, z1), (x0, 1.2, z1)], (0, 1, 0))
+        n = 4
+        g = 0.02
+        for k in range(n):
+            za = -2.0 + 4.0 * k / n
+            zb = -2.0 + 4.0 * (k + 1) / n
+            paint(b, P_WALK, 0.5, 0.06)
+            ga = g if k > 0 else 0.0
+            gb = g if k < n - 1 else 0.0
+            b.poly([(-2.0, 1.2, za + ga), (2.0, 1.2, za + ga), (2.0, 1.2, zb - gb), (-2.0, 1.2, zb - gb)], (0, 1, 0))
+            if ga:
+                b.poly([(-2.0, 1.2 - g, za), (2.0, 1.2 - g, za), (2.0, 1.2, za + ga), (-2.0, 1.2, za + ga)], (0, 1, -1))
+            if gb:
+                b.poly([(-2.0, 1.2, zb - gb), (2.0, 1.2, zb - gb), (2.0, 1.2 - g, zb), (-2.0, 1.2 - g, zb)], (0, 1, 1))
+    else:
+        paint(b, P_WALL, 0.5)
+        box(b, (-2.0, 0.0, -2.0), (2.0, 1.2, 2.0), skip=("-y", "+y"))
+        paint(b, P_WALK, 0.5)
+        b.poly([(-2.0, 1.2, -2.0), (2.0, 1.2, -2.0), (2.0, 1.2, 2.0), (-2.0, 1.2, 2.0)], (0, 1, 0))
+        paint(b, P_MARBLE, 0.5)
+        for (nx, nz) in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            w = 2.04
+            if nz:
+                b.poly([(-w, 1.0, nz * w), (w, 1.0, nz * w), (w, 1.2, nz * w), (-w, 1.2, nz * w)], (0, 0, nz))
+            else:
+                b.poly([(nx * w, 1.0, -w), (nx * w, 1.0, w), (nx * w, 1.2, w), (nx * w, 1.2, -w)], (nx, 0, 0))
+
+
+def build_ramp_block(b, data, level):
+    """The 3 x 1.2 x 4 ramp wedge (rising to +z): three paving slabs on the slope, marble kerbs on the side
+    edges, a base course on the sides and a marble nosing at the top. No far mesh (60 triangles)."""
+    xr, zr, y0, y1, _ = wedge_ramp(data.colliders("ramp_block")[0])
+    hx = xr[1]
+    k = (y1 - y0) / (zr[1] - zr[0])
+    Y = lambda z: y0 + k * (z - zr[0])
+    nz, ny = -k, 1.0
+    n = 3
+    g = 0.025
+    for i in range(n):
+        za = zr[0] + (zr[1] - zr[0]) * i / n
+        zb = zr[0] + (zr[1] - zr[0]) * (i + 1) / n
+        paint(b, P_WALK, 0.5, 0.06)
+        ga = g if i > 0 else 0.0
+        b.poly([(-hx, Y(za + ga), za + ga), (hx, Y(za + ga), za + ga), (hx, Y(zb), zb), (-hx, Y(zb), zb)], (0, ny, nz))
+        if ga:
+            b.poly([(-hx, Y(za) - g, za), (hx, Y(za) - g, za), (hx, Y(za + ga), za + ga), (-hx, Y(za + ga), za + ga)], (0, 1, -1))
+    paint(b, P_WALL, 0.5)
+    for s in (-1, 1):
+        b.poly([(s * hx, 0.0, zr[0]), (s * hx, 0.0, zr[1]), (s * hx, y1, zr[1])], (s, 0, 0))
+    b.poly([(-hx, 0.0, zr[1]), (hx, 0.0, zr[1]), (hx, y1, zr[1]), (-hx, y1, zr[1])], (0, 0, 1))
+    paint(b, P_BASE, 0.5)
+    for s in (-1, 1):
+        b.poly([(s * (hx + 0.05), 0.0, zr[0] + 0.75), (s * (hx + 0.05), 0.0, zr[1]), (s * (hx + 0.05), 0.2, zr[1]), (s * (hx + 0.05), 0.2, zr[0] + 1.25)], (s, 0, 0))
+        b.poly([(s * hx, 0.2, zr[0] + 1.25), (s * hx, 0.2, zr[1]), (s * (hx + 0.05), 0.2, zr[1]), (s * (hx + 0.05), 0.2, zr[0] + 1.25)], (0, 1, 0))
+        b.poly([(s * hx, 0.0, zr[0] + 0.75), (s * hx, 0.2, zr[0] + 1.25), (s * (hx + 0.05), 0.2, zr[0] + 1.25), (s * (hx + 0.05), 0.0, zr[0] + 0.75)], (0, 0.5, -0.8))
+    paint(b, P_MARBLE, 0.5)
+    for s in (-1, 1):
+        xa, xb = (hx - 0.02, hx + 0.06) if s > 0 else (-hx - 0.06, -hx + 0.02)
+        xo = xb if s > 0 else xa
+        b.poly([(xa, Y(zr[0]) + 0.04, zr[0]), (xb, Y(zr[0]) + 0.04, zr[0]), (xb, Y(zr[1]) + 0.04, zr[1]), (xa, Y(zr[1]) + 0.04, zr[1])], (0, ny, nz))
+        b.poly([(xo, Y(zr[0]) - 0.1, zr[0]), (xo, Y(zr[1]) - 0.1, zr[1]), (xo, Y(zr[1]) + 0.04, zr[1]), (xo, Y(zr[0]) + 0.04, zr[0])], (s, 0, 0))
+    b.poly([(-hx - 0.06, y1 - 0.1, zr[1] + 0.06), (hx + 0.06, y1 - 0.1, zr[1] + 0.06), (hx + 0.06, y1 + 0.0, zr[1] + 0.06), (-hx - 0.06, y1 + 0.0, zr[1] + 0.06)], (0, 0, 1))
+    b.poly([(-hx - 0.06, y1, zr[1]), (hx + 0.06, y1, zr[1]), (hx + 0.06, y1, zr[1] + 0.06), (-hx - 0.06, y1, zr[1] + 0.06)], (0, 1, 0))
+
+
+# ---------------------------------------------------------------- item 2: the eagle standard
+
+def build_eagle_standard(b, data, level):
+    """The aquila on its plinth (1.6 box to y 1.2) and pole (0.3 box to y 6.8): everything over the plinth stays
+    within 0.15 m of the 0.3 m pole box, so the vexillum, the wreath and the eagle (wings raised in a V) are
+    narrow; a stepped marble plinth with red panels and an energy line under its cornice."""
+    near = level == 0
+    if near:
+        paint(b, P_MARBLE, 0.42, 0.03)
+        box(b, (-0.9, 0.0, -0.9), (0.9, 0.22, 0.9), chamfer=0.03, skip=("-y",))
+        for nm, w in (("-z", -0.8), ("+z", 0.8)):
+            paint(b, P_MARBLE, 0.5, 0.03)
+            face(b, nm, w, -0.8, 0.8, 0.22, 0.95, [{"u0": -0.55, "u1": 0.55, "v0": 0.34, "v1": 0.83, "depth": 0.04,
+                                                    "back": P_RED[0], "surface": P_RED[1], "walls": "marble"}])
+        for nm, w in (("-x", -0.8), ("+x", 0.8)):
+            paint(b, P_MARBLE, 0.5, 0.03)
+            fquad(b, nm, w, -0.8, 0.8, 0.22, 0.95)
+            paint(b, P_RED, 0.5)
+            fquad(b, nm, w, -0.55, 0.55, 0.34, 0.83, 0.006)
+        paint(b, P_GLOW, 0.5)
+        box(b, (-0.815, 0.95, -0.815), (0.815, 0.98, 0.815), skip=("-y", "+y"))
+        paint(b, P_MARBLE, 0.55, 0.03)
+        box(b, (-0.9, 0.98, -0.9), (0.9, 1.2, 0.9), chamfer=0.03, skip=("-y",))
+        paint(b, P_MARBLE, 0.48)
+        box(b, (-0.36, 1.2, -0.36), (0.36, 1.32, 0.36), chamfer=0.02, skip=("-y",))
+        paint(b, P_BRONZE, 0.5)
+        lathe(b, 0.0, 0.0, [(1.32, 0.065), (6.3, 0.065)], 8)
+        paint(b, P_BRONZE, 0.6)
+        for y in (2.4, 3.7):
+            lathe(b, 0.0, 0.0, [(y, 0.088), (y + 0.07, 0.088), (y + 0.09, 0.065)], 6)
+        # crossbar with gold knobs, the red vexillum with a gold fringe bar and gold letter bars
+        paint(b, P_BRONZE, 0.55)
+        box(b, (-0.25, 5.56, -0.035), (0.25, 5.63, 0.035), skip=("-x", "+x"))
+        paint(b, P_GOLD, 0.5)
+        for s in (-1, 1):
+            box(b, (min(s * 0.25, s * 0.29), 5.55, -0.04), (max(s * 0.25, s * 0.29), 5.64, 0.04), skip=(("-x" if s > 0 else "+x"),))
+        paint(b, P_RED, 0.5)
+        slab(b, [(-0.24, 4.74, -0.11), (0.24, 4.74, -0.11), (0.24, 5.56, -0.11), (-0.24, 5.56, -0.11)], (0, 0, 0.022))
+        paint(b, P_GOLD, 0.5)
+        box(b, (-0.25, 4.69, -0.115), (0.25, 4.75, -0.083))
+        for (x0, x1, yy0, yy1) in ((-0.16, 0.16, 5.38, 5.43), (-0.16, -0.12, 5.0, 5.3), (-0.04, 0.0, 5.0, 5.3), (0.08, 0.16, 5.12, 5.17), (0.12, 0.16, 5.0, 5.3)):
+            b.poly([(x0, yy0, -0.1115), (x1, yy0, -0.1115), (x1, yy1, -0.1115), (x0, yy1, -0.1115)], (0, 0, -1))
+        # the wreath (gold ring, x-y plane) with an energy core
+        cy, r0, r1 = 5.96, 0.17, 0.25
+        n = 6
+        paint(b, P_GOLD, 0.5)
+        for i in range(n):
+            # leaves: each a quad tilted out of the plane, front and back (a wreath reads by its broken outline)
+            a0 = 2 * math.pi * i / n + math.pi / 6
+            a1 = 2 * math.pi * (i + 1) / n + math.pi / 6 - 0.12
+            for zf in (-0.03, 0.03):
+                pts = [(r0 * math.cos(a0), cy + r0 * math.sin(a0), zf), (r1 * math.cos(a0), cy + r1 * math.sin(a0), zf),
+                       (r1 * math.cos(a1), cy + r1 * math.sin(a1), zf * 0.3), (r0 * math.cos(a1), cy + r0 * math.sin(a1), zf * 0.3)]
+                b.poly(pts, (0, 0, 1 if zf > 0 else -1))
+        paint(b, P_GLOW, 0.5)
+        slab(b, [(0.0, cy - 0.08, -0.02), (0.08, cy, -0.02), (0.0, cy + 0.08, -0.02), (-0.08, cy, -0.02)], (0, 0, 0.04))
+        paint(b, P_BRONZE, 0.5)
+        lathe(b, 0.0, 0.0, [(6.21, 0.05), (6.3, 0.05)], 6, caps=(False, True))
+        # the eagle: perch, body (breast to -z), head and gold beak, wings raised and swept back
+        paint(b, P_GOLD, 0.45)
+        box(b, (-0.08, 6.3, -0.06), (0.08, 6.36, 0.08), skip=("-y",))
+        body = [(0.12, 6.36), (-0.05, 6.36), (-0.11, 6.48), (-0.09, 6.62), (0.0, 6.66), (0.08, 6.56), (0.16, 6.42)]
+        paint(b, P_GOLD, 0.52)
+        slab(b, [(-0.065, y, z) for (z, y) in body], (0.13, 0, 0))
+        paint(b, P_GOLD, 0.58)
+        box(b, (-0.05, 6.62, -0.14), (0.05, 6.74, -0.03), chamfer=0.015)
+        paint(b, P_BRONZE, 0.4)
+        slab(b, [(-0.02, 6.64, -0.14), (-0.02, 6.7, -0.14), (-0.02, 6.64, -0.2)], (0.04, 0, 0))
+        paint(b, P_GOLD, 0.5)
+        L = 0.42
+        for sx in (-1, 1):
+            sh = (sx * 0.05, 6.5, 0.0)
+            dvec = mul(norm((sx * 0.2, 0.36, 0.0)), 1.0)
+            wing = [(0.0, -0.06), (0.22, -0.1), (L, -0.05), (0.4, 0.0), (0.33, 0.02), (0.36, 0.07), (0.27, 0.08),
+                    (0.29, 0.13), (0.18, 0.13), (0.18, 0.17), (0.06, 0.12), (0.0, 0.08)]
+            pts = [add(add(sh, mul(dvec, s_)), (0.0, 0.0, t)) for (s_, t) in wing]
+            thick = mul(norm(cross(dvec, (0, 0, 1))), 0.035 * sx)
+            slab(b, pts, thick)
+    else:
+        paint(b, P_MARBLE, 0.5)
+        box(b, (-0.85, 0.0, -0.85), (0.85, 1.2, 0.85), skip=("-y",))
+        paint(b, P_BRONZE, 0.5)
+        box(b, (-0.07, 1.2, -0.07), (0.07, 6.3, 0.07), skip=("-y", "+y"))
+        box(b, (-0.27, 5.56, -0.035), (0.27, 5.63, 0.035), skip=("-x", "+x"))
+        paint(b, P_RED, 0.5)
+        for s in (-1, 1):
+            b.poly([(-0.24, 4.7, -0.1), (0.24, 4.7, -0.1), (0.24, 5.56, -0.1), (-0.24, 5.56, -0.1)], (0, 0, s))
+        paint(b, P_GOLD, 0.5)
+        box(b, (-0.08, 6.3, -0.12), (0.08, 6.66, 0.14), skip=("-y",))
+        for sx in (-1, 1):
+            p = [(sx * 0.06, 6.5, -0.06), (sx * 0.26, 6.86, -0.08), (sx * 0.2, 6.78, 0.16), (sx * 0.06, 6.55, 0.1)]
+            b.poly(p, (0, 0, -1))
+            b.poly(p, (0, 0, 1))
+
+
+# ---------------------------------------------------------------- item 2: the camp
+
+def build_tent(b, data, level):
+    """A legion leather tent (papilio) on its wedge collider (3.6 long, ridge at y 2.4 over z 0, eaves at z +-2):
+    low sod walls, the pitched roof a few centimetres over the collider's slopes in three panels with leather
+    seams, a leather eave band and barge boards, a ridge pole with bronze finials, closed door flaps with bronze
+    toggles on the +x gable, a red and gold unit pennon on the -x gable, guy ropes to bronze pegs."""
+    near = level == 0
+    hx = 1.8
+    zw, yw = 1.93, 0.28        # sod wall
+    ze, ye = 1.96, 0.24        # eave
+    ya = 2.44                  # apex of the roof sheet
+    rx = 1.83                  # roof overhang over the gables
+    roof_n = lambda s: (0.0, ze, s * (ya - ye))   # outward normal hint of the +-z slope
+    def R(x, t, s):            # point on the s side's roof at x, t = 0 eave .. 1 apex, lifted by `lift`
+        return (x, ye + (ya - ye) * t, s * ze * (1.0 - t))
+    # sod walls
+    paint(b, P_LEATHER, 0.5, 0.03)
+    for s in (-1, 1):
+        b.poly([(-hx, 0.0, s * zw), (hx, 0.0, s * zw), (hx, yw, s * zw), (-hx, yw, s * zw)], (0, 0, s))
+    # gables
+    paint(b, P_CANVAS, 0.46)
+    for sx in (-1, 1):
+        b.poly([(sx * hx, 0.0, -zw), (sx * hx, 0.0, zw), (sx * hx, yw, zw), (sx * hx, ya - 0.04, 0.0), (sx * hx, yw, -zw)], (sx, 0, 0))
+    if not near:
+        paint(b, P_CANVAS, 0.5)
+        for s in (-1, 1):
+            b.poly([(-rx, ye, s * ze), (rx, ye, s * ze), (rx, ya, 0.0), (-rx, ya, 0.0)], roof_n(s))
+        paint(b, P_TIMBER, 0.5)
+        b.poly([(-1.86, ya + 0.04, 0.0), (1.86, ya + 0.04, 0.0), (1.86, ya - 0.04, -0.06), (-1.86, ya - 0.04, -0.06)], (0, 1, -1))
+        b.poly([(-1.86, ya + 0.04, 0.0), (-1.86, ya - 0.04, 0.06), (1.86, ya - 0.04, 0.06), (1.86, ya + 0.04, 0.0)], (0, 1, 1))
+        paint(b, P_LEATHER, 0.45)
+        b.poly([(hx + 0.01, 0.0, -0.55), (hx + 0.01, 0.0, 0.55), (hx + 0.01, 1.55, 0.2), (hx + 0.01, 1.55, -0.2)], (1, 0, 0))
+        paint(b, P_RED, 0.5)
+        b.poly([(-hx - 0.01, 1.0, -0.32), (-hx - 0.01, 1.0, 0.32), (-hx - 0.01, 1.62, 0.32), (-hx - 0.01, 1.62, -0.32)], (-1, 0, 0))
+        return
+    # roof: three panels a side, the middle one a shade lighter; leather seams over the panel joints
+    xs = (-rx, -0.6, 0.6, rx)
+    for s in (-1, 1):
+        for i in range(3):
+            # canvas on its cloth surface (the leather surface read grey-blue at dusk)
+            paint(b, P_CANVAS, 0.5 + (0.05 if i == 1 else 0.0) + (0.02 if s > 0 else 0.0))
+            b.poly([R(xs[i], 0, s), R(xs[i + 1], 0, s), R(xs[i + 1], 1, s), R(xs[i], 1, s)], roof_n(s))
+        paint(b, P_LEATHER, 0.5)
+        off = mul(norm(roof_n(s)), 0.015)
+        for xj in (-0.6, 0.6):
+            slab(b, [R(xj - 0.04, 0.0, s), R(xj + 0.04, 0.0, s), R(xj + 0.04, 0.97, s), R(xj - 0.04, 0.97, s)], off, back=False)
+        # eave band
+        slab(b, [R(-rx, 0.0, s), R(rx, 0.0, s), R(rx, 0.07, s), R(-rx, 0.07, s)], off, back=False)
+    # ridge pole, bronze finials
+    paint(b, P_TIMBER, 0.5)
+    box(b, (-1.81, ya - 0.03, -0.04), (1.81, ya + 0.05, 0.04), skip=("-y", "-x", "+x"))
+    paint(b, P_BRONZE, 0.55)
+    for sx in (-1, 1):
+        x0, x1 = sorted((sx * 1.81, sx * 1.89))
+        box(b, (x0, ya - 0.05, -0.05), (x1, ya + 0.06, 0.05), chamfer=0.012)
+    # -x gable: the gable pole and the unit pennon (red with gold bars and a swallow tail)
+    paint(b, P_TIMBER, 0.48)
+    box(b, (-hx - 0.06, 0.0, -0.035), (-hx, ya - 0.05, 0.035), skip=("-y", "+x"))
+    paint(b, P_RED, 0.5)
+    fplate(b, "-x", -hx, [(-0.36, 1.62), (-0.06, 1.62), (-0.06, 1.0), (-0.21, 1.1), (-0.36, 1.0)], 0.0, 0.02)
+    fplate(b, "-x", -hx, [(0.06, 1.62), (0.36, 1.62), (0.36, 1.0), (0.21, 1.1), (0.06, 1.0)], 0.0, 0.02)
+    paint(b, P_GOLD, 0.5)
+    fbox(b, "-x", -hx, -0.4, 0.4, 1.62, 1.68, 0.0, 0.03)
+    fquad(b, "-x", -hx, -0.3, -0.12, 1.36, 1.42, 0.021)
+    fquad(b, "-x", -hx, 0.12, 0.3, 1.36, 1.42, 0.021)
+    # +x gable: two closed leather door flaps overlapping, door poles, bronze toggles across the seam
+    paint(b, P_LEATHER, 0.46)
+    fplate(b, "+x", hx, [(-0.62, 0.0), (0.06, 0.0), (0.06, 1.72), (-0.62, 1.2)], 0.0, 0.012)
+    paint(b, P_LEATHER, 0.52)
+    fplate(b, "+x", hx, [(-0.04, 0.0), (0.62, 0.0), (0.62, 1.2), (-0.04, 1.72)], 0.012, 0.024)
+    paint(b, P_BRONZE, 0.5)
+    for ty in (0.55, 1.1):
+        fbox(b, "+x", hx, -0.09, 0.09, ty, ty + 0.05, 0.024, 0.045)
+    paint(b, P_TIMBER, 0.48)
+    for zp in (-0.68, 0.68):
+        fbox(b, "+x", hx, zp - 0.035, zp + 0.035, 0.0, 1.25, 0.0, 0.06, skip=("-y",))
+    # guy ropes from the eave corners to bronze pegs
+    for sx in (-1, 1):
+        for s in (-1, 1):
+            top = (sx * 1.82, ye + 0.02, s * ze)
+            peg = (sx * 1.86, 0.06, s * 2.05)
+            paint(b, ("canvas", "burlap"), 0.42)
+            side = mul(norm(cross(sub(peg, top), (0, 1, 0))), 0.012)
+            q = [sub(top, side), add(top, side), add(peg, side), sub(peg, side)]
+            b.poly(q, cross(sub(q[1], q[0]), sub(q[2], q[0])))
+            b.poly(q, mul(cross(sub(q[1], q[0]), sub(q[2], q[0])), -1))
+            paint(b, P_BRONZE, 0.5)
+            lathe(b, peg[0], peg[2], [(0.0, 0.035), (0.1, 0.0)], 4, phase=math.pi / 4)
+
+
+def build_stake_row(b, data, level):
+    """A cheval de frise on its 4 x 0.9 x 0.7 box: a hewn log, nine sharpened stakes crossing it in alternate
+    leans (seeded), bronze-shod tips, rope lashings."""
+    near = level == 0
+    n = 9
+    stakes = []
+    for i in range(n):
+        x = -1.8 + 3.6 * i / (n - 1)
+        s = 1 if i % 2 == 0 else -1
+        dx = b.rng.uniform(-0.06, 0.06)
+        dz = b.rng.uniform(-0.03, 0.03)
+        base = (x - dx * 0.5, 0.0, -s * 0.24)
+        tip = (x + dx, 0.93 + b.rng.uniform(-0.04, 0.0), s * (0.42 + dz))
+        stakes.append((base, tip))
+    if not near:
+        paint(b, P_TIMBER, 0.5)
+        b.poly([(-1.95, 0.27, -0.12), (1.95, 0.27, -0.12), (1.95, 0.27, 0.12), (-1.95, 0.27, 0.12)], (0, 1, 0))
+        for s in (-1, 1):
+            b.poly([(-1.95, 0.0, s * 0.14), (1.95, 0.0, s * 0.14), (1.95, 0.27, s * 0.12), (-1.95, 0.27, s * 0.12)], (0, 0, s))
+        paint(b, P_TIMBER, 0.42)
+        for (base, tip) in stakes:
+            p = [(base[0] - 0.05, base[1], base[2]), (base[0] + 0.05, base[1], base[2]), tip]
+            nn = cross(sub(p[1], p[0]), sub(p[2], p[0]))
+            b.poly(p, nn)
+            b.poly(p, mul(nn, -1))
+        return
+    # the log: an eight-sided hewn beam
+    paint(b, P_TIMBER, 0.5, 0.04)
+    prof = [(0.14 + 0.13 * math.sin(a), 0.13 * math.cos(a)) for a in [2 * math.pi * k / 8 + math.pi / 8 for k in range(8)]]
+    prism(b, "x", prof, -1.95, 1.95, skip=("-y",))
+    for i, (base, tip) in enumerate(stakes):
+        d = norm(sub(tip, base))
+        e1 = norm(cross(d, (1, 0, 0)))
+        e2 = norm(cross(d, e1))
+        ln = length(sub(tip, base))
+        sh = add(base, mul(d, ln * 0.8))
+        r0, r1 = 0.055, 0.042
+        bot = [add(base, add(mul(e1, a * r0), mul(e2, c * r0))) for (a, c) in ((1, 1), (-1, 1), (-1, -1), (1, -1))]
+        mid = [add(sh, add(mul(e1, a * r1), mul(e2, c * r1))) for (a, c) in ((1, 1), (-1, 1), (-1, -1), (1, -1))]
+        paint(b, P_TIMBER, 0.42 + 0.03 * (i % 3), 0.03)
+        for k in range(4):
+            j = (k + 1) % 4
+            out = sub(mul(add(bot[k], bot[j]), 0.5), base)
+            b.poly([bot[k], bot[j], mid[j], mid[k]], out)
+        paint(b, P_BRONZE, 0.5)
+        for k in range(4):
+            j = (k + 1) % 4
+            out = sub(mul(add(mid[k], mid[j]), 0.5), sh)
+            b.poly([mid[k], mid[j], tip], add(out, mul(d, 0.02)))
+    # rope lashings round the log at every other stake
+    paint(b, ("canvas", "burlap"), 0.4)
+    for i in range(0, n, 2):
+        x = stakes[i][0][0]
+        box(b, (x - 0.035, 0.0, -0.145), (x + 0.035, 0.285, 0.145), skip=("-y", "-x", "+x"))
+
+
+# ---------------------------------------------------------------- item 2: the aqueduct
+
+def build_aqueduct_span(b, data, level):
+    """A 10 m span on two half piers (neighbours meet at x = +-5 into 2 m piers): piers with a base, ashlar
+    courses and an impost cap, corbels under the deck, a flat arch of voussoirs in shallow relief on the deck
+    band (the open way 8 x 4.2 leaves no room for a real arch), a cornice, kerbs with marble copings, coffers in
+    the soffit, deck paving and an energy conduit between bronze lips in the deck. Nothing passes x = +-5, so
+    spans tile end to end."""
+    near = level == 0
+    X = 5.0
+    Z = 1.4
+    piers = ((-X, -4.0, -1), (4.0, X, 1))        # x range and the side the open way lies on (inner face sign)
+    if near:
+        for (x0, x1, sx) in piers:
+            xin = x0 if sx > 0 else x1               # inner face (towards the open way)
+            sg = -sx                                  # inner face normal sign along x
+            # plinth, the impost cap (0.08 into the open way, 0.1 out over the long faces)
+            # (into the open way 0.07 at most: tests/test_world_kit.gd keeps a 0.08 skin of open volumes clear)
+            paint(b, P_BASE, 0.5)
+            pa, pb = (xin + sg * 0.07, x1) if sx > 0 else (x0, xin + sg * 0.07)
+            box(b, (min(pa, pb), 0.0, -Z - 0.1), (max(pa, pb), 0.5, Z + 0.1), chamfer=0.03, skip=("-y",))
+            # ashlar courses on the long faces and the inner face
+            rows = [(0.5 + 0.5 * i, min(1.0 + 0.5 * i, 3.85)) for i in range(7)]
+            for i, (ya, yb) in enumerate(rows):
+                paint(b, P_WALL, 0.5, 0.07)
+                for s in (-1, 1):
+                    pts = [(ya, s * (Z + 0.03))] if i == 0 else [(ya, s * Z), (ya + 0.03, s * (Z + 0.03))]
+                    pts += [(yb - 0.03, s * (Z + 0.03)), (yb, s * Z)]
+                    if s > 0:
+                        pts = list(reversed(pts))
+                    xa, xb = (xin - 0.03, x1) if sx > 0 else (x0, xin + 0.03)
+                    strip(b, "x", pts, xa, xb)
+                # inner face: (u, v) = (x, y) for z prisms
+                pts = [(xin + sg * 0.03, ya)] if i == 0 else [(xin, ya), (xin + sg * 0.03, ya + 0.03)]
+                pts += [(xin + sg * 0.03, yb - 0.03), (xin, yb)]
+                if sg < 0:
+                    pts = list(reversed(pts))
+                strip(b, "z", [(p[0], p[1]) for p in pts], -Z - 0.03, Z + 0.03)
+            paint(b, P_MARBLE, 0.5, 0.03)
+            ia, ib = (xin + sg * 0.07, x1) if sx > 0 else (x0, xin + sg * 0.07)
+            box(b, (min(ia, ib), 3.85, -Z - 0.1), (max(ia, ib), 4.2, Z + 0.1), chamfer=0.035, skip=("+y",))
+            # corbels under the impost
+            paint(b, P_MARBLE, 0.46)
+            for zc in (-0.75, 0.75):
+                side = [(xin, 3.42), (xin, 3.85), (xin + sg * 0.07, 3.85), (xin + sg * 0.07, 3.68)]
+                slab(b, [(u, v, zc - 0.17) for (u, v) in side], (0, 0, 0.34))
+            # the joint end face (meets the neighbour's)
+            paint(b, P_SHADE, 0.5)
+            xe = x1 if sx > 0 else x0
+            b.poly([(xe, 0.5, -Z), (xe, 0.5, Z), (xe, 3.85, Z), (xe, 3.85, -Z)], (sx, 0, 0))
+        # deck band: flat arch of voussoirs (relief) over the open way, the band itself behind
+        for s in (-1, 1):
+            nm = "+z" if s > 0 else "-z"
+            paint(b, P_WALL, 0.5, 0.04)
+            fquad(b, nm, s * Z, -X, X, 4.2, 4.85)
+            n = 7
+            half = 4.3
+            apex = 4.2 - 6.0
+            for i in range(n):
+                xa = -half + 2 * half * i / n
+                xb = -half + 2 * half * (i + 1) / n
+                key = i == n // 2
+                top = 4.85 if not key else 4.92
+                kk = (top - apex) / (4.2 - apex)
+                g = 0.014
+                pts = [(xa + g, 4.2), (xb - g, 4.2), ((xb - g) * kk, top), ((xa + g) * kk, top)]
+                paint(b, P_MARBLE if key else P_WALL, 0.5 if key else 0.57, 0.0 if key else 0.06)
+                fplate(b, nm, s * Z, pts, 0.0, 0.05 if key else 0.03)
+            # cornice under the kerb
+            paint(b, P_MARBLE, 0.52, 0.03)
+            prof = [(4.85, 0.0), (4.92, 0.06), (5.0, 0.11), (5.08, 0.11), (5.08, 0.0)]
+            band_run(b, nm, s * Z, -X, X, prof, (0, 0))
+            # kerb outer face over the cornice
+            paint(b, P_WALL, 0.5, 0.04)
+            fquad(b, nm, s * Z, -X, X, 5.08, 5.42, 0.0)
+            # kerb inner face and the coping
+            fquad(b, "-z" if s > 0 else "+z", s * 1.1, -X, X, 5.0, 5.42, 0.0)
+            paint(b, P_MARBLE, 0.5, 0.04)
+            za, zb = sorted((s * 1.09, s * 1.48))
+            box(b, (-X, 5.42, za), (X, 5.56, zb), chamfer=0.025, skip=("-y",))
+        # deck ends (meet the neighbour)
+        paint(b, P_SHADE, 0.5)
+        for sx in (-1, 1):
+            b.poly([(sx * X, y, z) for (z, y) in ((-Z, 4.2), (Z, 4.2), (Z, 5.42), (1.1, 5.42), (1.1, 5.0), (-1.1, 5.0), (-1.1, 5.42), (-Z, 5.42))], (sx, 0, 0))
+        # soffit with three coffers
+        paint(b, P_SHADE, 0.47)
+        holes = [{"u0": x0, "u1": x1, "v0": -0.85, "v1": 0.85, "depth": 0.1, "back": "travertine_shade", "shade": 0.36}
+                 for (x0, x1) in ((-3.55, -1.35), (-1.1, 1.1), (1.35, 3.55))]
+        face(b, "-y", 4.2, -4.0, 4.0, -Z, Z, holes)
+        # deck paving (eight slabs with chamfered joints), the conduit: bronze lips and an energy line
+        g = 0.02
+        for k in range(8):
+            xa = -X + 2 * X * k / 8
+            xb = -X + 2 * X * (k + 1) / 8
+            paint(b, P_WALK, 0.5, 0.06)
+            b.poly([(xa + g, 5.0, -1.1), (xb - g, 5.0, -1.1), (xb - g, 5.0, 1.1), (xa + g, 5.0, 1.1)], (0, 1, 0))
+            b.poly([(xa, 5.0 - g, -1.1), (xa + g, 5.0, -1.1), (xa + g, 5.0, 1.1), (xa, 5.0 - g, 1.1)], (-1, 1, 0))
+            b.poly([(xb - g, 5.0, -1.1), (xb, 5.0 - g, -1.1), (xb, 5.0 - g, 1.1), (xb - g, 5.0, 1.1)], (1, 1, 0))
+        paint(b, P_BRONZE, 0.45)
+        for s in (-1, 1):
+            za, zb = sorted((s * 0.09, s * 0.16))
+            box(b, (-X, 4.99, za), (X, 5.025, zb), skip=("-y", "-x", "+x"))
+        paint(b, P_GLOW, 0.5)
+        b.poly([(-X, 5.012, -0.09), (X, 5.012, -0.09), (X, 5.012, 0.09), (-X, 5.012, 0.09)], (0, 1, 0))
+    else:
+        paint(b, P_WALL, 0.5)
+        for (x0, x1, sx) in piers:
+            xin = x0 if sx > 0 else x1
+            for s in (-1, 1):
+                b.poly([(x0, 0.0, s * Z), (x1, 0.0, s * Z), (x1, 4.2, s * Z), (x0, 4.2, s * Z)], (0, 0, s))
+            b.poly([(xin, 0.0, -Z), (xin, 0.0, Z), (xin, 4.2, Z), (xin, 4.2, -Z)], (-sx, 0, 0))
+            xe = x1 if sx > 0 else x0
+            b.poly([(xe, 0.0, -Z), (xe, 0.0, Z), (xe, 4.2, Z), (xe, 4.2, -Z)], (sx, 0, 0))
+        paint(b, P_SHADE, 0.5)
+        b.poly([(-4.0, 4.2, -Z), (4.0, 4.2, -Z), (4.0, 4.2, Z), (-4.0, 4.2, Z)], (0, -1, 0))
+        for s in (-1, 1):
+            paint(b, P_WALL, 0.5)
+            b.poly([(-X, 4.2, s * Z), (X, 4.2, s * Z), (X, 5.5, s * Z), (-X, 5.5, s * Z)], (0, 0, s))
+            paint(b, P_MARBLE, 0.5)
+            za, zb = sorted((s * Z, s * (Z + 0.1)))
+            box(b, (-X, 4.85, za), (X, 5.08, zb), skip=("-x", "+x", "-z" if s > 0 else "+z"))
+            b.poly([(-X, 5.5, s * 1.1), (X, 5.5, s * 1.1), (X, 5.5, s * Z), (-X, 5.5, s * Z)], (0, 1, 0))
+            paint(b, P_WALL, 0.5)
+            b.poly([(-X, 5.0, s * 1.1), (X, 5.0, s * 1.1), (X, 5.5, s * 1.1), (-X, 5.5, s * 1.1)], (0, 0, -s))
+        paint(b, P_SHADE, 0.5)
+        for sx in (-1, 1):
+            b.poly([(sx * X, y, z) for (z, y) in ((-Z, 4.2), (Z, 4.2), (Z, 5.5), (1.1, 5.5), (1.1, 5.0), (-1.1, 5.0), (-1.1, 5.5), (-Z, 5.5))], (sx, 0, 0))
+        paint(b, P_WALK, 0.5)
+        b.poly([(-X, 5.0, -1.1), (X, 5.0, -1.1), (X, 5.0, 1.1), (-X, 5.0, 1.1)], (0, 1, 0))
+        paint(b, P_GLOW, 0.5)
+        b.poly([(-X, 5.012, -0.06), (X, 5.012, -0.06), (X, 5.012, 0.06), (-X, 5.012, 0.06)], (0, 1, 0))
+
+
+def build_aqueduct_ramp(b, data, level):
+    """Steps up the ramp wedge (rising to +x, 5 m over 9.4 m): 25 steps of 0.2 m, each tread at the ramp line
+    at its lower edge (+0.03), marble side kerbs just outside the walk, the last riser at the top."""
+    near = level == 0
+    xr, zr, yb, yt, _ = wedge_ramp(data.colliders("aqueduct_ramp")[0])
+    k = (yt - yb) / (xr[1] - xr[0])
+    Y = lambda x: yb + k * (x - xr[0])
+    zi = 1.385
+    if near:
+        count = 25
+        paints = {"tread": ("travertine", None), "riser": ("travertine_shade", None), "side": ("travertine_shade", None)}
+        steps(b, xr[0], xr[1], -zi, zi, yb, yt, count, 0.03, paints, nosing=0.025)
+        paint(b, P_SHADE, 0.5)
+        last = yb + (yt - yb) * (count - 1) / count + 0.03
+        b.poly([(xr[1], last, -zi), (xr[1], yt, -zi), (xr[1], yt, zi), (xr[1], last, zi)], (-1, 0, 0))
+        for s in (-1, 1):
+            za, zb = sorted((s * zi, s * 1.5))
+            zo = zb if s > 0 else za
+            paint(b, P_MARBLE, 0.5, 0.03)
+            b.poly([(xr[0], Y(xr[0]) + 0.08, za), (xr[1], Y(xr[1]) + 0.08, za), (xr[1], Y(xr[1]) + 0.08, zb), (xr[0], Y(xr[0]) + 0.08, zb)], (-k, 1, 0))
+            paint(b, P_WALL, 0.5, 0.03)
+            b.poly([(xr[0], 0.0, zo), (xr[1], 0.0, zo), (xr[1], Y(xr[1]) + 0.08, zo), (xr[0], Y(xr[0]) + 0.08, zo)], (0, 0, s))
+            paint(b, P_MARBLE, 0.46)
+            zin = s * zi
+            b.poly([(xr[0], 0.0, zin), (xr[1], Y(xr[1]) - 0.2, zin), (xr[1], Y(xr[1]) + 0.08, zin), (xr[0], Y(xr[0]) + 0.08, zin)], (0, 0, -s))
+            b.poly([(xr[0], 0.0, za), (xr[0], 0.0, zb), (xr[0], Y(xr[0]) + 0.08, zb), (xr[0], Y(xr[0]) + 0.08, za)], (-1, 0, 0))
+            b.poly([(xr[1], 0.0, za), (xr[1], 0.0, zb), (xr[1], Y(xr[1]) + 0.08, zb), (xr[1], Y(xr[1]) + 0.08, za)], (1, 0, 0))
+            # a plinth band on the kerb's outer face
+            paint(b, P_BASE, 0.5)
+            b.poly([(xr[0] + 0.6, 0.0, zo + s * 0.04), (xr[1], 0.0, zo + s * 0.04), (xr[1], 0.35, zo + s * 0.04), (xr[0] + 0.6, 0.35, zo + s * 0.04)], (0, 0, s))
+        paint(b, P_SHADE, 0.5)
+        b.poly([(xr[1], 0.0, -1.5), (xr[1], 0.0, 1.5), (xr[1], last, 1.5), (xr[1], last, -1.5)], (1, 0, 0))
+    else:
+        paint(b, P_WALL, 0.5)
+        b.poly([(xr[0], yb + 0.03, -1.45), (xr[1], yt + 0.03, -1.45), (xr[1], yt + 0.03, 1.45), (xr[0], yb + 0.03, 1.45)], (-k, 1, 0))
+        for s in (-1, 1):
+            b.poly([(xr[0], 0.0, s * 1.45), (xr[1], 0.0, s * 1.45), (xr[1], yt + 0.03, s * 1.45)], (0, 0, s))
+        b.poly([(xr[1], 0.0, -1.45), (xr[1], 0.0, 1.45), (xr[1], yt, 1.45), (xr[1], yt, -1.45)], (1, 0, 0))
+
+
+# ---------------------------------------------------------------- item 2: the barracks
+
+def plaque(b, nm, w, cu, cv, hw, hh, seed_bars):
+    """A legion plaque on a face: a bronze frame, a red field and gold bars standing for the numerals (no text)."""
+    t = 0.07
+    paint(b, P_BRONZE, 0.5)
+    fbox(b, nm, w, cu - hw, cu + hw, cv + hh - t, cv + hh, 0.0, 0.06)
+    fbox(b, nm, w, cu - hw, cu + hw, cv - hh, cv - hh + t, 0.0, 0.06)
+    fbox(b, nm, w, cu - hw, cu - hw + t, cv - hh + t, cv + hh - t, 0.0, 0.06, skip=("-y", "+y"))
+    fbox(b, nm, w, cu + hw - t, cu + hw, cv - hh + t, cv + hh - t, 0.0, 0.06, skip=("-y", "+y"))
+    paint(b, P_RED, 0.5)
+    fquad(b, nm, w, cu - hw + t, cu + hw - t, cv - hh + t, cv + hh - t, 0.02)
+    paint(b, P_GOLD, 0.5)
+    u = cu - hw + t + 0.08
+    end = cu + hw - t - 0.08
+    for (wd, tall) in seed_bars:
+        if u + wd > end:
+            break
+        h = (hh - t - 0.08) * tall
+        fbox(b, nm, w, u, u + wd, cv - h, cv + h, 0.02, 0.045, skip=("-y",))
+        u += wd + 0.07
+
+
+def build_barracks(b, data, level):
+    """The barracks block on its colliders (walls 0.4 thick, the roof slab 9.4 x 6.4 at y 3.0 .. 3.3): a dark
+    plinth course, ashlar faces between L-shaped corner pilasters, door surrounds (marble jambs on base blocks,
+    a lintel band with a bronze cap, a threshold slab, marble reveals), a bronze lamp housing with an energy core
+    beside each door, the window with a frame, a projecting sill and timber shutters folded flat against the wall
+    (the opening stays open), legion plaques, a cornice under the roof's overhang, a marble fascia and a coping
+    lip outside the walkable roof, roof paving; inside: floor slabs, a skirting, a red dado under a marble rail,
+    niches in the end and back walls, a ceiling cornice and timber beams, a lamp over each door."""
+    near = level == 0
+    t = data.types["barracks"]
+    cols, opens = t["colliders"], t["open"]
+    (fd0, _, _), (fd1, DH, _) = bounds(opens[0])
+    (bd0, _, _), (bd1, _, _) = bounds(opens[1])
+    (wn0, wv0, _), (wn1, wv1, _) = bounds(opens[2])
+    (rmx0, _, rmz0), (IX_, WH, IZ_) = bounds(opens[3])
+    IX, IZ = IX_, IZ_                               # inner faces (4.1, 2.6)
+    (_, RY0, _), (RX, RY1, RZ) = bounds(cols[11])    # the roof slab
+    HX, HZ = bounds(cols[10])[1][0], bounds(cols[0])[0][2] * -1.0   # outer faces (4.5, 3.0)
+    doors = (("-z", -HZ, fd0, fd1, -1), ("+z", HZ, bd0, bd1, 1))
+    if not near:
+        paint(b, P_WALL, 0.5)
+        wall_rects(b, "-z", -HZ, -HX, HX, 0.0, RY0, [(fd0, fd1, 0.0, DH), (wn0, wn1, wv0, wv1)])
+        wall_rects(b, "+z", HZ, -HX, HX, 0.0, RY0, [(bd0, bd1, 0.0, DH)])
+        fquad(b, "-x", -HX, -HZ, HZ, 0.0, RY0)
+        fquad(b, "+x", HX, -HZ, HZ, 0.0, RY0)
+        paint(b, P_SLIT, 0.5)
+        fquad(b, "-z", -IZ, fd0, fd1, 0.0, DH)
+        fquad(b, "-z", -IZ, wn0, wn1, wv0, wv1)
+        fquad(b, "+z", IZ, bd0, bd1, 0.0, DH)
+        paint(b, P_MARBLE, 0.5)
+        ring_run(b, HX, HZ, [(2.72, 0.0), (RY0, RZ - HZ)])
+        ring_run(b, RX, RZ, [(RY0, 0.0), (RY1, 0.0)])
+        for (nm, w, u0, u1, _) in doors:
+            fquad(b, nm, w, u0 - 0.2, u0, 0.0, DH, 0.05)
+            fquad(b, nm, w, u1, u1 + 0.2, 0.0, DH, 0.05)
+            fquad(b, nm, w, u0 - 0.24, u1 + 0.24, DH, DH + 0.27, 0.07)
+        fquad(b, "-z", -HZ, wn0 - 0.2, wn1 + 0.2, wv0 - 0.12, wv0, 0.1)
+        paint(b, P_SHADE, 0.5)
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                fquad(b, "+z" if sz > 0 else "-z", sz * HZ, *sorted((sx * (HX - 0.5), sx * HX)), 0.0, 2.72, 0.06)
+                fquad(b, "+x" if sx > 0 else "-x", sx * HX, *sorted((sz * (HZ - 0.5), sz * HZ)), 0.0, 2.72, 0.06)
+        paint(b, P_WALK, 0.5)
+        b.poly([(-RX, RY1, -RZ), (RX, RY1, -RZ), (RX, RY1, RZ), (-RX, RY1, RZ)], (0, 1, 0))
+        return
+
+    # ---- exterior
+    gw = 0.22   # door surround half: jamb band 0.18, base block 0.22
+    paint(b, P_BASE, 0.5)
+    ring_run(b, HX, HZ, [(0.0, 0.0), (0.0, 0.08), (0.38, 0.08), (0.45, 0.0)],
+             gaps={"-z": [(fd0 - gw, fd1 + gw)], "+z": [(bd0 - gw, bd1 + gw)]})
+    paint(b, P_WALL, 0.5, 0.04)
+    wall_rects(b, "-z", -HZ, -HX, HX, 0.38, 2.72, [(fd0, fd1, 0.0, DH), (wn0, wn1, wv0, wv1)])
+    wall_rects(b, "+z", HZ, -HX, HX, 0.38, 2.72, [(bd0, bd1, 0.0, DH)])
+    for nm, w in (("-x", -HX), ("+x", HX)):
+        paint(b, P_WALL, 0.5, 0.04)
+        face(b, nm, w, -HZ, HZ, 0.38, 2.72, [{"u0": -2.0, "u1": 2.0, "v0": 0.8, "v1": 2.3, "depth": 0.04,
+                                               "back": "travertine_shade", "shade": 0.47}])
+    # corner pilasters (an L of two chamfered boxes) with capitals
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            paint(b, P_MARBLE, 0.44, 0.03)
+            xa, xb = sorted((sx * (HX - 0.5), sx * (HX + 0.08)))
+            za, zb = sorted((sz * (HZ + 0.08), sz * (HZ - 0.12)))
+            box(b, (xa, 0.45, za), (xb, 2.58, zb), chamfer=0.02, skip=("-y", "+y"))
+            # the end-face leg starts where the front leg ends (no coplanar overlap)
+            xa2, xb2 = sorted((sx * (HX - 0.12), sx * (HX + 0.08)))
+            za2, zb2 = sorted((sz * (HZ - 0.12), sz * (HZ - 0.5)))
+            box(b, (xa2, 0.45, za2), (xb2, 2.58, zb2), chamfer=0.02, skip=("-y", "+y"))
+            paint(b, P_MARBLE, 0.5)
+            xa, xb = sorted((sx * (HX - 0.53), sx * (HX + 0.1)))
+            za, zb = sorted((sz * (HZ + 0.1), sz * (HZ - 0.12)))
+            box(b, (xa, 2.58, za), (xb, 2.72, zb), skip=("+y",))
+            xa2, xb2 = sorted((sx * (HX - 0.12), sx * (HX + 0.1)))
+            za2, zb2 = sorted((sz * (HZ - 0.12), sz * (HZ - 0.53)))
+            box(b, (xa2, 2.58, za2), (xb2, 2.72, zb2), skip=("+y",))
+    # cornice under the roof overhang, the fascia, the coping lip (outside the walkable roof)
+    paint(b, P_MARBLE, 0.5, 0.03)
+    ring_run(b, HX, HZ, [(2.72, 0.0), (2.72, 0.04), (2.8, 0.06), (2.9, 0.13), (RY0, RZ - HZ), (RY0, 0.0)], skip_last=True)
+    paint(b, P_MARBLE, 0.46)
+    ring_run(b, RX, RZ, [(RY0, 0.0), (RY0, 0.03), (RY1, 0.03), (RY1, 0.0)], skip_last=True)
+    paint(b, P_MARBLE, 0.55, 0.03)
+    ring_run(b, RX, RZ, [(RY1, -0.015), (RY1, 0.05), (RY1 + 0.06, 0.05), (RY1 + 0.08, 0.03), (RY1 + 0.08, -0.015), (RY1, -0.015)])
+    # roof paving inside the lip
+    g = 0.02
+    n = 7
+    ex, ez = RX - 0.015, RZ - 0.015
+    for k in range(n):
+        xa = -ex + 2 * ex * k / n
+        xb = -ex + 2 * ex * (k + 1) / n
+        paint(b, P_WALK, 0.5, 0.06)
+        ga = g if k > 0 else 0.0
+        gb = g if k < n - 1 else 0.0
+        b.poly([(xa + ga, RY1, -ez), (xb - gb, RY1, -ez), (xb - gb, RY1, ez), (xa + ga, RY1, ez)], (0, 1, 0))
+        if ga:
+            b.poly([(xa, RY1 - g, -ez), (xa + ga, RY1, -ez), (xa + ga, RY1, ez), (xa, RY1 - g, ez)], (-1, 1, 0))
+        if gb:
+            b.poly([(xb - gb, RY1, -ez), (xb, RY1 - g, -ez), (xb, RY1 - g, ez), (xb - gb, RY1, ez)], (1, 1, 0))
+    # doors: surrounds, reveals, threshold, the lamp
+    for (nm, w, u0, u1, s) in doors:
+        paint(b, P_MARBLE, 0.5, 0.03)
+        fbox(b, nm, w, u0 - 0.18, u0, 0.45, DH, 0.0, 0.07, chamfer=0.02, skip=("-y", "+y"))
+        fbox(b, nm, w, u1, u1 + 0.18, 0.45, DH, 0.0, 0.07, chamfer=0.02, skip=("-y", "+y"))
+        paint(b, P_MARBLE, 0.44)
+        fbox(b, nm, w, u0 - gw, u0, 0.0, 0.45, 0.0, 0.1, chamfer=0.02, skip=("-y",))
+        fbox(b, nm, w, u1, u1 + gw, 0.0, 0.45, 0.0, 0.1, chamfer=0.02, skip=("-y",))
+        paint(b, P_MARBLE, 0.54)
+        fbox(b, nm, w, u0 - gw, u1 + gw, DH, DH + 0.2, 0.0, 0.09, chamfer=0.02)
+        paint(b, P_BRONZE, 0.5)
+        fbox(b, nm, w, u0 - gw - 0.04, u1 + gw + 0.04, DH + 0.2, DH + 0.27, 0.0, 0.12, chamfer=0.015)
+        paint(b, P_MARBLE, 0.46)
+        zo, zi = s * HZ, s * IZ
+        b.poly([(u0, 0.0, zo), (u0, 0.0, zi), (u0, DH, zi), (u0, DH, zo)], (1, 0, 0))
+        b.poly([(u1, 0.0, zo), (u1, 0.0, zi), (u1, DH, zi), (u1, DH, zo)], (-1, 0, 0))
+        b.poly([(u0, DH, zo), (u1, DH, zo), (u1, DH, zi), (u0, DH, zi)], (0, -1, 0))
+        paint(b, P_BASE, 0.56)
+        za, zb = sorted((s * (HZ + 0.12), s * (IZ - 0.02)))
+        box(b, (u0 - 0.05, 0.0, za), (u1 + 0.05, 0.05, zb), chamfer=0.012, skip=("-y",))
+        # lamp housing beside the door (on the side towards the middle of the wall)
+        lu = (u1 + 0.55) if s < 0 else (u0 - 0.45)
+        paint(b, P_BRONZE, 0.5)
+        fbox(b, nm, w, lu - 0.09, lu + 0.09, 1.84, 2.2, 0.0, 0.11, chamfer=0.015)
+        fbox(b, nm, w, lu - 0.12, lu + 0.12, 2.2, 2.25, 0.0, 0.13)
+        paint(b, P_GLOW, 0.5)
+        fquad(b, nm, w, lu - 0.05, lu + 0.05, 1.9, 2.14, 0.111)
+    # the window: frame, sill, reveals, shutters folded flat
+    paint(b, P_MARBLE, 0.5, 0.03)
+    fbox(b, "-z", -HZ, wn0 - 0.14, wn0, wv0, wv1, 0.0, 0.06, chamfer=0.015, skip=("-y", "+y"))
+    fbox(b, "-z", -HZ, wn1, wn1 + 0.14, wv0, wv1, 0.0, 0.06, chamfer=0.015, skip=("-y", "+y"))
+    fbox(b, "-z", -HZ, wn0 - 0.2, wn1 + 0.2, wv1, wv1 + 0.16, 0.0, 0.08, chamfer=0.02)
+    fbox(b, "-z", -HZ, wn0 - 0.22, wn1 + 0.22, wv0 - 0.12, wv0, 0.0, 0.13, chamfer=0.02)
+    paint(b, P_MARBLE, 0.45)
+    b.poly([(wn0, wv0, -HZ), (wn0, wv0, -IZ), (wn0, wv1, -IZ), (wn0, wv1, -HZ)], (1, 0, 0))
+    b.poly([(wn1, wv0, -HZ), (wn1, wv0, -IZ), (wn1, wv1, -IZ), (wn1, wv1, -HZ)], (-1, 0, 0))
+    b.poly([(wn0, wv0, -HZ), (wn1, wv0, -HZ), (wn1, wv0, -IZ), (wn0, wv0, -IZ)], (0, 1, 0))
+    b.poly([(wn0, wv1, -HZ), (wn1, wv1, -HZ), (wn1, wv1, -IZ), (wn0, wv1, -IZ)], (0, -1, 0))
+    for (sa, sb) in ((wn0 - 0.98, wn0 - 0.2), (wn1 + 0.2, wn1 + 0.98)):
+        paint(b, P_TIMBER, 0.5, 0.04)
+        fbox(b, "-z", -HZ, sa, sb, wv0 + 0.02, wv1 - 0.02, 0.0, 0.05, chamfer=0.01)
+        paint(b, P_BRONZE, 0.45)
+        for sv in (wv0 + 0.2, wv1 - 0.26):
+            fbox(b, "-z", -HZ, sa + 0.03, sb - 0.03, sv, sv + 0.06, 0.05, 0.065)
+    # plaques
+    plaque(b, "-z", -HZ, (fd1 + 0.55 + wn0 - 0.98) * 0.5 + 0.08, 1.75, 0.42, 0.3, [(0.05, 1), (0.05, 1), (0.14, 0.4), (0.05, 1)])
+    plaque(b, "+z", HZ, -1.6, 1.8, 0.8, 0.38, [(0.06, 1), (0.16, 0.35), (0.06, 1), (0.06, 1), (0.16, 0.35), (0.06, 1), (0.06, 1)])
+
+    # ---- interior
+    # floor slabs: courses running along x (every vertex then lies on an end wall: a vertex in a doorway would be
+    # far from any collider)
+    n = 5
+    fy = 0.04
+    for k in range(n):
+        za = -IZ + 2 * IZ * k / n
+        zb = -IZ + 2 * IZ * (k + 1) / n
+        paint(b, P_WALK, 0.46, 0.06)
+        ga = g if k > 0 else 0.0
+        gb = g if k < n - 1 else 0.0
+        b.poly([(-IX, fy, za + ga), (IX, fy, za + ga), (IX, fy, zb - gb), (-IX, fy, zb - gb)], (0, 1, 0))
+        if ga:
+            b.poly([(-IX, fy - g, za), (IX, fy - g, za), (IX, fy, za + ga), (-IX, fy, za + ga)], (0, 1, -1))
+        if gb:
+            b.poly([(-IX, fy, zb - gb), (IX, fy, zb - gb), (IX, fy - g, zb), (-IX, fy - g, zb)], (0, 1, 1))
+    dv0, dv1 = 1.0, 1.06
+    inner = (("+z", -IZ, [(fd0, fd1, 0.0, DH), (wn0, wn1, wv0, wv1)]), ("-z", IZ, [(bd0, bd1, 0.0, DH)]))
+    for nm, w, ops in inner:
+        paint(b, P_RED, 0.47)
+        wall_rects(b, nm, w, -IX, IX, 0.16, dv0, ops)
+    paint(b, P_WALL, 0.52, 0.04)
+    wall_rects(b, "+z", -IZ, -IX, IX, dv1 - 0.02, 2.82, [(fd0, fd1, 0.0, DH), (wn0, wn1, wv0, wv1)])
+    niche = lambda c: {"u0": c - 0.35, "u1": c + 0.35, "v0": 1.3, "v1": 2.25, "depth": 0.12, "back": "travertine_shade", "shade": 0.34,
+                       "walls": "marble", "walls_shade": 0.45}
+    face(b, "-z", IZ, -IX, bd0, dv1 - 0.02, 2.82, [niche(-3.2), niche(-1.3)])
+    wall_rects(b, "-z", IZ, bd0, IX, dv1 - 0.02, 2.82, [(bd0, bd1, 0.0, DH)])
+    for nm, w in (("+x", -IX), ("-x", IX)):
+        paint(b, P_RED, 0.47)
+        fquad(b, nm, w, -IZ, IZ, 0.16, dv0)
+        paint(b, P_WALL, 0.52, 0.04)
+        face(b, nm, w, -IZ, IZ, dv1 - 0.02, 2.82, [niche(0.0)])
+    gaps = {"+z": [(fd0, fd1)], "-z": [(bd0, bd1)]}
+    paint(b, P_MARBLE, 0.5)
+    ring_run(b, IX, IZ, [(0.0, 0.0), (0.0, 0.03), (0.15, 0.03), (0.18, 0.0)], outer=False, gaps=gaps)
+    ring_run(b, IX, IZ, [(dv0 - 0.02, 0.0), (dv0 - 0.02, 0.03), (dv1 - 0.01, 0.03), (dv1 + 0.01, 0.0)], outer=False, gaps=gaps)
+    paint(b, P_MARBLE, 0.46)
+    # (interior trim stands 0.07 at most into the room: tests/test_world_kit.gd keeps a 0.08 skin of open volumes clear)
+    ring_run(b, IX, IZ, [(2.82, 0.0), (2.86, 0.03), (2.94, 0.06), (RY0, 0.07), (RY0, 0.0)], outer=False, skip_last=True)
+    paint(b, ("travertine_shade", "plaster"), 0.44)
+    fquad(b, "-y", RY0, -IX, IX, -IZ, IZ)
+    paint(b, P_TIMBER, 0.45, 0.04)
+    for bx in (-3.0, -1.5, 0.0, 1.5, 3.0):
+        box(b, (bx - 0.13, RY0 - 0.07, -IZ), (bx + 0.13, RY0, IZ), skip=("+y", "-z", "+z"))
+    # a lamp over each door inside
+    for (nm, w, u0, u1, s) in (("+z", -IZ, fd0, fd1, -1), ("-z", IZ, bd0, bd1, 1)):
+        cu = (u0 + u1) * 0.5
+        paint(b, P_BRONZE, 0.5)
+        fbox(b, nm, w, cu - 0.16, cu + 0.16, 2.42, 2.66, 0.0, 0.07, chamfer=0.015)
+        paint(b, P_GLOW, 0.5)
+        fquad(b, nm, w, cu - 0.11, cu + 0.11, 2.48, 2.6, 0.071)
+
+
 BUILDERS = {
+    "barracks": build_barracks,
+    "tent": build_tent,
+    "stake_row": build_stake_row,
+    "aqueduct_span": build_aqueduct_span,
+    "aqueduct_ramp": build_aqueduct_ramp,
+    "column": build_column,
+    "colonnade": build_colonnade,
+    "pediment_front": build_pediment_front,
+    "terrace_block": build_terrace_block,
+    "ramp_block": build_ramp_block,
+    "eagle_standard": build_eagle_standard,
     "wall_walk": build_wall_walk,
     "wall_stair": build_wall_stair,
     "gate": build_gate,
@@ -1439,14 +2568,17 @@ def main():
         if type_name.startswith("_") or (only and type_name not in only):
             continue
         build = BUILDERS[type_name]
-        for level, node in ((0, entry["node"]), (1, entry["lod1_node"])):
+        levels = [(0, entry["node"])]
+        if entry.get("lod1_node"):
+            levels.append((1, entry["lod1_node"]))   # a type may have no far mesh (data/art_world_kit.json)
+        for level, node in levels:
             b = Builder(data, type_name + "/" + str(level))
             build(b, data, level)
             tris = b.tris
             if type_name in joint.get("types", []):
                 tris = joint_bend(tris, joint)
             make_object(node, tris)
-            report.append("M2W1_KIT %s triangles=%d" % (node, len(tris)))
+            report.append("M2W1_KIT %s triangles=%d %s" % (node, len(tris), fit_check(data, type_name, tris)))
     export(out)
     for line in report:
         print(line)

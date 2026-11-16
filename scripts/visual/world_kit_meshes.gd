@@ -56,7 +56,13 @@ static func split_level(name: String) -> Array:
 	return [name, 0]
 
 
-## The type's mesh at `level` (0 near, 1 far), or null when the type has no usable entry (reported once).
+## Whether the type's entry names a far mesh (M2W1 item 2: a light type may have none: no lod1_node, lod_swap_m 0).
+static func has_lod1(type: String) -> bool:
+	return String(entry(type).get("lod1_node", "")) != ""
+
+
+## The type's mesh at `level` (0 near, 1 far), or null when the type has no usable entry (reported once). A far
+## mesh of a type without lod1_node is null and not an error (that type draws no LOD pair).
 static func mesh(type: String, level: int) -> ArrayMesh:
 	var key := "%s/%d" % [type, level]
 	if _meshes.has(key):
@@ -65,6 +71,8 @@ static func mesh(type: String, level: int) -> ArrayMesh:
 	var e := entry(type)
 	if e.is_empty():
 		_report("WorldKitMeshes: %s has no entry in %s; its kit look stays" % [type, PATH])
+	elif level == 1 and not has_lod1(type):
+		pass
 	else:
 		var glb := String(e.get("glb", config().get("glb", "")))
 		var node_name := String(e["node"] if level == 0 else e["lod1_node"])

@@ -1390,8 +1390,8 @@
 			"path": "res://assets/generated/world/m2w1_world_kit.glb",
 			"made_by": "tools/blender/m2w1_world_kit.py",
 			"licence": "generated in this project (no source material)",
-			"bytes": 828216,
-			"sha256": "480b73b4e4ee8f8392d69aad1cc48e76f01f1ba6112a1d32fa398fb5f943b221"
+			"bytes": 2123388,
+			"sha256": "d94a5a3c8be6beb1cc1a9895903fb31c09738a0018ebae52406b58570af91592"
 		}
 	],
 	"_generated_note": "S2 / S5: files made by the project's own tools (tools/gen_textures.gd, tools/gen_audio.gd) from noise and maths, no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."

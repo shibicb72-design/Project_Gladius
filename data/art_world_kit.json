@@ -16,12 +16,29 @@
 		"wall_walk": {"node": "wall_walk", "lod1_node": "wall_walk_lod1", "lod_swap_m": 120},
 		"wall_stair": {"node": "wall_stair", "lod1_node": "wall_stair_lod1", "lod_swap_m": 120},
 		"gate": {"node": "gate", "lod1_node": "gate_lod1", "lod_swap_m": 150},
-		"watchtower": {"node": "watchtower", "lod1_node": "watchtower_lod1", "lod_swap_m": 150}
+		"watchtower": {"node": "watchtower", "lod1_node": "watchtower_lod1", "lod_swap_m": 150},
+		"barracks": {"node": "barracks", "lod1_node": "barracks_lod1", "lod_swap_m": 100},
+		"tent": {"node": "tent", "lod1_node": "tent_lod1", "lod_swap_m": 100},
+		"stake_row": {"node": "stake_row", "lod1_node": "stake_row_lod1", "lod_swap_m": 100},
+		"aqueduct_span": {"node": "aqueduct_span", "lod1_node": "aqueduct_span_lod1", "lod_swap_m": 150},
+		"aqueduct_ramp": {"node": "aqueduct_ramp", "lod1_node": "aqueduct_ramp_lod1", "lod_swap_m": 150},
+		"column": {"node": "column", "lod1_node": "column_lod1", "lod_swap_m": 150},
+		"colonnade": {"node": "colonnade", "lod1_node": "colonnade_lod1", "lod_swap_m": 150},
+		"pediment_front": {"node": "pediment_front", "lod1_node": "pediment_front_lod1", "lod_swap_m": 150},
+		"eagle_standard": {"node": "eagle_standard", "lod1_node": "eagle_standard_lod1", "lod_swap_m": 200},
+		"terrace_block": {"node": "terrace_block", "lod1_node": "terrace_block_lod1", "lod_swap_m": 100},
+		"_ramp_block_note": "ramp_block has no far mesh (no lod1_node, lod_swap_m 0): its near mesh is 60 triangles, under lod_required_over_tris, so a far batch per chunk would cost more than it saves.",
+		"ramp_block": {"node": "ramp_block", "lod_swap_m": 0}
 	},
+	"_lod_note": "A type whose near mesh has more than lod_required_over_tris triangles must have a far mesh (lod1_node and lod_swap_m > 0); a lighter type may leave both out (tests/test_m2w1_world_kit.gd).",
+	"lod_required_over_tris": 300,
 	"budgets": {
 		"_note": "Triangle caps (placeholders): near per type, far per type, and the triangles of the structure batches in range at the four perf points of tests/test_alesia_1km.gd (instances x mesh triangles).",
-		"near_tris": {"wall_walk": 1000, "wall_stair": 1300, "gate": 2500, "watchtower": 2200},
-		"lod1_tris": {"wall_walk": 80, "wall_stair": 120, "gate": 250, "watchtower": 200},
+		"near_tris": {"wall_walk": 1000, "wall_stair": 1300, "gate": 2500, "watchtower": 2200, "barracks": 1600, "tent": 320, "stake_row": 200,
+			"aqueduct_span": 800, "aqueduct_ramp": 200, "column": 300, "colonnade": 1400, "pediment_front": 1800, "eagle_standard": 500, "ramp_block": 60, "terrace_block": 150},
+		"_lod1_walls_note": "M2W1 item 2: wall_walk 80 -> 100 and wall_stair 120 -> 130: the far parapet keeps the new merlon rhythm (five merlons a piece, was three).",
+		"lod1_tris": {"wall_walk": 100, "wall_stair": 130, "gate": 250, "watchtower": 200, "barracks": 120, "tent": 40, "stake_row": 24,
+			"aqueduct_span": 80, "aqueduct_ramp": 12, "column": 40, "colonnade": 160, "pediment_front": 200, "eagle_standard": 60, "terrace_block": 24},
 		"visible_structure_tris": 400000
 	}
 }

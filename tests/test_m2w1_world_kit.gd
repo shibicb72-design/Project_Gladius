@@ -26,6 +26,11 @@ func _kit_types() -> Dictionary:
 	return WorldKit.config()["types"]
 
 
+## The LOD levels a type has: [0, 1], or [0] for a type without a far mesh (M2W1 item 2).
+func _levels(type: String) -> Array:
+	return [0, 1] if WorldKitMeshes.has_lod1(type) else [0]
+
+
 func _reset() -> void:
 	WorldKitMeshes.enabled_override = -1
 	WorldKitMeshes.config_override = {}
@@ -156,7 +161,7 @@ func test_every_listed_type_has_near_and_far_meshes_with_the_shader_data() -> vo
 	assert_true(_types().size() >= 2, "nonvacuous: types listed")
 	for type: String in _types():
 		assert_true(_kit_types().has(type), type + ": a world kit type")
-		for level in 2:
+		for level: int in _levels(type):
 			var tag := "%s level %d" % [type, level]
 			var mesh := WorldKitMeshes.mesh(type, level)
 			assert_true(mesh != null, tag + ": loads")
@@ -197,7 +202,8 @@ func test_glb_holds_exactly_the_listed_nodes() -> void:
 	var wanted := {}
 	for type: String in _types():
 		wanted[String(_cfg()["types"][type]["node"])] = true
-		wanted[String(_cfg()["types"][type]["lod1_node"])] = true
+		if WorldKitMeshes.has_lod1(type):
+			wanted[String(_cfg()["types"][type]["lod1_node"])] = true
 	for node_name: String in wanted:
 		assert_true(names.has(node_name), "glb has node " + node_name)
 		assert_eq(int(names.get(node_name, 0)), 1, node_name + ": one surface")
@@ -249,7 +255,7 @@ func test_every_vertex_fits_the_colliders_and_the_open_and_walk_rules() -> void:
 	for type: String in _types():
 		var def: Dictionary = _kit_types()[type]
 		var solids := _solids(def)
-		for level in 2:
+		for level: int in _levels(type):
 			var mesh := WorldKitMeshes.mesh(type, level)
 			if mesh == null:
 				assert_true(false, "%s level %d: no mesh" % [type, level])
@@ -295,21 +301,32 @@ func test_budgets_and_report() -> void:
 	_reset()
 	var budgets: Dictionary = _cfg()["budgets"]
 	var lod1_max := int(_cfg()["lod1_max_tris"])
+	var lod_over := int(_cfg()["lod_required_over_tris"])
+	var without: Array[String] = []
 	for type: String in _types():
 		var near := WorldKitMeshes.mesh(type, 0)
-		var far := WorldKitMeshes.mesh(type, 1)
-		if near == null or far == null:
+		var lod := WorldKitMeshes.has_lod1(type)
+		var far := WorldKitMeshes.mesh(type, 1) if lod else null
+		if near == null or (lod and far == null):
 			assert_true(false, type + ": meshes missing")
 			continue
 		var tn := Perf.triangles(near)
-		var tf := Perf.triangles(far)
 		var kit := Perf.triangles(WorldKit.build_mesh(_kit_types()[type]))
+		var solids := _solids(_kit_types()[type])
 		assert_true(budgets["near_tris"].has(type) and tn <= int(budgets["near_tris"][type]), "%s: near %d triangles within %s" % [type, tn, budgets["near_tris"].get(type)])
+		# M2W1 item 2: a far mesh is required above lod_required_over_tris; a type without one has no swap distance.
+		assert_true(lod or tn <= lod_over, "%s: near %d triangles over %d needs a far mesh" % [type, tn, lod_over])
+		assert_eq(lod, WorldKitMeshes.swap_m(type) > 0.0, type + ": a far mesh exactly when lod_swap_m > 0")
+		if not lod:
+			without.append(type)
+			print("M2W1_KIT_REPORT type=%s kit_tris=%d near_tris=%d far_tris=none near_overshoot=%.3f swap_m=0 (no far mesh)" % [type, kit, tn, _overshoot(near, solids)[0]])
+			continue
+		var tf := Perf.triangles(far)
 		assert_true(budgets["lod1_tris"].has(type) and tf <= int(budgets["lod1_tris"][type]) and tf <= lod1_max, "%s: far %d triangles within %s and %d" % [type, tf, budgets["lod1_tris"].get(type), lod1_max])
 		assert_true(tf < tn, type + ": the far mesh is lighter")
-		var solids := _solids(_kit_types()[type])
 		print("M2W1_KIT_REPORT type=%s kit_tris=%d near_tris=%d far_tris=%d near_overshoot=%.3f far_overshoot=%.3f swap_m=%.0f (uncovered collider faces: not computed)" % [
 				type, kit, tn, tf, _overshoot(near, solids)[0], _overshoot(far, solids)[0], WorldKitMeshes.swap_m(type)])
+	print("M2W1_KIT types without a far mesh: ", without)
 
 
 # --- the switch, the fallback, the loader ---
@@ -324,6 +341,9 @@ func test_switch_off_builds_todays_kit_looks() -> void:
 	WorldKit.clear_mesh_cache()
 	for type: String in _types():
 		assert_true(WorldKit.mesh_for(type) == WorldKitMeshes.mesh(type, 0), type + ": on = the glb near mesh")
+		if not WorldKitMeshes.has_lod1(type):
+			assert_true(WorldKit.lod_for(type).is_empty(), type + ": on, no far mesh listed = no far LOD")
+			continue
 		assert_true(WorldKit.mesh_for(type + "_lod1") == WorldKitMeshes.mesh(type, 1), type + ": on = the glb far mesh for <type>_lod1")
 		assert_eq(WorldKit.lod_for(type).size(), 2, type + ": on = a far LOD")
 	_reset()
@@ -334,6 +354,11 @@ func test_missing_entry_glb_or_node_falls_back_to_the_kit_with_one_error() -> vo
 	var lines: Array[String] = []
 	WorldKitMeshes.error_sink = func(message: String) -> void: lines.append(message)
 	WorldKitMeshes.enabled_override = 1
+	# M2W1 item 2: every structure type has an entry now, so the entry is taken out of a stand-in config.
+	var bare := _cfg().duplicate(true)
+	(bare["types"] as Dictionary).erase("column")
+	WorldKitMeshes.config_override = bare
+	WorldKitMeshes.clear_cache()
 	assert_true(WorldKitMeshes.mesh("column", 0) == null, "a type without an entry: no glb mesh")
 	assert_true(WorldKitMeshes.mesh("column", 0) == null and lines.size() == 1, "reported once: %s" % str(lines))
 	var cfg := _cfg().duplicate(true)
@@ -405,6 +430,13 @@ func test_lod_pairs_swap_once_at_the_same_centre() -> void:
 	for type: String in _types():
 		var near := chunks.get_node_or_null("Chunk_0_0/Batch_structure_" + type) as MultiMeshInstance3D
 		var far := chunks.get_node_or_null("Chunk_0_0/Batch_structure_%s_lod1" % type) as MultiMeshInstance3D
+		if not WorldKitMeshes.has_lod1(type):
+			# M2W1 item 2: a type without a far mesh draws one batch to its class range
+			assert_true(near != null and far == null, type + ": one batch, no far batch")
+			if near != null:
+				assert_true(near.visibility_range_begin == 0.0 and not near.has_meta(&"lod_swap_m"), type + ": not part of a LOD pair")
+				assert_true(near.multimesh.mesh == WorldKitMeshes.mesh(type, 0), type + ": the glb near mesh")
+			continue
 		assert_true(near != null and far != null, type + ": a near and a far batch")
 		if near == null or far == null:
 			continue

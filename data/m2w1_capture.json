@@ -29,6 +29,11 @@
 		{"name": "25_wall_inner_close", "cam": [2.5, -133.0], "look": [0.0, 1.7, -138.8], "note": "M2W1 close-up: InnerRing_002's inner face (blind arch, cornice, energy line) from 6 m"},
 		{"name": "26_merlon_line", "cam": [5.0, -139.4], "eye_m": 4.7, "look": [-8.0, 4.0, -141.0], "note": "M2W1 close-up: along the parapet of InnerRing_002 from its walkway (merlons, sills, joints)"},
 		{"name": "27_gate_outer_close", "cam": [4.0, -343.0], "look": [0.0, 3.6, -331.2], "note": "M2W1 close-up: Porta Aquilae's outer face (pylons, shields, portal, voussoirs, tablet, roundels, open leaves) from 12 m"},
-		{"name": "28_tower_foot", "cam": [125.4, -292.9], "look": [126.3, 3.2, -304.9], "note": "M2W1 close-up: Specula (OuterRing_022) from 12 m inside: quoins, arrow loop, belt course, parapet, beacon"}
+		{"name": "28_tower_foot", "cam": [125.4, -292.9], "look": [126.3, 3.2, -304.9], "note": "M2W1 close-up: Specula (OuterRing_022) from 12 m inside: quoins, arrow loop, belt course, parapet, beacon"},
+		{"name": "29_tent_row", "cam": [55.6, -197.0], "look": [50.646, 1.2, -201.674], "note": "M2W1 item 2 close-up: Castra1_Tent_1 from 6 m (door gable, the row behind)"},
+		{"name": "30_barracks_corner", "cam": [81.5, -228.2], "look": [77.6, 1.6, -224.2], "note": "M2W1 item 2 close-up: Castra1_Barracks_1's front corner from 5 m (pilasters, plinth, cornice, window, shutters)"},
+		{"name": "31_aqueduct_pier", "cam": [17.4, -201.6], "look": [13.4, 1.4, -205.0], "note": "M2W1 item 2 close-up: the pier foot between AquaeductusMagnus_Span_07 and _08 from 5 m"},
+		{"name": "32_eagle_standard", "cam": [5.66, -5.66], "look": [0.0, 4.2, 0.0], "note": "M2W1 item 2 close-up: Arx_Eagle from 8 m"},
+		{"name": "33_pediment_front", "cam": [3.0, 0.8], "look": [0.0, 4.6, -14.0], "note": "M2W1 item 2 close-up: Arx_Front (pediment) from 15 m"}
 	]
 }
