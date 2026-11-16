@@ -336,7 +336,9 @@ func test_overlap_with_gear_warns_and_does_not_block() -> void:
 	PlatformServices.dpi_override = 420.0  # a big gear target, so a spot inside every checked viewport overlaps it
 	var ed := await _editor(COVER)
 	ed.select_element("jump")
-	ed.move_selected_to(Vector2(0.94, 0.1))
+	# M2 H1b: the gear moved under the reserved minimap / radar panel (data ui.json pause_gear.below_panel); drop Jump on
+	# its height at x 0.94 as before (was (0.94, 0.1), the old gear place; x 0.94 keeps Jump on screen at every size).
+	ed.move_selected_to(Vector2(0.94, ed.gear_rect(Vector2(COVER)).get_center().y / COVER.y))
 	var found := false
 	for it in ed.issues:
 		if it["kind"] == "overlap" and it["element"] == "jump" and it["size"] == COVER and it["text"].contains("gear"):
@@ -355,7 +357,10 @@ func test_overlap_with_hud_bar_warns_and_does_not_block() -> void:
 	assert_eq(HudLayoutModel.cfg()["overlap_policy"], "warn_only", "documented policy")
 	var ed := await _editor(COVER)
 	ed.select_element("jump")
-	ed.move_selected_to(Vector2(0.06, 0.12))
+	# M2 H1b: the bars are in the bottom-centre weapon block now (was the top-left stat block at (0.06, 0.12)); drop Jump
+	# on the shield bar's centre as the editor's own check HUD places it.
+	var hud: GameHud = ed._checker(COVER)["hud"]
+	ed.move_selected_to(hud.shield_bar.get_global_rect().get_center() / Vector2(COVER))
 	var found := false
 	for it in ed.issues:
 		if it["kind"] == "overlap" and it["element"] == "jump" and it["size"] == COVER and it["text"].contains("overlaps the HUD (shield bar) at") and not it["text"].contains("gear"):

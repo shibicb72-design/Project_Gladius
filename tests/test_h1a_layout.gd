@@ -32,6 +32,7 @@ func _end() -> void:
 	AppFlow.profile = _saved_profile
 	PlatformServices.dpi_override = 0.0
 	_TouchHud.move_stick_override = ""
+	HudArrangement.placement_override = ""
 	_rm()
 
 
@@ -57,8 +58,11 @@ func _new_touch(sz: Vector2) -> Control:
 ## this HUD), the fire-mode button (FireModeButton.touch_rect, what its node uses) and the pause gear (a PauseMenu).
 func _controls(touch: Control, pm: PauseMenu, sz: Vector2) -> Dictionary:
 	var ui := DataRegistry.new().load_file("res://data/ui.json")
+	# M2 H1b: the reserved minimap's tap target (HudArrangement.minimap_tap_rect) is a touch target too; the gear is at
+	# its H1b place under the reserved panel (pm.get_gear_touch_rect follows data pause_gear.below_panel).
 	var out := {"sprint_lock": touch.get_lock_button_rect(), "lock_target": touch.get_lock_target_rect(),
-		"gear": pm.get_gear_touch_rect(), "fire_mode": FireModeButton.touch_rect(ui["fire_mode_button"], sz)}
+		"gear": pm.get_gear_touch_rect(), "fire_mode": FireModeButton.touch_rect(ui["fire_mode_button"], sz),
+		"minimap_tap": HudArrangement.minimap_tap_rect(sz)}
 	for key in touch.get_button_actions():
 		out[key] = touch.get_button_rect(key)
 	var interact := InteractButton.new()
@@ -77,22 +81,26 @@ func _pause(sz: Vector2) -> PauseMenu:
 	return pm
 
 
-## Runs `check` on every size x dpi x shooting mode x Left Fire x cover slot state.
+## Runs `check` on every HUD arrangement (M2 H1b: above_row, split_row) x size x dpi x shooting mode x Left Fire x cover
+## slot state.
 func _each_state(check: Callable) -> void:
-	for dpi in DPIS:
-		PlatformServices.dpi_override = dpi
-		for sz in SIZES:
-			for mode in ["advanced", "simple"]:
-				for lf in [false, true]:
-					AppFlow.profile = {"shooting_mode": mode, "left_fire_enabled": lf}
-					var touch := _new_touch(sz)
-					var pm := _pause(sz)
-					for cover in [false, true]:
-						touch.set_cover_slot(cover, cover, false)
-						touch.relayout()
-						check.call(touch, pm, sz, "%s dpi %d %s left_fire=%s cover=%s" % [sz, dpi, mode, lf, cover])
-					pm.free()
-					touch.free()
+	for placement in [HudArrangement.ABOVE_ROW, HudArrangement.SPLIT_ROW]:
+		HudArrangement.placement_override = placement
+		for dpi in DPIS:
+			PlatformServices.dpi_override = dpi
+			for sz in SIZES:
+				for mode in ["advanced", "simple"]:
+					for lf in [false, true]:
+						AppFlow.profile = {"shooting_mode": mode, "left_fire_enabled": lf}
+						var touch := _new_touch(sz)
+						var pm := _pause(sz)
+						for cover in [false, true]:
+							touch.set_cover_slot(cover, cover, false)
+							touch.relayout()
+							check.call(touch, pm, sz, "%s %s dpi %d %s left_fire=%s cover=%s" % [HudArrangement.placement_for(sz), sz, dpi, mode, lf, cover])
+						pm.free()
+						touch.free()
+	HudArrangement.placement_override = ""
 
 
 func test_no_control_in_the_look_area() -> void:

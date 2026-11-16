@@ -153,7 +153,7 @@
 		"secured_text": "HILL SECURED",
 		"contested_text": "HILL CONTESTED",
 		"duration_s": 1.6,
-		"anchor_y_frac": 0.11,
+		"_h1b_note": "M2 H1b (OQ-HUD): the banner's place is hud_arrangement.banner (under the top-centre objective strip, as wide as it); the old anchor_y_frac 0.11 is gone.",
 		"font_frac_of_height": 0.045,
 		"color": [1.0, 0.80, 0.30, 1.0],
 		"contested_color": [1.0, 0.35, 0.25, 1.0],
@@ -189,6 +189,9 @@
 		"_todo": "OQ-PAUSE-MENU: gear icon that opens the in-match menu (Shibi via EL, Oct 22 2026: top-right gear only, never Android Back). Position, sizes and look are placeholders, not design values. anchor = viewport corner [x, y] in 0..1; margin_dp = [from the right edge, from the top edge] to the touch rect, moved down/in via data if the top-right is crowded (the HUD top text is never shrunk). icon_dp is the drawn gear, touch_dp the tap target (>= 48 dp).",
 		"anchor": [1.0, 0.0],
 		"margin_dp": [8.0, 56.0],
+		"_below_panel_note": "OQ-HUD, OQ-MINIMAP (M2 H1b): below_panel true puts the gear under the reserved minimap / radar panel (hud_arrangement.gd gear_top, below_panel_gap_dp under it), still margin_dp[0] from the right edge, in the right-edge strip clear of Aim; margin_dp[1] is then unused. It was 56 dp from the top, where the minimap now sits.",
+		"below_panel": true,
+		"below_panel_gap_dp": 6.0,
 		"icon_dp": 28.0,
 		"touch_dp": 48.0,
 		"teeth": 8,
@@ -259,10 +262,87 @@
 		"back_text": "Back",
 		"confirm_prompt": "Leave the match?"
 	},
-	"hud_layout": {
+	"hud_arrangement": {
 		"_placeholder": true,
-		"_todo": "OQ-35: gameplay HUD stat block (bars, weapon, ammo) top-left corner as [x frac of width, y frac of height]; kept clear of the touch sticks and buttons. Not a design value.",
-		"stat_block_pos": [0.01, 0.08]
+		"_todo": "OQ-HUD (M2 H1b commit 1): where the in-match passive displays sit (scripts/ui/hud_arrangement.gd). Every number is a placeholder for Shibi's Fold check, not a design value. A 'unit' = unit_frac_of_height of the HUD height, never below unit_min_dp (text floor on short dense screens); '_buttons' values are primary touch button sides (input.json touch_layout, the unit of the button offsets). Replaces hud_layout.stat_block_pos (the old top-left stat block). Arrangement borrowed from the reference: weapon slots + ammo + bars in one block at the bottom centre, one objective line at the top centre, the kill badge under it; no art, icon, font, colour or wording copied.",
+		"placement": "above_row",
+		"_placement_note": "OQ-HUD: 'above_row' = the weapon block sits just above the bottom-centre action row, right of the Interact slot (no button moves, layout_version unchanged). 'split_row' = the block sits on the bottom edge at the centre, Swap and Fire mode left of it, Cover / Shoulder right, Interact above the block's left end; it moves button defaults, so picking it as the default needs input.json layout_editor.layout_version raised. split_row is used only where the view is at least weapon_block.split_row.min_aspect wide (near-square screens have no room on the bottom row: they keep above_row).",
+		"unit_frac_of_height": 0.034,
+		"unit_min_dp": 12.0,
+		"edge_margin_dp": 8.0,
+		"weapon_block": {
+			"_todo": "OQ-HUD: size in units; slots, ammo column and the shield / health bars.",
+			"width_units": 10.8,
+			"height_units": 3.4,
+			"pad_units": 0.3,
+			"slot_w_units": 1.8,
+			"slot_h_units": 1.35,
+			"slot_gap_units": 0.18,
+			"ammo_font_units": 0.85,
+			"name_font_units": 0.5,
+			"bar_gap_units": 0.1,
+			"shield_h_units": 0.2,
+			"health_h_units": 0.3,
+			"row_gap_units": 0.2,
+			"above_row": {"left_offset_buttons": -0.05, "bottom_offset_buttons": -1.15},
+			"split_row": {"min_aspect": 2.0, "bottom_offset_buttons": -0.1, "row_offset_y_buttons": -0.6, "gap_buttons": 0.06, "_interact_note": "split_row: Interact sits above the block's left end (gap_buttons over it), in the left half."}
+		},
+		"objective": {
+			"_todo": "OQ-HUD: the top-centre objective / hint line. Rule (hud.gd objective_key): hidden when dead or downed (the status text takes the strip); aboard -> drop; falling -> falling; no gun in any slot -> loot; outside the zone -> outside; zone waiting or shrinking and outside the next circle -> zone_closes / zone_closing (with the timer); final -> final; else inside. Wording is placeholder English.",
+			"top_units": 0.3,
+			"height_units": 1.35,
+			"font_units": 0.72,
+			"max_width_frac": 0.36,
+			"side_gap_units": 0.4,
+			"texts": {
+				"drop": "Drop when ready",
+				"falling": "Pick a landing spot",
+				"loot": "Loot a weapon",
+				"outside": "Get inside the zone",
+				"zone_closes": "Zone closes in %s",
+				"zone_closing": "Zone closing %s",
+				"final": "Final zone",
+				"inside": "Inside the zone"
+			}
+		},
+		"banner": {"_todo": "OQ-HUD, OQ-FEEDBACK: the local kill banner sits gap_units under the objective strip, centred, at most as wide as it; height = kill_feed.font_frac_of_height x height_per_font, width = that font size x width_per_font (fits ELIMINATED).", "gap_units": 0.25, "height_per_font": 1.45, "width_per_font": 9.0},
+		"chip": {
+			"_todo": "OQ-HUD: small top-left chip with the players-alive count (and squads alive in squads) and the zone timer, drawn icons. alive_format / squads_format / zone formats are placeholder wording.",
+			"width_units": 5.0,
+			"height_units": 2.4,
+			"font_units": 0.8,
+			"icon_units": 0.75,
+			"alive_format": "%s",
+			"squads_format": "%s",
+			"final_text": "Final"
+		},
+		"colors": {
+			"_todo": "OQ-HUD: menu_style colour names (docs/UI_STYLE.md) used by the HUD displays, and the plate alpha over the 3D view.",
+			"plate_alpha": 0.72,
+			"health": "crimson_hi",
+			"shield": "gold",
+			"held_slot": "gold",
+			"text": "marble",
+			"caption": "marble_dim",
+			"status": "warn"
+		}
+	},
+	"minimap": {
+		"_placeholder": true,
+		"_todo": "OQ-MINIMAP (M2 H1b commit 1 reserves the place; commit 3 draws it): the minimap square at the top-right corner, size_frac_of_height of the height but at most max_frac_of_width of the width. Its ONLY touch target is a square at its top-right inside the right-edge strip (outside the look area by tap_look_gap_px), between 48 dp (the test floor) and tap_max_dp. Not drawn yet (enabled false).",
+		"enabled": false,
+		"size_frac_of_height": 0.22,
+		"max_frac_of_width": 0.16,
+		"tap_max_dp": 72.0,
+		"tap_look_gap_px": 2.0
+	},
+	"radar": {
+		"_placeholder": true,
+		"_todo": "OQ-RADAR (M2 H1b commit 1 reserves the place; commit 4 draws it): a round radar left of the minimap, size_frac_of_minimap of its side, gap_units apart. Passive (no touch target). range_m from DESIGN.md (25 m). Not drawn yet (enabled false).",
+		"enabled": false,
+		"size_frac_of_minimap": 0.9,
+		"gap_units": 0.3,
+		"range_m": 25.0
 	},
 	"zone_wall": {
 		"_placeholder": true,

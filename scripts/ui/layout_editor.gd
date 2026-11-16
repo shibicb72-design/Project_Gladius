@@ -319,6 +319,9 @@ func check_slot(slot_i: int, sz: Vector2i) -> Array:
 	for n in ["shield_bar", "health_bar", "weapon_label", "ammo_label", "alive_label", "zone_label", "downed_label"]:
 		bars[n] = (hud.get(n) as Control).get_global_rect()
 	bars["gear"] = gear_rect(Vector2(sz))
+	# M2 H1b (OQ-HUD): the whole weapon block (slots too) and the reserved minimap's tap target.
+	bars["weapon_block"] = hud.weapon_block.get_global_rect()
+	bars["minimap"] = HudArrangement.minimap_tap_rect(Vector2(sz))
 	var look_area: Rect2 = touch.get_look_area_rect()
 	for key in touch.get_element_keys():
 		var r: Rect2 = touch.get_element_rect(key)
