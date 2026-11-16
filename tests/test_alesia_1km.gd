@@ -625,7 +625,7 @@ func test_ladders_are_built_under_props_outside_nav_and_climbable() -> void:
 		assert_true(l.is_in_group(Ladder.GROUP) and not l.is_in_group(&"cover_wall"), "%s: group ladder, never cover_wall" % id)
 		assert_true(l.collision_layer == 0, "%s: layer 0" % id)
 		for list: Array in lists:
-			assert_true(not (l in list), "%s is in no body list" % id)
+			assert_true(not list.any(func(b: Object) -> bool: return b == l), "%s is in no body list" % id)  # not `l in list`: a typed Array[StaticBody3D] lookup of an Area3D logs an engine ERROR
 		var at := LowpolyKit.vec(e["at"])
 		assert_true(absf(l.position.y - (at.y + terrain.height_at(at.x, at.z))) < 0.001, "%s stands on the terrain" % id)
 		var top := l.top_point()
