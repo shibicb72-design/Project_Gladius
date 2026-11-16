@@ -33,6 +33,8 @@ static func material() -> ShaderMaterial:
 		_material.set_shader_parameter(&"rim_color", GreyboxArt.color_value(look["rim_color"]))
 		_material.set_shader_parameter(&"rim", float(look["rim"]))
 		_material.set_shader_parameter(&"rim_power", float(look["rim_power"]))
+		# M2 AN1 commit 6: the soldier's own material classes (data/art_soldier.json soldier.surfaces).
+		SoldierLook.apply_materials(_material)
 	return _material
 
 

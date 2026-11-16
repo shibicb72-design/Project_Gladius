@@ -24,6 +24,11 @@ var _lean := Vector2.ZERO
 var _breath := 0.0
 var _bones := {}
 var _pivot := Vector3.ZERO
+var _swing_clip: Animation
+var _revive_clip: Animation
+var _tracks := {}
+var _neck_from_chest := Transform3D.IDENTITY
+var _revive_s := 0.0
 
 
 func setup(new_pawn: Pawn) -> void:
@@ -33,9 +38,43 @@ func setup(new_pawn: Pawn) -> void:
 	for i in skeleton.get_bone_count():
 		_bones[String(skeleton.get_bone_name(i))] = i
 	_pivot = skeleton.get_bone_global_rest(int(_bones["Hips"])).origin
+	# M2 AN1 commit 4: library clips for the blade swing (UAL Sword_Attack) and the reviver (UAL Fixing_Kneeling),
+	# shared baked clips; null keeps the code-built poses.
+	_swing_clip = SoldierAnimation.shared("blade_swing", skeleton)
+	_revive_clip = SoldierAnimation.shared("revive", skeleton)
+	for clip: Animation in [_swing_clip, _revive_clip]:
+		if clip == null:
+			continue
+		var tracks := {}
+		for track in clip.get_track_count():
+			tracks[clip.track_get_path(track).get_concatenated_subnames() + ("@p" if clip.track_get_type(track) == Animation.TYPE_POSITION_3D else "")] = track
+		_tracks[clip] = tracks
+	_neck_from_chest = skeleton.get_bone_global_rest(int(_bones["Chest"])).affine_inverse() * skeleton.get_bone_global_rest(int(_bones["Neck"]))
 	if pawn != null:
 		pawn.shot.connect(_on_shot)
 		pawn.landed.connect(_on_landed)
+
+
+## Sets every bone the clip keys (rotation; the Hips position too when `whole_body`) toward the clip at time t, by w.
+func _blend_clip(skeleton: Skeleton3D, clip: Animation, t: float, w: float, bones: Array, whole_body: bool) -> void:
+	var tracks: Dictionary = _tracks[clip]
+	for bone: String in (_bones.keys() if whole_body else bones):
+		if not tracks.has(bone) or not _bones.has(bone):
+			continue
+		var index := int(_bones[bone])
+		var q := clip.rotation_track_interpolate(int(tracks[bone]), t)
+		skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(q, w))
+	if whole_body and tracks.has("Hips@p"):
+		var hips := int(_bones["Hips"])
+		skeleton.set_bone_pose_position(hips, skeleton.get_bone_pose_position(hips).lerp(clip.position_track_interpolate(int(tracks["Hips@p"]), t), w))
+
+
+## The neck is a root bone: carried on the chest top (rest offset) by w, so a kneeling body takes its head along.
+func _carry_neck(skeleton: Skeleton3D, w: float) -> void:
+	var neck := int(_bones["Neck"])
+	var chest := skeleton.get_bone_global_pose(int(_bones["Chest"])) * _neck_from_chest
+	skeleton.set_bone_pose_position(neck, skeleton.get_bone_pose_position(neck).lerp(chest.origin, w))
+	skeleton.set_bone_pose_rotation(neck, skeleton.get_bone_pose_rotation(neck).slerp(chest.basis.get_rotation_quaternion(), w))
 
 
 func _on_shot(_origin: Vector3, _direction: Vector3, weapon_id: String) -> void:
@@ -114,12 +153,25 @@ func _process_modification_with_delta(delta: float) -> void:
 	var pitch := -deg_to_rad(float(lean_cfg["forward_deg"])) * _lean.y
 	var roll := -deg_to_rad(float(lean_cfg["side_deg"])) * _lean.x
 	var offset := Vector3.ZERO
+	var kneel := 0.0
+	_revive_s = _revive_s + delta if float(weights["revive"]) > 0.0 else 0.0
 	for state in STATES:
 		var w := float(weights[state])
 		if w <= 0.0:
 			continue
 		var pose: Dictionary = cfg[state]
 		w = smoothstep(0.0, 1.0, w)
+		if state == "revive" and _revive_clip != null:
+			# M2 AN1 commit 4: the reviver kneels and works with both hands (UAL Fixing_Kneeling): the kneel-down
+			# once, then the working part loops between clip_loop_from_s and clip_loop_to_s.
+			var from := float(pose["clip_loop_from_s"])
+			var to := float(pose["clip_loop_to_s"])
+			var at := _revive_s if _revive_s < to else from + fposmod(_revive_s - to, to - from)
+			_blend_clip(skeleton, _revive_clip, at, w, [], true)
+			pitch = lerpf(pitch, 0.0, w)
+			offset = offset.lerp(Vector3.ZERO, w)
+			kneel = w
+			continue
 		pitch = lerpf(pitch, deg_to_rad(float(pose.get("body_pitch_deg", 0.0))), w) if pose.has("body_pitch_deg") else pitch
 		if pose.has("body_offset_m"):
 			offset = offset.lerp(LowpolyKit.vec(pose["body_offset_m"]), w)
@@ -129,13 +181,19 @@ func _process_modification_with_delta(delta: float) -> void:
 		var t := 1.0 - swing_left_s / float(swing["s"])
 		var strike := smoothstep(float(swing["strike_from"]), float(swing["strike_to"]), t)
 		var out := 1.0 - smoothstep(float(swing["recover_from"]), 1.0, t)
-		var raised: Dictionary = swing["raised"]
-		var struck: Dictionary = swing["struck"]
-		for bone: String in raised:
-			if _bones.has(bone):
-				var index := int(_bones[bone])
-				var key := _quat(raised[bone]).slerp(_quat(struck.get(bone, raised[bone])), strike)
-				skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(key, out))
+		if _swing_clip != null:
+			# M2 AN1 commit 4: the authored sword strike (UAL Sword_Attack) from clip_from_s to clip_to_s over the
+			# same swing time, so its strike lands in the strike window; it fades in over fade_in of the swing.
+			var at := lerpf(float(swing["clip_from_s"]), float(swing["clip_to_s"]), t)
+			_blend_clip(skeleton, _swing_clip, at, minf(smoothstep(0.0, float(swing["fade_in"]), t), out), swing["clip_bones"], false)
+		else:
+			var raised: Dictionary = swing["raised"]
+			var struck: Dictionary = swing["struck"]
+			for bone: String in raised:
+				if _bones.has(bone):
+					var index := int(_bones[bone])
+					var key := _quat(raised[bone]).slerp(_quat(struck.get(bone, raised[bone])), strike)
+					skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(key, out))
 		arms_weight = maxf(arms_weight, out)
 	# Breathing: a small rise and fall of the chest.
 	var chest := int(_bones.get("Chest", -1))
@@ -143,6 +201,8 @@ func _process_modification_with_delta(delta: float) -> void:
 		var breath := deg_to_rad(float(cfg["breath"]["deg"])) * sin(TAU * _breath)
 		skeleton.set_bone_pose_rotation(chest, skeleton.get_bone_pose_rotation(chest) * Quaternion(Vector3.RIGHT, breath))
 	if is_zero_approx(pitch) and is_zero_approx(roll) and offset.is_zero_approx():
+		if kneel > 0.0:
+			_carry_neck(skeleton, kneel)
 		return
 	var turn := Basis(Vector3.RIGHT, pitch) * Basis(Vector3.BACK, roll)
 	var body := Transform3D(turn, _pivot + offset - turn * _pivot)
@@ -152,3 +212,5 @@ func _process_modification_with_delta(delta: float) -> void:
 			var posed := body * skeleton.get_bone_pose(index)
 			skeleton.set_bone_pose_position(index, posed.origin)
 			skeleton.set_bone_pose_rotation(index, posed.basis.get_rotation_quaternion())
+	if kneel > 0.0:
+		_carry_neck(skeleton, kneel)

@@ -24,6 +24,11 @@ func _on_visibility_changed() -> void:
 	_pawn.get_parent().add_child(corpse)
 	corpse.global_transform = _pawn.global_transform
 	var tween := corpse.create_tween()
+	if corpse.has_meta("authored_fall"):
+		# M2 AN1 commit 4: the corpse's own death clip falls to the ground; no outer topple on top of it.
+		tween.tween_interval(float(_cfg["lifetime_s"]))
+		tween.tween_callback(corpse.queue_free)
+		return
 	tween.set_parallel(true)
 	tween.tween_property(corpse, "rotation_degrees:x", corpse.rotation_degrees.x + float(_cfg["topple_degrees"]), float(_cfg["topple_s"])).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(corpse, "position:y", corpse.position.y + float(_cfg["drop_m"]), float(_cfg["topple_s"]))

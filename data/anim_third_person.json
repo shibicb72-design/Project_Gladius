@@ -1,0 +1,70 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-ANIM (M2 AN1 commit 4): the third-person soldier's animation numbers added in commit 4, laid over data/anim.json by SoldierRig.config() (a deep merge: a key here replaces the same key there, dictionaries merge). Kept in its own file because data/anim.json also holds the first-person coder's 'first_person' block. Every number is a presentation trial, not a design value.",
+	"part_bones": {
+		"_look_note": "M2 AN1 commit 6: the bones of the parts data/art_soldier.json soldier.parts_add adds (the neck guard rides the Neck so it covers the gap between helmet and gorget when the chest leans; the shoulder bands ride the Chest like the pauldrons).",
+		"neck_guard": "Neck", "pauldron_band_l": "Chest", "pauldron_band_r": "Chest"
+	},
+	"upper_body": {
+		"_reload_note": "M2 AN1 commit 4: staged reload. reload_key_fractions are fractions of WeaponDef.reload_s; per key the left hand's offset from its foregrip target (aim, magazine, magazine out and down, belt pouch, new magazine seated, charging handle, back on the foregrip), the right hand's cant of the rifle (degrees about the barrel) and the chest's lean in (degrees, forward = negative). fire_*_deg: the per-shot kick through spine, chest and shoulders (they replace anim.json's smaller values; reload_hand_offset_m and reload_key_weights there are no longer read).",
+		"reload_key_fractions": [0, 0.12, 0.28, 0.44, 0.62, 0.8, 1],
+		"reload_left_offsets_m": [[0, 0, 0], [0.0, -0.1, 0.13], [0.02, -0.3, 0.16], [0.1, -0.4, 0.24], [0.0, -0.1, 0.13], [0.06, 0.03, 0.02], [0, 0, 0]],
+		"reload_cant_deg": [0, 18, 26, 22, 26, 12, 0],
+		"reload_chest_deg": [0, -4, -7, -5, -6, -2, 0],
+		"fire_chest_deg": -2.5, "fire_spine_deg": -1.2, "fire_arm_deg": -3.5
+	},
+	"death": {
+		"_clip_note": "M2 AN1 commit 4: with the library death clip (anim_sources death, UAL Death01) the corpse plays it instead of the end rotations, after blend_s of crossfade from the last pose, the upper arms keeping arm_follow of the clip's turn from rest (the fall flings them past the helmet); DeathFx skips the outer topple. The end rotations stay the fallback.",
+		"blend_s": 0.12, "arm_follow": 0.7
+	},
+	"poses": {
+		"blade": {
+			"_note": "M2 AN1 commit 6: a lower guard between swings (was upper arm 30 / forearm 64 degrees, which held the blade up in front of the visor): the sword hand sits at the belly with the blade pointed forward and up, the left fist lower. The swing itself (Sword_Attack) is unchanged.",
+			"bones": {"RightUpperArm": [14, 0, 12], "RightForeArm": [48, 0, 0], "RightHand": [-40, 0, 0], "LeftUpperArm": [10, 0, -14], "LeftForeArm": [36, 0, 0]}
+		},
+		"swing": {
+			"_clip_note": "M2 AN1 commit 4: with the library swing (anim_sources blade_swing, UAL Sword_Attack) the clip from clip_from_s to clip_to_s plays over s on clip_bones (its fast cut, 0.31-0.51 s of the clip, lands in the strike window), fading in over fade_in of the swing; raised/struck stay the fallback.",
+			"clip_from_s": 0.26, "clip_to_s": 1.25, "fade_in": 0.08,
+			"clip_bones": ["Spine", "Chest", "RightUpperArm", "RightForeArm", "RightHand", "LeftUpperArm", "LeftForeArm", "LeftHand"]
+		},
+		"revive": {
+			"_clip_note": "M2 AN1 commit 4: with the library reviver clip (anim_sources revive, UAL Fixing_Kneeling) the whole body plays it: the kneel-down once, then clip_loop_from_s..clip_loop_to_s (kneeling, both hands working low) loops; the head rides the chest. body_pitch_deg, body_offset_m and bones stay the fallback.",
+			"clip_loop_from_s": 0.9, "clip_loop_to_s": 4.1
+		}
+	},
+	"gait": {
+		"_placeholder": true,
+		"_todo": "OQ-ANIM-FOOTSLIDE (M2 AN1 commit 4): third-person gait from the Quaternius UAL clips retargeted onto the soldier (scripts/visual/soldier_clips.gd, soldier_gait.gd). foot_slide_max_m is the placeholder limit of the stance foot's world drift during one ground contact (tests/test_soldier_footslide.gd), at the normal move speed, sprint and the downed speed; contact_height_m says when a foot counts as down. walk_slow_blend places the slow walk on the locomotion blend (move speed = 1). Strafe: the hips turn toward the motion up to hip_yaw_max_deg, the spine takes back spine_share of it; back_hysteresis_deg keeps the back-half switch from flickering. spine_follow scales the library spine motion under the aimed chest; chest_upright keeps that share of the aimed chest's own orientation. The helmet stays locked on the head hitbox (Neck and Head keep the aimed layer's rest), so the pelvis keeps only hips_bob_scale of a clip's dip and the legs are re-solved to keep the clip's feet, never stretched past leg_reach of their length and never below the rest foot height minus foot_floor_slack_m; the helmet may sink with the chest by up to neck_drop_max_m (the crest keeps the helmet's box around the hitbox's). upper_keeps_lower: bones the aimed layer and the reload leave to the library. hit: the flinch's bones, fades and rotation scale; head_drop picks the head clip for a shield+health drop at least that big (no hit zone reaches the victim's visuals). air: off the floor this long with this vertical speed shows the airborne loop. Every number is a presentation trial, not a design value.",
+		"foot_slide_max_m": 0.06,
+		"contact_height_m": 0.03,
+		"measure_samples": 120,
+		"walk_slow_blend": 0.32,
+		"strafe": {"hip_yaw_max_deg": 90.0, "spine_share": 0.45, "back_hysteresis_deg": 12.0, "turn_deg_s": 600.0, "fade_speed": 0.2},
+		"spine_follow": 0.7,
+		"chest_upright": 0.85,
+		"hips_bob_scale": 0.2,
+		"leg_reach": 0.97,
+		"_cycle_scale_note": "M2 AN1 commit 6: a per-slot factor on the measured cycle_m (SoldierAnimation.build). The longer legs of data/art_soldier.json soldier.part_overrides lengthen the sprint's raw stride more than the re-solved, hip-locked legs show it; this corrects the playback rate, not the foot_slide_max_m limit.",
+		"cycle_scale": {"run_fwd": 0.95, "walk_slow": 1.05},
+		"foot_floor_slack_m": 0.02,
+		"neck_drop_max_m": 0.1,
+		"upper_keeps_lower": ["Spine"],
+		"hit": {"fade_in_s": 0.03, "fade_out_s": 0.12, "bones": ["Spine", "Chest", "LeftUpperArm", "RightUpperArm"], "scale": 1.6, "min_drop": 0.5, "head_drop": 40.0},
+		"air": {"min_vertical_mps": 1.5, "min_s": 0.1}
+	},
+	"crawl": {
+		"_placeholder": true,
+		"_todo": "OQ-ANIM (M2 AN1 commit 4): the code-built downed knee-crawl (scripts/visual/soldier_crawl.gd; the UAL has no crawl). step_m: how far a planted knee travels under the body per stance (a cycle covers 2 x step_m of ground); lift_m: swing knee lift; knee_height_m: the knee joint's height when it rests on the ground; pelvis_pitch_deg: forward lean of the pelvis (its roll is derived: the swing side hikes until its knee clears the ground); body_back_m: hips offset along +Z; shin_rise_deg: shins laid back on the ground; foot_point_deg: toes pointed (about the foot's X); settle_cycles_s: how fast the cycle settles to both knees down when the pawn stops. Presentation trials, not design values.",
+		"step_m": 0.16, "lift_m": 0.05, "knee_height_m": 0.06, "pelvis_pitch_deg": 40.0,
+		"body_back_m": 0.05, "shin_rise_deg": 6.0, "foot_point_deg": -80.0, "settle_cycles_s": 1.5
+	},
+	"cover": {
+		"_placeholder": true,
+		"_todo": "OQ-COVER / OQ-ANIM (M2 AN1 commit 4): third-person cover look only (scripts/visual/cover_anim.gd; data/cover.json keeps the gameplay and its pose angles). The crouched cover pose takes crouch_bones from the library crouch (anim_sources cover_crouch_idle, UAL Crouch_Idle) at crouch_hold_s, the pelvis staying at the crouched hitbox height; peek_lean_deg rolls the spine toward the peek side. Presentation trials, not design values.",
+		"crouch_bones": ["Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"],
+		"crouch_hold_s": 1.0,
+		"_rest_note": "M2 AN1 commit 6: the arms while hugging the wall (replaces data/cover.json animation.rest_upper_pose_deg for the look only; cover.json is unchanged): the gun held at a low ready angle across the body instead of straight up. Same bones, so the lean still blends back to the aimed pose.",
+		"rest_upper_pose_deg": {"RightUpperArm": [10, 0, 8], "RightForeArm": [55, 0, 0], "RightHand": [-30, 0, 0]},
+		"peek_lean_deg": 9.0
+	}
+}

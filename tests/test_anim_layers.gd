@@ -14,8 +14,10 @@ func test_lower_stand_keeps_live_locomotion_paths_and_replica_ground_state() -> 
 	var lower := graph.get_node(&"lower") as AnimationNodeTransition
 	assert_true(lower != null, "lower transition exists")
 	if lower != null:
-		assert_eq(lower.input_count, 1, "only stand: no acquired airborne source")
+		# M2 AN1 commit 4: the UAL airborne loop (Jump) is acquired, so the lower layer has stand and air.
+		assert_eq(lower.input_count, 2, "stand and the acquired airborne source")
 		assert_eq(lower.get_input_name(0), "stand", "stand input name")
+		assert_eq(lower.get_input_name(1), "air", "air input name")
 	var links: Array = graph.get("node_connections")
 	assert_true(_connection(links, "lower", 0, "locomotion"), "stand receives original blend space")
 	assert_true(_connection(links, "upper", 0, "lower"), "lower replaces previous upper input")
@@ -52,13 +54,17 @@ func test_upper_filters_modifier_order_fire_reload_and_both_layer_directions() -
 	var tree := model.animation_tree
 	tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	var graph := tree.tree_root as AnimationNodeBlendTree
+	# M2 AN1 commit 4: the aimed layer and the reload leave the library spine, neck and head motion through
+	# (data/anim_third_person.json gait.upper_keeps_lower); the additive fire kick still reaches every upper bone.
+	var keeps: Array = SoldierRig.config()["gait"]["upper_keeps_lower"]
 	for node in ["upper", "fire", "reload"]:
 		var layer := graph.get_node(node)
 		assert_true(layer.filter_enabled, node + " filter enabled")
 		for i in model.skeleton.get_bone_count():
 			var bone := String(model.skeleton.get_bone_name(i))
 			var lower := bone == "Hips" or bone.contains("Leg") or bone.contains("Foot")
-			assert_eq(layer.is_path_filtered(NodePath("Skeleton3D:" + bone)), not lower, node + " bone " + bone)
+			var kept: bool = node != "fire" and keeps.has(bone)
+			assert_eq(layer.is_path_filtered(NodePath("Skeleton3D:" + bone)), not lower and not kept, node + " bone " + bone)
 	var sync := model.skeleton.get_node("HandTargetSync")
 	assert_true(sync.get_index() < model.left_ik.get_index(), "hand target sync before IK")
 	for child in model.skeleton.get_children():
@@ -79,13 +85,15 @@ func test_upper_filters_modifier_order_fire_reload_and_both_layer_directions() -
 	await scene.process_frame
 	await scene.process_frame
 	assert_true(model.skeleton.get_bone_pose_rotation(arm).angle_to(arm_pose) < 0.0001, "lower idle cannot displace aimed upper arm")
+	# M2 AN1 commit 4: the library idle bends the legs, so the fire check compares with the idle leg, not the rest.
+	var idle_leg := model.skeleton.get_bone_pose_rotation(leg)
 	pawn.show_shot_fx(pawn.get_muzzle_position(), Vector3(0, 1, -10))
 	assert_eq(tree.get("parameters/fire/request"), AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE, "visual shot requests fire")
 	assert_true(model.recoil_left_s > 0.0, "rifle recoil still runs")
 	tree.advance(0.0)
 	await scene.process_frame
 	await scene.process_frame
-	assert_true(model.skeleton.get_bone_pose_rotation(leg).angle_to(Quaternion.IDENTITY) < 0.0001, "upper fire does not move idle leg")
+	assert_true(model.skeleton.get_bone_pose_rotation(leg).angle_to(idle_leg) < 0.0001, "upper fire does not move idle leg")
 	pawn.reload_started.emit()
 	tree.advance(0.0)
 	assert_true(tree.get("parameters/reload/active"), "reload starts")
@@ -95,7 +103,10 @@ func test_upper_filters_modifier_order_fire_reload_and_both_layer_directions() -
 	assert_true(not tree.get("parameters/reload/active") and not tree.get("parameters/fire/active"), "switch aborts both shots")
 	assert_true(model.hand_error_m <= float(SoldierRig.config()["hands"]["ik_tolerance_m"]), "foregrip stays solved")
 	var clips := tree.get_meta(&"clip_library") as ClipLibrary
-	for name in ["idle", "walk_fwd", "walk_back", "strafe_l", "strafe_r", "run_fwd", "aim_down", "aim", "aim_up", "fire", "reload"]:
+	# M2 AN1 commit 4: the locomotion comes from the committed UAL; the rifle layer stays code-built (no rifle clips).
+	for name in ["idle", "walk_fwd", "walk_back", "strafe_l", "strafe_r", "run_fwd"]:
+		assert_eq(clips.source_for(name), "ual", "honest library source " + name)
+	for name in ["aim_down", "aim", "aim_up", "fire", "reload"]:
 		assert_eq(clips.source_for(name), "procedural", "honest default source " + name)
 	pawn.free()
 

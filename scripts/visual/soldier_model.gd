@@ -2,7 +2,6 @@ class_name SoldierModel
 extends Node3D
 ## One shared vertex-colour surface, no hitboxes. Only reads pawn velocity.
 static var _mesh: ArrayMesh
-static var _rifle: ArrayMesh
 var skeleton: Skeleton3D
 var armor: MeshInstance3D
 var local_part_bounds: Array[AABB] = []
@@ -14,6 +13,9 @@ var _replica_velocity := Vector3.ZERO
 var _upper_cfg: Dictionary
 var reload_duration_s := 0.0
 var rifle: MeshInstance3D
+var rifle_far: MeshInstance3D  # M2 AN1 commit 6: the gun's far detail level (child of rifle)
+var shown_gun := ""  # the weapon art id of the gun in the hands
+var stock_point := Vector3.ZERO  # the butt of the shown gun, in the rifle mesh's frame
 var hand_attachment: BoneAttachment3D
 var foregrip: Marker3D
 var barrel_tip: Marker3D
@@ -38,9 +40,23 @@ var _cape_lift := 0.0
 var pose: SoldierPose
 var blade: MeshInstance3D
 static var _blade: ArrayMesh
+## M2 AN1 commit 4: library gait (data/anim.json "gait").
+var gait: SoldierGait
+var crawl: SoldierCrawl
+var gait_rate := 1.0  # gait cycles per second shown (ground speed / cycle_m)
+var airborne := false
+var hit_count := 0  # flinches requested so far (tests, captures)
+var _gait_cfg: Dictionary
+var _cycles: Dictionary = {}
+var _sprint := 1.0
+var _air_s := 0.0
+var _replica_vy := 0.0
+var _last_hp := -1.0
 
 func _ready() -> void:
-	_cfg = LowpolyKit.config()["soldier"]
+	# M2 AN1 commit 6: the parts are art_astra.json's (read-only) with data/art_soldier.json soldier's overrides on top.
+	_cfg = (LowpolyKit.config()["soldier"] as Dictionary).duplicate(false)
+	_cfg["parts"] = SoldierLook.parts()
 	_pawn = get_parent() as CharacterBody3D
 	var parts: Array = _cfg["parts"]
 	skeleton = SoldierRig.build(parts, (_pawn.get_node("Head") as Node3D).position)
@@ -72,8 +88,16 @@ func _ready() -> void:
 	var movement := registry.get_movement_cfg()
 	var initial_weapon := registry.get_weapon_def(String(registry.get_loadout_ids((_pawn as Pawn).class_id).get("primary", "")))
 	var initial_reload := initial_weapon.reload_s if initial_weapon != null and initial_weapon.reload_s > 0.0 else float(_animation_cfg["idle_s"])
-	animation_tree = SoldierAnimation.build(skeleton, float(movement["sprint_speed_multiplier"]["value"]), initial_reload)
+	_sprint = float(movement["sprint_speed_multiplier"]["value"])
+	animation_tree = SoldierAnimation.build(skeleton, _sprint, initial_reload)
 	add_child(animation_tree)
+	_gait_cfg = SoldierRig.config()["gait"]
+	_cycles = animation_tree.get_meta(&"gait_cycles", {})
+	# M2 AN1: the gait modifier runs first after the tree (hip turn for strafes, library spine and neck carry).
+	gait = SoldierGait.new()
+	gait.name = "Gait"
+	skeleton.add_child(gait)
+	gait.setup()
 	_previous_position = _pawn.global_position
 	_upper_cfg = SoldierRig.config()["upper_body"]
 	var shot_cfg: Dictionary = registry.load_file("res://data/ui.json")["shot_fx"]
@@ -88,6 +112,11 @@ func _ready() -> void:
 	pose.name = "Pose"
 	skeleton.add_child(pose)
 	pose.setup(pawn)
+	# M2 AN1: the downed knee-crawl takes the hips, legs and neck over from the downed pose.
+	crawl = SoldierCrawl.new()
+	crawl.name = "Crawl"
+	skeleton.add_child(crawl)
+	crawl.setup()
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.weapon_switched.connect(_on_weapon_switched)
 	pawn.visibility_changed.connect(_on_visibility_changed)
@@ -111,11 +140,9 @@ func _cache_pose() -> void:
 		hand_error_m = hand.origin.distance_to(foregrip.global_position)
 
 static func add_rifle(parent: MeshInstance3D) -> MeshInstance3D:
-	if _rifle == null:
-		_rifle = LowpolyKit.merge(LowpolyKit.config()["rifle"]["parts"])
 	var rifle := MeshInstance3D.new()
 	rifle.name = "RifleModel"
-	rifle.mesh = _rifle
+	rifle.mesh = SoldierLook.gun_mesh("", "near")
 	parent.add_child(rifle)
 	parent.layers = 0
 	var model := parent.get_parent().get_parent().get_node_or_null("SoldierModel") as SoldierModel
@@ -132,21 +159,24 @@ func mount_rifle(mesh: MeshInstance3D) -> void:
 	hand_attachment.bone_name = &"RightHand"
 	skeleton.add_child(hand_attachment)
 	rifle.reparent(hand_attachment, false)
-	var rifle_parts: Array = LowpolyKit.config()["rifle"]["parts"]
 	foregrip = Marker3D.new()
 	foregrip.name = "Foregrip"
 	rifle.add_child(foregrip)
 	barrel_tip = Marker3D.new()
 	barrel_tip.name = "BarrelTip"
 	rifle.add_child(barrel_tip)
-	for part: Dictionary in rifle_parts:
-		if part["name"] == "grip":
-			rifle.position = -LowpolyKit.vec(part["at"])
-		elif part["name"] == "handguard":
-			foregrip.position = LowpolyKit.vec(part["at"])
-		elif part["name"] == "barrel":
-			barrel_tip.position = LowpolyKit.vec(part["at"]) + Vector3.FORWARD * float(part["size"][2]) * 0.5
-	_rifle_rest = rifle.transform
+	# M2 AN1 commit 6: a far copy of the gun (silhouette parts only) takes over past gun.far_m (visibility ranges).
+	rifle_far = MeshInstance3D.new()
+	rifle_far.name = "RifleFar"
+	rifle.add_child(rifle_far)
+	var far_m := float(SoldierLook.config()["gun"]["far_m"])
+	rifle.visibility_range_end = far_m
+	rifle_far.visibility_range_begin = far_m
+	var weapon := (_pawn as Pawn).loadout.get_active() if _pawn != null and (_pawn as Pawn).loadout != null else null
+	var first := weapon.def.id if weapon != null and not weapon.def.is_melee() else ""
+	if first == "" and _pawn != null:
+		first = String(DataRegistry.new().get_loadout_ids((_pawn as Pawn).class_id).get("primary", ""))
+	show_gun(first)
 	# S4: the blade shares the hand with the rifle; only the active weapon's model is shown (_process).
 	var blade_cfg: Dictionary = _cfg["blade"]
 	if _blade == null:
@@ -178,6 +208,24 @@ func mount_rifle(mesh: MeshInstance3D) -> void:
 	skeleton.add_child(pole)
 	left_ik.set_pole_node(0, left_ik.get_path_to(pole))
 
+
+## M2 AN1 commit 6: the gun in the hands is the active gun's own model (data/art_soldier.json soldier.gun): the
+## Pilum BR, the Sagittarii rifle with its scope, ... Only the visible mesh and its hand markers move; the gameplay
+## muzzle and the shot effects' origin do not.
+func show_gun(id: String) -> void:
+	var key := SoldierLook.gun_id(id)
+	if key == shown_gun or rifle == null:
+		return
+	shown_gun = key
+	rifle.mesh = SoldierLook.gun_mesh(key, "near")
+	rifle_far.mesh = SoldierLook.gun_mesh(key, "far")
+	_rifle_rest = Transform3D(Basis.IDENTITY, -SoldierLook.gun_point(key, "grip_m"))
+	rifle.transform = _rifle_rest
+	foregrip.position = SoldierLook.gun_point(key, "foregrip_m")
+	barrel_tip.position = SoldierLook.gun_point(key, "muzzle_m")
+	stock_point = SoldierLook.gun_point(key, "stock_m")
+	_update_recoil(0.0)
+
 func _process(delta: float) -> void:
 	if _pawn == null:
 		return
@@ -196,6 +244,7 @@ func _process(delta: float) -> void:
 	var pawn := _pawn as Pawn
 	var observed := (_pawn.global_position - _previous_position) / delta if delta > 0.0 else Vector3.ZERO
 	_previous_position = _pawn.global_position
+	_replica_vy = observed.y
 	observed.y = 0.0
 	if observed.length() > pawn.get_max_move_speed() * float(_animation_cfg["teleport_speed_multiplier"]):
 		observed = Vector3.ZERO
@@ -206,7 +255,13 @@ func _process(delta: float) -> void:
 	if velocity.is_zero_approx():
 		velocity = _replica_velocity
 	var local := _pawn.global_transform.basis.inverse() * velocity
-	animation_tree.set("parameters/locomotion/blend_position", Vector2(local.x, local.z) / pawn.get_move_speed())
+	var blend := Vector2(local.x, local.z) / pawn.get_move_speed()
+	animation_tree.set("parameters/locomotion/blend_position", blend)
+	_drive_gait(blend, velocity.length())
+	crawl.move_local = local
+	crawl.weight = float(pose.weights["downed"])
+	_drive_air(delta)
+	_watch_hits()
 	# S4: the cape swings back with forward speed (and streams up in a fall); a per-instance shader value.
 	var cape: Dictionary = _cfg["material"]["cape"]
 	var lift := clampf(-local.z / maxf(pawn.get_max_move_speed(), 0.01), 0.0, 1.0)
@@ -226,7 +281,12 @@ func _show_weapon() -> void:
 	var pawn := _pawn as Pawn
 	var weapon := pawn.loadout.get_active() if pawn.loadout != null else null
 	var melee := weapon != null and weapon.def.is_melee()
-	rifle.visible = not melee
+	if weapon != null and not melee and weapon.def.id != shown_gun:
+		show_gun(weapon.def.id)
+	# M2 AN1 commit 6: a downed soldier crawls on both hands; the gun is slung (hidden) instead of dragging on the
+	# ground from the right hand (data/art_soldier.json soldier.gun.hide_downed_weight).
+	var downed := pose != null and float(pose.weights["downed"]) >= float(SoldierLook.config()["gun"]["hide_downed_weight"])
+	rifle.visible = not melee and not downed
 	blade.visible = melee
 	if left_ik != null and pose != null:
 		left_ik.influence = 1.0 - pose.arms_weight
@@ -273,6 +333,86 @@ func _on_weapon_switched(_slot: int) -> void:
 func _on_visibility_changed() -> void:
 	if not _pawn.visible:
 		_on_weapon_switched(0)
+
+## M2 AN1: the cycle distance the blend shows: forward motion blends the slow walk, the jog and the sprint by
+## speed; sideways and backward motion use the jog's cycle (the strafe and back slots play the jog).
+func cycle_m(blend: Vector2) -> float:
+	var jog := float(_cycles.get("walk_fwd", 0.0))
+	var speed := blend.length()
+	if speed <= 0.0001 or jog <= 0.0:
+		return jog
+	var slow_at := float(_gait_cfg["walk_slow_blend"])
+	var slow := float(_cycles.get("walk_slow", jog))
+	var sprint := float(_cycles.get("run_fwd", jog))
+	var ahead := jog
+	if speed <= slow_at:
+		ahead = slow
+	elif speed <= 1.0:
+		ahead = lerpf(slow, jog, (speed - slow_at) / (1.0 - slow_at))
+	else:
+		ahead = lerpf(jog, sprint, clampf((speed - 1.0) / maxf(_sprint - 1.0, 0.0001), 0.0, 1.0))
+	return lerpf(jog, ahead, clampf(-blend.y / speed, 0.0, 1.0))
+
+
+## Every gait slot plays at ground speed / cycle_m, so the stance foot moves with the ground; the strafe slots
+## swap to the reversed cycle in the back half while SoldierGait turns the hips toward the motion.
+func _drive_gait(blend: Vector2, ground_speed: float) -> void:
+	if _cycles.is_empty():
+		return
+	var distance := cycle_m(blend)
+	gait_rate = ground_speed / distance if distance > 0.0 else 0.0
+	for slot: String in _cycles:
+		animation_tree.set("parameters/locomotion/" + slot + "/speed/scale", gait_rate * SoldierClips.CYCLE_S)
+	var cover_mix: Variant = animation_tree.get("parameters/cover_mix/blend_amount")
+	gait.lift_weight = 1.0 - (float(cover_mix) if cover_mix != null else 0.0)
+	var moving := blend
+	if (_pawn as Pawn).drop_state != Pawn.Drop.NONE or not (_pawn as Pawn).is_alive():
+		moving = Vector2.ZERO
+	if gait.steer(moving) and _cycles.has("strafe_l"):
+		var space := (animation_tree.tree_root as AnimationNodeBlendTree).get_node(&"locomotion") as AnimationNodeBlendSpace2D
+		for i in space.get_blend_point_count():
+			var point := space.get_blend_point_node(i)
+			if point is AnimationNodeBlendTree and (point as AnimationNodeBlendTree).has_node(&"clip"):
+				var clip := (point as AnimationNodeBlendTree).get_node(&"clip") as AnimationNodeAnimation
+				if clip.has_meta(&"strafe"):
+					clip.animation = &"walk_back" if gait.backward else StringName(clip.get_meta(&"strafe"))
+
+
+## Jump, fall off a ledge: the library's airborne loop after air.min_s off the floor with real vertical speed.
+func _drive_air(delta: float) -> void:
+	if (animation_tree.tree_root as AnimationNodeBlendTree).get_node(&"lower").input_count < 2:
+		return
+	var pawn := _pawn as Pawn
+	var air: Dictionary = _gait_cfg["air"]
+	var vertical := _replica_vy if pawn.net_mode == Pawn.NetMode.REPLICA else pawn.velocity.y
+	var off := pawn.drop_state == Pawn.Drop.NONE and pawn.is_alive() and absf(vertical) > float(air["min_vertical_mps"])
+	if pawn.net_mode != Pawn.NetMode.REPLICA:
+		off = off and not pawn.is_on_floor()
+	_air_s = _air_s + delta if off else 0.0
+	var now := _air_s >= float(air["min_s"])
+	if now != airborne:
+		airborne = now
+		animation_tree.set("parameters/lower/transition_request", "air" if airborne else "stand")
+
+
+## A drop in shield + health while alive (any role: replicas get both from the host snapshot) asks for a flinch:
+## the head clip for a hit of hit.head_drop or more (no hit zone reaches the victim's visuals), else the chest clip.
+func _watch_hits() -> void:
+	var pawn := _pawn as Pawn
+	if pawn.bridge == null or not animation_tree.tree_root.has_node(&"hit"):
+		return
+	var hp := float(pawn.bridge.state.shield) + float(pawn.bridge.state.health)
+	var hit_cfg: Dictionary = _gait_cfg["hit"]
+	if _last_hp >= 0.0 and hp < _last_hp - float(hit_cfg["min_drop"]) and pawn.is_alive():
+		flinch(_last_hp - hp >= float(hit_cfg["head_drop"]))
+	_last_hp = hp
+
+
+func flinch(head: bool) -> void:
+	hit_count += 1
+	animation_tree.set("parameters/hit_which/transition_request", "head" if head else "chest")
+	animation_tree.set("parameters/hit/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
 
 ## Explicit collider-free copy: avoids duplicating scripts or hitboxes and never re-runs _ready.
 func make_corpse() -> Node3D:

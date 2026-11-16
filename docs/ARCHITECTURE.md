@@ -357,10 +357,15 @@ android/              debug.keystore (shared debug key only)
   offset to 0, the rig height to `eye_height_m` and the FOV; the first evaluation snaps. Same rig, same
   contracts: `AimRayCast`, `get_aim_point`, `set_pitch`, `set_aim_blend`, the view-only knockback. The shoulder
   swap is ignored in first person.
-- View model (`scripts/visual/view_model.gd`): the arms and held weapon on the rig's Camera3D, attached lazily
-  by the rig for the local pawn only, shown from `view_model.show_weight`; it plays swap, reload, kick and the
-  blade swing from the pawn's signals, draws its own tracer and flash from `ShotFx.shot_shown`, and raises the
-  gun to a red dot on the centre ray in ADS. Presentation only: no colliders, the shot never reads it.
+- View model (`scripts/visual/view_model.gd` and the `view_*.gd` files, section 4.22): two skinned arms with
+  fingers and the held weapon on the rig's Camera3D, attached lazily by the rig for the local pawn only, shown
+  from `view_model.show_weight` and already risen by `raise_start`, so leaving cover never shows a frame with
+  neither body nor gun. It plays breathing, the walk bob, the sprint pose, switch, pickup, staged reloads, kick,
+  the landing dip and the blade swing from the pawn's state and signals (M2 AN1; shapes in `data/anim.json`
+  `first_person`, durations `swap_s`, `swing_s`, `recoil_s` here), draws its own tracer and flash from
+  `ShotFx.shot_shown`, and raises the gun to a red dot on the centre ray in ADS; the long rifle's ADS looks
+  through a modelled scope tube with a reticle (no overlay, no FOV change: OQ-ADS-ZOOM). Presentation only:
+  no colliders, the shot never reads it.
 - Body layer (`scripts/visual/local_body_layer.gd`): the rig calls `Pawn.ensure_local_body_layer` every physics
   frame; for the local pawn it moves Body, HeadMesh, every SoldierModel mesh (also ones added later, followed
   by `child_entered_tree`), the ShotFx tracer and flash and the SwingVisual bar from render layer 1 to
@@ -930,6 +935,47 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
 - **Data:** `data/cover.json` (every C1b key, OQ-COVER), `data/camera.json` (`cover_blend_s`, `cover`),
   `data/ui.json` (`cover_button`, `cover_fire_dim`), `data/haptics.json` (`cover_snap`); read-only
   `stats.json movement.muzzle_height_m` and `combat.auto_reload_on_empty`. See docs/OPEN_QUESTIONS.md OQ-COVER (M2 C1b).
+
+### 4.22 Soldier and view-model art (M2 AN1)
+Everything here is presentation: no collider, hitbox, muzzle, speed, ray, timing or net message reads it. Every
+look is a trial for Shibi (OQ-ART-SOLDIER), not a design decision.
+- **Data.** `data/art_soldier.json` (new) owns the hand, weapon and effect art, the soldier override layer and
+  the budgets. `data/art_astra.json` is NOT edited by character work: it is hashed into every map's saved
+  navigation (`map_nav.gd`). Animation numbers: `data/anim.json` `first_person` (view-model motion) and
+  `data/anim_third_person.json` (gait, strafe, crawl, hit, cover arm pose, the foot-slide limit), which
+  `SoldierRig.config()` merges over `data/anim.json`.
+- **View model** (`scripts/visual/view_*.gd`): `view_mesh.gd` and `view_weapons.gd` build the Pilum BR, the
+  Sagittarii rifle (with a modelled scope) and the Gladius Lux from part lists (chamfered boxes, lathes), with
+  the energy cell and the charging handle as their own nodes; `view_hands.gd` and `view_rig.gd` build each arm
+  as one skinned mesh on a small code-built skeleton with finger poses as data (grip, trigger, foregrip, open,
+  reach, blade); `view_motion.gd` layers the motions (4.16); `view_fx.gd` holds the flash, which is parented
+  to the muzzle and follows the gun, a shadowless OmniLight3D lit for the flash time on the local view model
+  only, the world-fixed tracer that starts at the muzzle, and the spent cell; `view_probe.gd` measures posed
+  vertices for the tests. Pickup is told apart from switch inside the view code by comparing the loadout's slot
+  objects on `weapon_switched`; `pawn.gd` has no hook for it.
+- **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json`; the `ual`
+  source is the CC0 Quaternius Universal Animation Library (`assets/third_party/quaternius_ual/`, imported
+  without the mannequin mesh). `anim_retarget.gd` bakes a clip onto the 17-bone soldier once; `soldier_clips.gd`
+  measures each gait's stride on the soldier's own legs and normalizes the cycles, so the graph plays
+  cycles per second = ground speed / stride and the feet stay planted. Every soldier shares the baked clips.
+  Library clips: idle, walk, jog, sprint, reversed jog (back-pedal), airborne loop, hit (added on top), death
+  (the corpse), revive kneel, blade swing, cover crouch legs. Code-built: aim, fire and reload (the library has
+  no rifle clips; hands stay on the gun through the upper layer and the left-hand IK), the downed knee-crawl
+  (`soldier_crawl.gd`), cover hug and rise, landing. `soldier_gait.gd` turns the hips toward a strafe while the
+  chest and rifle keep the aim, and limits the pelvis bob because the helmet stays on the head hitbox.
+- **Soldier look.** `soldier_look.gd` lays `art_soldier.json` `soldier.part_overrides` and `parts_add` over the
+  art_astra soldier parts (longer legs, flatter banded shoulders, a neck guard), writes per-class metallic and
+  roughness into the soldier material's own copy of the surface data (steel, dark steel, squad plate, bronze,
+  leather, cloth, gun steel; one surface), and builds the third-person gun from the first-person part lists at
+  reduced detail: the active weapon's own model, with a silhouette copy beyond `gun.far_m` by visibility range.
+  The third-person flash and tracer keep their older origin, which `tests/test_soldier_hands.gd` locks.
+- **Impacts.** `scripts/visual/shot_impacts.gd`: one pool per world, capped (`fx.impact_cap`), a burst per shot
+  by surface (sparks, dust, energy on a soldier), classified like the impact sounds from a short visual probe.
+- **Budgets** (`art_soldier.json`): view model 4,000 triangles and 12 draw calls; soldier near 3,100 / 2, far
+  2,420 / 2. Tests: `test_view_model_art.gd`, `test_view_motion.gd`, `test_view_combat_fx.gd`,
+  `test_soldier_clips.gd`, `test_soldier_footslide.gd`, `test_soldier_budget.gd`.
+- **Tools:** `tools/fp_capture.gd`, `tools/soldier_capture.gd`, `tools/contact_sheet.gd`,
+  `tools/fp_light_cost.gd`, `tools/glb_inspect.gd`.
 
 ## 5. Testing
 

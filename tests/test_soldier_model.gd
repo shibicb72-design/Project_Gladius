@@ -63,8 +63,12 @@ func test_soldier_mesh_head_lock_and_rifle_tip() -> void:
 	assert_true(rifle.mesh is ArrayMesh and rifle.mesh.get_surface_count() == 1, "merged rifle present")
 	assert_true(pawn.shot_fx.weapon_mesh.mesh is BoxMesh and pawn.shot_fx.weapon_mesh.visible, "legacy box contract kept; children visible")
 	assert_eq(pawn.shot_fx.weapon_mesh.layers, 0, "only legacy box draw suppressed")
+	# M2 AN1 commit 6: the gun is the first-person model at rifle size, so its front no longer equals the legacy box's
+	# half length (old: mesh front z == -0.25). Now: the mesh ends at its own barrel tip marker, and the gameplay muzzle
+	# and the legacy box (the shot effects' origin) are unchanged.
 	var bounds := rifle.mesh.get_aabb()
-	assert_true(absf(bounds.position.z + (pawn.shot_fx.weapon_mesh.mesh as BoxMesh).size.z * 0.5) < 0.0001, "barrel ends at unchanged muzzle tip")
+	assert_true(absf(bounds.position.z - model.barrel_tip.position.z) < 0.0001, "the gun mesh ends at its barrel tip marker")
+	assert_true(is_equal_approx((pawn.shot_fx.weapon_mesh.mesh as BoxMesh).size.z, 0.5), "legacy box (shot effects' origin) unchanged")
 	var tris := Perf.triangles(armor.mesh) + Perf.triangles(rifle.mesh) + (Perf.triangles(head.mesh) if head.visible else 0)  # only what is drawn
 	assert_true(tris > 0 and tris <= int(LowpolyKit.config()["performance"]["pawn_triangle_budget"]), "pawn model triangle budget")
 	print("ASTRA_PAWN model triangles=", tris, " parts=", model.get_meta("parts").size())

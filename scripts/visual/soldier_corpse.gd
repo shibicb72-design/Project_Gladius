@@ -2,6 +2,54 @@ class_name SoldierCorpse
 extends RefCounted
 ## Explicit native-node snapshot: no gameplay, modifier or presentation scripts copied to the corpse.
 
+
+## M2 AN1 commit 4: the corpse's collapse from the snapshot (local bone poses) into the shared baked death clip:
+## the first death.blend_s crossfade from the last living pose, then the clip plays to its end and holds. The neck
+## is a root bone (the living helmet is locked on the head hitbox), so the corpse carries it on the chest top with
+## its rest offset, sampled from the clip, and the head falls with the body.
+static func authored_collapse(skeleton: Skeleton3D, snapshot: Array[Transform3D], death: Animation) -> Animation:
+	var blend := float(SoldierRig.config()["death"]["blend_s"])
+	var animation := Animation.new()
+	animation.length = blend + death.length
+	var hz := float(SoldierRig.config()["retarget"]["sample_hz"])
+	var count := ceili(death.length * hz)
+	var chest := skeleton.find_bone("Chest")
+	var neck := skeleton.find_bone("Neck")
+	var hips := skeleton.find_bone("Hips")
+	var neck_from_chest := skeleton.get_bone_global_rest(chest).affine_inverse() * skeleton.get_bone_global_rest(neck)
+	var rotations: Array = []
+	var positions: Array = []
+	var arm_follow := float(SoldierRig.config()["death"]["arm_follow"])
+	var arms: Array[int] = [skeleton.find_bone("LeftUpperArm"), skeleton.find_bone("RightUpperArm")]
+	for i in skeleton.get_bone_count():
+		var track := animation.add_track(Animation.TYPE_ROTATION_3D)
+		animation.track_set_path(track, NodePath("Skeleton3D:" + String(skeleton.get_bone_name(i))))
+		animation.rotation_track_insert_key(track, 0.0, snapshot[i].basis.get_rotation_quaternion())
+		rotations.append(track)
+		var moves := i == hips or i == neck
+		var position := -1
+		if moves:
+			position = animation.add_track(Animation.TYPE_POSITION_3D)
+			animation.track_set_path(position, NodePath("Skeleton3D:" + String(skeleton.get_bone_name(i))))
+			animation.position_track_insert_key(position, 0.0, snapshot[i].origin)
+		positions.append(position)
+	for k in count + 1:
+		var t := death.length * float(k) / count
+		var globals := AnimRetarget.sample_globals(death, skeleton, t)
+		var carried := globals[chest] * neck_from_chest
+		for i in skeleton.get_bone_count():
+			var parent := skeleton.get_bone_parent(i)
+			var local := globals[i] if parent < 0 else globals[parent].affine_inverse() * globals[i]
+			if i == neck:
+				local = carried
+			elif arms.has(i):
+				# The fall flings the arms up past the helmet; they keep arm_follow of the clip's turn from rest.
+				local.basis = Basis(Quaternion.IDENTITY.slerp(local.basis.get_rotation_quaternion(), arm_follow))
+			animation.rotation_track_insert_key(rotations[i], blend + t, local.basis.get_rotation_quaternion())
+			if int(positions[i]) >= 0:
+				animation.position_track_insert_key(positions[i], blend + t, local.origin)
+	return animation
+
 static func build(model: SoldierModel) -> Node3D:
 	var corpse := Node3D.new()
 	corpse.name = "SoldierCorpse"
@@ -12,11 +60,13 @@ static func build(model: SoldierModel) -> Node3D:
 	var animation := Animation.new()
 	animation.length = float(LowpolyKit.config()["death"]["topple_s"])
 	var targets: Dictionary = SoldierRig.config()["death"]["end_rotations_deg"]
+	var snapshot: Array[Transform3D] = []
 	for i in skeleton.get_bone_count():
 		var parent := skeleton.get_bone_parent(i)
 		var pose := model.pose_cache[i]
 		if parent >= 0:
 			pose = model.pose_cache[parent].affine_inverse() * pose
+		snapshot.append(pose)
 		skeleton.set_bone_pose_position(i, pose.origin)
 		skeleton.set_bone_pose_rotation(i, pose.basis.get_rotation_quaternion())
 		skeleton.set_bone_pose_scale(i, pose.basis.get_scale())
@@ -27,6 +77,12 @@ static func build(model: SoldierModel) -> Node3D:
 			var degrees := LowpolyKit.vec(targets[bone])
 			finish = Quaternion.from_euler(Vector3(deg_to_rad(degrees.x), deg_to_rad(degrees.y), deg_to_rad(degrees.z)))
 		SoldierAnimation._rotation_track(animation, bone, [0.0, animation.length], [start, finish])
+	# M2 AN1 commit 4: the library's authored fall (UAL Death01) replaces the code-built collapse and the outer
+	# topple (DeathFx skips it for a corpse marked "authored_fall"): it blends from the soldier's last pose.
+	var death := SoldierAnimation.shared("death", skeleton)
+	if death != null:
+		animation = authored_collapse(skeleton, snapshot, death)
+		corpse.set_meta("authored_fall", true)
 	var armor := MeshInstance3D.new()
 	armor.name = "Armor"
 	armor.mesh = model.armor.mesh

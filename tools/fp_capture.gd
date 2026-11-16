@@ -27,9 +27,14 @@ extends SceneTree
 ##   patch under its chest's shadow vs a lit patch beside it, first person as shipped and a control that lets the
 ##   camera draw the body layer from the same eye; prints FP SHADOW lines, saves shadow_fp and shadow_control).
 ##   Every frame is held still while it renders (pawn, rig and view model paused) and logs body=<drawn by the camera>.
+##   M2 AN1: cover_out and shadow leave cover with the Cover button (Pawn.handle_action_press("cover"), as the tests do;
+##   the back-input exit this tool used predates M2 C1b and no longer exits). inspect: a second camera orbits the
+##   held-still view model (inspect_<weapon>_left/right/top/front/back) and frames each hand from its back, palm and
+##   outer side; --inspect-blade adds the blade.
 
 const STATES: Array[String] = ["standing", "walk", "fire", "reload", "switch", "blade", "blade_swing", "wall", "look_down",
-		"ads_mid", "ads", "ads_fire", "ads_walk", "cover_in", "cover_out", "shadow"]
+		"ads_mid", "ads", "ads_fire", "ads_walk", "cover_in", "cover_out", "shadow", "inspect", "breath", "sprint", "reload_seq",
+		"land", "pickup"]
 const SEQ_FRAMES := 6
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -39,6 +44,8 @@ var _states: Array[String] = []
 var _size := Vector2i(2520, 1080)
 var _class := "hastati"
 var _hide_body := false
+var _inspect_blade := false  # --inspect-blade: the inspect state also orbits the blade
+var _pickup_from_blade := false  # --pickup-from-blade: the pickup state starts with the blade out
 var _seed := 0  # --seed: MatchRoot.seed_override (0 = the usual random match seed); picks the match's look and sun
 var _svp: SubViewport
 var _match: MatchRoot
@@ -65,6 +72,10 @@ func _initialize() -> void:
 			_class = a.substr(8)
 		elif a == "--hide-body":
 			_hide_body = true
+		elif a == "--inspect-blade":
+			_inspect_blade = true
+		elif a == "--pickup-from-blade":
+			_pickup_from_blade = true
 		elif a.begins_with("--seed="):
 			_seed = int(a.substr(7))
 	if _states.is_empty():
@@ -212,6 +223,18 @@ func _run() -> void:
 				await _state_cover_out()
 			"shadow":
 				await _state_shadow()
+			"inspect":
+				await _state_inspect()
+			"breath":
+				await _state_breath()
+			"sprint":
+				await _state_sprint()
+			"reload_seq":
+				await _state_reload_seq()
+			"pickup":
+				await _state_pickup()
+			"land":
+				await _state_land()
 	_log("RESULT failed=%d" % _failed)
 	quit(1 if _failed > 0 else 0)
 
@@ -233,7 +256,8 @@ func _state_walk() -> void:
 	await _gun_out()
 	_frame.move = Vector2(0, -1)
 	await _step(45)
-	var period := 1.0 / float(DataRegistry.new().get_camera_cfg()["first_person"]["view_model"]["bob_hz"]["value"])
+	# M2 AN1: the bob follows the step phase: one cycle per anim.json first_person.walk.stride_m walked.
+	var period := float(_fp_anim()["walk"]["stride_m"]) / maxf(_pawn.get_move_speed(), 0.1)
 	var gap := maxi(1, roundi(period * 60.0 / 4.0))
 	for i in 4:
 		await _save("walk_%d" % i)
@@ -373,6 +397,147 @@ func _state_ads_walk() -> void:
 	await _step(45)
 	await _save("ads_walk")
 	await _ads_off()
+
+
+func _fp_anim() -> Dictionary:
+	return DataRegistry.new().load_file("res://data/anim.json")["first_person"]
+
+
+## M2 AN1 commit 3: idle breathing, breath_0..3 across one breath.
+func _state_breath() -> void:
+	await _gun_out()
+	await _step(30)
+	var gap := maxi(1, roundi(60.0 / float(_fp_anim()["breath"]["hz"]) / 4.0))
+	for i in 4:
+		await _save("breath_%d" % i)
+		await _step(gap)
+
+
+## Sprint: forward with the sprint lock held until the pose is in, then sprint_0..2 across a stride.
+func _state_sprint() -> void:
+	await _gun_out()
+	_frame.move = Vector2(0, -1)
+	_frame.sprint = true
+	await _step(60)
+	var s: Dictionary = _fp_anim()["sprint"]
+	var speed := maxf(Vector2(_pawn.velocity.x, _pawn.velocity.z).length(), 0.1)
+	var gap := maxi(1, roundi(float(s["stride_m"]) / speed * 60.0 / 3.0))
+	for i in 3:
+		await _save("sprint_%d" % i)
+		await _step(gap)
+	_frame.move = Vector2.ZERO
+	_frame.sprint = false
+	await _step(40)
+
+
+## The staged reload: one frame in the middle of every stage (reload_<i>_<stage>), the reload lasting reload_s.
+func _state_reload_seq() -> void:
+	await _gun_out()
+	_press("fire")
+	await _step(30)
+	_press("reload")
+	await _step(1)
+	var vm := _rig.get_view_model()
+	var total := _pawn.loadout.get_active().def.reload_s
+	var stages: Array = _fp_anim()["reload"]["stages"]
+	var sum := 0.0
+	for st: Array in stages:
+		sum += float(st[1])
+	var start := 0.0
+	var done := 1
+	for i in stages.size():
+		var mid := (start + float(stages[i][1]) * 0.5) / sum
+		start += float(stages[i][1])
+		var want := roundi(mid * total * 60.0)
+		await _step(maxi(0, want - done))
+		done = maxi(done, want)
+		_log("RELOAD stage=%s vm_stage=%s length=%.3f reload_s=%.3f" % [stages[i][0], vm.get_reload_stage(), vm.get_reload_length(), total])
+		await _save_still("reload_%d_%s" % [i, stages[i][0]])
+	await _step(roundi(total * 60.0) + 10)
+
+
+## Pickup: a loot gun taken into the loadout (Pawn.take_item, as the match does) without a weapon switch:
+## pickup_0..5 across the motion. With --pickup-from-blade the blade is out first (the melee pickup).
+func _state_pickup() -> void:
+	if _pickup_from_blade:
+		await _blade_out()
+	else:
+		await _gun_out()
+	await _step(10)
+	var vm := _rig.get_view_model()
+	var gun := "sagittarii_rifle" if _class == "hastati" else "pilum_br"
+	_pawn.take_item({}, {"kind": "weapon", "weapon": gun})
+	var total := float(_fp_anim()["pickup"]["s"])
+	var gap := maxi(1, roundi(total * 60.0 / 6.0))
+	for i in 6:
+		await _step(gap if i > 0 else 1)
+		_log("PICKUP %d motions=%s shown=%s" % [i, vm.get_motion_names(), vm.get_shown_weapon_id()])
+		await _save_still("pickup_%d" % i)
+	await _step(30)
+
+
+## Landing: the pawn lifted 2.5 m and dropped on its own physics (first person stays on: not the carrier fall);
+## land_0..3 from touchdown through the dip.
+func _state_land() -> void:
+	await _gun_out()
+	_pawn.global_position += Vector3.UP * 2.5
+	_pawn.velocity = Vector3.ZERO
+	var vm := _rig.get_view_model()
+	for i in 120:
+		await _step()
+		if _pawn.is_on_floor() and i > 3:
+			break
+	for i in 4:
+		_log("LAND %d motions=%s" % [i, vm.get_motion_names()])
+		await _save_still("land_%d" % i)
+		await _step(4)
+	await _step(30)
+
+
+## M2 AN1: the view model seen from outside (a second camera orbiting the held-still model, the body layer left
+## out): inspect_<weapon>_left / right / top / front / back, for checking hands and gun shapes. With --inspect-blade the
+## blade is inspected too.
+func _state_inspect() -> void:
+	for want_blade in ([false, true] if _inspect_blade else [false]):
+		if want_blade:
+			await _blade_out()
+		else:
+			await _gun_out()
+		await _step(20)
+		var vm := _rig.get_view_model()
+		var weapon := vm.get_shown_weapon()
+		var cam := _rig.get_camera()
+		var eye := cam.global_transform
+		var target := weapon.global_position if weapon != null else eye.origin
+		var cam2 := Camera3D.new()
+		cam2.near = 0.005
+		cam2.fov = 50.0
+		cam2.cull_mask = cam.cull_mask
+		_match.add_child(cam2)
+		var b := eye.basis
+		var views := {"left": -b.x, "right": b.x, "top": b.y, "front": -b.z, "back": b.z + b.y * 0.3}
+		for key: String in views:
+			var dir: Vector3 = (views[key] as Vector3).normalized()
+			cam2.global_position = target + dir * 0.32
+			cam2.look_at(target, b.y if absf(dir.dot(b.y)) < 0.9 else -b.z)
+			cam2.make_current()
+			await _save_still("inspect_%s_%s" % [vm.get_shown_weapon_id(), key])
+		# Close-ups of each hand: from its back (+y of the hand) and from its palm side, near the knuckles.
+		for arm_name in ["RightArm", "LeftArm"]:
+			var arm := weapon.get_node_or_null(arm_name) as Node3D if weapon != null else null
+			if arm == null:
+				continue
+			var hb := arm.global_basis.orthonormalized()
+			var palm := arm.global_position - hb.z * 0.045 * arm.global_basis.get_scale().x
+			for side: String in ["back", "palm", "out"]:
+				var dir: Vector3 = {"back": hb.y, "palm": -hb.y, "out": hb.x * (1.0 if arm_name == "RightArm" else -1.0)}[side]
+				cam2.global_position = palm + dir.normalized() * 0.12
+				cam2.look_at(palm, b.y if absf(dir.normalized().dot(b.y)) < 0.9 else -b.z)
+				cam2.make_current()
+				await _save_still("inspect_%s_%s_%s" % [vm.get_shown_weapon_id(), arm_name.to_lower(), side])
+		cam.make_current()
+		cam2.queue_free()
+		await _step(2)
 
 
 ## Turns to the nearest wall around the eye (16 rays, 25 m) and walks into it for three seconds.
@@ -532,7 +697,7 @@ func _state_cover_out() -> void:
 			return
 	var gap := maxi(1, ceili(float(DataRegistry.new().get_camera_cfg()["first_person"]["blend_s"]["value"]) * 60.0 / 4.0))
 	var held := await _back_out()
-	_log("COVER exit state=%s weight=%.2f back_input_frames=%d" % [_cover_state(), _rig.get_first_person_weight(), held])
+	_log("COVER exit state=%s weight=%.2f cover_button_wait_frames=%d" % [_cover_state(), _rig.get_first_person_weight(), held])
 	# EXITING plays out in third person; the blend starts when the controller is FREE again.
 	var wait := 0
 	while wait < 180 and _pawn.cover.state != CoverController.State.FREE:
@@ -553,15 +718,16 @@ func _state_cover_out() -> void:
 		_failed += 1
 
 
-## Holds back input (stick down) until the cover controller leaves IN_COVER (at most 90 frames), then releases it;
-## returns the number of frames held.
+## Leaves cover the way a player does since M2 C1b: one press of the Cover button (Pawn.handle_action_press("cover"),
+## as tests/test_first_person_camera.gd does; back input no longer exits), then waits until the controller leaves
+## IN_COVER (at most 90 frames); returns the frames waited.
 func _back_out() -> int:
-	_frame.move = Vector2(0, 1)
+	_frame = InputFrame.new()
+	_pawn.handle_action_press("cover")
 	var n := 0
 	while n < 90 and _pawn.cover != null and _pawn.cover.state == CoverController.State.IN_COVER:
 		await _step()
 		n += 1
-	_frame.move = Vector2.ZERO
 	return n
 
 

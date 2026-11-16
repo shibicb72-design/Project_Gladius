@@ -21,10 +21,9 @@ func test_rifle_attachment_and_left_hand_ik_across_motion() -> void:
 	assert_true(model.left_ik is SkeletonModifier3D and model.left_ik.get_parent() == model.skeleton, "native IK in modifier pipeline")
 	var maximum := 0.0
 	var stock_gap := 0.0
-	var stock_point := Vector3.ZERO
-	for part: Dictionary in LowpolyKit.config()["rifle"]["parts"]:
-		if part["name"] == "stock":
-			stock_point = LowpolyKit.vec(part["at"]) + Vector3.BACK * float(part["size"][2]) * 0.5
+	# M2 AN1 commit 6: the gun is the first-person part list at rifle size (data/art_soldier.json soldier.gun); its
+	# butt is the model's stock_point (was the art_astra.json rifle "stock" box's back face).
+	var stock_point := model.stock_point
 	for pose in [Vector2.ZERO, Vector2(0, -1), Vector2(0, -pawn.get_max_move_speed() / pawn.get_move_speed())]:
 		model.animation_tree.set("parameters/locomotion/blend_position", pose)
 		for pitch in [-1.0, 0.0, 1.0]:

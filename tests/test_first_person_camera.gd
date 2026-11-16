@@ -514,7 +514,7 @@ func test_view_model_stays_inside_the_capsule() -> void:
 					continue
 				meshes += 1
 				var xf := to_cam * mi.global_transform
-				for v in mi.mesh.get_faces():
+				for v in vm.posed_faces(mi):  # M2 AN1: skinned arms measured as posed, not in their bind pose
 					var d := (xf * v).length()
 					far = maxf(far, d)
 					near = minf(near, d)
@@ -752,7 +752,7 @@ func _measure_view_model(cam: Camera3D, vm: ViewModel, aspect: float) -> Diction
 		if mi == vm.tracer or mi == vm.flash or not mi.is_visible_in_tree():
 			continue
 		var xf := to_cam * mi.global_transform
-		var faces := mi.mesh.get_faces()
+		var faces := vm.posed_faces(mi)  # M2 AN1: skinned arms measured as posed, not in their bind pose
 		for t in range(0, faces.size(), 3):
 			var tri: Array[Vector3] = [xf * faces[t], xf * faces[t + 1], xf * faces[t + 2]]
 			for v in tri:
