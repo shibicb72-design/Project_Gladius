@@ -1,0 +1,30 @@
+{
+	"version": 1,
+	"_placeholder": true,
+	"_todo": "OQ-ART-WORLD (M2W1): where the ambient decor (data/art_world.json) and the sun shafts (data/art_look.json shafts.at) stand on a map that has a terrain. Those two files place them at absolute points authored for the flat 160 m map; on alesia_1km every one of them was 9 to 25 m inside the citadel hill. Placement trial, not a design value.",
+	"_note": "Read only when the map has a \"terrain\" block (a flat map such as alesia_section keeps art_world.json and shafts.at exactly). maps.<map json file name without .json> or, when the map has no entry, terrain_default. Each art_world.json section named here replaces that section's keys (merge per section); \"shafts_at\" replaces art_look.json shafts.at. Every y here is metres above the terrain under (x, z). foliage.centre [x, z] is the ring's centre (default the origin). No new lights: braziers and beacons here never outnumber art_world.json's.",
+	"terrain_default": {
+		"flags": {"positions": []},
+		"tents": {"positions": []},
+		"braziers": {"positions": []},
+		"beacons": {"positions": []},
+		"dust": {"positions": []},
+		"foliage": {"count": 0},
+		"props": [],
+		"cables": [],
+		"shafts_at": []
+	},
+	"maps": {
+		"alesia_1km": {
+			"flags": {"positions": [[-9, 0, -337], [9, 0, -337], [56, 0, -247], [68, 0, -247], [-9, 0, -323], [9, 0, -323]]},
+			"tents": {"positions": []},
+			"braziers": {"positions": [[-8, 0, -335.5], [8, 0, -335.5], [-6, 0, -321], [6, 0, -321], [53, 0, -245], [71, 0, -245], [90.5, 0, 95.5], [95.5, 0, 90.5]]},
+			"beacons": {"positions": []},
+			"dust": {"positions": []},
+			"foliage": {"centre": [-112, -395], "radius_min_m": 3, "radius_max_m": 60},
+			"props": [],
+			"cables": [],
+			"shafts_at": []
+		}
+	}
+}

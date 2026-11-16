@@ -14,7 +14,8 @@ func test_mobile_lighting_depth_fog_and_one_hard_sun() -> void:
 	match_scene.auto_start = false
 	tree.root.add_child(match_scene)
 	var env: Environment = match_scene.get_node("WorldEnvironment").environment
-	var cfg: Dictionary = LowpolyKit.config()["environment"]
+	# M2W1: the scene shows the base variant's resolved look (art_astra "environment" + art_look.json's variant fog).
+	var cfg: Dictionary = MatchLook.resolved()["fog"]
 	var preset := GraphicsPresets.new().get_preset()
 	assert_eq(env.fog_enabled, bool(preset["art_fog_enabled"]), "fog preset")
 	assert_eq(env.glow_enabled, bool(preset["art_glow_enabled"]), "glow preset")

@@ -4,6 +4,58 @@ extends Node
 
 const PATH := "res://data/art_greybox.json"
 static var _registry := DataRegistry.new()
+## The "tonemap" names a look may use ("aces" is the base; anything unknown is filmic, as before).
+const TONEMAPPERS := {"aces": Environment.TONE_MAPPER_ACES, "filmic": Environment.TONE_MAPPER_FILMIC,
+		"agx": Environment.TONE_MAPPER_AGX, "reinhard": Environment.TONE_MAPPER_REINHARDT, "linear": Environment.TONE_MAPPER_LINEAR}
+## M2W1: optional look keys. A look that does not set one keeps the engine default (today's behaviour). Light block
+## (art_greybox "environment" + the variant's "light"): ambient_source color|sky|bg, ambient_sky_contribution,
+## reflected_light_source bg|sky|disabled. Fog block (art_astra "environment" + the variant's "fog"): tonemap_white,
+## fog_height, fog_height_density, and the sun's shadow_blur, shadow_bias, shadow_normal_bias, shadow_opacity,
+## shadow_fade_start, shadow_blend_splits. Post block: glow_hdr_scale, glow_levels (7 numbers).
+const OPTIONAL_LIGHT_KEYS := ["ambient_source", "ambient_sky_contribution", "reflected_light_source"]
+const OPTIONAL_FOG_KEYS := ["tonemap_white", "fog_height", "fog_height_density", "shadow_blur", "shadow_bias",
+		"shadow_normal_bias", "shadow_opacity", "shadow_fade_start", "shadow_blend_splits"]
+const OPTIONAL_POST_KEYS := ["glow_hdr_scale", "glow_levels"]
+
+
+## M2W1: the optional ambient keys (see OPTIONAL_LIGHT_KEYS); absent keys leave the Environment's defaults.
+static func _apply_optional_light(env: Environment, light: Dictionary) -> void:
+	match String(light.get("ambient_source", "color")):
+		"sky": env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		"bg": env.ambient_light_source = Environment.AMBIENT_SOURCE_BG
+	if light.has("ambient_sky_contribution"):
+		env.ambient_light_sky_contribution = float(light["ambient_sky_contribution"])
+	match String(light.get("reflected_light_source", "")):
+		"bg": env.reflected_light_source = Environment.REFLECTION_SOURCE_BG
+		"sky": env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+		"disabled": env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+
+
+## M2W1: the optional sun shadow keys (see OPTIONAL_FOG_KEYS); absent keys leave the light's defaults.
+static func _apply_optional_shadow(sun: DirectionalLight3D, fog: Dictionary) -> void:
+	# The sun outlives a variant switch: put its first values back, so a key one look set does not stay.
+	const PROPS := ["shadow_blur", "shadow_bias", "shadow_normal_bias", "shadow_opacity", "directional_shadow_fade_start",
+			"directional_shadow_blend_splits"]
+	if not sun.has_meta(&"m2w1_shadow_first"):
+		var first := {}
+		for prop: String in PROPS:
+			first[prop] = sun.get(prop)
+		sun.set_meta(&"m2w1_shadow_first", first)
+	var saved: Dictionary = sun.get_meta(&"m2w1_shadow_first")
+	for prop: String in PROPS:
+		sun.set(prop, saved[prop])
+	if fog.has("shadow_blur"):
+		sun.shadow_blur = float(fog["shadow_blur"])
+	if fog.has("shadow_bias"):
+		sun.shadow_bias = float(fog["shadow_bias"])
+	if fog.has("shadow_normal_bias"):
+		sun.shadow_normal_bias = float(fog["shadow_normal_bias"])
+	if fog.has("shadow_opacity"):
+		sun.shadow_opacity = float(fog["shadow_opacity"])
+	if fog.has("shadow_fade_start"):
+		sun.directional_shadow_fade_start = float(fog["shadow_fade_start"])
+	if fog.has("shadow_blend_splits"):
+		sun.directional_shadow_blend_splits = bool(fog["shadow_blend_splits"])
 
 
 static func config() -> Dictionary:
@@ -85,8 +137,11 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = color_value(cfg["ambient_color"])
 	env.ambient_light_energy = float(cfg["ambient_energy"])
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES if astra["tonemap"] == "aces" else Environment.TONE_MAPPER_FILMIC
+	_apply_optional_light(env, cfg)
+	env.tonemap_mode = TONEMAPPERS.get(String(astra["tonemap"]), Environment.TONE_MAPPER_FILMIC)
 	env.tonemap_exposure = float(cfg["tonemap_exposure"])
+	if astra.has("tonemap_white"):
+		env.tonemap_white = float(astra["tonemap_white"])
 	env.glow_enabled = bool(preset["art_glow_enabled"])
 	env.glow_intensity = float(post["glow_intensity"])
 	env.glow_strength = float(post["glow_strength"])
@@ -104,6 +159,16 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 	env.fog_depth_curve = float(astra["fog_depth_curve"])
 	env.fog_sun_scatter = float(post["fog_sun_scatter"])
 	env.fog_aerial_perspective = float(post["fog_aerial_perspective"])
+	if astra.has("fog_height"):
+		env.fog_height = float(astra["fog_height"])
+	if astra.has("fog_height_density"):
+		env.fog_height_density = float(astra["fog_height_density"])
+	if post.has("glow_hdr_scale"):
+		env.glow_hdr_scale = float(post["glow_hdr_scale"])
+	if post.has("glow_levels"):
+		var levels: Array = post["glow_levels"]
+		for i in mini(levels.size(), 7):
+			env.set_glow_level(i, float(levels[i]))
 	env.adjustment_enabled = bool(preset.get("art_grade_enabled", false))
 	env.adjustment_brightness = float(post["adjust_brightness"])
 	env.adjustment_contrast = float(post["adjust_contrast"])
@@ -147,6 +212,7 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 		"pssm4": sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	if preset.has("sun_angular_distance"):
 		sun.light_angular_distance = float(preset["sun_angular_distance"])
+	_apply_optional_shadow(sun, astra)
 	sun.light_volumetric_fog_energy = float(plus.get("volumetric_sun_energy", 1.0))
 	WorldSurface.set_wet(float(look["wet"]))
 	var match_look := world.get_node_or_null("MatchLook") as MatchLook

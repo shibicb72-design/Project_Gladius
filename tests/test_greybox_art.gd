@@ -53,7 +53,9 @@ func test_map_materials_and_explicit_dusk_environment() -> void:
 	if sky_material != null:
 		var noise := sky_material.get_shader_parameter("noise_pack") as Texture2D
 		assert_true(noise != null and noise.resource_path.begins_with("res://assets/generated/"), "its only texture is generated in the project: no sky asset dependency")
-	assert_eq(world.environment.ambient_light_source, Environment.AMBIENT_SOURCE_COLOR, "explicit colour fill")
+	# M2W1: explicit, from the resolved look (the golden-hour dusk mixes in the sky: ambient_source "sky").
+	var want_ambient: int = {"color": Environment.AMBIENT_SOURCE_COLOR, "sky": Environment.AMBIENT_SOURCE_SKY, "bg": Environment.AMBIENT_SOURCE_BG}[String(MatchLook.resolved()["light"].get("ambient_source", "color"))]
+	assert_eq(world.environment.ambient_light_source, want_ambient, "explicit ambient source from the look")
 	assert_true(world.environment.glow_enabled == bool(GraphicsPresets.new().get_preset()["art_glow_enabled"]) and world.environment.fog_enabled == bool(GraphicsPresets.new().get_preset()["art_fog_enabled"]), "cost toggles follow preset")
 	assert_true(not world.environment.ssao_enabled and not world.environment.ssil_enabled and not world.environment.sdfgi_enabled
 			and not world.environment.ssr_enabled and not world.environment.volumetric_fog_enabled, "no advanced renderer dependency")
