@@ -11,6 +11,8 @@ var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and d
 ## M2P1A: decor id -> its batch type in source "decor" ("<kind>_<n>", n = the index of the entry's size among
 ## its kind's distinct sizes, first seen first). A decor look is chunks.batch_of("decor", decor_types[id], xform).
 var decor_types := {}
+## M2W1 item 5: WorldClutter.populate's report ({} = no clutter on this map or the switch is off).
+var clutter_report := {}
 ## The map json this scene builds. MatchRoot sets it before the map enters the tree; scenes built
 ## directly keep the default.
 @export var map_json: String = "res://data/maps/alesia_section.json"
@@ -123,10 +125,13 @@ func _ready() -> void:
 	# M2 L1c commit 5: the ladders (the cover file's "ladders"), after the doors: outside Nav, non-blocking triggers.
 	if placed.has("ladders"):
 		_build_ladders(placed["ladders"])
+	# M2W1 item 5: the paint is made from the bodies' data only, so it comes before chunks.build(): the clutter
+	# (looks only, MapChunks source "clutter") reads the paint and every body, door and ladder built above.
+	_paint_ground(nav)
+	clutter_report = WorldClutter.populate(self, chunks, map_def)
 	chunks.build()
 	for body in chest_bodies:
 		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
-	_paint_ground(nav)
 	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	# M2L1 (binding fix 5): a map json may switch it off ("backdrop": false; default true).
@@ -134,7 +139,7 @@ func _ready() -> void:
 		var backdrop := Backdrop.new()
 		backdrop.name = "Backdrop"
 		add_child(backdrop)
-		backdrop.build(ground_material)
+		backdrop.build(ground_material, map_json, terrain)  # M2W1 item 9: a map with an art_backdrop.json "maps" block gets its far backdrop
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"

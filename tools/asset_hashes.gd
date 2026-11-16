@@ -8,6 +8,8 @@ extends SceneTree
 const ROOT := "res://assets/generated"
 const CATALOG := "res://data/asset_catalog.json"
 const TOOLS := {"textures": "tools/gen_textures.gd", "audio": "tools/gen_audio.gd", "world": "tools/blender/m2w1_world_kit.py"}
+## M2W1 item 5: a file whose tool differs from its folder's (checked before TOOLS).
+const FILE_TOOLS := {"res://assets/generated/world/m2w1_clutter.glb": "tools/blender/m2w1_clutter.py"}
 
 
 static func files(path: String) -> Array[String]:
@@ -30,7 +32,7 @@ static func entries() -> Array:
 		var folder := path.trim_prefix(ROOT + "/").get_slice("/", 0)
 		out.append({
 			"path": path,
-			"made_by": String(TOOLS.get(folder, "")),
+			"made_by": String(FILE_TOOLS.get(path, TOOLS.get(folder, ""))),
 			"licence": "generated in this project (no source material)",
 			"bytes": FileAccess.get_file_as_bytes(path).size(),
 			"sha256": FileAccess.get_sha256(path),

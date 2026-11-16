@@ -37,6 +37,11 @@
 		{"name": "33_pediment_front", "cam": [3.0, 0.8], "look": [0.0, 4.6, -14.0], "note": "M2W1 item 2 close-up: Arx_Front (pediment) from 15 m"},
 		{"name": "34_ground_earth_grass", "cam": [-25.0, -353.0], "look": [-25.0, 0.0, -350.06], "note": "M2W1 item 4 close-up: eye height looking 30 degrees down at the ground near the earth / grass border outside Porta Aquilae"},
 		{"name": "35_ground_paving_edge", "cam": [8.0, -344.0], "look": [5.5, 0.0, -342.45], "note": "M2W1 item 4 close-up: eye height looking 30 degrees down at the edge of the paving in front of Porta Aquilae"},
-		{"name": "36_hill_slope", "cam": [-48.0, 48.0], "look": [-20.0, 1.0, 20.0], "note": "M2W1 item 4: on the citadel hill's flank (r 68 m) looking up the slope to the Arx"}
+		{"name": "36_hill_slope", "cam": [-48.0, 48.0], "look": [-20.0, 1.0, 20.0], "note": "M2W1 item 4: on the citadel hill's flank (r 68 m) looking up the slope to the Arx"},
+		{"name": "37_clutter_barracks_side", "cam": [64.4, -226.2], "look": [68.6, 0.5, -221.9], "note": "M2W1 item 5 close-up: Castra1_Barracks_1's west end and its dressing (amphora rack, supply crate) from 5 m"},
+		{"name": "38_clutter_tent_row", "cam": [55.6, -204.6], "look": [50.8, 0.4, -201.0], "note": "M2W1 item 5 close-up: the tent row of Castra Prima at 5 m (bedrolls, helmet racks, campfires where the hash puts them)"},
+		{"name": "39_clutter_gate_foot", "cam": [2.5, -337.6], "look": [-0.4, 0.6, -332.0], "note": "M2W1 item 5 close-up: Porta Aquilae's outer foot from 6 m (caltrops, ammunition case)"},
+		{"name": "40_clutter_field_eye", "cam": [-150.0, -415.0], "look": [-330.0, 1.2, -470.0], "note": "M2W1 item 5: the fields outside the outer wall at eye height, looking out to the map edge (grass clumps, scrub, stones)"},
+		{"name": "41_clutter_doorway_lane", "cam": [71.146, -230.6], "look": [71.146, 1.0, -224.474], "note": "M2W1 item 5: along Door_002's lane from 6 m: the doorway's path stays clear"}
 	]
 }

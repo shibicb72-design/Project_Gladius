@@ -80,6 +80,34 @@
 			{"first": [47, -141], "step": [0, -10], "count": 26}
 		]
 	},
+	"_maps_note": "M2W1 item 9 (OQ-ART-WORLD placeholders): a map named here (the map json's file name without .json) gets this far backdrop instead of the blocks above, which stay the small maps' (alesia_section, test_300: unchanged). scripts/visual/backdrop.gd _build_far; tests/test_m2w1_backdrop.gd. Hill ridges stand 2 to 7 degrees over the horizon from the fields; the farthest ridge stays inside the game camera's far plane (Godot's default 4000 m: the farthest ridge point is at most 3.9 km from the ground square's corner). Trees stand only beyond the ground square (clear_of_square_m) and min_from_wall_m beyond the outer wall's radius.",
+	"maps": {
+		"alesia_1km": {
+			"ground_half_m": 500,
+			"skirt": {"edge_step_m": 25, "outer_steps_m": [30, 50, 80, 120, 170, 230, 300, 400, 500, 620], "seed": 7, "roll_m": 22, "roll_noise_m": 700, "roll_from_m": 40, "roll_full_m": 700, "rise_per_m": 0.012, "sink_m": 0.05},
+			"hills": {
+				"seed": 23,
+				"surface": "rock",
+				"rings": [
+					{"radius_m": 1050, "depth_m": 380, "height_m": [30, 135], "segments": 96, "radius_noise": 0.14, "color": [0.47, 0.44, 0.3, 1], "ridge_color": [0.53, 0.5, 0.38, 1]},
+					{"radius_m": 1750, "depth_m": 500, "height_m": [60, 200], "segments": 72, "radius_noise": 0.1, "color": [0.46, 0.47, 0.44, 1], "ridge_color": [0.5, 0.53, 0.55, 1]},
+					{"radius_m": 2650, "depth_m": 420, "height_m": [150, 290], "segments": 60, "radius_noise": 0.08, "color": [0.5, 0.55, 0.62, 1], "ridge_color": [0.58, 0.63, 0.7, 1]}
+				]
+			},
+			"aqueduct": {"type": "aqueduct_span", "from": [-1250, 700], "to": [-650, 1100], "scale": 3.0, "sink_m": 1.0},
+			"beacons": {
+				"bearings_deg": [40, 165, 290],
+				"parts": [
+					{"shape": "taper", "top": [0.6, 0.6], "bevel": 0, "size": [6, 22, 6], "at": [0, 11, 0], "color": "travertine_shade"},
+					{"shape": "block", "size": [7, 1, 7], "at": [0, 22.5, 0], "color": "bronze"},
+					{"shape": "block", "size": [2.4, 2.4, 2.4], "at": [0, 24.2, 0], "color": "lit_accent"}
+				]
+			},
+			"trees": {"seed": 41, "clumps": 30, "per_clump": [3, 6], "clump_spread_m": 18, "radius_m": [620, 1000], "wall_radius_m": 330, "min_from_wall_m": 150, "clear_of_square_m": 120,
+				"cone": {"height_m": 13, "radius_m": 1.7, "segments": 5}, "color": [0.16, 0.2, 0.12, 1]},
+			"budgets": {"draws": 8, "tris": 15000}
+		}
+	},
 	"hills": {
 		"seed": 17,
 		"surface": "rock",

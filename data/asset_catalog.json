@@ -1387,6 +1387,13 @@
 			"sha256": "1d0e55c3243989cc8e3de7c92b2405d7060a82b3b78c7459bd03510c059a425d"
 		},
 		{
+			"path": "res://assets/generated/world/m2w1_clutter.glb",
+			"made_by": "tools/blender/m2w1_clutter.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 410108,
+			"sha256": "8eafaf89bb2af458cabc1e1b3d1f65b20c80010ddd6f139d2d106af85c895571"
+		},
+		{
 			"path": "res://assets/generated/world/m2w1_world_kit.glb",
 			"made_by": "tools/blender/m2w1_world_kit.py",
 			"licence": "generated in this project (no source material)",

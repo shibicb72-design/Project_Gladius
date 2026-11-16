@@ -21,7 +21,8 @@
 			"braziers": {"positions": [[-8, 0, -335.5], [8, 0, -335.5], [-6, 0, -321], [6, 0, -321], [53, 0, -245], [71, 0, -245], [90.5, 0, 95.5], [95.5, 0, 90.5]]},
 			"beacons": {"positions": []},
 			"dust": {"positions": []},
-			"foliage": {"centre": [-112, -395], "radius_min_m": 3, "radius_max_m": 60},
+			"_foliage_note": "M2W1 item 5: count 0: the field scatter of data/art_clutter.json (grass clumps over the whole map by the paint) replaces the 2400 tufts in one ring here, so the two never double up.",
+			"foliage": {"centre": [-112, -395], "radius_min_m": 3, "radius_max_m": 60, "count": 0},
 			"props": [],
 			"cables": [],
 			"shafts_at": []
