@@ -22,6 +22,15 @@ func _types() -> Array:
 	return out
 
 
+## M2W1 astraA: the cover look entries (data/art_world_kit.json "cover").
+func _cover_types() -> Array:
+	var out: Array = []
+	for type: String in (_cfg().get("cover", {}) as Dictionary):
+		if not type.begins_with("_"):
+			out.append(type)
+	return out
+
+
 func _kit_types() -> Dictionary:
 	return WorldKit.config()["types"]
 
@@ -392,6 +401,294 @@ func test_loader_is_deterministic() -> void:
 		var b := WorldKitMeshes.mesh(type, 0).surface_get_arrays(0)
 		assert_eq(a, b, type + ": the same arrays after a fresh load")
 	_reset()
+
+
+# --- M2W1 astraA: the cover looks (F4) and the baked shade (F5) ---
+
+## The looks to check: every cover entry on its cover-file type box, and the props.json looks of the breakables
+## (on the generator's box of their type) and of the chest (on look_size): [name, mesh, box size, fit limit, opaque
+## inset, triangle cap].
+func _cover_cases() -> Array:
+	var out: Array = []
+	var tol := float(_cfg()["fit_tolerance_m"])
+	var caps: Dictionary = _cfg()["budgets"]["cover_tris"]
+	var defaults: Dictionary = _cfg()["cover_defaults"]
+	var cover_file: Dictionary = DataRegistry.parse_quiet("res://data/maps/alesia_cover.json")["types"]
+	for type: String in _cover_types():
+		var e: Dictionary = _cfg()["cover"][type]
+		var inset := float(e.get("opaque_inset_m", WorldKitMeshes.cover_entry(String(e.get("same_as", type))).get("opaque_inset_m", defaults["opaque_inset_m"])))
+		out.append([type, WorldKitMeshes.cover_mesh(type), LowpolyKit.vec(cover_file[type]["size"]), tol, inset, int(caps.get(type, caps["default"]))])
+	var props := WorldProps.config()
+	var gen_types: Dictionary = DataRegistry.parse_quiet(MAP_1KM)["generator"]["props"]["types"]
+	var exceptions: Dictionary = defaults["prop_fit_exceptions"]
+	var insets: Dictionary = defaults["prop_opaque_inset_m"]
+	for type: String in props["breakables"]:
+		var name := "breakables." + type
+		out.append([name, WorldKitMeshes.parts_mesh(props["breakables"][type]["look"]["parts"], WorldKitMeshes.kit_custom(type, true)),
+				LowpolyKit.vec(gen_types[type]["size"]), tol, float(insets.get(name, defaults["opaque_inset_m"])), int(caps["default"])])
+	for key: String in ["look_closed", "look_open"]:
+		var name := "chest." + key
+		out.append([name, WorldKitMeshes.parts_mesh(props["chest"][key]["parts"], WorldKitMeshes.kit_custom(name, true)),
+				LowpolyKit.vec(props["chest"]["look_size"]), float(exceptions.get(name, tol)), float(insets.get(name, defaults["opaque_inset_m"])), int(caps["default"])])
+	return out
+
+
+## Whether a ray from `from` along `dir` hits any triangle of the arrays.
+static func _ray_hits(verts: PackedVector3Array, indices: PackedInt32Array, from: Vector3, dir: Vector3) -> bool:
+	var count := indices.size() if not indices.is_empty() else verts.size()
+	for t in count / 3:
+		var a := verts[indices[t * 3]] if not indices.is_empty() else verts[t * 3]
+		var b := verts[indices[t * 3 + 1]] if not indices.is_empty() else verts[t * 3 + 1]
+		var c := verts[indices[t * 3 + 2]] if not indices.is_empty() else verts[t * 3 + 2]
+		if Geometry3D.ray_intersects_triangle(from, dir, a, b, c) != null:
+			return true
+	return false
+
+
+## Every cover look (art_world_kit.json cover, F4) and the props.json breakable and chest looks: one surface with the
+## shared material and CUSTOM0 (cover variation weight, shade range); within the triangle cap; every vertex within
+## fit_tolerance_m of the one box (the open chest's lid: its named prop_fit_exceptions entry); the base on the box
+## bottom (at most base_sink_m below, never floating); palette paints, UV2 as the shader reads it; and no
+## see-through gap: rays along x and along z through the box, on a grid inside opaque_inset_m of its faces, all hit
+## the look. Reports the triangles, the overshoot and the inset per side.
+func test_cover_looks_fit_their_one_box() -> void:
+	_reset()
+	var sink := float(_cfg()["cover_defaults"]["base_sink_m"])
+	var range_m := float(_cfg()["shade_bake"]["shade_range"])
+	var order: Array = WorldSurface.config()["surface_order"]
+	var palette: Array[Color] = []
+	var colors: Dictionary = LowpolyKit.config()["colors"]
+	for key: String in colors:
+		if not key.begins_with("_"):
+			palette.append(GreyboxArt.color_value(colors[key]))
+	var cases := _cover_cases()
+	assert_true(cases.size() >= 18,"nonvacuous: cover and prop looks listed (%d)" % cases.size())
+	var exceptions := 0
+	for c: Array in cases:
+		var type: String = c[0]
+		var mesh: ArrayMesh = c[1]
+		var size: Vector3 = c[2]
+		var limit: float = c[3]
+		assert_true(mesh != null, type + ": the parts look builds")
+		if mesh == null:
+			continue
+		if limit > float(_cfg()["fit_tolerance_m"]):
+			exceptions += 1
+		assert_true(mesh.get_surface_count() == 1 and mesh.surface_get_material(0) == WorldKit.material(), type + ": one surface, the shared material")
+		var arrays := mesh.surface_get_arrays(0)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		var custom: PackedFloat32Array = arrays[Mesh.ARRAY_CUSTOM0] if arrays[Mesh.ARRAY_CUSTOM0] != null else PackedFloat32Array()
+		assert_true(custom.size() == verts.size() * 4 and is_equal_approx(custom[1], range_m), type + ": CUSTOM0 carries the shade range")
+		var tris := Perf.triangles(mesh)
+		assert_true(tris <= int(c[5]), "%s: %d triangles within %d" % [type, tris, c[5]])
+		var half := size * 0.5
+		var worst := 0.0
+		var lo := Vector3.INF
+		var hi := -Vector3.INF
+		for v: Vector3 in verts:
+			var d := Vector3(maxf(absf(v.x) - half.x, 0.0), maxf(absf(v.y) - half.y, 0.0), maxf(absf(v.z) - half.z, 0.0))
+			worst = maxf(worst, d.length())
+			lo = lo.min(v)
+			hi = hi.max(v)
+		assert_true(worst <= limit + 1e-4, "%s: every vertex within %.2f m of the box (worst %.3f)" % [type, limit, worst])
+		assert_true(lo.y <= -half.y + 0.005 and lo.y >= -half.y - sink - 1e-4, "%s: the base on the box bottom (lowest %.3f, bottom %.3f, sink at most %.2f)" % [type, lo.y, -half.y, sink])
+		var bad := 0
+		var worst_c := 0.0
+		for uv2: Vector2 in arrays[Mesh.ARRAY_TEX_UV2]:
+			if absf(uv2.x - roundf(uv2.x)) > 1e-4 or uv2.x < 0.0 or uv2.x >= float(order.size()) or uv2.y < 0.0 or uv2.y > 1.0:
+				bad += 1
+		for col: Color in arrays[Mesh.ARRAY_COLOR]:
+			var best := INF
+			for p in palette:
+				best = minf(best, maxf(maxf(absf(col.r - p.r), absf(col.g - p.g)), maxf(absf(col.b - p.b), absf(col.a - p.a))))
+			worst_c = maxf(worst_c, best)
+		assert_eq(bad, 0, type + ": UV2.x a surface id, UV2.y a shade 0..1")
+		assert_true(worst_c <= 1.0 / 255.0 + 1e-6, "%s: palette paints (worst %.5f)" % [type, worst_c])
+		# no see-through gap: a 9 x 7 grid of rays along x and along z inside the opaque inset (y up to the box top
+		# less the inset; the open chest: up to its body)
+		var inset: float = c[4]
+		var misses := 0
+		var rays := 0
+		var first_miss := ""
+		var top := half.y - inset if limit <= float(_cfg()["fit_tolerance_m"]) else 0.1
+		for axis in 2:
+			var across := half.z if axis == 0 else half.x
+			for i in 9:
+				for j in 7:
+					var u := lerpf(-across + inset, across - inset, i / 8.0)
+					var y := lerpf(-half.y + inset, top, j / 6.0)
+					var from := Vector3(-half.x - 1.0, y, u) if axis == 0 else Vector3(u, y, -half.z - 1.0)
+					var dir := Vector3.RIGHT if axis == 0 else Vector3.BACK
+					rays += 1
+					if not _ray_hits(verts, indices, from, dir):
+						misses += 1
+						first_miss = "%s along %s" % [from, dir] if first_miss == "" else first_miss
+		assert_eq(misses, 0, "%s: rays along x and z inside %.2f m of the faces all hit (%d of %d miss; first %s)" % [type, inset, misses, rays, first_miss])
+		print("M2W1_COVER_REPORT type=%s tris=%d overshoot=%.3f limit=%.2f inset -x=%.2f +x=%.2f top=%.2f -z=%.2f +z=%.2f base=%.3f opaque_inset=%.2f misses=%d/%d" % [
+				type, tris, worst, limit, lo.x + half.x, half.x - hi.x, half.y - hi.y, lo.z + half.z, half.z - hi.z, lo.y + half.y, inset, misses, rays])
+	assert_eq(exceptions, 1, "one named fit exception (the open chest's lid)")
+	_reset()
+
+
+## The switch: off = no parts look (astra_map keeps LowpolyKit.build_cover, the props looks too); on = the parts
+## look; a type without an entry keeps its kit look without an error line; same_as / swap_xz; deterministic; the
+## data names no glb node for cover (the glb is unchanged).
+func test_cover_switch_and_fallback() -> void:
+	_reset()
+	var lines: Array[String] = []
+	WorldKitMeshes.error_sink = func(message: String) -> void: lines.append(message)
+	WorldKitMeshes.enabled_override = 0
+	assert_true(WorldKit.cover_mesh("crate") == null, "off: no parts look")
+	assert_true(WorldKit.prop_look("breakable_crate", [{"size": [1, 1, 1], "at": [0, 0, 0], "color": "dark"}]) == null, "off: the props looks stay LowpolyKit's")
+	WorldKitMeshes.enabled_override = 1
+	assert_true(WorldKit.cover_mesh("crate") != null, "on: the parts look")
+	assert_true(WorldKit.cover_mesh("wreck_apc") == null, "a type without an entry keeps its kit look")
+	assert_eq(lines.size(), 0, "no error line: %s" % str(lines))
+	for type: String in _cover_types():
+		assert_true(not (_cfg()["cover"][type] as Dictionary).has("node"), type + ": no glb node named")
+	var a := WorldKitMeshes.cover_mesh("sandbags").get_aabb()
+	var b := WorldKitMeshes.cover_mesh("sandbag_nest_side").get_aabb()
+	assert_true(Vector3(a.size.z, a.size.y, a.size.x).is_equal_approx(b.size), "swap_xz: the side piece is the sandbags turned (%s / %s)" % [a, b])
+	assert_true(WorldKitMeshes.cover_mesh("sandbag_nest") != null and WorldKitMeshes.cover_mesh("sandbag_nest").get_aabb().is_equal_approx(a), "same_as: the nest is the sandbags")
+	var first := WorldKitMeshes.cover_mesh("barrier").surface_get_arrays(0)
+	WorldKitMeshes.clear_cache()
+	assert_eq(WorldKitMeshes.cover_mesh("barrier").surface_get_arrays(0), first, "deterministic")
+	# a part's "shade" is its value multiplier over the shade range; a part without one keeps its kit shade
+	var range_m := float(_cfg()["shade_bake"]["shade_range"])
+	var part := {"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1, 1, 1], "at": [0, 0, 0], "color": "rock"}
+	var shaded := part.duplicate()
+	shaded["shade"] = 0.7
+	var uv_plain: PackedVector2Array = LowpolyKit.merge([part]).surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]
+	var uv_kit: PackedVector2Array = WorldKitMeshes.parts_mesh([part], Vector4(0, range_m, 0, 0)).surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]
+	var uv_shaded: PackedVector2Array = WorldKitMeshes.parts_mesh([shaded], Vector4(0, range_m, 0, 0)).surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]
+	assert_true(is_equal_approx(1.0 + (uv_shaded[0].y - 0.5) * 2.0 * range_m, 0.7), "shade 0.7 draws at 0.7")
+	assert_true(is_equal_approx(1.0 + (uv_kit[0].y - 0.5) * 2.0 * range_m, 1.0 + (uv_plain[0].y - 0.5) * 2.0 * 0.08), "no shade: the kit shade at part_shade, as the old path drew it")
+	_reset()
+
+
+## M2W1 astraA (F5): the load-time shade bake of the glb meshes. Off (shade_bake.enabled false): every mesh keeps the
+## glb's UV2 and has no shade range (the shader's old path). On: the shade range in CUSTOM0.y, the glow paints keep
+## their part shade, the base course is darker than the marble trim, faces looking down darker than faces looking
+## up, near and far meshes of a type get the same CUSTOM0 (variation weight), and the summit types are brighter.
+func test_shade_bake_off_keeps_the_old_values_and_on_separates_values() -> void:
+	_reset()
+	WorldKitMeshes.enabled_override = 1
+	var off := _cfg().duplicate(true)
+	off["shade_bake"]["enabled"] = false
+	WorldKitMeshes.config_override = off
+	WorldKitMeshes.clear_cache()
+	var glb := String(_cfg()["glb"])
+	for type: String in _types():
+		for level: int in _levels(type):
+			var e: Dictionary = _cfg()["types"][type]
+			var source := WorldKitMeshes._source_mesh(glb, String(e["node"] if level == 0 else e["lod1_node"]))
+			var arrays := WorldKitMeshes.mesh(type, level).surface_get_arrays(0)
+			assert_eq(arrays[Mesh.ARRAY_TEX_UV2], source.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2], "%s %d: off = the glb's UV2" % [type, level])
+			var custom: PackedFloat32Array = arrays[Mesh.ARRAY_CUSTOM0] if arrays[Mesh.ARRAY_CUSTOM0] != null else PackedFloat32Array([0, 0, 0, 0])
+			assert_true(custom[1] == 0.0, "%s %d: off = no shade range (the shader's part_shade and grime)" % [type, level])
+	WorldKitMeshes.config_override = {}
+	WorldKitMeshes.clear_cache()
+	var b: Dictionary = _cfg()["shade_bake"]
+	var range_m := float(b["shade_range"])
+	var mean := {}
+	for type: String in _types():
+		var weights := []
+		for level: int in _levels(type):
+			var arrays := WorldKitMeshes.mesh(type, level).surface_get_arrays(0)
+			var custom: PackedFloat32Array = arrays[Mesh.ARRAY_CUSTOM0]
+			assert_true(is_equal_approx(custom[1], range_m) and is_equal_approx(custom[2], float(b["grime"])), "%s %d: CUSTOM0 = (weight, range, grime)" % [type, level])
+			weights.append(custom[0])
+			if level != 0:
+				continue
+			var src: PackedVector2Array = WorldKitMeshes._source_mesh(glb, String(_cfg()["types"][type]["node"])).surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]
+			var sum := 0.0
+			for i in (arrays[Mesh.ARRAY_TEX_UV2] as PackedVector2Array).size():
+				var m: float = 1.0 + (arrays[Mesh.ARRAY_TEX_UV2][i].y - 0.5) * 2.0 * range_m
+				var paint := WorldKitMeshes.paint_of(arrays[Mesh.ARRAY_COLOR][i])
+				if (b["skip_paints"] as Array).has(paint):
+					assert_true(absf(m - (1.0 + (src[i].y - 0.5) * 2.0 * float(b["part_shade"]))) < 0.002, "%s: %s keeps its part shade" % [type, paint])
+				sum += m
+			mean[type] = sum / maxf(float(src.size()), 1.0)
+		assert_true(weights.size() < 2 or weights[0] == weights[1], type + ": near and far share the variation weight")
+	# value separation on the wall: rock (base course) < travertine < marble; down faces < up faces
+	var arrays := WorldKitMeshes.mesh("wall_walk", 0).surface_get_arrays(0)
+	var by_paint := {}
+	var up := [0.0, 0]
+	var down := [0.0, 0]
+	for i in (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size():
+		var m: float = 1.0 + (arrays[Mesh.ARRAY_TEX_UV2][i].y - 0.5) * 2.0 * range_m
+		var paint := WorldKitMeshes.paint_of(arrays[Mesh.ARRAY_COLOR][i])
+		var acc: Array = by_paint.get(paint, [0.0, 0])
+		by_paint[paint] = [acc[0] + m, acc[1] + 1]
+		var n: Vector3 = arrays[Mesh.ARRAY_NORMAL][i]
+		if n.y > 0.7 and arrays[Mesh.ARRAY_VERTEX][i].y > 1.0:
+			up = [up[0] + m, up[1] + 1]
+		elif n.y < -0.7:
+			down = [down[0] + m, down[1] + 1]
+	var avg := func(k: String) -> float: return by_paint[k][0] / by_paint[k][1]
+	assert_true(avg.call("rock") < avg.call("travertine") and avg.call("travertine") < avg.call("marble"), "wall: rock %.3f < travertine %.3f < marble %.3f" % [avg.call("rock"), avg.call("travertine"), avg.call("marble")])
+	assert_true(down[0] / down[1] < up[0] / up[1] - 0.2, "wall: faces looking down %.3f clearly darker than tops %.3f" % [down[0] / down[1], up[0] / up[1]])
+	print("M2W1_BAKE_REPORT mean m per type: ", mean, " wall paints: ", by_paint)
+	_reset()
+
+
+## The shader stays the old one for every mesh without CUSTOM0 (soldier-free users: kit meshes, doors, ladders):
+## the variation uniforms default to 0 and the new path is taken only when CUSTOM0.y > 0.
+func test_shader_defaults_leave_other_meshes_unchanged() -> void:
+	var code: String = load(WorldSurface.SHADER_PATH).code
+	for line in ["uniform float variation_value = 0.0;", "uniform float variation_warm = 0.0;", "uniform float variation_broad = 0.0;", "bool kit = CUSTOM0.y > 0.0;",
+			"v_grime = kit ? CUSTOM0.z : 1.0;", "if (CUSTOM0.x > 0.0) {", "vec3 origin = MODEL_MATRIX[3].xyz;"]:
+		assert_true(code.contains(line), "shader: " + line)
+	assert_true(is_equal_approx(float(_cfg()["shade_bake"]["part_shade"]), 0.08) and code.contains("uniform float part_shade = 0.08;"), "the bake's part shade is the shader's")
+	var kit_mesh := LowpolyKit.build_cover({"kind": "crate", "size": [1.3, 1.2, 1.3]})
+	assert_true(kit_mesh.surface_get_arrays(0)[Mesh.ARRAY_CUSTOM0] == null, "kit meshes carry no CUSTOM0 (old path)")
+	# the variation uniforms: zero when the looks are off, the data's values when on
+	var made := ShaderMaterial.new()
+	made.shader = load(WorldSurface.SHADER_PATH)
+	WorldKit.apply_variation(made, false)
+	for u: String in ["variation_value", "variation_warm", "variation_broad"]:
+		assert_true(float(made.get_shader_parameter(u)) == 0.0, u + ": off = 0")
+	WorldKit.apply_variation(made, true)
+	assert_true(is_equal_approx(float(made.get_shader_parameter("variation_value")), float(_cfg()["variation"]["value"])), "on = the data's value")
+	# the variation input is the instance origin only (no vertex position), so near and far of one piece match
+	var hash_block := code.substr(code.find("if (CUSTOM0.x > 0.0) {"), code.find("v_world = ") - code.find("if (CUSTOM0.x > 0.0) {"))
+	assert_true(not hash_block.contains("VERTEX") and hash_block.contains("origin"), "the variation hashes the instance origin only")
+
+
+## On the built 1 km map the cover batches draw the parts looks (types with an entry), the breakables and chests
+## their props.json looks with the cover vertex data.
+func test_built_map_draws_the_cover_looks() -> void:
+	_reset()
+	var map := _map_1km()
+	var chunks := map.get_node("ArtBuilder/Chunks") as MapChunks
+	var seen := {}
+	for batch in chunks.batches("cover"):
+		var type := String(batch.get_meta(&"type", ""))
+		if type == "" or not WorldKitMeshes.enabled():
+			continue
+		var name := String(batch.multimesh.mesh.resource_name)
+		if (_cfg()["cover"] as Dictionary).has(type):
+			assert_true(name == "M2W1_cover_" + type, "%s: the parts look (%s)" % [type, name])
+		elif type.begins_with("breakable_") or type.begins_with("loot_chest"):
+			assert_true(name.begins_with("M2W1_prop_"), "%s: the props look with the cover vertex data (%s)" % [type, name])
+		else:
+			continue
+		seen[type] = true
+	assert_true(seen.size() >= 12, "nonvacuous: cover types on the 1 km map with parts looks: %s" % str(seen.keys()))
+	var tris := 0
+	for batch in chunks.batches("cover") + chunks.batches("ring"):
+		tris += Perf.triangles(batch.multimesh.mesh) * batch.multimesh.instance_count
+	print("M2W1_COVER_MAP types=%s cover_and_ring_tris_total=%d" % [str(seen.keys()), tris])
+
+
+func _map_1km() -> Node3D:
+	if not is_instance_valid(_built):
+		var def := DataRegistry.parse_quiet(MAP_1KM)
+		_built = load(String(def["scene"])).instantiate()
+		_built.get_node("ArtBuilder").set("map_json", MAP_1KM)
+		(Engine.get_main_loop() as SceneTree).root.add_child(_built)
+	return _built
 
 
 # --- MapChunks LOD pairs ---

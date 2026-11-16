@@ -38,7 +38,9 @@ func _ready() -> void:
 	var meshes := {}
 	for type: String in cfg["types"]:
 		var definition: Dictionary = cfg["types"][type]
-		meshes[type] = LowpolyKit.build_cover(definition)
+		# M2W1 astraA (F4): the kit-parts cover look on the same box when the world-kit looks are on (WorldKit.cover_mesh).
+		var look := WorldKit.cover_mesh(type)
+		meshes[type] = look if look != null else LowpolyKit.build_cover(definition)
 	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
 	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
 	# runs once, after the decor loop.
@@ -167,7 +169,9 @@ func _build_breakables(entries: Array) -> void:
 		if not meshes.has(key):
 			var look: Dictionary = (type_cfg.get("look", {}) as Dictionary).duplicate()
 			look["size"] = entry["size"]  # a "kind" look is sized by the collider box; "parts" carry their own sizes
-			meshes[key] = LowpolyKit.build_cover(look)
+			# M2W1 astraA (F4): parts looks get the cover looks' vertex data (part shades, variation) when the kit is on.
+			var kit_look := WorldKit.prop_look(key, look.get("parts", []))
+			meshes[key] = kit_look if kit_look != null else LowpolyKit.build_cover(look)
 		chunks.add("cover", type, meshes[key], WorldSurface.palette_material(body.palette), body.transform, true, body.prop_id)
 		body.chunks = chunks
 		body.fx_parent = self
@@ -195,10 +199,12 @@ func _build_chests(nav: Node, entries: Array) -> void:
 		var key := str(entry["size"])
 		if not meshes.has(key):
 			var k := LowpolyKit.vec(entry["size"]) / look_size
-			meshes[key] = [
-				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_closed", {}) as Dictionary).get("parts", []), k)}),
-				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_open", {}) as Dictionary).get("parts", []), k)}),
-			]
+			meshes[key] = []
+			for look_key: String in ["look_closed", "look_open"]:
+				var parts := scaled_parts((chest_cfg.get(look_key, {}) as Dictionary).get("parts", []), k)
+				# M2W1 astraA (F4): the cover looks' vertex data (part shades, variation) when the kit is on.
+				var kit_look := WorldKit.prop_look("chest_%s%s" % [look_key, key], parts)
+				meshes[key].append(kit_look if kit_look != null else LowpolyKit.build_cover({"parts": parts}))
 		chunks.add("cover", "loot_chest", meshes[key][0], material, body.transform, true, body.prop_id)
 		chunks.add("cover", "loot_chest_open", meshes[key][1], material, body.transform, true, LootChest.open_id(body.prop_id))
 		body.chunks = chunks

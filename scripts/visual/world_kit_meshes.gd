@@ -80,10 +80,138 @@ static func mesh(type: String, level: int) -> ArrayMesh:
 		if source == null:
 			_report("WorldKitMeshes: %s: no mesh node %s in %s; its kit look stays" % [type, node_name, glb])
 		else:
-			made = rebuild(source)
+			made = rebuild(source, kit_custom(type), type if bake_enabled() else "")
 			made.resource_name = "M2W1_" + node_name
 	_meshes[key] = made
 	return made
+
+
+## M2W1 astraA: the per-mesh CUSTOM0 of a world-kit look (glb structure or parts cover): x = its variation weight
+## (data "variation" weights: the type's, else "cover" for a cover look, else "default"), y = the shade range the
+## shader reads UV2.y over (data "shade_bake".shade_range) when the shade is baked (0 = the shader's own part_shade
+## and grime, the old path), z = how much of the shader's world-height grime the look keeps (only read when y > 0),
+## w = 0. Every other mesh has no CUSTOM0 (reads 0): no variation, the shader's own part_shade and grime.
+static func kit_custom(type: String, cover := false) -> Vector4:
+	var variation: Dictionary = config().get("variation", {})
+	var weights: Dictionary = variation.get("weights", {})
+	var w := float(weights.get(type, weights.get("cover", 1.0) if cover else weights.get("default", 0.0)))
+	var bake := shade_bake()
+	if cover:
+		var c: Dictionary = config().get("cover_defaults", {})
+		return Vector4(w, float(bake.get("shade_range", 0.5)), float(c.get("grime", 0.0)), 0.0)
+	if not bake_enabled():
+		return Vector4(w, 0.0, 0.0, 0.0)
+	return Vector4(w, float(bake.get("shade_range", 0.5)), float(bake.get("grime", 0.0)), 0.0)
+
+
+## M2W1 astraA (F5): data/art_world_kit.json "shade_bake" ({} = none).
+static func shade_bake() -> Dictionary:
+	return config().get("shade_bake", {})
+
+
+## Whether the glb structure meshes get the load-time shade bake (off: their UV2 and the shader path as before).
+static func bake_enabled() -> bool:
+	return bool(shade_bake().get("enabled", false))
+
+
+## M2W1 astraA (F4): the cover look entry of a one-box cover type ({} = none: the type keeps its kit look).
+static func cover_entry(type: String) -> Dictionary:
+	return (config().get("cover", {}) as Dictionary).get(type, {})
+
+
+## The parts look of a one-box cover type (data/art_world_kit.json cover.<type>.parts, authored on the type's box,
+## centred as its collider is), or null without an entry. Cached per type; one surface, the shared material.
+static func cover_mesh(type: String) -> ArrayMesh:
+	var key := "cover/" + type
+	if _meshes.has(key):
+		return _meshes[key]
+	var made: ArrayMesh = null
+	var parts := cover_parts(type)
+	if not parts.is_empty():
+		var e := cover_entry(type)
+		var scale := float(e.get("shade_scale", cover_entry(String(e.get("same_as", type))).get("shade_scale", 1.0)))
+		made = parts_mesh(parts, kit_custom(type, true), scale)
+		made.resource_name = "M2W1_cover_" + type
+	_meshes[key] = made
+	return made
+
+
+## The parts of a cover entry: its own, or (same_as) another entry's, with x and z swapped when swap_xz is true
+## (size, at and a taper's top / bottom / top_shift; the shapes are made from sizes, so this is no mirror of the
+## winding). [] = no entry.
+static func cover_parts(type: String) -> Array:
+	var e := cover_entry(type)
+	if e.has("same_as"):
+		var parts: Array = cover_entry(String(e["same_as"])).get("parts", [])
+		if not bool(e.get("swap_xz", false)):
+			return parts
+		var out: Array = []
+		for part: Dictionary in parts:
+			var p := part.duplicate(true)
+			for k: String in ["size", "at"]:
+				p[k] = [p[k][2], p[k][1], p[k][0]]
+			for k: String in ["top", "bottom", "top_shift"]:
+				if p.has(k):
+					p[k] = [p[k][1], p[k][0]]
+			out.append(p)
+		return out
+	return e.get("parts", [])
+
+
+## A breakable's or chest's look parts (data/props.json) as a cover look (cover variation weight), cached by `key`.
+static func prop_mesh(key: String, parts: Array) -> ArrayMesh:
+	var cache_key := "prop/" + key
+	if not _meshes.has(cache_key):
+		var made := parts_mesh(parts, kit_custom(key, true))
+		made.resource_name = "M2W1_prop_" + key
+		_meshes[cache_key] = made
+	return _meshes[cache_key]
+
+
+## Kit parts (LowpolyKit's part format and shapes) merged into ONE surface with the shared material, with the
+## vertex data of every kit mesh (each part is LowpolyKit.merge([part]); the arrays are joined in part order).
+## A part's optional "shade" is its value multiplier (1 = its paint as is; < 1 darker), written as UV2.y over
+## custom.y; a part without it keeps its hashed kit shade at the shader's part_shade strength. custom (CUSTOM0) as
+## kit_custom; shade_scale multiplies every part's "shade" (a whole look one step darker or lighter). Deterministic.
+static func parts_mesh(parts: Array, custom: Vector4, shade_scale := 1.0) -> ArrayMesh:
+	var range_m := custom.y
+	var part_shade := float(shade_bake().get("part_shade", 0.08))
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var tangents := PackedFloat32Array()
+	var colors := PackedColorArray()
+	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
+	for part: Dictionary in parts:
+		var a := LowpolyKit.merge([part]).surface_get_arrays(0)
+		var start := uv2s.size()
+		verts.append_array(a[Mesh.ARRAY_VERTEX])
+		normals.append_array(a[Mesh.ARRAY_NORMAL])
+		tangents.append_array(a[Mesh.ARRAY_TANGENT])
+		colors.append_array(a[Mesh.ARRAY_COLOR])
+		uvs.append_array(a[Mesh.ARRAY_TEX_UV])
+		uv2s.append_array(a[Mesh.ARRAY_TEX_UV2])
+		if range_m <= 0.0:
+			continue
+		for i in range(start, uv2s.size()):
+			var uv2 := uv2s[i]
+			var m := float(part["shade"]) * shade_scale if part.has("shade") else 1.0 + (uv2.y - 0.5) * 2.0 * part_shade
+			uv2.y = _encode(m, range_m)
+			uv2s[i] = uv2
+	var out := []
+	out.resize(Mesh.ARRAY_MAX)
+	out[Mesh.ARRAY_VERTEX] = verts
+	out[Mesh.ARRAY_NORMAL] = normals
+	out[Mesh.ARRAY_TANGENT] = tangents
+	out[Mesh.ARRAY_COLOR] = colors
+	out[Mesh.ARRAY_TEX_UV] = uvs
+	out[Mesh.ARRAY_TEX_UV2] = uv2s
+	return _commit(out, verts.size(), custom)
+
+
+## A value multiplier m as the UV2.y the shader reads over `range_m` (1 + (UV2.y - 0.5) * 2 * range_m = m).
+static func _encode(m: float, range_m: float) -> float:
+	return clampf(0.5 + (m - 1.0) / (2.0 * range_m), 0.0, 1.0)
 
 
 ## Forgets the built meshes (tests switch data or the toggle).
@@ -115,7 +243,9 @@ static func _source_mesh(glb: String, node_name: String) -> Mesh:
 
 
 ## One surface with WorldKit.material(): vertices, normals, colours and UVs as imported, tangents along +u. Deterministic (same input arrays -> same output arrays).
-static func rebuild(source: Mesh) -> ArrayMesh:
+## M2W1 astraA: `custom` (not zero) is written to every vertex as CUSTOM0 (RGBA float; kit_custom); `bake_type`
+## (not "") replaces UV2.y with the load-time shade bake of that type (bake_shade; custom.y must be its range).
+static func rebuild(source: Mesh, custom := Vector4.ZERO, bake_type := "") -> ArrayMesh:
 	var arrays := source.surface_get_arrays(0)
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
@@ -142,12 +272,103 @@ static func rebuild(source: Mesh) -> ArrayMesh:
 	out[Mesh.ARRAY_COLOR] = arrays[Mesh.ARRAY_COLOR]
 	out[Mesh.ARRAY_TEX_UV] = uvs
 	out[Mesh.ARRAY_TEX_UV2] = arrays[Mesh.ARRAY_TEX_UV2]
+	if bake_type != "" and custom.y > 0.0:
+		out[Mesh.ARRAY_TEX_UV2] = bake_shade(bake_type, verts, normals, arrays[Mesh.ARRAY_COLOR], arrays[Mesh.ARRAY_TEX_UV2], indices, custom.y)
 	if not indices.is_empty():
 		out[Mesh.ARRAY_INDEX] = indices
+	return _commit(out, verts.size(), custom)
+
+
+## Adds CUSTOM0 (when `custom` is not zero) and makes the one-surface mesh with WorldKit.material().
+static func _commit(out: Array, count: int, custom: Vector4) -> ArrayMesh:
+	var flags := 0
+	if custom != Vector4.ZERO:
+		var c := PackedFloat32Array()
+		c.resize(count * 4)
+		for i in count:
+			c[i * 4] = custom.x
+			c[i * 4 + 1] = custom.y
+			c[i * 4 + 2] = custom.z
+			c[i * 4 + 3] = custom.w
+		out[Mesh.ARRAY_CUSTOM0] = c
+		flags = Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
 	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out, [], {}, flags)
 	mesh.surface_set_material(0, WorldKit.material())
 	return mesh
+
+
+## M2W1 astraA (F5): the load-time shade of a glb structure mesh, per vertex, as UV2.y over `range_m` (data
+## "shade_bake", placeholders). m = part x paint x contact x facing x type gain, where part = the glb's own per-part
+## shade at the shader's part_shade strength (exactly what the old path drew), paint = paint_value[paint name] (the
+## vertex colour's art_astra.json colour), contact = darker towards the piece's own ground (its origin, y 0) up to
+## contact.height_m on faces that do not look up; a vertex of a face taller than contact.span_ref_m gets that much
+## less (a face interpolates between its corners, so a 4 m wall face would otherwise darken over its whole height),
+## facing = up.gain on faces looking up, down.gain on faces looking down; gain = by_type.<type>.gain. Paints in
+## skip_paints (glow, visor) keep only their part shade. Deterministic; near and far meshes get the same rules.
+static func bake_shade(type: String, verts: PackedVector3Array, normals: PackedVector3Array, colors: PackedColorArray,
+		uv2s: PackedVector2Array, indices: PackedInt32Array, range_m: float) -> PackedVector2Array:
+	var b := shade_bake()
+	var part_shade := float(b.get("part_shade", 0.08))
+	var values: Dictionary = b.get("paint_value", {})
+	var skip: Array = b.get("skip_paints", [])
+	var contact: Dictionary = b.get("contact", {})
+	var height_m := maxf(float(contact.get("height_m", 0.0)), 0.001)
+	var ground := float(contact.get("ground", 1.0))
+	var span_ref := float(contact.get("span_ref_m", 1000.0))
+	var up: Dictionary = b.get("up", {})
+	var down: Dictionary = b.get("down", {})
+	var gain := float((b.get("by_type", {}) as Dictionary).get(type, {}).get("gain", 1.0))
+	# the tallest face each vertex belongs to
+	var span := PackedFloat32Array()
+	span.resize(verts.size())
+	var count := indices.size() if not indices.is_empty() else verts.size()
+	for t in count / 3:
+		var ids := [indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]] if not indices.is_empty() else [t * 3, t * 3 + 1, t * 3 + 2]
+		var lo := minf(verts[ids[0]].y, minf(verts[ids[1]].y, verts[ids[2]].y))
+		var hi := maxf(verts[ids[0]].y, maxf(verts[ids[1]].y, verts[ids[2]].y))
+		for i: int in ids:
+			span[i] = maxf(span[i], hi - lo)
+	var out := uv2s.duplicate()
+	for i in verts.size():
+		var m := 1.0 + (uv2s[i].y - 0.5) * 2.0 * part_shade
+		var paint := paint_of(colors[i])
+		if not skip.has(paint):
+			m *= float(values.get(paint, 1.0)) * gain
+			var n := normals[i]
+			var side := 1.0 - maxf(n.y, 0.0)
+			var near := 1.0 - smoothstep(0.0, height_m, verts[i].y)
+			var smear := clampf(span_ref / maxf(span[i], 0.001), 0.0, 1.0)
+			m *= 1.0 - (1.0 - ground) * near * side * smear
+			if n.y >= float(up.get("normal_y", 2.0)):
+				m *= float(up.get("gain", 1.0))
+			elif n.y <= float(down.get("normal_y", -2.0)):
+				m *= float(down.get("gain", 1.0))
+		out[i] = Vector2(uv2s[i].x, _encode(m, range_m))
+	return out
+
+
+static var _paint_cache := {}  # 8-bit colour key -> paint name
+
+
+## The art_astra.json colour name of a vertex colour: the nearest palette colour within 2/255 (the glb keeps
+## colours as 8 bits; the first name wins a tie), "" for none. Cached per colour.
+static func paint_of(c: Color) -> String:
+	var key := (roundi(c.r * 255.0) << 24) | (roundi(c.g * 255.0) << 16) | (roundi(c.b * 255.0) << 8) | roundi(c.a * 255.0)
+	if not _paint_cache.has(key):
+		var colors: Dictionary = LowpolyKit.config()["colors"]
+		var best := 2.0 / 255.0 + 1e-6
+		var found := ""
+		for k: String in colors:
+			if k.begins_with("_"):
+				continue
+			var p := GreyboxArt.color_value(colors[k])
+			var d := maxf(maxf(absf(c.r - p.r), absf(c.g - p.g)), maxf(absf(c.b - p.b), absf(c.a - p.a)))
+			if d < best:
+				best = d
+				found = k
+		_paint_cache[key] = found
+	return _paint_cache[key]
 
 
 ## The direction of +u in the triangle's plane, w = the bitangent sign (LowpolyKit._triangle: +1 when

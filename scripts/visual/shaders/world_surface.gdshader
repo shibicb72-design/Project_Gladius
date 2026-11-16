@@ -21,10 +21,30 @@ uniform float glow_pulse_speed = 1.7;
 uniform float wet = 0.0;
 uniform float wet_dark = 0.62;
 uniform float wet_roughness = 0.12;
+// M2W1 astraA: world-kit looks (scripts/visual/world_kit_meshes.gd: glb structures, parts cover) carry CUSTOM0 =
+// (variation weight, baked shade range, grime kept, 0); every other mesh has none (reads 0) and takes exactly the
+// old path. A look with a shade range reads UV2.y over that range (its shade is baked at load) and keeps CUSTOM0.z
+// of the world-height grime; with a weight it takes a per-instance value / warmth from its origin (MODEL_MATRIX:
+// the batch instance, so a near and a far mesh of one piece match; cells of variation_cell_m, a broad wave of
+// variation_broad_m). The variation uniforms default to 0 (off); WorldKit sets them when the looks are on.
+uniform float variation_value = 0.0;
+uniform float variation_warm = 0.0;
+uniform float variation_broad = 0.0;
+uniform float variation_cell_m = 8.0;
+uniform float variation_broad_m = 70.0;
 
 varying flat int v_surface;
 varying vec3 v_world;
 varying vec3 v_world_normal;
+varying float v_grime;
+
+// A sin-free hash (fract / dot only: a large sin argument loses precision on GPUs and gave neighbouring cells
+// nearly the same value).
+float cell_hash(vec2 c) {
+	vec3 p = fract(vec3(c.xyx) * 0.1031);
+	p += dot(p, p.yzx + 33.33);
+	return fract((p.x + p.y) * p.z);
+}
 
 // The sRGB to linear step StandardMaterial3D applies with vertex_color_is_srgb.
 vec3 to_linear(vec3 c) {
@@ -33,7 +53,18 @@ vec3 to_linear(vec3 c) {
 
 void vertex() {
 	v_surface = int(UV2.x + 0.5);
-	COLOR.rgb = to_linear(mix(vec3(1.0), COLOR.rgb, paint_mix)) * (1.0 + (UV2.y - 0.5) * 2.0 * part_shade);
+	bool kit = CUSTOM0.y > 0.0;
+	COLOR.rgb = to_linear(mix(vec3(1.0), COLOR.rgb, paint_mix)) * (1.0 + (UV2.y - 0.5) * 2.0 * (kit ? CUSTOM0.y : part_shade));
+	v_grime = kit ? CUSTOM0.z : 1.0;
+	if (CUSTOM0.x > 0.0) {
+		vec3 origin = MODEL_MATRIX[3].xyz;
+		vec2 cell = floor(origin.xz / variation_cell_m);
+		float h0 = cell_hash(cell);
+		float h1 = cell_hash(cell + vec2(17.0, 5.0));
+		float wave = sin(origin.x * 6.2831853 / variation_broad_m) * cos(origin.z * 6.2831853 / (variation_broad_m * 1.37));
+		float value = 1.0 + CUSTOM0.x * ((h0 * 2.0 - 1.0) * variation_value + wave * variation_broad);
+		float warm = CUSTOM0.x * (h1 * 2.0 - 1.0) * variation_warm;
+		COLOR.rgb *= value * vec3(1.0 + warm, 1.0, 1.0 - warm);	}
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_world_normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
 }
@@ -45,7 +76,7 @@ void fragment() {
 	float up = v_world_normal.y;
 	vec3 paint = COLOR.rgb * tint.rgb * (1.0 + a.z * (t.r * 2.0 - 1.0));
 	// Dirt creeps up from the ground on faces that do not look up.
-	float foot = (1.0 - smoothstep(0.0, grime_height, v_world.y)) * (1.0 - max(up, 0.0));
+	float foot = (1.0 - smoothstep(0.0, grime_height, v_world.y)) * (1.0 - max(up, 0.0)) * v_grime;
 	paint *= mix(1.0, grime_dark, foot * (0.6 + 0.4 * t.r));
 	float rough = clamp(t.g * b.x + b.y, 0.04, 1.0);
 	float soaked = wet * smoothstep(0.2, 0.9, up) * (1.0 - b.z);

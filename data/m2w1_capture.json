@@ -42,6 +42,16 @@
 		{"name": "38_clutter_tent_row", "cam": [55.6, -204.6], "look": [50.8, 0.4, -201.0], "note": "M2W1 item 5 close-up: the tent row of Castra Prima at 5 m (bedrolls, helmet racks, campfires where the hash puts them)"},
 		{"name": "39_clutter_gate_foot", "cam": [2.5, -337.6], "look": [-0.4, 0.6, -332.0], "note": "M2W1 item 5 close-up: Porta Aquilae's outer foot from 6 m (caltrops, ammunition case)"},
 		{"name": "40_clutter_field_eye", "cam": [-150.0, -415.0], "look": [-330.0, 1.2, -470.0], "note": "M2W1 item 5: the fields outside the outer wall at eye height, looking out to the map edge (grass clumps, scrub, stones)"},
-		{"name": "41_clutter_doorway_lane", "cam": [71.146, -230.6], "look": [71.146, 1.0, -224.474], "note": "M2W1 item 5: along Door_002's lane from 6 m: the doorway's path stays clear"}
+		{"name": "41_clutter_doorway_lane", "cam": [71.146, -230.6], "look": [71.146, 1.0, -224.474], "note": "M2W1 item 5: along Door_002's lane from 6 m: the doorway's path stays clear"},
+		{"name": "42_cover_sandbags", "cam": [49.5, -200.2], "look": [52.5, 0.4, -196.5], "note": "M2W1 astraA close-up: the sandbags Cover_029 (Castra Prima) from 4.8 m"},
+		{"name": "43_cover_crate", "cam": [46.6, -186.6], "look": [50.0, 0.6, -183.5], "note": "M2W1 astraA close-up: the supply crate Cover_026 from 4.6 m"},
+		{"name": "44_cover_crate_stack", "cam": [46.2, -203.4], "look": [42.5, 1.0, -206.5], "note": "M2W1 astraA close-up: the crate stack Cover_034 from 4.8 m"},
+		{"name": "45_cover_low_wall", "cam": [1.6, 8.6], "look": [4.5, 0.55, 5.0], "note": "M2W1 astraA close-up: the field wall Cover_009 on the Arx from 4.6 m"},
+		{"name": "46_cover_barrier_line", "cam": [44.0, -228.6], "look": [46.0, 0.55, -224.0], "note": "M2W1 astraA close-up: the mantlet line Cover_032 (its shield front, -z) from 5 m"},
+		{"name": "47_cover_wreck_cart", "cam": [29.0, -218.6], "look": [33.0, 0.6, -214.5], "note": "M2W1 astraA close-up: the wrecked supply wagon Cover_031 from 5.7 m"},
+		{"name": "48_cover_rubble", "cam": [-13.2, -3.4], "look": [-9.5, 0.45, -0.5], "note": "M2W1 astraA close-up: the rubble pile Cover_006 on the Arx from 4.7 m"},
+		{"name": "49_cover_chest", "cam": [59.0, -181.0], "look": [63.0, 0.4, -181.5], "note": "M2W1 astraA close-up: Chest_000 (closed; its front faces -x) from 4 m"},
+		{"name": "50_cover_field", "cam": [-24.0, -12.0], "look": [-2.0, 1.0, 0.0], "note": "M2W1 astraA: eye height on the Arx among its cover (low and tall walls, barrier, pillars, arch, rubble, sandbags) at 10-25 m"},
+		{"name": "51_cover_rock_ring", "cam": [-213.5, 301.5], "look": [-209.0, 0.6, 306.0], "note": "M2W1 astraA close-up: the outer-ring boulder Ring_004 from 6.4 m"}
 	]
 }
