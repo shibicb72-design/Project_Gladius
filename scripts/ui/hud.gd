@@ -8,6 +8,8 @@ var director: MatchDirector
 var pawn: Pawn
 var fire_mode_button: FireModeButton
 var interact_button: InteractButton
+## M2 H1b commit 2: the prompt at the object (InteractPrompt), a sibling right after the Interact button.
+var interact_prompt: InteractPrompt
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
 
@@ -74,6 +76,8 @@ func _exit_tree() -> void:
 		fire_mode_button.queue_free()
 	if is_instance_valid(interact_button):
 		interact_button.queue_free()
+	if is_instance_valid(interact_prompt):
+		interact_prompt.queue_free()
 
 
 func _build() -> void:
@@ -416,6 +420,17 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 			add_child(interact_button)
 	else:
 		interact_button.bind(pawn, director, touch_for_interact, get_node_or_null("../PauseMenu") as PauseMenu)
+	# M2 H1b commit 2 (OQ-HUD): the prompt at the object, for the Interact button's target. Inserted right after the button
+	# (deferred calls run in order), so its _input runs before the button's and the touch HUD's (it never consumes a touch).
+	if interact_prompt == null:
+		interact_prompt = InteractPrompt.new()
+		interact_prompt.bind(pawn, director, touch_for_interact, interact_button, get_node_or_null("../PauseMenu") as PauseMenu)
+		if touch_for_interact != null:
+			interact_button.add_sibling.call_deferred(interact_prompt)
+		else:
+			add_child(interact_prompt)
+	else:
+		interact_prompt.bind(pawn, director, touch_for_interact, interact_button, get_node_or_null("../PauseMenu") as PauseMenu)
 	pawn.reload_rejected.connect(_on_reload_rejected)
 	pawn.fire_empty.connect(_on_fire_empty)
 	pawn.weapon_switched.connect(_on_weapon_switched)

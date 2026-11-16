@@ -10,6 +10,9 @@ extends Node
 ##   cover                           above_row, the pawn in real cover (Cover button pressed through the touch HUD)
 ##   overlay                         above_row with the look area, the stick start zone (left half), every touch target,
 ##                                   the passive displays and the reserved minimap / radar panel outlined
+## Shot kinds of commit 2 (PROMPT_KINDS, the prompt at the object, in a second match per size; sheet_prompt_<WxH>.png):
+##   prompt_pickup, prompt_chest, prompt_door_open, prompt_door_close, prompt_revive (a downed squad mate) and
+##   prompt_offscreen (a gun beside the pawn, outside the view: the prompt clamps to the edge with an arrow)
 ## Later commits add kinds by adding a KINDS entry and a _shot_<kind>(ctx) method (prompts, minimap, radar, coach).
 ## In the match shots the local kill banner is shown on purpose (show_banner) so its place can be judged; the objective
 ## line and the chip show the real match state. Placement and shooting mode are set in memory only and restored.
@@ -19,12 +22,15 @@ const _MatchScene := preload("res://scenes/match/match.tscn")
 const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
 const DEFAULT_SIZES: Array = [Vector2i(2176, 1812), Vector2i(2520, 1080), Vector2i(3120, 1440)]
 const KINDS: Array = ["above_advanced", "above_simple", "split_advanced", "split_simple", "overlay", "cover"]
+## Commit 2 (prompts at the object): shot in a second match per size (squads, idle bots, ground loot), saved as
+## prompt_<kind>_<WxH>.png and put on their own sheet, sheet_prompt_<WxH>.png. The commit-1 kinds and sheet are unchanged.
+const PROMPT_KINDS: Array = ["prompt_pickup", "prompt_chest", "prompt_door_open", "prompt_door_close", "prompt_revive", "prompt_offscreen"]
 const DPI := 420.0
 const SHEET_CELL_W := 900
 const ARENA_X := 1000.0
 
 var _out: String = "build/shots"
-var _kinds: Array = KINDS
+var _kinds: Array = KINDS + PROMPT_KINDS
 var _sizes: Array = DEFAULT_SIZES
 
 
@@ -62,13 +68,18 @@ func _run() -> void:
 	var saved_dpi: float = PlatformServices.dpi_override
 	PlatformServices.dpi_override = DPI
 	_TouchHud.move_stick_override = "custom"
+	var c1: Array = _kinds.filter(func(k: String) -> bool: return not PROMPT_KINDS.has(k))
+	var c2: Array = _kinds.filter(func(k: String) -> bool: return PROMPT_KINDS.has(k))
 	for size in _sizes:
-		AppFlow.profile = {}
-		var done: Array = await _match_shots(size)
-		if done.is_empty():
-			failed += 1
-		elif not _sheet(size, done):
-			failed += 1
+		for group in [[c1, "sheet", false], [c2, "sheet_prompt", true]]:
+			if (group[0] as Array).is_empty():
+				continue
+			AppFlow.profile = {}
+			var done: Array = await _match_shots(size, group[0], group[2])
+			if done.size() != (group[0] as Array).size():
+				failed += 1
+			if done.is_empty() or not _sheet(size, done, group[1]):
+				failed += 1
 	AppFlow.profile = saved_profile
 	PlatformServices.dpi_override = saved_dpi
 	HudArrangement.placement_override = ""
@@ -152,7 +163,8 @@ class Overlay extends Control:
 
 
 ## One match per size; every requested kind is shot from it. Returns the kinds saved (empty = the match failed).
-func _match_shots(size: Vector2i) -> Array:
+## `prompts`: the commit-2 match (squads with idle bots, so a squad mate can be downed; ground loot on).
+func _match_shots(size: Vector2i, kinds: Array, prompts: bool = false) -> Array:
 	var tag := _tag(size)
 	var svp := SubViewport.new()
 	svp.size = size
@@ -161,13 +173,23 @@ func _match_shots(size: Vector2i) -> Array:
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = false
-	m.fill_bots = false
+	m.fill_bots = prompts
+	if prompts:
+		m.ground_loot = true
+		m.seed_override = 31337
 	svp.add_child(m)
 	await get_tree().physics_frame
 	m.director.load_config()
+	if prompts:
+		m.director.mode_cfg["teams"]["mode"]["value"] = "squads"
 	if not m.begin():
 		push_error("[h1b_capture] match did not start")
 		return []
+	if prompts:
+		for b in m.bots:
+			var brain := b.get_node_or_null("Brain")
+			if brain != null:
+				brain.set_physics_process(false)
 	await _frames(25)
 	var touch: Control = m.get_node("Hud/TouchHud")
 	touch.cfg["force_touch_hud"] = true
@@ -176,7 +198,7 @@ func _match_shots(size: Vector2i) -> Array:
 	var ctx := {"svp": svp, "m": m, "touch": touch, "game": m.get_node("Hud/GameHud"), "pm": m.get_node("Hud/PauseMenu"),
 		"size": Vector2(size), "tag": tag}
 	var done: Array = []
-	for kind in _kinds:
+	for kind in kinds:
 		if not has_method("_shot_" + kind):
 			push_error("[h1b_capture] unknown shot kind %s" % kind)
 			continue
@@ -297,8 +319,141 @@ func _shot_cover(ctx: Dictionary) -> bool:
 	return await _save(svp, "cover_" + ctx["tag"]) and settled
 
 
+# --- commit 2: prompts at the object ------------------------------------------------------------------------------
+
+## Clears what the previous prompt shot placed (props lifted away, loot near the pawn taken, the downed mate sent off),
+## above_row / Advanced, level view.
+func _prompt_prep(ctx: Dictionary) -> void:
+	HudArrangement.placement_override = HudArrangement.ABOVE_ROW
+	AppFlow.profile = {"shooting_mode": "advanced"}
+	var touch: Control = ctx["touch"]
+	touch.refresh_shooting_mode()
+	touch.relayout()
+	(ctx["game"] as GameHud)._arrange()
+	var m: MatchRoot = ctx["m"]
+	var pawn: Pawn = m.local_player
+	for n: Node3D in ctx.get("placed", []):
+		n.position.y += 1000.0
+	ctx["placed"] = []
+	for id in m.loot.items.keys():
+		var p: Vector3 = m.loot.items[id]["pos"]
+		if Vector2(p.x - pawn.global_position.x, p.z - pawn.global_position.z).length() < 10.0:
+			m.loot.take(id)
+	# Idle bots still pick up loot and open chests through the director (_bot_pickups / _bot_chests): keep them away.
+	var k := 0
+	for b: Pawn in m.bots:
+		if b.global_position.distance_to(pawn.global_position) < 30.0:
+			b.global_position = pawn.global_position + Vector3(40.0 + 3.0 * k, 0.0, 40.0)
+			k += 1
+	pawn.pitch = 0.0
+	pawn.apply_start_kit({"secondary": "gladius_lux"})  # empty gun slot: a dropped gun is a usable pickup
+	await _frames(3)
+
+
+## A point `side_m` right of and `ahead_m` in front of the local pawn, `up_m` above its feet.
+func _rel(ctx: Dictionary, side_m: float, ahead_m: float, up_m: float) -> Vector3:
+	var pawn: Pawn = (ctx["m"] as MatchRoot).local_player
+	var b := pawn.global_transform.basis
+	return pawn.global_position + b.x * side_m - b.z * ahead_m + Vector3(0.0, up_m, 0.0)
+
+
+func _prompt_save(ctx: Dictionary, kind: String) -> bool:
+	await _frames(4)
+	var prompt: InteractPrompt = (ctx["game"] as GameHud).interact_prompt
+	var interact: InteractButton = (ctx["game"] as GameHud).interact_button
+	print("[h1b_capture] %s %s visible=%s button_visible=%s kind=%s text=\"%s\" anchor=%s clamped=%s rect=%s button=\"%s\"" % [ctx["tag"], kind,
+		prompt.visible, interact.visible, prompt.kind, prompt.text, prompt.anchor, prompt.clamped, prompt.get_global_rect(),
+		interact.label.text.replace("\n", " ")])
+	var ok: bool = await _save(ctx["svp"], "%s_%s" % [kind, ctx["tag"]])
+	return ok and prompt.visible
+
+
+func _drop_gun(ctx: Dictionary, at: Vector3) -> void:
+	(ctx["m"] as MatchRoot).loot.drop({"item_id": "pilum_br"}, at)
+
+
+func _add_chest(ctx: Dictionary, at: Vector3) -> void:
+	var m: MatchRoot = ctx["m"]
+	var c := LootChest.make({"id": "Chest_cap", "at": [at.x, at.y, at.z], "size": [1.4, 0.9, 0.9], "yaw": rad_to_deg(m.local_player.global_rotation.y)}, "camp")
+	m.map.add_child(c)
+	m.world_props.register_chest(c)
+	_box(m, at, Vector3(1.4, 0.9, 0.9), Color(0.55, 0.36, 0.2), false)  # a visible stand-in: the chest look lives in the map chunks
+	(ctx["placed"] as Array).append(c)
+	(ctx["placed"] as Array).append(m.get_child(m.get_child_count() - 1))
+
+
+func _add_door(ctx: Dictionary, id: String, start: String) -> void:
+	var m: MatchRoot = ctx["m"]
+	var at := _rel(ctx, 0.0, 1.6, 1.15)
+	var entry := {"id": id, "kind": Door.KIND_DOOR, "at": [at.x, at.y, at.z], "yaw": rad_to_deg(m.local_player.global_rotation.y),
+		"size": [2.0, 2.3, 0.12], "slide": "right", "start": start}
+	var d := Door.make(entry, WorldProps.door_cfg(WorldProps.config(), Door.KIND_DOOR))
+	m.map.add_child(d)
+	m.world_props.register_door(d)
+	(ctx["placed"] as Array).append(d)
+
+
+func _shot_prompt_pickup(ctx: Dictionary) -> bool:
+	await _prompt_prep(ctx)
+	_drop_gun(ctx, _rel(ctx, 0.5, 1.4, 0.15))
+	return await _prompt_save(ctx, "prompt_pickup")
+
+
+func _shot_prompt_chest(ctx: Dictionary) -> bool:
+	await _prompt_prep(ctx)
+	_add_chest(ctx, _rel(ctx, 0.9, 1.6, 0.45))
+	return await _prompt_save(ctx, "prompt_chest")
+
+
+func _shot_prompt_door_open(ctx: Dictionary) -> bool:
+	await _prompt_prep(ctx)
+	_add_door(ctx, "Door_cap_a", "closed")
+	return await _prompt_save(ctx, "prompt_door_open")
+
+
+func _shot_prompt_door_close(ctx: Dictionary) -> bool:
+	await _prompt_prep(ctx)
+	_add_door(ctx, "Door_cap_b", "open")
+	await _frames(30)  # the leaves slide into the wall
+	return await _prompt_save(ctx, "prompt_door_close")
+
+
+func _shot_prompt_revive(ctx: Dictionary) -> bool:
+	await _prompt_prep(ctx)
+	var m: MatchRoot = ctx["m"]
+	var me := m.local_player
+	var mate: Pawn = null
+	var enemy: Pawn = null
+	for id in m.director.all_players():
+		var p: Pawn = m.director.player(id)
+		if p == me:
+			continue
+		if p.squad_id == me.squad_id and mate == null:
+			mate = p
+		elif p.squad_id != me.squad_id and enemy == null:
+			enemy = p
+	if mate == null or enemy == null:
+		push_error("[h1b_capture] no squad mate / enemy for the revive shot")
+		return false
+	ctx["mate"] = mate
+	mate.global_position = _rel(ctx, -0.6, 1.8, 0.0)
+	mate.bridge.state.shield = 0.0
+	mate.bridge.state.health = 1.0
+	mate.receive_hit(DataRegistry.new().get_weapon_def("sagittarii_rifle"), false, enemy.squad_id, enemy.player_id)
+	await _frames(20)
+	return await _prompt_save(ctx, "prompt_revive")
+
+
+## Off screen: a gun 1.6 m to the pawn's right (outside the first-person view) clamps to the right edge with an arrow.
+func _shot_prompt_offscreen(ctx: Dictionary) -> bool:
+	await _prompt_prep(ctx)
+	_drop_gun(ctx, _rel(ctx, 1.6, -0.2, 0.15))
+	var ok: bool = await _prompt_save(ctx, "prompt_offscreen")
+	return ok and (ctx["game"] as GameHud).interact_prompt.clamped
+
+
 ## Contact sheet: the shots of one size scaled to SHEET_CELL_W wide, 3 columns, in KINDS order, on a dark background.
-func _sheet(size: Vector2i, kinds: Array) -> bool:
+func _sheet(size: Vector2i, kinds: Array, sheet_name: String = "sheet") -> bool:
 	var tag := _tag(size)
 	var cw := SHEET_CELL_W
 	var ch := int(round(float(cw) * size.y / size.x))
@@ -314,6 +469,6 @@ func _sheet(size: Vector2i, kinds: Array) -> bool:
 		img.convert(Image.FORMAT_RGB8)
 		img.resize(cw, ch, Image.INTERPOLATE_LANCZOS)
 		sheet.blit_rect(img, Rect2i(0, 0, cw, ch), Vector2i(gap + (i % 3) * (cw + gap), gap + (i / 3) * (ch + gap)))
-	var err := sheet.save_png(_out.path_join("sheet_%s.png" % tag))
-	print("[h1b_capture] sheet_%s %dx%d -> %s" % [tag, sheet.get_width(), sheet.get_height(), error_string(err)])
+	var err := sheet.save_png(_out.path_join("%s_%s.png" % [sheet_name, tag]))
+	print("[h1b_capture] %s_%s %dx%d -> %s" % [sheet_name, tag, sheet.get_width(), sheet.get_height(), error_string(err)])
 	return err == OK
