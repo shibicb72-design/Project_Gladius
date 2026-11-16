@@ -1373,6 +1373,13 @@
 			"sha256": "705a8bb1479724922a2c82d7c29d1b0e6f38db34bf1f87de2ff6ea23e52bc2dd"
 		},
 		{
+			"path": "res://assets/generated/characters/pipeline_proof.glb",
+			"made_by": "tools/blender/build_pipeline_proof.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 27092,
+			"sha256": "2b904a3a3e898b9f2b37be521c07a8dc8245cb5b574b6b27ba554cdb735a48d7"
+		},
+		{
 			"path": "res://assets/generated/textures/noise_pack.png",
 			"made_by": "tools/gen_textures.gd",
 			"licence": "generated in this project (no source material)",
@@ -1387,5 +1394,5 @@
 			"sha256": "1d0e55c3243989cc8e3de7c92b2405d7060a82b3b78c7459bd03510c059a425d"
 		}
 	],
-	"_generated_note": "S2 / S5: files made by the project's own tools (tools/gen_textures.gd, tools/gen_audio.gd) from noise and maths, no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
+	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that CC0 asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 }

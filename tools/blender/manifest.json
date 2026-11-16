@@ -1,0 +1,9 @@
+{
+	"_note": "M2 AN2: which committed script under tools/blender/ wrote each generated .glb, and the data/asset_catalog.json id of its CC0 source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
+	"files": {
+		"res://assets/generated/characters/pipeline_proof.glb": {
+			"made_by": "tools/blender/build_pipeline_proof.py",
+			"derived_from": ""
+		}
+	}
+}
