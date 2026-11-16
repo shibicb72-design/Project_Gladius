@@ -130,9 +130,34 @@ static func ground_material(paint_map: Texture2D, map_size_m: float, key: String
 		_ground.set_shader_parameter("wet_dark", float(cfg["wet"]["dark"]))
 		_ground.set_shader_parameter("wet_roughness", float(cfg["wet"]["roughness"]))
 		_ground.set_shader_parameter("wet", _wet)
+		apply_ground_detail(_ground, bool(GraphicsPresets.new().get_preset().get("art_ground_detail_enabled", false)))
 	_ground.set_shader_parameter("paint_map", paint_map)
 	_ground.set_shader_parameter("map_size_m", map_size_m)
 	return _ground
+
+
+## M2W1: the ground detail's data (data/art_ground_detail.json; never art_materials.json "ground", whose keys the
+## ground paint hash reads).
+const GROUND_DETAIL_PATH := "res://data/art_ground_detail.json"
+
+
+static func ground_detail_config() -> Dictionary:
+	return _registry.load_file(GROUND_DETAIL_PATH)
+
+
+## M2W1: switches a ground material's detail path. Off sets detail_enabled false and nothing else (the S2 ground);
+## on sets every "uniforms" key of the detail file, the rock layer and its tile.
+static func apply_ground_detail(ground: ShaderMaterial, on: bool) -> void:
+	ground.set_shader_parameter("detail_enabled", on)
+	if not on:
+		return
+	var detail := ground_detail_config()
+	var uniforms: Dictionary = detail["uniforms"]
+	for key: String in uniforms:
+		var value: Variant = uniforms[key]
+		ground.set_shader_parameter(key, _color(value) if value is Array else float(value))
+	ground.set_shader_parameter("rock_layer", float((config()["layers"] as Array).find(String(detail["rock_layer_name"]))))
+	ground.set_shader_parameter("rock_tiles_per_m", 1.0 / float(detail["rock_tile_m"]))
 
 
 ## How wet the world looks, 0..1 (set by the sky variant). Applies to every material made here.
