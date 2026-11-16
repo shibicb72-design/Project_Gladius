@@ -109,6 +109,11 @@ var _settle_dist: float = 0.0
 var _move_scale: float = 1.0  # move input scale chosen at the last think (hunt / regroup); coast ticks reuse it
 var _patrol_steps: int = 0  # rim patrol: waypoints reached so far
 var _regroup_tick: int = -1  # director tick of the first grounded think and of the last think with an enemy in sight
+## M2B3 zone edge (brain.route inside_enter_frac / inside_leave_frac, big maps only, placeholders OQ-BOT-FLIP; see
+## _inside_target). No draws on either stream.
+var _inside_state: int = -1  # -1 unknown, 0 outside, 1 inside the next circle's edge (big maps only)
+var _inside_c := Vector3.INF  # the next circle the state was judged against (a change resets the state)
+var _inside_r: float = -1.0
 
 
 func setup(new_pawn: Pawn, new_director: MatchDirector, new_profile: Dictionary, new_cfg: Dictionary) -> void:
@@ -298,10 +303,12 @@ func build_frame(delta: float) -> InputFrame:
 	var frame := InputFrame.new()
 	if pawn == null or not pawn.is_alive() or not pawn.is_inside_tree():
 		_has_decision = false
+		_inside_state = -1  # no think for a dead, downed or out-of-tree pawn: the edge state is judged afresh
 		return frame
 	_ensure_seeded()
 	if pawn.drop_state == Pawn.Drop.FALLING:
 		_has_decision = false
+		_inside_state = -1
 		# Steer the glide toward this bot's own spot inside the next circle; on a big map toward its landmark.
 		var to := _glide_goal() - pawn.global_position
 		to.y = 0.0
@@ -311,6 +318,7 @@ func build_frame(delta: float) -> InputFrame:
 		return frame
 	if pawn.is_dropping():
 		_has_decision = false
+		_inside_state = -1
 		return frame
 	if _big_map:
 		_route_think()
@@ -519,22 +527,26 @@ func _goal(enemy: Pawn, melee_only: bool) -> Vector3:
 		if fight != Vector3.INF:
 			goal_kind = "fight"
 			return fight
+	# M2B3 (big maps only, OQ-BOT-FLIP): while the zone calls, a bot inside the edge (pressure is off, so it is
+	# inside) takes a loot, gear or hunt goal only when that goal's target lies inside the leave edge (_inside_leave);
+	# otherwise the goal is skipped and the next one in the order is tried. Small maps never evaluate _zone_calls.
+	var keep_in := _big_map and _zone_calls()
 	# Loot.
-	var item := _loot_goal()
+	var item := _loot_goal(false, keep_in)
 	if item != Vector3.INF:
 		goal_kind = "loot"
 		return item
 	# Big map: gear up at a landmark (M2B1).
 	if _big_map:
 		var gear := _gear_goal()
-		if gear != Vector3.INF:
+		if gear != Vector3.INF and (not keep_in or _inside_leave(gear)):
 			goal_kind = "gear"
 			return gear
 		# Geared (or no landmark with loot) and nothing in sight: go looking for a fight. With
 		# route.hunt_requires_gear true, only a geared bot hunts (OQ-BOT-ROUTE; false is a placeholder for Shibi).
 		if enemy == null and (_geared() or not bool(cfg.get("route", {}).get("hunt_requires_gear", false))):
 			var hunt := _hunt_goal()
-			if hunt != Vector3.INF:
+			if hunt != Vector3.INF and (not keep_in or _inside_leave(hunt)):
 				goal_kind = "regroup" if _regrouping() else "hunt"
 				return hunt
 	goal_kind = "zone"
@@ -563,13 +575,45 @@ func _zone_spot() -> Vector3:
 	return c + Vector3(_spot_dir.x, 0.0, _spot_dir.y) * r
 
 
+## Inside the next circle's edge. Small maps (not _big_map): stateless, flat distance <= 0.85 x radius, as before.
+## Big maps (M2B3, OQ-BOT-FLIP): hysteresis. A bot counts as inside once within route.inside_enter_frac x radius and
+## as outside again only beyond route.inside_leave_frac x radius (each key missing: 0.85; enter above leave is cut to
+## leave). The state resets to unknown when the next circle (centre or radius) changes and on every build_frame early
+## return (dead, downed, out of the tree, falling, dropping); unknown is judged at the enter edge. Updating on read
+## is idempotent for an unchanged position, so the several calls of one think agree.
 func _inside_target() -> bool:
 	var c := director.zone_target_center()
-	return Vector2(pawn.global_position.x - c.x, pawn.global_position.z - c.z).length() <= director.zone_target_radius() * 0.85
+	if not _big_map:
+		return Vector2(pawn.global_position.x - c.x, pawn.global_position.z - c.z).length() <= director.zone_target_radius() * 0.85
+	var r := director.zone_target_radius()
+	if c != _inside_c or r != _inside_r:
+		_inside_c = c
+		_inside_r = r
+		_inside_state = -1
+	var leave := _route_f("inside_leave_frac", 0.85)
+	var enter := minf(_route_f("inside_enter_frac", 0.85), leave)
+	var d := Vector2(pawn.global_position.x - c.x, pawn.global_position.z - c.z).length()
+	var inside := d <= r * (leave if _inside_state == 1 else enter)
+	_inside_state = 1 if inside else 0
+	return inside
+
+
+## A goal target lies inside the leave edge of the next circle (flat distance <= inside_leave_frac x radius).
+func _inside_leave(p: Vector3) -> bool:
+	var c := director.zone_target_center()
+	return Vector2(p.x - c.x, p.z - c.z).length() <= director.zone_target_radius() * _route_f("inside_leave_frac", 0.85)
 
 
 func _zone_pressure() -> bool:
 	if director.rules == null or _inside_target():
+		return false
+	return _zone_calls()
+
+
+## The zone's call to move, without the inside test (M2B3): the zone is shrinking or final, the bot is late, or it
+## stands outside the current circle. False with no rules. No draws.
+func _zone_calls() -> bool:
+	if director.rules == null:
 		return false
 	var rules := director.rules
 	var here := Vector2(pawn.global_position.x, pawn.global_position.z)
@@ -591,7 +635,8 @@ func _time_to_reach() -> float:
 
 
 ## Nearest usable loot item within loot_seek_range_m (a gun first when the bot has none); INF if none.
-func _loot_goal(guns_only: bool = false) -> Vector3:
+## inside_edge (M2B3, big maps while the zone calls): items beyond the next circle's leave edge are not candidates.
+func _loot_goal(guns_only: bool = false, inside_edge: bool = false) -> Vector3:
 	var loot := director.loot
 	if loot == null:
 		return Vector3.INF
@@ -607,7 +652,7 @@ func _loot_goal(guns_only: bool = false) -> Vector3:
 			continue
 		var pos: Vector3 = entry["pos"]
 		var d := Vector2(pos.x - pawn.global_position.x, pos.z - pawn.global_position.z).length()
-		if d > range_m:
+		if d > range_m or (inside_edge and not _inside_leave(pos)):
 			continue
 		var score := d * (0.5 if want_gun and str(item_def.get("kind", "")) == "weapon" else 1.0)
 		if score < best_score:

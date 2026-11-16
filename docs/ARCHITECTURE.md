@@ -236,6 +236,18 @@ android/              debug.keystore (shared debug key only)
     the pawn strays. This halved the CPU proxy on the 1 km map. Small maps set it every think.
   - Stuck window fix (all maps): a window measures from where it started (`_stuck_from` is set
     when `_stuck_t` starts), not from the world origin; hold and arrival open a fresh window.
+  - Zone edge (M2 B3, big maps only, placeholders OQ-BOT-FLIP): `_zone_calls()` holds the zone's
+    terms without the inside test (shrinking or final, late, or outside the current circle);
+    `_zone_pressure()` = not `_inside_target()` and `_zone_calls()`. `_inside_target()` has
+    hysteresis: inside once within `route.inside_enter_frac` (0.80) x the next circle's radius,
+    outside again only beyond `route.inside_leave_frac` (0.85). The state resets when the next
+    circle changes and on every think skipped for a dead, falling or dropping pawn; after a reset
+    it is judged at the enter edge. While `_zone_calls()` is true, a bot inside takes a loot, gear
+    or hunt goal only when its target lies inside the leave edge (`_inside_leave`); otherwise the
+    next goal in the order is tried. Exempt: the unarmed bot's gun_first loot and the jump
+    landmark pick. Small maps and missing keys keep the single 0.85 edge and no filter. No draws.
+    On demand: `tests/sim/test_zz_goal_off_nav.gd -- --offnav-from=<dir>` lists `SIM_UNSTICK_AT`
+    goals farther than 2 m (flat) from the saved 1 km navmesh.
 - Sims (`tests/sim/`, metrics shared in `sim_metrics.gd`): kills and downs by gun / blade with
   distances, gun hit rate, zone deaths, loot taken (placed / dropped), goal shares, unstick
   events, landmark landings. Args after `--`: `--sim-profile=<name>` (every bot's profile),
