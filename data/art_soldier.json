@@ -94,10 +94,10 @@
 		"_note": "M2 AN1 3b (OQ-ART-SOLDIER): a fill light fixed to the camera for the opaque view-model pass (view space: +x right, +y up, +z toward the eye), so gun facets separate and the gunmetal stays neutral under any sky; lift is a flat ambient floor; rim and rim_tint are Godot's RIM. Presentation only.",
 		"fill_dir": [-0.4, 0.75, 0.55],
 		"fill_color": [1.0, 0.95, 0.88],
-		"fill": 0.3,
-		"lift": 0.04,
-		"rim": 0.35,
-		"rim_tint": 0.65
+		"fill": 0.16,
+		"lift": 0.02,
+		"rim": 0.25,
+		"rim_tint": 0.5
 	},
 	"fx": {
 		"_note": "M2 AN1 commit 5 (OQ-ART-SOLDIER placeholders): combat feedback looks. flash: the first-person muzzle burst (scripts/visual/view_fx.gd), sizes as fractions of camera.json view_model.flash_size_m, parented to the gun's muzzle. muzzle_light: one OmniLight3D at the flash, shadows off, only on the local player's view model, lit for flash_s. impacts: bursts by surface (scripts/visual/shot_impacts.gd, used by scripts/weapons/shot_fx.gd for every pawn), at most impact_cap alive at once; impact_by_material maps the surface (PawnAudio.material_of with data/audio.json impacts, plus ground and soldier) to a kind. spent_cell: the old cell dropped by the first-person reload.",
