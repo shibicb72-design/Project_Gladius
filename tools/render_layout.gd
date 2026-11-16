@@ -12,6 +12,15 @@ extends SceneTree
 ##   godot --path . --script res://tools/render_layout.gd --log-file build/l1/shots.log -- --shots=<absolute dir>
 ## Prints one RENDER_LAYOUT / RENDER_SHOT line per file; exit 1 on a problem. Every size and name it shows is a
 ## proposal (OQ-ALESIA-LAYOUT); the picture's title says so.
+## M2 H1b commit 3, minimap mode (OQ-MINIMAP): the HUD minimap's top-down picture of each map FROM THE MAP DATA, with NO
+## text, title, legend, banner, marker or circle baked in (landmark names are drawn at runtime by scripts/ui/hud_minimap.gd):
+## ground paint (GroundPaint: paving / grass / earth), hill shading and contours from the map's height field
+## (MapTerrain), every collider footprint by class (DataRegistry.collider_footprints) plus the map scene's own box
+## colliders under Nav (alesia_section's greybox walls). Palette and size: data/ui.json minimap.bake.
+##   godot --headless --path . --script res://tools/render_layout.gd --log-file <log> -- --minimap[=alesia_1km,test_300,alesia_section] [--minimap_dir=res://assets/generated/ui]
+## Writes <dir>/minimap_<map id>.png (RGB8) per map and prints MINIMAP_BAKE (size, extent) and MINIMAP_DATA (the exact
+## data/ui.json minimap.maps entry; tests/test_h1b_minimap.gd checks the data against minimap_extent / minimap_px, so the
+## extent cannot drift). Re-record the hashes after a bake: tools/asset_hashes.gd -- --write.
 
 const MAP_PATH := "res://data/maps/alesia_1km.json"
 const Gen := preload("res://tools/gen_alesia.gd")
@@ -72,8 +81,16 @@ func _initialize() -> void:
 	var shots := ""
 	var map_path := MAP_PATH
 	var side := 2000
+	var minimap := ""
+	var minimap_dir := MINIMAP_DIR
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--out="):
+		if a == "--minimap":
+			minimap = ",".join(MINIMAP_MAPS)
+		elif a.begins_with("--minimap="):
+			minimap = a.substr(10)
+		elif a.begins_with("--minimap_dir="):
+			minimap_dir = a.substr(14)
+		elif a.begins_with("--out="):
 			out = a.substr(6)
 		elif a.begins_with("--shots="):
 			shots = a.substr(8)
@@ -84,6 +101,9 @@ func _initialize() -> void:
 	if shots != "":
 		var ok: bool = await _shots(map_path, shots)
 		quit(0 if ok else 1)
+		return
+	if minimap != "":
+		quit(0 if _bake_minimaps(minimap.split(",", false), minimap_dir) else 1)
 		return
 	if out == "":
 		printerr("render_layout: give --out=<absolute png path> or --shots=<dir>")
@@ -560,4 +580,195 @@ func _shots(map_path: String, dir: String) -> bool:
 				camera.global_position.x, camera.global_position.y, camera.global_position.z, look.x, ly + look.y, look.z, shot[3]])
 	view.queue_free()
 	await process_frame
+	return ok
+
+
+# --- M2 H1b commit 3: the HUD minimap picture (no text, no markers; OQ-MINIMAP) ---
+
+const MINIMAP_MAPS: Array[String] = ["alesia_1km", "test_300", "alesia_section"]
+const MINIMAP_DIR := "res://assets/generated/ui"
+const _AstraMap := preload("res://scripts/visual/astra_map.gd")
+
+
+static func minimap_bake_cfg() -> Dictionary:
+	return DataRegistry.parse_quiet("res://data/ui.json").get("minimap", {}).get("bake", {})
+
+
+static func minimap_map_path(map_id: String) -> String:
+	return "res://data/maps/%s.json" % map_id
+
+
+static func minimap_texture_path(map_id: String, dir: String = MINIMAP_DIR) -> String:
+	return dir.path_join("minimap_%s.png" % map_id)
+
+
+## The world rect (metres, x and z) a map's minimap picture covers: the square ground centred on the origin, its side
+## the map's ground size as the game takes it (AstraMap.ground_size_of: terrain.size_m, then ground_size_m, then the
+## scene's Nav/Ground/Mesh, which is alesia_section's only source).
+static func minimap_extent(def: Dictionary) -> Rect2:
+	var size: float = _AstraMap.ground_size_of(def, null)
+	if size <= 0.0 and ResourceLoader.exists(str(def.get("scene", ""))):
+		var scene := load(str(def["scene"])) as PackedScene
+		var inst: Node = scene.instantiate() if scene != null else null
+		if inst != null:
+			size = _AstraMap.ground_size_of(def, inst.get_node_or_null("Nav"))
+			inst.free()
+	return Rect2(Vector2(-size, -size) * 0.5, Vector2(size, size))
+
+
+## Picture side in px for a ground `size_m` wide: size x px_per_m rounded up to a power of two, clamped to
+## [min_px, max_px] (data minimap.bake).
+static func minimap_px(size_m: float, cfg: Dictionary) -> int:
+	var want := maxi(1, ceili(size_m * float(cfg.get("px_per_m", 1.0))))
+	return clampi(nearest_po2(want), int(cfg.get("min_px", 256)), int(cfg.get("max_px", 1024)))
+
+
+static func _bake_color(cfg: Dictionary, key: String) -> Color:
+	var a: Array = cfg.get("colors", {}).get(key, [1.0, 0.0, 1.0])
+	return Color(float(a[0]), float(a[1]), float(a[2]))
+
+
+## The box colliders a map scene places itself under Nav (not the ground): [{id, at, yaw, rect, class}] like
+## collider_footprints. Only alesia_section has them (its greybox citadel walls and camp blocks).
+static func scene_footprints(def: Dictionary) -> Array:
+	var out: Array = []
+	if not ResourceLoader.exists(str(def.get("scene", ""))):
+		return out
+	var scene := load(str(def["scene"])) as PackedScene
+	var inst: Node = scene.instantiate() if scene != null else null
+	if inst == null:
+		return out
+	var nav := inst.get_node_or_null("Nav")
+	if nav != null:
+		for body in nav.get_children():
+			if not (body is StaticBody3D) or body.name == "Ground":
+				continue
+			var shape := body.get_node_or_null("Shape") as CollisionShape3D
+			if shape == null or not (shape.shape is BoxShape3D):
+				continue
+			var s: Vector3 = (shape.shape as BoxShape3D).size
+			out.append({"id": "scene_" + String(body.name), "at": Vector2(body.position.x, body.position.z), "yaw": body.rotation.y,
+				"rect": Rect2(-s.x * 0.5, -s.z * 0.5, s.x, s.z), "class": "barracks" if String(body.name).begins_with("Camp") else "wall"})
+	inst.free()
+	return out
+
+
+## The ground paint (GroundPaint: R = paving, G = grass) of a map: its offline bake when it has one, else painted now.
+static func _minimap_paint(def: Dictionary, size_m: float, footprints: Array) -> Image:
+	var settings := GroundPaint.settings_for(def)
+	var baked := String(settings.get("baked", ""))
+	if baked != "" and ResourceLoader.exists(baked):
+		var img := load(baked) as Image
+		if img != null:
+			return img
+	var landmarks: Array = DataRegistry.parse_quiet(str(def.get("landmarks", ""))).get("landmarks", [])
+	var trodden := PackedVector2Array()
+	for fp: Dictionary in footprints:
+		trodden.append(fp["at"])
+	return GroundPaint.build("minimap_bake_" + str(def.get("id", "")), size_m, landmarks, trodden, settings)
+
+
+## Renders one map's minimap picture: an RGB8 image minimap_px square covering minimap_extent.
+func render_minimap(def: Dictionary, cfg: Dictionary) -> Image:
+	var ext := minimap_extent(def)
+	var side := minimap_px(ext.size.x, cfg)
+	_img = Image.create(side, side, false, Image.FORMAT_RGBA8)
+	_k = float(side) / ext.size.x
+	_origin = Vector2(side, side) * 0.5 - ext.get_center() * _k
+	var earth := _bake_color(cfg, "earth")
+	var grass := _bake_color(cfg, "grass")
+	var paving := _bake_color(cfg, "paving")
+	var footprints := DataRegistry.collider_footprints(def)
+	var paint := _minimap_paint(def, ext.size.x, footprints)
+	var terrain := MapTerrain.for_map(def)
+	# Heights at pixel centres, one extra row and column for the slope.
+	var n := side + 1
+	var heights := PackedFloat32Array()
+	heights.resize(n * n)
+	var h_max := 0.0
+	if terrain != null:
+		for py in n:
+			for px in n:
+				var w := (Vector2(px + 0.5, py + 0.5) - _origin) / _k
+				var h := terrain.height_at(w.x, w.y)
+				heights[py * n + px] = h
+				h_max = maxf(h_max, h)
+	var m_per_px := 1.0 / _k
+	var light := Vector3(-0.55, 0.9, -0.45).normalized()  # from the north-west (top left)
+	var flat := light.y
+	var shade_k := float(cfg.get("hillshade", 0.6))
+	var lift_k := float(cfg.get("height_lift", 0.25))
+	var contour_m := float(cfg.get("contour_m", 5.0))
+	var contour_dark := float(cfg.get("contour_dark", 0.22))
+	var pw := paint.get_width() if paint != null else 0
+	for py in side:
+		for px in side:
+			var w := (Vector2(px + 0.5, py + 0.5) - _origin) / _k
+			var c := earth
+			if paint != null:
+				var ix := clampi(int((w.x - ext.position.x) / ext.size.x * pw), 0, pw - 1)
+				var iy := clampi(int((w.y - ext.position.y) / ext.size.y * pw), 0, pw - 1)
+				var p := paint.get_pixel(ix, iy)
+				c = earth.lerp(grass, p.g).lerp(paving, p.r)
+			if terrain != null:
+				var h := heights[py * n + px]
+				var hx := heights[py * n + px + 1]
+				var hz := heights[(py + 1) * n + px]
+				var normal := Vector3(-(hx - h) / m_per_px, 1.0, -(hz - h) / m_per_px).normalized()
+				var shade := clampf(1.0 + shade_k * (normal.dot(light) - flat) * 3.0, 0.55, 1.45)
+				c = Color(c.r * shade, c.g * shade, c.b * shade)
+				if h_max > 0.5:
+					c = c.lightened(lift_k * clampf(h / h_max, 0.0, 1.0))
+				if contour_m > 0.0 and h > 0.05 and (floori(h / contour_m) != floori(hx / contour_m) or floori(h / contour_m) != floori(hz / contour_m)):
+					c = c.darkened(contour_dark)
+			_img.set_pixel(px, py, c)
+	# Footprints by class: a soft shadow down-right first, then the fills.
+	var classes := footprint_classes(def)
+	var all_fp: Array = []
+	for fp: Dictionary in footprints:
+		var f := fp.duplicate()
+		f["class"] = String(classes.get(str(fp["id"]), "cover"))
+		all_fp.append(f)
+	all_fp.append_array(scene_footprints(def))
+	var shadow := Color(0.0, 0.0, 0.0, float(cfg.get("shadow_alpha", 0.45)))
+	var shadow_px := maxf(1.0, float(cfg.get("shadow_m", 0.8)) * _k)
+	var base_origin := _origin
+	_origin = base_origin + Vector2(shadow_px, shadow_px)
+	for fp: Dictionary in all_fp:
+		_fill_footprint(fp, shadow)
+	_origin = base_origin
+	var class_colours: Dictionary = cfg.get("classes", {})
+	for fp: Dictionary in all_fp:
+		var a: Array = class_colours.get(String(fp["class"]), class_colours.get("cover", [0.3, 0.3, 0.3]))
+		_fill_footprint(fp, Color(float(a[0]), float(a[1]), float(a[2])))
+	# The ground's edge: a thin dark line so the picture ends cleanly against the panel's off-map fill.
+	_frame_rect(Rect2i(0, 0, side, side), _bake_color(cfg, "edge"), maxi(1, int(cfg.get("edge_px", 2))))
+	var out := _img
+	out.convert(Image.FORMAT_RGB8)
+	return out
+
+
+func _bake_minimaps(ids: PackedStringArray, dir: String) -> bool:
+	var cfg := minimap_bake_cfg()
+	if cfg.is_empty():
+		printerr("render_layout: data/ui.json minimap.bake is missing")
+		return false
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
+	var ok := true
+	for map_id in ids:
+		var t0 := Time.get_ticks_msec()
+		var def := DataRegistry.parse_quiet(minimap_map_path(map_id))
+		if def.is_empty():
+			printerr("render_layout: no map %s" % map_id)
+			ok = false
+			continue
+		var img := render_minimap(def, cfg)
+		var path := minimap_texture_path(map_id, dir)
+		var err := img.save_png(ProjectSettings.globalize_path(path))
+		ok = ok and err == OK
+		var ext := minimap_extent(def)
+		print("MINIMAP_BAKE map=%s out=%s px=%dx%d extent_m=[%s, %s, %s, %s] m_per_px=%.3f bytes=%d err=%d ms=%d" % [map_id, path,
+			img.get_width(), img.get_height(), ext.position.x, ext.position.y, ext.size.x, ext.size.y, ext.size.x / img.get_width(),
+			FileAccess.get_file_as_bytes(path).size(), err, Time.get_ticks_msec() - t0])
+		print("MINIMAP_DATA \"%s\": {\"texture\": \"%s\", \"extent_m\": [%s, %s, %s, %s]}" % [map_id, path, ext.position.x, ext.position.y, ext.size.x, ext.size.y])
 	return ok

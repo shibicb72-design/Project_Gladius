@@ -65,7 +65,8 @@ func test_default_placement_is_above_row_and_layout_version_kept() -> void:
 	assert_eq(HudArrangement.placement(), HudArrangement.ABOVE_ROW, "no override: data placement")
 	assert_eq(HudLayoutModel.current_version(), 2, "above_row moves no button default: layout_version stays 2")
 	assert_true(not bool(ui["hud"]["roman_numerals"]), "OQ-38: no Roman numerals")
-	assert_true(not bool(ui["minimap"]["enabled"]) and not bool(ui["radar"]["enabled"]), "minimap and radar reserved, not drawn yet")
+	# M2 H1b commit 3: the minimap is drawn (data switch on); the radar stays reserved until commit 4.
+	assert_true(bool(ui["minimap"]["enabled"]) and not bool(ui["radar"]["enabled"]), "minimap drawn, radar reserved, not drawn yet")
 
 
 ## split_row is used only where the view is wide enough; the near-square sizes keep above_row.

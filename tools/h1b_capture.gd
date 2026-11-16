@@ -25,12 +25,19 @@ const KINDS: Array = ["above_advanced", "above_simple", "split_advanced", "split
 ## Commit 2 (prompts at the object): shot in a second match per size (squads, idle bots, ground loot), saved as
 ## prompt_<kind>_<WxH>.png and put on their own sheet, sheet_prompt_<WxH>.png. The commit-1 kinds and sheet are unchanged.
 const PROMPT_KINDS: Array = ["prompt_pickup", "prompt_chest", "prompt_door_open", "prompt_door_close", "prompt_revive", "prompt_offscreen"]
+## Commit 3 (the minimap): shot in a third match per size ON alesia_1km (squads, idle bots), the local pawn placed 45 m
+## inside the current circle and 35 m outside the next one with a squad mate beside it, so both circles, the line and the
+## mate are in the small view; saved as minimap_<kind>_<WxH>.png, sheet_minimap_<WxH>.png. minimap_zoom is no render: the
+## panels of the rotating and the north-up shots cropped and enlarged side by side, to judge the small view.
+## Each baked texture is also copied to minimap_tex_<map>.png.
+const MINIMAP_KINDS: Array = ["minimap_small_rotate", "minimap_small_north", "minimap_expanded", "minimap_zoom"]
+const MINIMAP_MAP := "res://data/maps/alesia_1km.json"
 const DPI := 420.0
 const SHEET_CELL_W := 900
 const ARENA_X := 1000.0
 
 var _out: String = "build/shots"
-var _kinds: Array = KINDS + PROMPT_KINDS
+var _kinds: Array = KINDS + PROMPT_KINDS + MINIMAP_KINDS
 var _sizes: Array = DEFAULT_SIZES
 
 
@@ -68,18 +75,21 @@ func _run() -> void:
 	var saved_dpi: float = PlatformServices.dpi_override
 	PlatformServices.dpi_override = DPI
 	_TouchHud.move_stick_override = "custom"
-	var c1: Array = _kinds.filter(func(k: String) -> bool: return not PROMPT_KINDS.has(k))
+	var c1: Array = _kinds.filter(func(k: String) -> bool: return not PROMPT_KINDS.has(k) and not MINIMAP_KINDS.has(k))
 	var c2: Array = _kinds.filter(func(k: String) -> bool: return PROMPT_KINDS.has(k))
+	var c3: Array = _kinds.filter(func(k: String) -> bool: return MINIMAP_KINDS.has(k))
 	for size in _sizes:
-		for group in [[c1, "sheet", false], [c2, "sheet_prompt", true]]:
+		for group in [[c1, "sheet", false, false], [c2, "sheet_prompt", true, false], [c3, "sheet_minimap", false, true]]:
 			if (group[0] as Array).is_empty():
 				continue
 			AppFlow.profile = {}
-			var done: Array = await _match_shots(size, group[0], group[2])
+			var done: Array = await _match_shots(size, group[0], group[2], group[3])
 			if done.size() != (group[0] as Array).size():
 				failed += 1
 			if done.is_empty() or not _sheet(size, done, group[1]):
 				failed += 1
+	if not c3.is_empty() and not _copy_minimap_textures():
+		failed += 1
 	AppFlow.profile = saved_profile
 	PlatformServices.dpi_override = saved_dpi
 	HudArrangement.placement_override = ""
@@ -164,7 +174,7 @@ class Overlay extends Control:
 
 ## One match per size; every requested kind is shot from it. Returns the kinds saved (empty = the match failed).
 ## `prompts`: the commit-2 match (squads with idle bots, so a squad mate can be downed; ground loot on).
-func _match_shots(size: Vector2i, kinds: Array, prompts: bool = false) -> Array:
+func _match_shots(size: Vector2i, kinds: Array, prompts: bool = false, minimap: bool = false) -> Array:
 	var tag := _tag(size)
 	var svp := SubViewport.new()
 	svp.size = size
@@ -173,19 +183,25 @@ func _match_shots(size: Vector2i, kinds: Array, prompts: bool = false) -> Array:
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
 	m.bake_navmesh = false
-	m.fill_bots = prompts
+	m.fill_bots = prompts or minimap
 	if prompts:
 		m.ground_loot = true
 		m.seed_override = 31337
+	if minimap:
+		m.map_path_override = MINIMAP_MAP
+		m.seed_override = 4242
 	svp.add_child(m)
 	await get_tree().physics_frame
-	m.director.load_config()
-	if prompts:
+	if minimap:
+		m.director.load_config(MINIMAP_MAP)  # the 1 km map's own overrides (play circle, zone schedule)
+	else:
+		m.director.load_config()
+	if prompts or minimap:
 		m.director.mode_cfg["teams"]["mode"]["value"] = "squads"
 	if not m.begin():
 		push_error("[h1b_capture] match did not start")
 		return []
-	if prompts:
+	if prompts or minimap:
 		for b in m.bots:
 			var brain := b.get_node_or_null("Brain")
 			if brain != null:
@@ -450,6 +466,134 @@ func _shot_prompt_offscreen(ctx: Dictionary) -> bool:
 	_drop_gun(ctx, _rel(ctx, 1.6, -0.2, 0.15))
 	var ok: bool = await _prompt_save(ctx, "prompt_offscreen")
 	return ok and (ctx["game"] as GameHud).interact_prompt.clamped
+
+
+# --- commit 3: the minimap ----------------------------------------------------------------------------------------
+
+## A ground point `d1` from c and `d2` from cn (the two circles' crossing), else on the line between them.
+static func _between(c: Vector2, d1: float, cn: Vector2, d2: float) -> Vector2:
+	var v := cn - c
+	var dist := v.length()
+	if dist < 1e-3:
+		return c + Vector2(0.6, -0.8) * minf(d1, d2)
+	var a := (d1 * d1 - d2 * d2 + dist * dist) / (2.0 * dist)
+	var h2 := d1 * d1 - a * a
+	var dir := v / dist
+	if h2 < 0.0:
+		return c + dir * clampf(a, 0.0, d1)
+	return c + dir * a + Vector2(-dir.y, dir.x) * sqrt(h2)
+
+
+## Once per match: the local pawn 45 m inside the current circle and 35 m outside the next one (both circles and the
+## line in the small view), facing yaw 0.6, a squad mate 34 m away; above_row, the minimap closed.
+func _minimap_prep(ctx: Dictionary) -> void:
+	HudArrangement.placement_override = HudArrangement.ABOVE_ROW
+	var m: MatchRoot = ctx["m"]
+	var me := m.local_player
+	var mm: HudMinimap = (ctx["game"] as GameHud).minimap
+	if mm.expanded:
+		mm.set_expanded(false)
+	if not ctx.has("mm_placed"):
+		var rules := m.director.rules
+		var p := _between(rules.zone_center(), rules.zone_radius() - 45.0, rules.zone_target_center(), rules.zone_target_radius() + 35.0)
+		var terrain := MapTerrain.for_map(m.map_def)
+		var ground := func(q: Vector2) -> float: return terrain.height_at(q.x, q.y) if terrain != null else 0.0
+		me.global_position = Vector3(p.x, ground.call(p) + 0.05, p.y)
+		me.rotation.y = 0.6
+		var mate: Pawn = null
+		for id in m.director.all_players():
+			var o: Pawn = m.director.player(id)
+			if o != me and o.squad_id == me.squad_id:
+				mate = o
+				break
+		if mate != null:
+			var q := p + Vector2(-26.0, 22.0)
+			mate.global_position = Vector3(q.x, ground.call(q) + 0.05, q.y)
+		print("[h1b_capture] %s minimap prep: map=%s player=(%.1f, %.1f) circle c=%s r=%.0f next c=%s r=%.0f mate=%s" % [ctx["tag"], mm.map_id, p.x, p.y,
+			rules.zone_center(), rules.zone_radius(), rules.zone_target_center(), rules.zone_target_radius(), mate != null])
+		ctx["mm_placed"] = true
+	await _frames(6)
+
+
+func _minimap_save(ctx: Dictionary, kind: String) -> bool:
+	await _frames(8)  # at least one overlay update (update_hz) after the change
+	var mm: HudMinimap = (ctx["game"] as GameHud).minimap
+	var kinds := {}
+	for mk: Dictionary in mm.marks:
+		kinds[mk["kind"]] = int(kinds.get(mk["kind"], 0)) + 1
+	print("[h1b_capture] %s %s visible=%s expanded=%s mode=%s texture=%s marks=%s arrow=%s" % [ctx["tag"], kind, mm.visible, mm.expanded,
+		mm.mode(), mm.texture != null, str(kinds), mm.arrow_px()])
+	var ok: bool = await _save(ctx["svp"], "%s_%s" % [kind, ctx["tag"]])
+	return ok and mm.visible and mm.texture != null
+
+
+func _shot_minimap_small_rotate(ctx: Dictionary) -> bool:
+	await _minimap_prep(ctx)
+	AppFlow.profile = {"minimap_rotate": true}
+	return await _minimap_save(ctx, "minimap_small_rotate")
+
+
+func _shot_minimap_small_north(ctx: Dictionary) -> bool:
+	await _minimap_prep(ctx)
+	AppFlow.profile = {"minimap_rotate": false}
+	return await _minimap_save(ctx, "minimap_small_north")
+
+
+## Expanded through a real tap on the tap target; closed again by a tap on the close control after the shot.
+func _shot_minimap_expanded(ctx: Dictionary) -> bool:
+	await _minimap_prep(ctx)
+	AppFlow.profile = {"minimap_rotate": true}
+	var mm: HudMinimap = (ctx["game"] as GameHud).minimap
+	var tap := HudMinimap.tap_rect(ctx["size"]).get_center()
+	_tap(ctx["svp"], tap, true)
+	_tap(ctx["svp"], tap, false)
+	var ok: bool = await _minimap_save(ctx, "minimap_expanded")
+	ok = ok and mm.expanded
+	_tap(ctx["svp"], HudMinimap.close_rect(ctx["size"]).get_center(), true)
+	_tap(ctx["svp"], HudMinimap.close_rect(ctx["size"]).get_center(), false)
+	await _frames(2)
+	print("[h1b_capture] %s minimap closed by the close control: %s" % [ctx["tag"], not mm.expanded])
+	return ok and not mm.expanded
+
+
+## No render: the minimap panels of the rotating and north-up shots, cropped and enlarged side by side (the same size as
+## a shot, so it sits on the sheet).
+func _shot_minimap_zoom(ctx: Dictionary) -> bool:
+	var size: Vector2 = ctx["size"]
+	var u := HudArrangement.unit(size)
+	var crop := Rect2i(HudMinimap.frame_rect(size).grow(u * 0.6).intersection(Rect2(Vector2.ZERO, size)))
+	var out := Image.create_empty(int(size.x), int(size.y), false, Image.FORMAT_RGB8)
+	out.fill(Color(0.08, 0.08, 0.1))
+	var half := Vector2(size.x * 0.5, size.y)
+	var scale := minf((half.x - 24.0) / crop.size.x, (half.y - 24.0) / crop.size.y)
+	var i := 0
+	for kind in ["minimap_small_rotate", "minimap_small_north"]:
+		var img := Image.load_from_file(_out.path_join("%s_%s.png" % [kind, ctx["tag"]]))
+		if img == null:
+			push_error("[h1b_capture] minimap_zoom needs %s_%s.png" % [kind, ctx["tag"]])
+			return false
+		img.convert(Image.FORMAT_RGB8)
+		var part := img.get_region(crop)
+		part.resize(int(crop.size.x * scale), int(crop.size.y * scale), Image.INTERPOLATE_LANCZOS)
+		out.blit_rect(part, Rect2i(Vector2i.ZERO, part.get_size()), Vector2i(int(half.x * i + (half.x - part.get_width()) * 0.5), int((half.y - part.get_height()) * 0.5)))
+		i += 1
+	var err := out.save_png(_out.path_join("minimap_zoom_%s.png" % ctx["tag"]))
+	print("[h1b_capture] minimap_zoom_%s (rotating left, north up right, x%.2f) -> %s" % [ctx["tag"], scale, error_string(err)])
+	return err == OK
+
+
+## Each baked minimap texture, as committed, copied to minimap_tex_<map>.png.
+func _copy_minimap_textures() -> bool:
+	var ok := true
+	for id: String in (HudArrangement.ui()["minimap"]["maps"] as Dictionary).keys():
+		if id.begins_with("_"):
+			continue
+		var src := String(HudArrangement.ui()["minimap"]["maps"][id]["texture"])
+		var img := Image.load_from_file(ProjectSettings.globalize_path(src))
+		var err := img.save_png(_out.path_join("minimap_tex_%s.png" % id)) if img != null else FAILED
+		print("[h1b_capture] minimap_tex_%s %s -> %s" % [id, str(img.get_size()) if img != null else "missing", error_string(err)])
+		ok = ok and err == OK
+	return ok
 
 
 ## Contact sheet: the shots of one size scaled to SHEET_CELL_W wide, 3 columns, in KINDS order, on a dark background.

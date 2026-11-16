@@ -1385,7 +1385,28 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 7250923,
 			"sha256": "1d0e55c3243989cc8e3de7c92b2405d7060a82b3b78c7459bd03510c059a425d"
+		},
+		{
+			"path": "res://assets/generated/ui/minimap_alesia_1km.png",
+			"made_by": "tools/render_layout.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 94201,
+			"sha256": "26a6b1b5c4c9938896590acd294293238a9a03c9c742556700cc28314fef9411"
+		},
+		{
+			"path": "res://assets/generated/ui/minimap_alesia_section.png",
+			"made_by": "tools/render_layout.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 25785,
+			"sha256": "082e1bde71eecaf52756bee32547e4151d121a2de7aa0fe4ee0ecca400167a01"
+		},
+		{
+			"path": "res://assets/generated/ui/minimap_test_300.png",
+			"made_by": "tools/render_layout.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 68937,
+			"sha256": "00fd5f6edbef65f18ca83165aad34f71b030efc88d4f131d890be86465c70fef"
 		}
 	],
-	"_generated_note": "S2 / S5: files made by the project's own tools (tools/gen_textures.gd, tools/gen_audio.gd) from noise and maths, no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
+	"_generated_note": "S2 / S5: files made by the project's own tools (tools/gen_textures.gd, tools/gen_audio.gd; M2 H1b: tools/render_layout.gd --minimap from the map data) from noise and maths, no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 }

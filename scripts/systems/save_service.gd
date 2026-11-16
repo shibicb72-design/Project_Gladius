@@ -25,7 +25,8 @@ static func defaults() -> Dictionary:
 				"haptics": HapticsService.default_settings(),  # G2f: master switch, category toggles, High/Low quality
 				"left_fire_enabled": _left_fire_default(),  # G3e: optional left Fire button, default from data (false)
 				"shooting_mode": shooting_mode_default(),  # M2 H1a: "advanced" | "simple", default from data (OQ-SHOOT-MODE)
-				"match_length": match_length_default()}  # M2 Z2: a br.json match_length option id, default from data (OQ-BR-LENGTH)
+				"match_length": match_length_default(),  # M2 Z2: a br.json match_length option id, default from data (OQ-BR-LENGTH)
+				"minimap_rotate": true}  # M2 H1b: the small minimap turns with the heading (true) or stays north up (OQ-MINIMAP)
 
 
 ## M2 Z2: the br config the lobby sees (data/br.json through modes.json, no map overrides).
@@ -55,6 +56,12 @@ static func shooting_mode_default() -> String:
 static func shooting_mode(value: Variant) -> String:
 	var modes: Array = DataRegistry.new().load_file("res://data/input.json")["shooting"]["modes"]
 	return str(value) if value is String and modes.has(value) else shooting_mode_default()
+
+
+## M2 H1b (OQ-MINIMAP): the minimap's turn setting from a file or menu: a bool is kept, anything else (missing, not a
+## bool) means the default, true (the small minimap turns with the player's heading).
+static func minimap_rotate(value: Variant) -> bool:
+	return value if value is bool else true
 
 
 static func _left_fire_default() -> bool:
@@ -127,6 +134,7 @@ func load_profile() -> Dictionary:
 	profile["left_fire_enabled"] = _left_fire(data.get("left_fire_enabled", null))
 	profile["shooting_mode"] = shooting_mode(data.get("shooting_mode", null))
 	profile["match_length"] = match_length(data.get("match_length", null))
+	profile["minimap_rotate"] = minimap_rotate(data.get("minimap_rotate", null))  # M2 H1b
 	# M2 H1a layout migration (OQ-H1A-LAYOUT): saved layouts without the current layout version (or a pre-G2e file with
 	# only the legacy sprint_lock_pos) were made for the old placement. They are reset to the new defaults once, the
 	# legacy sprint_lock_pos with them, the touch HUD shows a one-time notice when something was discarded, and the
@@ -158,5 +166,6 @@ func save_profile(profile: Dictionary) -> bool:
 	out["left_fire_enabled"] = _left_fire(profile.get("left_fire_enabled", null))
 	out["shooting_mode"] = shooting_mode(profile.get("shooting_mode", null))
 	out["match_length"] = match_length(profile.get("match_length", null))
+	out["minimap_rotate"] = minimap_rotate(profile.get("minimap_rotate", null))  # M2 H1b
 	f.store_string(JSON.stringify(out, "\t"))
 	return true

@@ -56,13 +56,18 @@ func _new_touch(sz: Vector2) -> Control:
 ## Every control the match shows on the touch screen, as the real nodes place them: the touch HUD buttons (incl. the
 ## optional Left Fire), the Sprint lock button and its target, the Interact button (InteractButton.get_touch_rect on
 ## this HUD), the fire-mode button (FireModeButton.touch_rect, what its node uses) and the pause gear (a PauseMenu).
-func _controls(touch: Control, pm: PauseMenu, sz: Vector2) -> Dictionary:
+func _controls(touch: Control, pm: PauseMenu, sz: Vector2, minimap_expanded: bool = false) -> Dictionary:
 	var ui := DataRegistry.new().load_file("res://data/ui.json")
 	# M2 H1b: the reserved minimap's tap target (HudArrangement.minimap_tap_rect) is a touch target too; the gear is at
 	# its H1b place under the reserved panel (pm.get_gear_touch_rect follows data pause_gear.below_panel).
+	# M2 H1b commit 3: while the map is expanded, the tap target's square is the expanded map's close control
+	# (HudMinimap.close_rect); the two never show at once, so each state lists the one on screen.
 	var out := {"sprint_lock": touch.get_lock_button_rect(), "lock_target": touch.get_lock_target_rect(),
-		"gear": pm.get_gear_touch_rect(), "fire_mode": FireModeButton.touch_rect(ui["fire_mode_button"], sz),
-		"minimap_tap": HudArrangement.minimap_tap_rect(sz)}
+		"gear": pm.get_gear_touch_rect(), "fire_mode": FireModeButton.touch_rect(ui["fire_mode_button"], sz)}
+	if minimap_expanded:
+		out["minimap_close"] = HudMinimap.close_rect(sz)
+	else:
+		out["minimap_tap"] = HudMinimap.tap_rect(sz)
 	for key in touch.get_button_actions():
 		out[key] = touch.get_button_rect(key)
 	var interact := InteractButton.new()
@@ -108,11 +113,12 @@ func test_no_control_in_the_look_area() -> void:
 	_each_state(func(touch: Control, pm: PauseMenu, sz: Vector2, tag: String) -> void:
 		var look: Rect2 = touch.get_look_area_rect()
 		assert_true(look.get_area() > 0.25 * sz.x * sz.y, "%s: look area %s is over a quarter of the screen" % [tag, look])
-		var ctrls := _controls(touch, pm, sz)
-		assert_eq(ctrls.has("fire_right"), tag.contains("advanced"), "%s: right Fire only in Advanced" % tag)
-		assert_eq(ctrls.has("fire_left"), tag.contains("left_fire=true"), "%s: Left Fire only when on" % tag)
-		for key in ctrls:
-			assert_true(not (ctrls[key] as Rect2).intersects(look), "%s: %s %s clear of the look area %s" % [tag, key, ctrls[key], look]))
+		for expanded in [false, true]:
+			var ctrls := _controls(touch, pm, sz, expanded)
+			assert_eq(ctrls.has("fire_right"), tag.contains("advanced"), "%s: right Fire only in Advanced" % tag)
+			assert_eq(ctrls.has("fire_left"), tag.contains("left_fire=true"), "%s: Left Fire only when on" % tag)
+			for key in ctrls:
+				assert_true(not (ctrls[key] as Rect2).intersects(look), "%s: %s %s clear of the look area %s" % [tag, key, ctrls[key], look]))
 	_end()
 
 
@@ -122,17 +128,18 @@ func test_controls_48dp_on_screen_and_apart() -> void:
 		_TouchHud.move_stick_override = stick
 		_each_state(func(touch: Control, pm: PauseMenu, sz: Vector2, tag: String) -> void:
 			var dp := PlatformServices.new().get_dp_scale()
-			var ctrls := _controls(touch, pm, sz)
 			var move: Rect2 = touch.get_move_visual_rect()
 			var view := Rect2(Vector2.ZERO, sz)
-			var names: Array = ctrls.keys()
-			for i in names.size():
-				var r: Rect2 = ctrls[names[i]]
-				assert_true(r.size.x / dp >= 48.0 - 1e-3 and r.size.y / dp >= 48.0 - 1e-3, "%s %s: %s %.1f dp >= 48" % [stick, tag, names[i], r.size.x / dp])
-				assert_true(view.encloses(r), "%s %s: %s %s fully on screen" % [stick, tag, names[i], r])
-				assert_true(not r.intersects(move), "%s %s: %s %s clear of the move stick %s" % [stick, tag, names[i], r, move])
-				for j in range(i + 1, names.size()):
-					assert_true(not r.intersects(ctrls[names[j]]), "%s %s: %s %s overlaps %s %s" % [stick, tag, names[i], r, names[j], ctrls[names[j]]])
+			for expanded in [false, true]:
+				var ctrls := _controls(touch, pm, sz, expanded)
+				var names: Array = ctrls.keys()
+				for i in names.size():
+					var r: Rect2 = ctrls[names[i]]
+					assert_true(r.size.x / dp >= 48.0 - 1e-3 and r.size.y / dp >= 48.0 - 1e-3, "%s %s: %s %.1f dp >= 48" % [stick, tag, names[i], r.size.x / dp])
+					assert_true(view.encloses(r), "%s %s: %s %s fully on screen" % [stick, tag, names[i], r])
+					assert_true(not r.intersects(move), "%s %s: %s %s clear of the move stick %s" % [stick, tag, names[i], r, move])
+					for j in range(i + 1, names.size()):
+						assert_true(not r.intersects(ctrls[names[j]]), "%s %s: %s %s overlaps %s %s" % [stick, tag, names[i], r, names[j], ctrls[names[j]]])
 			assert_true(move.size.x / dp >= 48.0 - 1e-3 and view.encloses(move), "%s %s: move stick %s >= 48 dp, on screen" % [stick, tag, move]))
 	_end()
 

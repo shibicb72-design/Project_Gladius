@@ -10,6 +10,8 @@ var fire_mode_button: FireModeButton
 var interact_button: InteractButton
 ## M2 H1b commit 2: the prompt at the object (InteractPrompt), a sibling right after the Interact button.
 var interact_prompt: InteractPrompt
+## M2 H1b commit 3: the minimap (scripts/ui/hud_minimap.gd, data ui.json minimap, OQ-MINIMAP).
+var minimap: HudMinimap
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
 
@@ -78,6 +80,18 @@ func _exit_tree() -> void:
 		interact_button.queue_free()
 	if is_instance_valid(interact_prompt):
 		interact_prompt.queue_free()
+	if is_instance_valid(minimap) and minimap.get_parent() != self:
+		minimap.queue_free()
+
+
+## M2 H1b commit 3: the map json of the match this HUD is in (MatchRoot.map_def), {} outside a match.
+func _map_def() -> Dictionary:
+	var n := get_parent()
+	while n != null:
+		if n is MatchRoot:
+			return (n as MatchRoot).map_def
+		n = n.get_parent()
+	return {}
 
 
 func _build() -> void:
@@ -431,6 +445,16 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 			add_child(interact_prompt)
 	else:
 		interact_prompt.bind(pawn, director, touch_for_interact, interact_button, get_node_or_null("../PauseMenu") as PauseMenu)
+	# M2 H1b commit 3 (OQ-MINIMAP): the minimap, inserted right after the touch HUD (deferred calls run in order, so it lands
+	# before the Interact button), so its _input sees a press on its tap target before the touch HUD does. It draws under
+	# the HUD (z_index -1): the expanded map never hides a control.
+	if minimap == null:
+		minimap = HudMinimap.new()
+		if touch_for_interact != null:
+			touch_for_interact.add_sibling.call_deferred(minimap)
+		else:
+			add_child(minimap)
+	minimap.bind(director, pawn, get_node_or_null("../PauseMenu") as PauseMenu, _map_def(), self)
 	pawn.reload_rejected.connect(_on_reload_rejected)
 	pawn.fire_empty.connect(_on_fire_empty)
 	pawn.weapon_switched.connect(_on_weapon_switched)

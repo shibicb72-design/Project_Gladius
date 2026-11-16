@@ -356,12 +356,44 @@
 	},
 	"minimap": {
 		"_placeholder": true,
-		"_todo": "OQ-MINIMAP (M2 H1b commit 1 reserves the place; commit 3 draws it): the minimap square at the top-right corner, size_frac_of_height of the height but at most max_frac_of_width of the width. Its ONLY touch target is a square at its top-right inside the right-edge strip (outside the look area by tap_look_gap_px), between 48 dp (the test floor) and tap_max_dp. Not drawn yet (enabled false).",
-		"enabled": false,
+		"_todo": "OQ-MINIMAP (M2 H1b commit 1 reserves the place; commit 3 draws it, scripts/ui/hud_minimap.gd): the minimap square at the top-right corner, size_frac_of_height of the height but at most max_frac_of_width of the width. Its ONLY touch target is a square at its top-right inside the right-edge strip (outside the look area by tap_look_gap_px), between 48 dp (the test floor) and tap_max_dp; while the map is expanded the same square is the close control. Every number below is a placeholder for Shibi's Fold check, not a design value.",
+		"enabled": true,
 		"size_frac_of_height": 0.22,
 		"max_frac_of_width": 0.16,
 		"tap_max_dp": 72.0,
-		"tap_look_gap_px": 2.0
+		"tap_look_gap_px": 2.0,
+		"_rate_note": "OQ-MINIMAP: the overlays (squad mates, circles, the line to the next circle, landmark names, the drawn-marks list) are redrawn update_hz times a second. The view itself (the map's pan under the player and its turn with the heading, and the arrow) follows every frame as node transforms, which costs no redraw: a map that turns at 10 Hz feels laggy.",
+		"update_hz": 10.0,
+		"small_radius_m": 100.0,
+		"inset_units": 0.22,
+		"expanded": {"_todo": "OQ-MINIMAP: the expanded map: a square centred across the screen, size_frac_of_height of the height but at most max_frac_of_width of the width, and kept gap_units clear of the objective strip above and the weapon block below; always north up. Landmark names from the map's landmarks json at label_font_units, a dot of landmark_dot_units under each.", "size_frac_of_height": 0.84, "max_frac_of_width": 0.6, "gap_units": 0.3, "label_font_units": 0.62, "landmark_dot_units": 0.14, "label_gap_units": 0.2},
+		"marks": {"_todo": "OQ-MINIMAP: mark sizes in HUD units (hud_arrangement unit). The line to the next circle shows only while the player is outside the next circle, from the player to the nearest point of its edge.", "arrow_units": 0.78, "mate_units": 0.26, "circle_width_units": 0.09, "next_width_units": 0.08, "line_width_units": 0.07, "dash_units": 0.4, "outside_alpha": 0.3, "icon_units": 0.62, "icon_line_units": 0.08},
+		"colors": {"_todo": "OQ-MINIMAP: menu_style colour names (docs/UI_STYLE.md). Squad mates take their squad colour (SoldierSquadColour.paint, data/art_astra.json soldier.squad_colour) with a marble ring.", "current_circle": "marble", "next_circle": "gold_hi", "line": "gold", "arrow": "gold_hi", "outline": "night", "outside": "crimson_deep", "off_map": "field", "icon": "gold_hi", "mate_ring": "marble", "landmark": "marble", "landmark_dot": "gold"},
+		"bake": {
+			"_todo": "OQ-MINIMAP: the baked picture (tools/render_layout.gd --minimap). Side = ground size x px_per_m rounded up to a power of two, clamped to [min_px, max_px]: 1024 px for the 1 km map (about 1 m a pixel), 512 for test_300 and alesia_section. Colours are sRGB: dark ground (earth, grass), muted gold paving (roads, plazas, the citadel floor), muted stone for walls and buildings. hillshade / height_lift / contour_m / contour_dark shape the hills; shadow_m / shadow_alpha the soft shadow under every footprint. Rebake and re-record the hashes (tools/asset_hashes.gd -- --write) after a change.",
+			"px_per_m": 1.0,
+			"min_px": 512,
+			"max_px": 1024,
+			"hillshade": 0.6,
+			"height_lift": 0.12,
+			"contour_m": 5.0,
+			"contour_dark": 0.2,
+			"shadow_m": 0.8,
+			"shadow_alpha": 0.45,
+			"edge_px": 2,
+			"colors": {"earth": [0.17, 0.14, 0.12], "grass": [0.13, 0.155, 0.105], "paving": [0.42, 0.335, 0.19], "edge": [0.05, 0.035, 0.04]},
+			"classes": {
+				"wall": [0.58, 0.53, 0.45], "stair": [0.50, 0.46, 0.40], "gate": [0.74, 0.58, 0.27], "tower": [0.68, 0.55, 0.31],
+				"aqueduct": [0.54, 0.51, 0.46], "ramp": [0.47, 0.44, 0.39], "citadel": [0.64, 0.59, 0.50], "barracks": [0.46, 0.34, 0.25],
+				"tent": [0.52, 0.40, 0.27], "stakes": [0.42, 0.21, 0.17], "cover": [0.36, 0.33, 0.29], "decor": [0.28, 0.26, 0.24]
+			}
+		},
+		"maps": {
+			"_todo": "OQ-MINIMAP: per map id (the map json's \"id\"): the baked texture and the world rect it covers, extent_m = [x, z, width, depth] in metres. Written from the MINIMAP_DATA lines of tools/render_layout.gd --minimap; tests/test_h1b_minimap.gd checks them against the tool's minimap_extent, so they cannot drift. A map without an entry (or a missing texture) shows a plain panel with the circles and the arrows.",
+			"alesia_1km": {"texture": "res://assets/generated/ui/minimap_alesia_1km.png", "extent_m": [-500.0, -500.0, 1000.0, 1000.0]},
+			"test_300": {"texture": "res://assets/generated/ui/minimap_test_300.png", "extent_m": [-150.0, -150.0, 300.0, 300.0]},
+			"alesia_section": {"texture": "res://assets/generated/ui/minimap_alesia_section.png", "extent_m": [-80.0, -80.0, 160.0, 160.0]}
+		}
 	},
 	"radar": {
 		"_placeholder": true,
