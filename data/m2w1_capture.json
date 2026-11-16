@@ -59,6 +59,18 @@
 		{"name": "55_orient_n", "cam": [-159.0, -437.0], "look": [-159.0, 30.0, -1437.0], "note": "M2W1 astraB: one field spot, eye height, looking north (the massif, the far aqueduct)"},
 		{"name": "56_orient_e", "cam": [-159.0, -437.0], "look": [841.0, 30.0, -437.0], "note": "M2W1 astraB: the same spot looking east (the table ridge)"},
 		{"name": "57_orient_s", "cam": [-159.0, -437.0], "look": [-159.0, 30.0, 563.0], "note": "M2W1 astraB: the same spot looking south (the outer wall, the open plain beyond)"},
-		{"name": "58_orient_w", "cam": [-159.0, -437.0], "look": [-1159.0, 30.0, -437.0], "note": "M2W1 astraB: the same spot looking west (rounded wooded hills)"}
+		{"name": "58_orient_w", "cam": [-159.0, -437.0], "look": [-1159.0, 30.0, -437.0], "note": "M2W1 astraB: the same spot looking west (rounded wooded hills)"},
+		{"name": "59_arx_150_sunlit", "cam": [106.0, -106.0], "look": [0.0, 5.0, 0.0], "note": "M2W1 r2a: the Arx from 150 m on its sunlit side (the dusk sun stands at +x -z), eye height"},
+		{"name": "60_arx_300_sunlit", "cam": [212.1, -212.1], "look": [0.0, 5.0, 0.0], "note": "M2W1 r2a: the Arx from 300 m on its sunlit side, eye height"},
+		{"name": "61_arx_150_backlit", "cam": [-106.0, 106.0], "look": [0.0, 5.0, 0.0], "note": "M2W1 r2a: the Arx from 150 m against the light, eye height (300 m backlit: 19)"},
+		{"name": "62_arx_600_fields", "cam": [424.0, -424.0], "look": [0.0, 5.0, 0.0], "note": "M2W1 r2a: the Arx from 600 m across the fields and the outer wall, sunlit side, eye height"},
+		{"name": "63_arx_hill_foot", "cam": [75.0, -75.0], "look": [0.0, 6.0, 0.0], "note": "M2W1 r2a: the summit from the hill foot (106 m), looking up"},
+		{"name": "64_aqueduct_60_square", "cam": [-48.0, -230.0], "look": [12.0, 4.0, -230.0], "note": "M2W1 r2a: an Aquaeductus Magnus run square-on from 60 m (west side), eye height"},
+		{"name": "65_aqueduct_150_angle", "cam": [-110.0, -330.0], "look": [12.0, 4.0, -230.0], "note": "M2W1 r2a: the aqueduct from 150 m at an angle, eye height"},
+		{"name": "66_wall_outer_40", "cam": [0.0, -180.0], "look": [0.0, 2.5, -140.0], "note": "M2W1 r2a: a wall run (InnerRing_002 and neighbours) from 40 m, outer face"},
+		{"name": "67_wall_inner_40", "cam": [0.0, -100.0], "look": [0.0, 2.5, -140.0], "note": "M2W1 r2a: the same wall run from 40 m, inner face"},
+		{"name": "68_tower_150", "cam": [69.0, -167.0], "look": [126.3, 5.0, -304.9], "note": "M2W1 r2a: Specula (OuterRing_022) from 150 m inside"},
+		{"name": "69_sandbags_3m", "cam": [50.6, -198.8], "look": [52.5, 0.4, -196.5], "note": "M2W1 r2a: the sandbags Cover_029 from 3 m"},
+		{"name": "70_cart_3m", "cam": [30.9, -216.65], "look": [33.0, 0.6, -214.5], "note": "M2W1 r2a: the wrecked supply wagon Cover_031 from 3 m"}
 	]
 }

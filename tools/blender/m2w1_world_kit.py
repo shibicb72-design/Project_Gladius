@@ -27,6 +27,7 @@ import math
 import os
 import random
 import sys
+import time
 import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -193,7 +194,9 @@ class Builder:
         self.color, self.sid = self.data.paint(paint, surface)
         if shade is None:
             shade = 0.5
-        self.shade = min(1.0, max(0.0, shade + (self.rng.uniform(-jitter, jitter) if jitter > 0 else 0.0)))
+        # r2a: not clamped to 0..1 (tone() and the wear write value multipliers past the part shade's +-8 %;
+        # bake_shade turns it into m and clamps skip paints)
+        self.shade = shade + (self.rng.uniform(-jitter, jitter) if jitter > 0 else 0.0)
         return self
 
     def tri(self, a, b, c):
@@ -506,9 +509,14 @@ def steps(b, x_from, x_to, z0, z1, y_from, y_to, count, lift, paints, side_z=Non
         top = min(y_from + rise * i + lift, y_to)
         top = max(top, base_y + 0.01)
         b.set(*paints["tread"], jitter=0.04)
-        # tread
+        # tread (astraA F5: worn: the walked middle strip lighter, the edges by the walls darker)
         tn = t0 + d * nosing if nosing > 0 else t0
-        b.poly([P(tn, top, z0), P(t1, top, z0), P(t1, top, z1), P(tn, top, z1)], N(0, 1, 0))
+        za, zb = z0 + (z1 - z0) * 0.22, z1 - (z1 - z0) * 0.22
+        base_shade = b.shade
+        for (wa, wb, k) in ((z0, za, -0.3), (za, zb, 0.45), (zb, z1, -0.3)):
+            b.shade = min(1.0, max(0.0, base_shade + k))
+            b.poly([P(tn, top, wa), P(t1, top, wa), P(t1, top, wb), P(tn, top, wb)], N(0, 1, 0))
+        b.shade = base_shade
         if nosing > 0:
             b.poly([P(t0, top - nosing, z0), P(tn, top, z0), P(tn, top, z1), P(t0, top - nosing, z1)], N(-d, 1, 0))
         # riser (from the previous tread up)
@@ -716,7 +724,12 @@ def to_blender(p):
     return (p[0], -p[2], p[1])
 
 
+SHADE_RANGE = [0.5]   # set from data/art_world_kit.json bake.shade_range in main()
+
+
 def make_object(name, tris):
+    """tris carry either a part shade (float, 0..1) or the baked per-vertex multipliers (a 3-tuple); UV2.y stores
+    0.5 + (m - 1) / (2 * shade_range) (scripts/visual/world_kit_meshes.gd writes the range into CUSTOM0.y)."""
     verts = []
     faces = []
     for i, t in enumerate(tris):
@@ -740,7 +753,11 @@ def make_object(name, tris):
         for k, p in enumerate((a, b_, c)):
             li = 3 * i + k
             uv0.data[li].uv = (dot(p, u_axis), 1.0 - dot(p, v_axis))
-            uv1.data[li].uv = (float(sid), 1.0 - shade)
+            if isinstance(shade, tuple):
+                s = min(1.0, max(0.0, 0.5 + (shade[k] - 1.0) / (2.0 * SHADE_RANGE[0])))
+            else:
+                s = shade
+            uv1.data[li].uv = (float(sid), 1.0 - s)
             col.data[li].color = lin
     mesh.color_attributes.active_color = col
     obj = bpy.data.objects.new(name, mesh)
@@ -826,6 +843,14 @@ def paint(b, p, shade=None, jitter=0.0):
     b.set(p[0], p[1], shade, jitter)
 
 
+PART_SHADE = 0.08   # data/art_world_kit.json shade_bake.part_shade (checked in main())
+
+
+def tone(m):
+    """r2a: the part shade that gives the value multiplier m (m = 1 + (shade - 0.5) * 2 * part_shade)."""
+    return 0.5 + (m - 1.0) / (2.0 * PART_SHADE)
+
+
 def wall_section(b, w, level, inner="arcade"):
     """The wall body: outer face (plinth, courses, string course, centre pilaster, spouts), parapet with
     merlons and bronze-shuttered crenels, the walkway, the inner face (inner = "arcade": cornice and one blind
@@ -858,7 +883,11 @@ def wall_section(b, w, level, inner="arcade"):
             rows.append((y, min(y + 0.5, s0)))
             y += 0.5
         for i, (ya, yb) in enumerate(rows):
-            paint(b, P_WALL, 0.5, 0.07)
+            # astraA (F6): the lowest course belongs to the dark base band (two horizontal masses from afar)
+            if i == 0:
+                paint(b, P_SHADE, 0.4, 0.04)
+            else:
+                paint(b, P_WALL, 0.5, 0.07)
             pts = []
             pts.append((ya, ZO - 0.03) if i == 0 else (ya, ZO))
             if i > 0:
@@ -870,12 +899,39 @@ def wall_section(b, w, level, inner="arcade"):
         paint(b, P_MARBLE, 0.5)
         prism(b, "x", [(s0, ZO), (s0 + 0.06, ZO - 0.10), (s0 + 0.14, ZO - 0.12), (s1, ZO - 0.12), (s1, ZO)], X0, X1,
               skip=("+z",), caps=(False, False))
-        # centre pilaster with base and capital, under the centre merlon
+        # centre buttress (astraA F6: 1.4 m wide, was 0.9) with base and capital, under the centre merlon
         paint(b, P_WALL, 0.56)
-        box(b, (-0.45, 0.6, ZO - 0.10), (0.45, s0 - 0.16, ZO), chamfer=0.03, skip=("-y", "+y", "+z"))
+        box(b, (-0.7, 0.6, ZO - 0.10), (0.7, s0 - 0.16, ZO), chamfer=0.03, skip=("-y", "+y", "+z"))
         paint(b, P_MARBLE, 0.46)
-        box(b, (-0.52, 0.44, ZO - 0.13), (0.52, 0.6, ZO), chamfer=0.025, skip=("-y", "+z"))
-        box(b, (-0.53, s0 - 0.16, ZO - 0.13), (0.53, s0, ZO), chamfer=0.025, skip=("+z", "+y"))
+        box(b, (-0.77, 0.44, ZO - 0.13), (0.77, 0.6, ZO), chamfer=0.025, skip=("-y", "+z"))
+        box(b, (-0.78, s0 - 0.16, ZO - 0.13), (0.78, s0, ZO), chamfer=0.025, skip=("+z", "+y"))
+        # astraA (F6): the two bays either side differ: a sunk panel (left) and a blind arch (right), so a wall
+        # line alternates panel / buttress / arch; both stop 1.5 m short of the ends (pieces overlap there)
+        fz = ZO - 0.03
+        pa0, pa1 = X0 + 1.5, -0.95
+        if pa1 - pa0 > 0.6:
+            paint(b, P_SHADE, 0.36)
+            fquad(b, "-z", fz, pa0 + 0.1, pa1 - 0.1, 1.15, s0 - 0.5, 0.004)
+            paint(b, P_WALL, 0.6, 0.02)
+            for (u0, u1, v0, v1) in ((pa0, pa1, 1.05, 1.15), (pa0, pa1, s0 - 0.5, s0 - 0.4), (pa0, pa0 + 0.1, 1.15, s0 - 0.5), (pa1 - 0.1, pa1, 1.15, s0 - 0.5)):
+                fbox(b, "-z", fz, u0, u1, v0, v1, 0.0, 0.035)
+        ab0, ab1 = 0.95, X1 - 1.5
+        if ab1 - ab0 > 0.6:
+            cxa = (ab0 + ab1) * 0.5
+            r = min(0.7, (ab1 - ab0) * 0.5)
+            spring = s0 - 0.45 - r
+            arc = arc_points(cxa, spring, r - 0.12, math.pi, 0.0, 6)
+            paint(b, P_SHADE, 0.34)
+            b.poly([(cxa - r + 0.12, 1.05, fz - 0.004), (cxa + r - 0.12, 1.05, fz - 0.004)] + [(p[0], p[1], fz - 0.004) for p in reversed(arc)], (0, 0, -1))
+            paint(b, P_WALL, 0.6, 0.03)
+            for i in range(6):
+                t0 = math.pi - math.pi * i / 6 - 0.02
+                t1 = math.pi - math.pi * (i + 1) / 6 + 0.02
+                pts = [(cxa + (r - 0.12) * math.cos(t0), spring + (r - 0.12) * math.sin(t0)), (cxa + r * math.cos(t0), spring + r * math.sin(t0)),
+                       (cxa + r * math.cos(t1), spring + r * math.sin(t1)), (cxa + (r - 0.12) * math.cos(t1), spring + (r - 0.12) * math.sin(t1))]
+                fplate(b, "-z", fz, pts, 0.0, 0.035)
+            for sx in (-1, 1):
+                fbox(b, "-z", fz, cxa + sx * r - (0.12 if sx > 0 else 0.0), cxa + sx * r + (0.0 if sx > 0 else 0.12), 1.05, spring, 0.0, 0.03)
         paint(b, P_BRONZE, 0.5)
         box(b, (-0.16, 1.45, ZO - 0.13), (0.16, 1.77, ZO - 0.09), chamfer=0.02, skip=("+z",))
         # bronze spouts under the string course, below the in-piece crenels
@@ -884,13 +940,19 @@ def wall_section(b, w, level, inner="arcade"):
                 cx = (a + c) * 0.5
                 box(b, (cx - 0.07, s0 - 0.12, ZO - 0.135), (cx + 0.07, s0 - 0.03, ZO), chamfer=0.015, skip=("+z",))
     else:
+        # astraA (F6): the far face keeps the dark base band, the buttress and the light parapet band
+        paint(b, P_SHADE, 0.38)
+        b.poly([(X0, 0, ZO - 0.05), (X1, 0, ZO - 0.05), (X1, 1.0, ZO - 0.05), (X0, 1.0, ZO - 0.05)], (0, 0, -1))
         paint(b, P_WALL, 0.5)
-        b.poly([(X0, 0, ZO - 0.05), (X1, 0, ZO - 0.05), (X1, s0, ZO - 0.05), (X0, s0, ZO - 0.05)], (0, 0, -1))
+        b.poly([(X0, 1.0, ZO - 0.05), (X1, 1.0, ZO - 0.05), (X1, s0, ZO - 0.05), (X0, s0, ZO - 0.05)], (0, 0, -1))
+        paint(b, P_WALL, 0.58)
+        b.poly([(-0.7, 0.5, ZO - 0.1), (0.7, 0.5, ZO - 0.1), (0.7, s0, ZO - 0.1), (-0.7, s0, ZO - 0.1)], (0, 0, -1))
         paint(b, P_MARBLE, 0.5)
         box(b, (X0, s0, ZO - 0.12), (X1, s1, ZO), skip=("+z", "-x", "+x"))
         # parapet: one face each side, the crenel-level top, three merlon blocks with their coping
-        paint(b, P_WALL, 0.5)
+        paint(b, P_WALL, 0.6)
         b.poly([(X0, s1, OF), (X1, s1, OF), (X1, w.crenel, OF), (X0, w.crenel, OF)], (0, 0, -1))
+        paint(b, P_WALL, 0.5)
         b.poly([(X0, WY, PIN), (X1, WY, PIN), (X1, w.crenel, PIN), (X0, w.crenel, PIN)], (0, 0, 1))
         b.poly([(X0, w.crenel, OF), (X1, w.crenel, OF), (X1, w.crenel, PIN), (X0, w.crenel, PIN)], (0, 1, 0))
         paint(b, P_MARBLE, 0.5)
@@ -911,7 +973,7 @@ def wall_section(b, w, level, inner="arcade"):
                 # the crenel's recessed face: dark stone (bronze read rust-orange at dusk)
                 holes.append({"u0": a + 0.1, "u1": c - 0.1, "v0": 3.28, "v1": w.crenel - 0.12, "depth": 0.07,
                               "back": P_DARKSTONE[0], "surface": P_DARKSTONE[1], "shade": 0.42})
-        paint(b, P_WALL, 0.5, 0.05 if near else 0.0)
+        paint(b, P_WALL, 0.6, 0.05 if near else 0.0)   # astraA (F6): the parapet is the light upper band
         if near:
             face(b, "-z", OF, a, c, s1, top, holes)
         elif m:
@@ -1183,7 +1245,7 @@ def build_gate(b, data, level):
                     for (u0, u1, v0, v1) in ((cx - 0.55, cx + 0.55, 1.45, 1.55), (cx - 0.55, cx + 0.55, 3.35, 3.45),
                                              (cx - 0.55, cx - 0.45, 1.55, 3.35), (cx + 0.45, cx + 0.55, 1.55, 3.35)):
                         box(b, (u0, v0, min(Z, Z + s * 0.08)), (u1, v1, max(Z, Z + s * 0.08)), skip=(back,))
-                    paint(b, P_SHADE, 0.44)
+                    paint(b, P_RED, 0.44)   # astraA (F2): gates carry red on both faces (citadel > gates > camps)
                     b.poly([(cx - 0.45, 1.55, Z + s * 0.045), (cx + 0.45, 1.55, Z + s * 0.045), (cx + 0.45, 3.35, Z + s * 0.045), (cx - 0.45, 3.35, Z + s * 0.045)], nz)
                     paint(b, P_BRONZE, 0.5)
                     plate(b, disc_pts(cx, 2.45, 0.27, 10), Z + s * 0.045, Z + s * 0.1)
@@ -1213,26 +1275,30 @@ def build_gate(b, data, level):
                 kk = (top - apex) / (lint1 - apex)
                 pts = [(xa + g, lint1), (xb - g, lint1), ((xb - g) * kk, top), ((xa + g) * kk, top)]
                 if key:
-                    paint(b, P_MARBLE, 0.5)
+                    paint(b, P_GOLD if outer else P_MARBLE, 0.5)
                 else:
                     paint(b, P_MARBLE, 0.5 if outer else 0.42, 0.06)
                 plate(b, pts, Z, Z + s * (0.09 if key else 0.05))
             # attic face: from the lintel band to the cornice, with the tablet (outer) or a plain panel (inner)
             paint(b, P_WALL, 0.5, 0.04)
-            holes = [{"u0": -1.75, "u1": 1.75, "v0": tab0, "v1": tab1, "depth": 0.07,
+            # astraA (F2): the tablet widened to +-2.2 (the gate's strongest red block)
+            holes = [{"u0": -2.2, "u1": 2.2, "v0": tab0, "v1": tab1, "depth": 0.07,
                       "back": P_RED[0] if outer else P_SHADE[0], "surface": P_RED[1] if outer else None, "shade": 0.48}]
             face(b, nzs, F, X0, X1, py1, cor0, holes)
             if outer:
+                # an energy line under the cornice, across the front
+                paint(b, P_GLOW, 0.5)
+                box(b, (X0 + 0.05, cor0 - 0.07, min(F, F + s * 0.03)), (X1 - 0.05, cor0 - 0.02, max(F, F + s * 0.03)), skip=(back,))
                 # gold letter bars on the tablet, two rows, seeded widths
                 paint(b, P_GOLD, 0.5)
                 rh = (tab1 - tab0) / (LETTER_ROWS * 2 + 1)
                 for row in range(LETTER_ROWS):
                     vy0 = tab1 - rh * (1 + 2 * row) - rh * 0.9
                     vy1 = vy0 + rh * 0.9
-                    xcur = -1.5
+                    xcur = -1.95
                     while True:
                         wdt = b.rng.choice((0.09, 0.12, 0.16, 0.2))
-                        if xcur + wdt > 1.5:
+                        if xcur + wdt > 1.95:
                             break
                         box(b, (xcur, vy0, min(Z + s * -0.05, Z + s * -0.02)), (xcur + wdt, vy1, max(Z + s * -0.05, Z + s * -0.02)), skip=(back,))
                         xcur += wdt + b.rng.choice((0.05, 0.05, 0.12))
@@ -1262,18 +1328,19 @@ def build_gate(b, data, level):
                 paint(b, P_BASE, 0.5)
                 box(b, (px0, 0.0, min(Z, Z + s * 0.1)), (px1, 0.6, max(Z, Z + s * 0.1)), skip=(back, "-y", "-x", "+x"))
                 paint(b, P_WALL, 0.5)
-                if outer:
-                    paint(b, P_RED, 0.5)
-                    cx = (px0 + px1) * 0.5
-                    b.poly([(cx - 0.45, 1.55, F + s * 0.01), (cx + 0.45, 1.55, F + s * 0.01), (cx + 0.45, 3.35, F + s * 0.01), (cx - 0.45, 3.35, F + s * 0.01)], nz)
-                    paint(b, P_WALL, 0.5)
+                paint(b, P_RED, 0.5)
+                cx = (px0 + px1) * 0.5
+                b.poly([(cx - 0.45, 1.55, F + s * 0.01), (cx + 0.45, 1.55, F + s * 0.01), (cx + 0.45, 3.35, F + s * 0.01), (cx - 0.45, 3.35, F + s * 0.01)], nz)
+                paint(b, P_WALL, 0.5)
             paint(b, P_MARBLE, 0.5)
             box(b, (ox0 - 0.36, lint0, min(Z, Z + s * 0.09)), (ox1 + 0.36, vou1, max(Z, Z + s * 0.09)), skip=(back, "-x", "+x"))
             paint(b, P_WALL, 0.5)
             b.poly([(X0, lint0, F), (X1, lint0, F), (X1, cor0, F), (X0, cor0, F)], nz)
             if outer:
                 paint(b, P_RED, 0.5)
-                b.poly([(-1.75, tab0, F + s * 0.01), (1.75, tab0, F + s * 0.01), (1.75, tab1, F + s * 0.01), (-1.75, tab1, F + s * 0.01)], nz)
+                b.poly([(-2.2, tab0, F + s * 0.01), (2.2, tab0, F + s * 0.01), (2.2, tab1, F + s * 0.01), (-2.2, tab1, F + s * 0.01)], nz)
+                paint(b, P_GLOW, 0.5)
+                b.poly([(X0, cor0 - 0.08, F + s * 0.012), (X1, cor0 - 0.08, F + s * 0.012), (X1, cor0 - 0.02, F + s * 0.012), (X0, cor0 - 0.02, F + s * 0.012)], nz)
                 paint(b, P_BRONZE, 0.5)
                 for cx in (X0 + 0.8, X1 - 0.8):
                     b.poly([(p[0], p[1], F + s * 0.01) for p in disc_pts(cx, (lint1 + cor0) * 0.5 + 0.05, 0.36, 6)], nz)
@@ -1376,8 +1443,8 @@ def build_watchtower(b, data, level):
                 prism(b, "x", [(belt0, w), (belt0 + 0.08, w + sgn * po), (belt1, w + sgn * po), (belt1, w)], a0 - po, a1 + (0.0 if fn == "N" else po), skip=(back,), caps=(True, True))
             else:
                 prism(b, "z", [(w, belt0), (w + sgn * po, belt0 + 0.08), (w + sgn * po, belt1), (w, belt1)], a0, a1, skip=(back,), caps=(False, False))
-            # the band between the belt course and the deck edge
-            paint(b, P_WALL, 0.5)
+            # the band between the belt course and the deck edge: r2a (P1) a line of light under the red parapet
+            paint(b, P_GLOW, 0.5)
             if axis == "x":
                 b.poly([(a0, belt1, w + sgn * 0.02), (a1, belt1, w + sgn * 0.02), (a1, deck, w + sgn * 0.02), (a0, deck, w + sgn * 0.02)], (0, 0, sgn))
             else:
@@ -1426,6 +1493,11 @@ def build_watchtower(b, data, level):
         b.poly([(bx0 - po, belt0, bz1 + po), (lx1 + po, belt0, bz1 + po), (lx1 + po, belt1, bz1 + po), (bx0 - po, belt1, bz1 + po)], (0, 0, 1))
         b.poly([(bx0 - po, belt0, bz0 - po), (bx0 - po, belt0, bz1 + po), (bx0 - po, belt1, bz1 + po), (bx0 - po, belt1, bz0 - po)], (-1, 0, 0))
         b.poly([(lx1 + po, belt0, lz0), (lx1 + po, belt0, bz1 + po), (lx1 + po, belt1, bz1 + po), (lx1 + po, belt1, lz0)], (1, 0, 0))
+        paint(b, P_GLOW, 0.5)
+        g = 0.035
+        b.poly([(bx0, belt1, bz0 - g), (bx1, belt1, bz0 - g), (bx1, deck, bz0 - g), (bx0, deck, bz0 - g)], (0, 0, -1))
+        b.poly([(bx0, belt1, bz1 + g), (lx1, belt1, bz1 + g), (lx1, deck, bz1 + g), (bx0, deck, bz1 + g)], (0, 0, 1))
+        b.poly([(bx0 - g, belt1, bz0), (bx0 - g, belt1, bz1), (bx0 - g, deck, bz1), (bx0 - g, deck, bz0)], (-1, 0, 0))
     # deck and landing tops
     paint(b, P_WALK, 0.5, 0.05 if near else 0.0)
     if near:
@@ -1450,11 +1522,13 @@ def build_watchtower(b, data, level):
         # the +x side stands over the ramp: flush with the collider, no overhang (nothing over the ramp's walk)
         ("z", bx1, -pinx, [(e_z0, e_z0 + 0.3, "post"), (e_z0 + 0.3, e_z1 - 0.5, "crenel"), (e_z1 - 0.5, e_z1, "post")], (False, True)),
     ]
+    # r2a (P1): the tower's cap reads by day as a red parapet with bronze copings (a mass for 300 m), by night as
+    # the beacon and a line of light under the parapet; both kept in the far mesh
     for axis, out_w, in_w, segs, ends in runs:
-        paint(b, P_WALL, 0.5, 0.04 if near else 0.0)
+        paint(b, P_RED, 0.5, 0.03 if near else 0.0)
         if near:
             parapet_run(b, axis, out_w, in_w, segs, deck, deck, crenel, ptop, near, ends=ends)
-            paint(b, P_MARBLE, 0.5, 0.05)
+            paint(b, P_BRONZE, 0.55, 0.03)
             copings(b, axis, out_w, in_w, segs, crenel, ptop, near, overhang=0.0 if out_w == bx1 else 0.05, cap_h=0.13, along=False)
         else:
             so = 1 if out_w > in_w else -1
@@ -1467,7 +1541,7 @@ def build_watchtower(b, data, level):
                 b.poly([(out_w, deck, a0), (out_w, deck, a1), (out_w, crenel, a1), (out_w, crenel, a0)], (so, 0, 0))
                 b.poly([(in_w, deck, a0), (in_w, deck, a1), (in_w, crenel, a1), (in_w, crenel, a0)], (-so, 0, 0))
                 b.poly([(out_w, crenel, a0), (out_w, crenel, a1), (in_w, crenel, a1), (in_w, crenel, a0)], (0, 1, 0))
-            paint(b, P_MARBLE, 0.5)
+            paint(b, P_BRONZE, 0.55)
             for (a, c, kd) in segs:
                 # far: the corner posts of the z runs are left to the x runs' posts beside them
                 if kd != "crenel" and not (axis == "z" and kd == "post" and (out_w < 0 or abs(a - e_z0) < 1e-6)):
@@ -1479,28 +1553,34 @@ def build_watchtower(b, data, level):
     mcx, mcz = (mx0 + mx1) * 0.5, (mz0 + mz1) * 0.5
     mh = (mx1 - mx0) * 0.5
     hw = mh + 0.095
+    # astraA (F2): a taller housing (1.1 m of light, was 0.65) whose glow fills it out to the posts, a glowing
+    # crown face for views from above, kept in the far mesh (the beacon is a landmark at night)
     top = my1 + 0.05
+    lo_ring = my1 - 1.15
     paint(b, ("plate_dark", None), 0.5)
-    box(b, (mx0 + 0.02, ptop + 0.1, mz0 + 0.02), (mx1 - 0.02, my1 - 0.75, mz1 - 0.02), chamfer=0.02 if near else 0.0, skip=("-y",))
+    box(b, (mx0 + 0.02, ptop + 0.1, mz0 + 0.02), (mx1 - 0.02, lo_ring, mz1 - 0.02), chamfer=0.02 if near else 0.0, skip=("-y",))
     if near:
         paint(b, P_BRONZE, 0.5)
-        box(b, (mcx - hw, my1 - 0.8, mcz - hw), (mcx + hw, my1 - 0.72, mcz + hw), chamfer=0.015)
-        box(b, (mcx - hw, top - 0.06, mcz - hw), (mcx + hw, top, mcz + hw), chamfer=0.015)
+        box(b, (mcx - hw, lo_ring, mcz - hw), (mcx + hw, lo_ring + 0.08, mcz + hw), chamfer=0.015)
+        box(b, (mcx - hw, top - 0.06, mcz - hw), (mcx + hw, top, mcz + hw), chamfer=0.015, skip=("+y",))
         for sx in (-1, 1):
             for sz in (-1, 1):
-                box(b, (mcx + sx * hw - (0.05 if sx > 0 else 0.0), my1 - 0.72, mcz + sz * hw - (0.05 if sz > 0 else 0.0)),
+                box(b, (mcx + sx * hw - (0.05 if sx > 0 else 0.0), lo_ring + 0.08, mcz + sz * hw - (0.05 if sz > 0 else 0.0)),
                     (mcx + sx * hw + (0.05 if sx < 0 else 0.0), top - 0.06, mcz + sz * hw + (0.05 if sz < 0 else 0.0)), skip=("-y", "+y"))
         paint(b, P_GLOW, 0.5)
-        box(b, (mcx - mh - 0.03, my1 - 0.7, mcz - mh - 0.03), (mcx + mh + 0.03, top - 0.08, mcz + mh + 0.03), skip=("-y", "+y"))
+        box(b, (mcx - hw + 0.03, lo_ring + 0.08, mcz - hw + 0.03), (mcx + hw - 0.03, top - 0.06, mcz + hw - 0.03), skip=("-y", "+y"))
+        b.poly([(mcx - hw + 0.05, top + 0.001, mcz - hw + 0.05), (mcx + hw - 0.05, top + 0.001, mcz - hw + 0.05),
+                (mcx + hw - 0.05, top + 0.001, mcz + hw - 0.05), (mcx - hw + 0.05, top + 0.001, mcz + hw - 0.05)], (0, 1, 0))
         # a narrow legion-red pennant on the mast
         paint(b, P_RED, 0.5)
         b.poly([(mx1, my1 - 1.6, mcz - 0.01), (mx1 + 0.12, my1 - 1.55, mcz - 0.01), (mx1 + 0.12, my1 - 0.95, mcz - 0.01), (mx1, my1 - 0.9, mcz - 0.01)], (0, 0, -1))
         b.poly([(mx1, my1 - 1.6, mcz + 0.01), (mx1 + 0.12, my1 - 1.55, mcz + 0.01), (mx1 + 0.12, my1 - 0.95, mcz + 0.01), (mx1, my1 - 0.9, mcz + 0.01)], (0, 0, 1))
     else:
         paint(b, P_BRONZE, 0.5)
-        box(b, (mcx - hw, my1 - 0.8, mcz - hw), (mcx + hw, top, mcz + hw), skip=("-y",))
+        box(b, (mcx - hw, lo_ring, mcz - hw), (mcx + hw, top, mcz + hw), skip=("-y",))
         paint(b, P_GLOW, 0.5)
-        box(b, (mcx - hw - 0.005, my1 - 0.7, mcz - 0.06), (mcx + hw + 0.005, top - 0.1, mcz + 0.06), skip=("-y", "+y"))
+        box(b, (mcx - hw - 0.005, lo_ring + 0.08, mcz - hw + 0.04), (mcx + hw + 0.005, top - 0.06, mcz + hw - 0.04), skip=("-y", "+y"))
+        box(b, (mcx - hw + 0.04, lo_ring + 0.08, mcz - hw - 0.005), (mcx + hw - 0.04, top - 0.06, mcz + hw + 0.005), skip=("-y", "+y"))
     # the ramp: steps rising along z, kerbs on both sides
     paints = {"tread": ("travertine", None), "riser": ("travertine_shade", None), "side": ("travertine_shade", None)}
     if near:
@@ -1679,11 +1759,11 @@ def column_at(b, cx, cz, near):
     if near:
         paint(b, P_MARBLE, 0.47, 0.03)
         box(b, (cx - 0.56, 0.0, cz - 0.56), (cx + 0.56, 0.2, cz + 0.56), chamfer=0.03, skip=("-y",))
-        paint(b, P_MARBLE, 0.53)
+        paint(b, P_BRONZE, 0.55)         # r2a (P1): a bronze base ring (torus) under the white shaft
         lathe(b, cx, cz, [(0.2, 0.5), (0.3, 0.52), (0.42, 0.45)], 10, caps=(False, True))
-        paint(b, P_MARBLE, 0.5, 0.02)
+        paint(b, P_MARBLE, 0.62, 0.02)   # astraA (F2): the shafts are the summit's brightest mass
         lathe(b, cx, cz, [(0.42, 0.41), (1.6, 0.415), (3.9, 0.35)], 10, star=0.86)
-        paint(b, P_MARBLE, 0.56)
+        paint(b, P_GOLD, 0.5)            # a gold astragal under the capital
         lathe(b, cx, cz, [(3.9, 0.35), (3.9, 0.385), (3.97, 0.385)], 10)
         paint(b, P_MARBLE, 0.52)
         lathe(b, cx, cz, [(3.97, 0.385), (4.12, 0.47), (4.24, 0.53)], 10)
@@ -1715,34 +1795,39 @@ TRIGLYPH_X = (-4.5, -3.0, -1.5, 0.0, 1.5, 3.0, 4.5)
 def entablature(b, near, X=5.0):
     """On the 10 x 0.9 x 1.2 collider (y 4.5 .. 5.4): an architrave of two fasciae and a taenia, a recessed
     frieze with bronze triglyphs over every column and every bay, a thin energy line at its foot, a cornice."""
+    # r2a (P1): the crown line as masses that survive at 300-600 m: a white architrave fascia, a 13 cm energy band
+    # (the line of light at night) under a bronze taenia, a 33 cm legion-red frieze with bronze triglyphs, a white
+    # cornice. The far mesh keeps every band as its own painted faces.
     if near:
-        paint(b, P_MARBLE, 0.5, 0.03)
-        prof = [(4.5, -0.58), (4.5, 0.58), (4.68, 0.58), (4.68, 0.62), (4.86, 0.62), (4.86, 0.65), (4.92, 0.65),
-                (4.92, -0.65), (4.86, -0.65), (4.86, -0.62), (4.68, -0.62), (4.68, -0.58)]
+        paint(b, P_MARBLE, 0.55, 0.02)
+        prof = [(4.5, -0.58), (4.5, 0.58), (4.6, 0.58), (4.6, 0.61), (4.67, 0.61), (4.67, -0.61), (4.6, -0.61), (4.6, -0.58)]
         prism(b, "x", prof, -X, X, skip=("+y",))
-        paint(b, P_WALL, 0.5, 0.03)
-        box(b, (-X, 4.92, -0.56), (X, 5.15, 0.56), skip=("-y", "+y"))
+        # the energy band, set in a shallow channel (its lips catch the light by day)
         paint(b, P_GLOW, 0.5)
-        for s in (-1, 1):
-            z0, z1 = sorted((s * 0.56, s * 0.575))
-            box(b, (-X, 4.92, z0), (X, 4.945, z1), skip=("-y", "-z" if s > 0 else "+z"))
+        box(b, (-X, 4.67, -0.595), (X, 4.80, 0.595), skip=("-y", "+y"))
+        paint(b, P_BRONZE, 0.5, 0.02)
+        box(b, (-X - 0.02, 4.80, -0.625), (X + 0.02, 4.85, 0.625), chamfer=0.012)
+        paint(b, P_RED, 0.5, 0.015)
+        box(b, (-X, 4.85, -0.57), (X, 5.17, 0.57), skip=("-y", "+y"))
         for s in (-1, 1):
             nm = "+z" if s > 0 else "-z"
             for x in TRIGLYPH_X:
-                paint(b, P_BRONZE, 0.5)
-                fbox(b, nm, s * 0.56, x - 0.17, x + 0.17, 4.95, 5.15, 0.0, 0.04, skip=("+y",))
+                paint(b, P_BRONZE, 0.52)
+                fbox(b, nm, s * 0.57, x - 0.16, x + 0.16, 4.85, 5.17, 0.0, 0.04, skip=("+y", "-y"))
                 paint(b, P_PLATE, 0.4)
-                for gx in (x - 0.06, x + 0.06):
-                    fquad(b, nm, s * 0.56, gx - 0.025, gx + 0.025, 4.98, 5.15, 0.041)
-        paint(b, P_MARBLE, 0.52, 0.03)
-        cprof = [(5.15, -0.6), (5.15, 0.6), (5.22, 0.66), (5.3, 0.7), (5.4, 0.7), (5.4, -0.7), (5.3, -0.7), (5.22, -0.66)]
+                for gx in (x - 0.055, x + 0.055):
+                    fquad(b, nm, s * 0.57, gx - 0.022, gx + 0.022, 4.88, 5.14, 0.041)
+        paint(b, P_MARBLE, 0.55, 0.02)
+        cprof = [(5.17, -0.6), (5.17, 0.6), (5.23, 0.66), (5.3, 0.7), (5.4, 0.7), (5.4, -0.7), (5.3, -0.7), (5.23, -0.66)]
         prism(b, "x", cprof, -X - 0.06, X + 0.06)
     else:
-        paint(b, P_MARBLE, 0.5)
+        paint(b, P_MARBLE, 0.55)
         box(b, (-X, 4.5, -0.62), (X, 5.4, 0.62))
-        paint(b, P_GLOW, 0.5)
         for s in (-1, 1):
-            b.poly([(-X, 4.92, s * 0.625), (X, 4.92, s * 0.625), (X, 4.95, s * 0.625), (-X, 4.95, s * 0.625)], (0, 0, s))
+            paint(b, P_RED, 0.5)
+            b.poly([(-X, 4.85, s * 0.625), (X, 4.85, s * 0.625), (X, 5.17, s * 0.625), (-X, 5.17, s * 0.625)], (0, 0, s))
+            paint(b, P_GLOW, 0.5)
+            b.poly([(-X, 4.67, s * 0.625), (X, 4.67, s * 0.625), (X, 4.80, s * 0.625), (-X, 4.80, s * 0.625)], (0, 0, s))
 
 
 def build_colonnade(b, data, level):
@@ -1779,40 +1864,46 @@ def build_pediment_front(b, data, level):
         for s in (-1, 1):
             nm = "+z" if s > 0 else "-z"
             zt = s * 0.54
-            paint(b, P_SHADE, 0.47, 0.03)
+            paint(b, P_RED, 0.47, 0.02)   # astraA (F2): a legion-red tympanum field
             b.poly([(-xb, 5.4, zt), (xb, 5.4, zt), (0.0, 7.0 - down, zt)], (0, 0, s))
-            # the winged wreath (shallow relief, inside the collider)
-            cx, cy, r0, r1 = 0.0, 5.92, 0.22, 0.31
-            paint(b, P_GOLD, 0.5)
-            n = 8
+            # r2a (P1): a large bronze eagle disc (roundel, r 0.52) in a gold ring with an energy core, gold wings
+            # spreading over the red field; shallow relief inside the collider
+            cx, cy, r0, r1 = 0.0, 5.95, 0.44, 0.53
+            paint(b, P_BRONZE, 0.56)
+            fplate(b, nm, zt, disc_pts(cx, cy, r0, 12, math.pi / 12), 0.0, 0.035)
+            paint(b, P_GOLD, 0.55)
+            n = 12
             for i in range(n):
-                a0 = 2 * math.pi * i / n + math.pi / 8
-                a1 = 2 * math.pi * (i + 1) / n + math.pi / 8 - 0.06
+                a0 = 2 * math.pi * i / n + math.pi / 12
+                a1 = 2 * math.pi * (i + 1) / n + math.pi / 12
                 pts = [(cx + r0 * math.cos(a0), cy + r0 * math.sin(a0)), (cx + r1 * math.cos(a0), cy + r1 * math.sin(a0)),
                        (cx + r1 * math.cos(a1), cy + r1 * math.sin(a1)), (cx + r0 * math.cos(a1), cy + r0 * math.sin(a1))]
-                fplate(b, nm, zt, pts, 0.0, 0.05)
+                fplate(b, nm, zt, pts, 0.0, 0.06)
             paint(b, P_GLOW, 0.5)
-            fplate(b, nm, zt, disc_pts(cx, cy, 0.09, 6, math.pi / 6), 0.0, 0.03)
-            paint(b, P_BRONZE, 0.52)
+            fplate(b, nm, zt, disc_pts(cx, cy, 0.2, 8, math.pi / 8), 0.035, 0.05)
+            paint(b, P_GOLD, 0.5)
             for sx in (-1, 1):
-                wing = [(0.28, 5.84), (0.62, 5.76), (0.78, 5.86), (0.98, 5.8), (1.14, 5.92), (1.34, 5.9), (1.62, 6.12),
-                        (1.0, 6.1), (0.29, 6.04)]
-                fplate(b, nm, zt, [(sx * u, v) for (u, v) in wing], 0.0, 0.055)
-            # the eagle's head and crest over the wreath
-            fplate(b, nm, zt, [(-0.07, 6.22), (0.07, 6.22), (0.09, 6.36), (0.0, 6.44), (-0.09, 6.36)], 0.0, 0.05)
+                wing = [(0.5, 5.8), (0.82, 5.7), (1.02, 5.8), (1.3, 5.74), (1.5, 5.86), (1.8, 5.84), (2.2, 6.02),
+                        (1.4, 6.08), (0.52, 6.12)]
+                fplate(b, nm, zt, [(sx * u, v) for (u, v) in wing], 0.0, 0.05)
     else:
         paint(b, P_MARBLE, 0.5)
         prism(b, "z", prof, -zr, zr, skip=("+y", "-y"))
         paint(b, P_ROOF, 0.5)
         for sx in (-1, 1):
             b.poly([(sx * ex, pediment_y(ex) + up, -zr), (0.0, 7.0 + up, -zr), (0.0, 7.0 + up, zr), (sx * ex, pediment_y(ex) + up, zr)], (sx * 0.32, 1, 0))
-        paint(b, P_SHADE, 0.47)
+        paint(b, P_RED, 0.47)
         xb = 5.0 * (1.0 - down / 1.6)
         for s in (-1, 1):
             b.poly([(-xb, 5.4, s * 0.58), (xb, 5.4, s * 0.58), (0.0, 7.0 - down, s * 0.58)], (0, 0, s))
-        paint(b, P_BRONZE, 0.5)
+        # r2a (P1): the gold wings, the bronze roundel and its energy core as painted faces
         for s in (-1, 1):
-            b.poly([(-1.5, 5.8, s * 0.6), (1.5, 5.8, s * 0.6), (1.5, 6.1, s * 0.6), (-1.5, 6.1, s * 0.6)], (0, 0, s))
+            paint(b, P_GOLD, 0.5)
+            b.poly([(-2.0, 5.78, s * 0.6), (2.0, 5.78, s * 0.6), (2.0, 6.04, s * 0.6), (-2.0, 6.04, s * 0.6)], (0, 0, s))
+            paint(b, P_BRONZE, 0.56)
+            b.poly([(x, y, s * 0.605) for (x, _, y) in ring_pts(0.0, 5.95, 0.0, 0.53, 8, math.pi / 8)], (0, 0, s))
+            paint(b, P_GLOW, 0.5)
+            b.poly([(x, y, s * 0.61) for (x, _, y) in ring_pts(0.0, 5.95, 0.0, 0.2, 6, 0.0)], (0, 0, s))
 
 
 # ---------------------------------------------------------------- item 2: the forum blocks
@@ -1905,17 +1996,18 @@ def build_eagle_standard(b, data, level):
     if near:
         paint(b, P_MARBLE, 0.42, 0.03)
         box(b, (-0.9, 0.0, -0.9), (0.9, 0.22, 0.9), chamfer=0.03, skip=("-y",))
+        # r2a (P1): the map's centre mark: a bronze-clad plinth with big red panels and a 12 cm energy band
         for nm, w in (("-z", -0.8), ("+z", 0.8)):
-            paint(b, P_MARBLE, 0.5, 0.03)
-            face(b, nm, w, -0.8, 0.8, 0.22, 0.95, [{"u0": -0.55, "u1": 0.55, "v0": 0.34, "v1": 0.83, "depth": 0.04,
-                                                    "back": P_RED[0], "surface": P_RED[1], "walls": "marble"}])
+            paint(b, P_BRONZE, 0.56, 0.02)
+            face(b, nm, w, -0.8, 0.8, 0.22, 0.86, [{"u0": -0.62, "u1": 0.62, "v0": 0.3, "v1": 0.78, "depth": 0.04,
+                                                    "back": P_RED[0], "surface": P_RED[1], "walls": "bronze"}])
         for nm, w in (("-x", -0.8), ("+x", 0.8)):
-            paint(b, P_MARBLE, 0.5, 0.03)
-            fquad(b, nm, w, -0.8, 0.8, 0.22, 0.95)
+            paint(b, P_BRONZE, 0.56, 0.02)
+            fquad(b, nm, w, -0.8, 0.8, 0.22, 0.86)
             paint(b, P_RED, 0.5)
-            fquad(b, nm, w, -0.55, 0.55, 0.34, 0.83, 0.006)
+            fquad(b, nm, w, -0.62, 0.62, 0.3, 0.78, 0.006)
         paint(b, P_GLOW, 0.5)
-        box(b, (-0.815, 0.95, -0.815), (0.815, 0.98, 0.815), skip=("-y", "+y"))
+        box(b, (-0.825, 0.86, -0.825), (0.825, 0.98, 0.825), skip=("-y", "+y"))
         paint(b, P_MARBLE, 0.55, 0.03)
         box(b, (-0.9, 0.98, -0.9), (0.9, 1.2, 0.9), chamfer=0.03, skip=("-y",))
         paint(b, P_MARBLE, 0.48)
@@ -1931,10 +2023,14 @@ def build_eagle_standard(b, data, level):
         paint(b, P_GOLD, 0.5)
         for s in (-1, 1):
             box(b, (min(s * 0.25, s * 0.29), 5.55, -0.04), (max(s * 0.25, s * 0.29), 5.64, 0.04), skip=(("-x" if s > 0 else "+x"),))
+        # r2a (P1): a larger vexillum (0.56 x 1.06 m, the pole box's tolerance allows +-0.29) with a gold fringe
         paint(b, P_RED, 0.5)
-        slab(b, [(-0.24, 4.74, -0.11), (0.24, 4.74, -0.11), (0.24, 5.56, -0.11), (-0.24, 5.56, -0.11)], (0, 0, 0.022))
+        slab(b, [(-0.28, 4.5, -0.11), (0.28, 4.5, -0.11), (0.28, 5.56, -0.11), (-0.28, 5.56, -0.11)], (0, 0, 0.022))
         paint(b, P_GOLD, 0.5)
-        box(b, (-0.25, 4.69, -0.115), (0.25, 4.75, -0.083))
+        box(b, (-0.29, 4.42, -0.115), (0.29, 4.5, -0.083))
+        paint(b, P_GLOW, 0.5)   # an energy hem over the fringe bar (the banner carries light at night)
+        for zf, sg in ((-0.1125, -1), (-0.0855, 1)):
+            b.poly([(-0.28, 4.51, zf), (0.28, 4.51, zf), (0.28, 4.57, zf), (-0.28, 4.57, zf)], (0, 0, sg))
         for (x0, x1, yy0, yy1) in ((-0.16, 0.16, 5.38, 5.43), (-0.16, -0.12, 5.0, 5.3), (-0.04, 0.0, 5.0, 5.3), (0.08, 0.16, 5.12, 5.17), (0.12, 0.16, 5.0, 5.3)):
             b.poly([(x0, yy0, -0.1115), (x1, yy0, -0.1115), (x1, yy1, -0.1115), (x0, yy1, -0.1115)], (0, 0, -1))
         # the wreath (gold ring, x-y plane) with an energy core
@@ -1949,8 +2045,8 @@ def build_eagle_standard(b, data, level):
                 pts = [(r0 * math.cos(a0), cy + r0 * math.sin(a0), zf), (r1 * math.cos(a0), cy + r1 * math.sin(a0), zf),
                        (r1 * math.cos(a1), cy + r1 * math.sin(a1), zf * 0.3), (r0 * math.cos(a1), cy + r0 * math.sin(a1), zf * 0.3)]
                 b.poly(pts, (0, 0, 1 if zf > 0 else -1))
-        paint(b, P_GLOW, 0.5)
-        slab(b, [(0.0, cy - 0.08, -0.02), (0.08, cy, -0.02), (0.0, cy + 0.08, -0.02), (-0.08, cy, -0.02)], (0, 0, 0.04))
+        paint(b, P_GLOW, 0.5)   # r2a (P1): the centre mark's light: a 0.3 m core filling the wreath
+        slab(b, [(x, y, -0.03) for (x, _, y) in ring_pts(0.0, cy, 0.0, 0.16, 8, math.pi / 8)], (0, 0, 0.06))
         paint(b, P_BRONZE, 0.5)
         lathe(b, 0.0, 0.0, [(6.21, 0.05), (6.3, 0.05)], 6, caps=(False, True))
         # the eagle: perch, body (breast to -z), head and gold beak, wings raised and swept back
@@ -1974,14 +2070,26 @@ def build_eagle_standard(b, data, level):
             thick = mul(norm(cross(dvec, (0, 0, 1))), 0.035 * sx)
             slab(b, pts, thick)
     else:
-        paint(b, P_MARBLE, 0.5)
+        paint(b, P_BRONZE, 0.56)
         box(b, (-0.85, 0.0, -0.85), (0.85, 1.2, 0.85), skip=("-y",))
+        paint(b, P_RED, 0.5)
+        for (nx, nz) in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            w = 0.856
+            if nz:
+                b.poly([(-0.62, 0.3, nz * w), (0.62, 0.3, nz * w), (0.62, 0.78, nz * w), (-0.62, 0.78, nz * w)], (0, 0, nz))
+            else:
+                b.poly([(nx * w, 0.3, -0.62), (nx * w, 0.3, 0.62), (nx * w, 0.78, 0.62), (nx * w, 0.78, -0.62)], (nx, 0, 0))
+        paint(b, P_GLOW, 0.5)
+        box(b, (-0.858, 0.86, -0.858), (0.858, 0.98, 0.858), skip=("-y", "+y"))
         paint(b, P_BRONZE, 0.5)
         box(b, (-0.07, 1.2, -0.07), (0.07, 6.3, 0.07), skip=("-y", "+y"))
-        box(b, (-0.27, 5.56, -0.035), (0.27, 5.63, 0.035), skip=("-x", "+x"))
+        box(b, (-0.29, 5.56, -0.035), (0.29, 5.63, 0.035), skip=("-x", "+x"))
         paint(b, P_RED, 0.5)
         for s in (-1, 1):
-            b.poly([(-0.24, 4.7, -0.1), (0.24, 4.7, -0.1), (0.24, 5.56, -0.1), (-0.24, 5.56, -0.1)], (0, 0, s))
+            b.poly([(-0.28, 4.45, -0.1), (0.28, 4.45, -0.1), (0.28, 5.56, -0.1), (-0.28, 5.56, -0.1)], (0, 0, s))
+        paint(b, P_GLOW, 0.5)
+        for s in (-1, 1):
+            b.poly([(x, y, s * 0.04) for (x, _, y) in ring_pts(0.0, 5.96, 0.0, 0.16, 6, 0.0)], (0, 0, s))
         paint(b, P_GOLD, 0.5)
         box(b, (-0.08, 6.3, -0.12), (0.08, 6.66, 0.14), skip=("-y",))
         for sx in (-1, 1):
@@ -2139,6 +2247,42 @@ def build_stake_row(b, data, level):
 
 # ---------------------------------------------------------------- item 2: the aqueduct
 
+ARCH_SPRING_Y, ARCH_HALF, ARCH_RISE, ARCH_RING = 4.2, 4.0, 0.72, 0.24
+
+
+def _arch_circle():
+    """The intrados circle of the aqueduct's segmental arch: centre y, radius, half angle at the springing."""
+    r = (ARCH_HALF ** 2 + ARCH_RISE ** 2) / (2.0 * ARCH_RISE)
+    yc = ARCH_SPRING_Y + ARCH_RISE - r
+    return yc, r, math.asin(ARCH_HALF / r)
+
+
+def intr_at(t):
+    """A point (x, y) of the intrados, t 0 (left springing) .. 1 (right)."""
+    yc, r, a0 = _arch_circle()
+    a = -a0 + 2.0 * a0 * t
+    return (r * math.sin(a), yc + r * math.cos(a))
+
+
+def extr_at(t, lift=0.0):
+    """A point of the extrados (ring thickness ARCH_RING, + lift), its ends on the springing line y 4.2."""
+    yc, r, _ = _arch_circle()
+    re = r + ARCH_RING + lift
+    ae = math.acos((ARCH_SPRING_Y - yc) / (r + ARCH_RING))
+    a = -ae + 2.0 * ae * t
+    return (re * math.sin(a), yc + re * math.cos(a))
+
+
+def aqueduct_arch():
+    """(intrados points(n), extrados points(n), voussoir count) for the aqueduct span's deck faces."""
+    return (lambda n: [intr_at(i / n) for i in range(n + 1)], lambda n: [extr_at(i / n) for i in range(n + 1)], 9)
+
+
+def fplate_flat(b, normal, w, pts_uv):
+    """A flat polygon (u, v) in the face plane (may be concave)."""
+    b.poly([fpt(normal, w, u, v) for (u, v) in pts_uv], DIRS[normal])
+
+
 def build_aqueduct_span(b, data, level):
     """A 10 m span on two half piers (neighbours meet at x = +-5 into 2 m piers): piers with a base, ashlar
     courses and an impost cap, corbels under the deck, a flat arch of voussoirs in shallow relief on the deck
@@ -2155,9 +2299,13 @@ def build_aqueduct_span(b, data, level):
             sg = -sx                                  # inner face normal sign along x
             # plinth, the impost cap (0.08 into the open way, 0.1 out over the long faces)
             # (into the open way 0.07 at most: tests/test_world_kit.gd keeps a 0.08 skin of open volumes clear)
-            paint(b, P_BASE, 0.5)
+            paint(b, P_BASE, 0.45)
             pa, pb = (xin + sg * 0.07, x1) if sx > 0 else (x0, xin + sg * 0.07)
-            box(b, (min(pa, pb), 0.0, -Z - 0.1), (max(pa, pb), 0.5, Z + 0.1), chamfer=0.03, skip=("-y",))
+            box(b, (min(pa, pb), 0.0, -Z - 0.12), (max(pa, pb), 0.36, Z + 0.12), chamfer=0.03, skip=("-y",))
+            # astraA (F6): a second, set-back plinth course (a stronger stepped pier base)
+            paint(b, P_BASE, 0.52)
+            pa2, pb2 = (xin + sg * 0.04, x1) if sx > 0 else (x0, xin + sg * 0.04)
+            box(b, (min(pa2, pb2), 0.36, -Z - 0.07), (max(pa2, pb2), 0.62, Z + 0.07), chamfer=0.025, skip=("-y",))
             # ashlar courses on the long faces and the inner face
             rows = [(0.5 + 0.5 * i, min(1.0 + 0.5 * i, 3.85)) for i in range(7)]
             for i, (ya, yb) in enumerate(rows):
@@ -2175,66 +2323,76 @@ def build_aqueduct_span(b, data, level):
                 if sg < 0:
                     pts = list(reversed(pts))
                 strip(b, "z", [(p[0], p[1]) for p in pts], -Z - 0.03, Z + 0.03)
-            paint(b, P_MARBLE, 0.5, 0.03)
+            # astraA (F6): the impost: a necking band under a bright capital block
+            paint(b, P_SHADE, tone(0.6))      # r2a (P2): a dark necking shadow line under the light capital
+            na, nb =(xin + sg * 0.035, x1) if sx > 0 else (x0, xin + sg * 0.035)
+            box(b, (min(na, nb), 3.68, -Z - 0.05), (max(na, nb), 3.85, Z + 0.05), chamfer=0.015, skip=("+y", "-y"))
+            paint(b, P_MARBLE, 0.6, 0.02)
             ia, ib = (xin + sg * 0.07, x1) if sx > 0 else (x0, xin + sg * 0.07)
             box(b, (min(ia, ib), 3.85, -Z - 0.1), (max(ia, ib), 4.2, Z + 0.1), chamfer=0.035, skip=("+y",))
-            # corbels under the impost
-            paint(b, P_MARBLE, 0.46)
-            for zc in (-0.75, 0.75):
-                side = [(xin, 3.42), (xin, 3.85), (xin + sg * 0.07, 3.85), (xin + sg * 0.07, 3.68)]
-                slab(b, [(u, v, zc - 0.17) for (u, v) in side], (0, 0, 0.34))
             # the joint end face (meets the neighbour's)
             paint(b, P_SHADE, 0.5)
             xe = x1 if sx > 0 else x0
             b.poly([(xe, 0.5, -Z), (xe, 0.5, Z), (xe, 3.85, Z), (xe, 3.85, -Z)], (sx, 0, 0))
-        # deck band: flat arch of voussoirs (relief) over the open way, the band itself behind
+        # r2a (P2): the deck face as Roman arcading: the open way stays an 8 x 4.2 box, so the arch lives in the
+        # deck band above it: a segmental intrados rising 0.72 m over the opening's top encloses a dark tympanum
+        # (lunette) field, a ring of light voussoirs (relief) springs from the impost line at the piers, a proud
+        # keystone, plain spandrels, the cornice above the ring. Every span reads as one arch between pier heads.
+        intr, extr, n_v = aqueduct_arch()
         for s in (-1, 1):
             nm = "+z" if s > 0 else "-z"
+            paint(b, P_SHADE, tone(0.55))
+            fplate_flat(b, nm, s * Z, intr(7))
             paint(b, P_WALL, 0.5, 0.04)
-            fquad(b, nm, s * Z, -X, X, 4.2, 4.85)
-            n = 7
-            half = 4.3
-            apex = 4.2 - 6.0
-            for i in range(n):
-                xa = -half + 2 * half * i / n
-                xb = -half + 2 * half * (i + 1) / n
-                key = i == n // 2
-                top = 4.85 if not key else 4.92
-                kk = (top - apex) / (4.2 - apex)
-                g = 0.014
-                pts = [(xa + g, 4.2), (xb - g, 4.2), ((xb - g) * kk, top), ((xa + g) * kk, top)]
-                paint(b, P_MARBLE if key else P_WALL, 0.5 if key else 0.57, 0.0 if key else 0.06)
-                fplate(b, nm, s * Z, pts, 0.0, 0.05 if key else 0.03)
-            # cornice under the kerb
+            fplate_flat(b, nm, s * Z, [(-X, 4.2), (-X, 5.17), (X, 5.17), (X, 4.2)] + list(reversed(extr(9))))
+            paint(b, P_SHADE, tone(0.8))
+            for k in range(n_v):
+                t0, t1 = k / n_v, (k + 1) / n_v
+                fplate_flat(b, nm, s * Z, [intr_at(t0), intr_at(t1), extr_at(t1), extr_at(t0)])
+            for k in range(n_v):
+                t0, t1 = k / n_v, (k + 1) / n_v
+                key = k == n_v // 2
+                g = 0.012 / 4.0
+                q = [intr_at(t0 + g), intr_at(t1 - g), extr_at(t1 - g, 0.09 if key else 0.0), extr_at(t0 + g, 0.09 if key else 0.0)]
+                d = 0.065 if key else 0.045
+                paint(b, P_MARBLE, tone(1.12 if key else 1.02), 0.0 if key else 0.35)
+                # the face and the two joint faces (the ring band behind fills the rest; the near span's triangle
+                # count is pinned by the small maps' backdrop, tests/test_m2w1_backdrop.gd)
+                b.poly([fpt(nm, s * Z, u, v, d) for (u, v) in q], DIRS[nm])
+                for (pa, pb) in ((q[3], q[0]), (q[1], q[2])):
+                    side = [fpt(nm, s * Z, pa[0], pa[1], 0.0), fpt(nm, s * Z, pb[0], pb[1], 0.0),
+                            fpt(nm, s * Z, pb[0], pb[1], d), fpt(nm, s * Z, pa[0], pa[1], d)]
+                    mid = ((pa[0] + pb[0]) * 0.5, (pa[1] + pb[1]) * 0.5)
+                    cen = ((q[0][0] + q[1][0] + q[2][0] + q[3][0]) * 0.25, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) * 0.25)
+                    out = (mid[0] - cen[0], mid[1] - cen[1], 0.0)
+                    b.poly(side, (out[0], out[1], 0.0))
+            # cornice over the ring
             paint(b, P_MARBLE, 0.52, 0.03)
-            prof = [(4.85, 0.0), (4.92, 0.06), (5.0, 0.11), (5.08, 0.11), (5.08, 0.0)]
+            prof = [(5.17, 0.0), (5.22, 0.05), (5.27, 0.09), (5.32, 0.09), (5.32, 0.0)]
             band_run(b, nm, s * Z, -X, X, prof, (0, 0))
             # kerb outer face over the cornice
             paint(b, P_WALL, 0.5, 0.04)
-            fquad(b, nm, s * Z, -X, X, 5.08, 5.42, 0.0)
+            fquad(b, nm, s * Z, -X, X, 5.32, 5.42, 0.0)
             # kerb inner face and the coping
             fquad(b, "-z" if s > 0 else "+z", s * 1.1, -X, X, 5.0, 5.42, 0.0)
-            paint(b, P_MARBLE, 0.5, 0.04)
+            paint(b, P_MARBLE, 0.6, 0.04)   # astraA (F6): the channel kerb's coping is the lightest line
             za, zb = sorted((s * 1.09, s * 1.48))
             box(b, (-X, 5.42, za), (X, 5.56, zb), chamfer=0.025, skip=("-y",))
         # deck ends (meet the neighbour)
         paint(b, P_SHADE, 0.5)
         for sx in (-1, 1):
             b.poly([(sx * X, y, z) for (z, y) in ((-Z, 4.2), (Z, 4.2), (Z, 5.42), (1.1, 5.42), (1.1, 5.0), (-1.1, 5.0), (-1.1, 5.42), (-Z, 5.42))], (sx, 0, 0))
-        # soffit with three coffers
-        paint(b, P_SHADE, 0.47)
-        holes = [{"u0": x0, "u1": x1, "v0": -0.85, "v1": 0.85, "depth": 0.1, "back": "travertine_shade", "shade": 0.36}
-                 for (x0, x1) in ((-3.55, -1.35), (-1.1, 1.1), (1.35, 3.55))]
-        face(b, "-y", 4.2, -4.0, 4.0, -Z, Z, holes)
+        # the soffit: one continuous dark underside (r2a: the coffers gave their triangles to the arch ring)
+        paint(b, P_SHADE, tone(0.7))
+        face(b, "-y", 4.2, -4.0, 4.0, -Z, Z)
         # deck paving (eight slabs with chamfered joints), the conduit: bronze lips and an energy line
         g = 0.02
         for k in range(8):
             xa = -X + 2 * X * k / 8
             xb = -X + 2 * X * (k + 1) / 8
-            paint(b, P_WALK, 0.5, 0.06)
-            b.poly([(xa + g, 5.0, -1.1), (xb - g, 5.0, -1.1), (xb - g, 5.0, 1.1), (xa + g, 5.0, 1.1)], (0, 1, 0))
-            b.poly([(xa, 5.0 - g, -1.1), (xa + g, 5.0, -1.1), (xa + g, 5.0, 1.1), (xa, 5.0 - g, 1.1)], (-1, 1, 0))
-            b.poly([(xb - g, 5.0, -1.1), (xb, 5.0 - g, -1.1), (xb, 5.0 - g, 1.1), (xb - g, 5.0, 1.1)], (1, 1, 0))
+            # r2a: flat slabs told apart by value (the joint bevels gave their triangles to the arch ring)
+            paint(b, P_WALK, tone(1.04 if k % 2 else 0.94), 0.25)
+            b.poly([(xa, 5.0, -1.1), (xb, 5.0, -1.1), (xb, 5.0, 1.1), (xa, 5.0, 1.1)], (0, 1, 0))
         paint(b, P_BRONZE, 0.45)
         for s in (-1, 1):
             za, zb = sorted((s * 0.09, s * 0.16))
@@ -2250,14 +2408,29 @@ def build_aqueduct_span(b, data, level):
             b.poly([(xin, 0.0, -Z), (xin, 0.0, Z), (xin, 4.2, Z), (xin, 4.2, -Z)], (-sx, 0, 0))
             xe = x1 if sx > 0 else x0
             b.poly([(xe, 0.0, -Z), (xe, 0.0, Z), (xe, 4.2, Z), (xe, 4.2, -Z)], (sx, 0, 0))
-        paint(b, P_SHADE, 0.5)
+        paint(b, P_SHADE, 0.34)
         b.poly([(-4.0, 4.2, -Z), (4.0, 4.2, -Z), (4.0, 4.2, Z), (-4.0, 4.2, Z)], (0, -1, 0))
         for s in (-1, 1):
+            # r2a (P2): the far span keeps the arch as painted faces: the dark lunette, the light ring, the
+            # spandrels, pier bases and capitals (5 arc segments)
+            nm = "+z" if s > 0 else "-z"
+            intr, extr, _ = aqueduct_arch()
+            paint(b, P_SHADE, tone(0.55))
+            fplate_flat(b, nm, s * Z, intr(5))
+            paint(b, P_MARBLE, tone(1.05))
+            for k in range(5):
+                fplate_flat(b, nm, s * Z, [intr_at(k / 5), intr_at((k + 1) / 5), extr_at((k + 1) / 5), extr_at(k / 5)])
             paint(b, P_WALL, 0.5)
-            b.poly([(-X, 4.2, s * Z), (X, 4.2, s * Z), (X, 5.5, s * Z), (-X, 5.5, s * Z)], (0, 0, s))
+            fplate_flat(b, nm, s * Z, [(-X, 4.2), (-X, 5.5), (X, 5.5), (X, 4.2)] + list(reversed(extr(5))))
+            paint(b, P_BASE, 0.45)
+            for (x0, x1, sx) in piers:
+                b.poly([(x0, 0.0, s * (Z + 0.06)), (x1, 0.0, s * (Z + 0.06)), (x1, 0.62, s * (Z + 0.06)), (x0, 0.62, s * (Z + 0.06))], (0, 0, s))
+            paint(b, P_MARBLE, 0.6)
+            for (x0, x1, sx) in piers:
+                b.poly([(x0, 3.85, s * (Z + 0.06)), (x1, 3.85, s * (Z + 0.06)), (x1, 4.2, s * (Z + 0.06)), (x0, 4.2, s * (Z + 0.06))], (0, 0, s))
             paint(b, P_MARBLE, 0.5)
             za, zb = sorted((s * Z, s * (Z + 0.1)))
-            box(b, (-X, 4.85, za), (X, 5.08, zb), skip=("-x", "+x", "-z" if s > 0 else "+z"))
+            box(b, (-X, 5.17, za), (X, 5.32, zb), skip=("-x", "+x", "-z" if s > 0 else "+z"))
             b.poly([(-X, 5.5, s * 1.1), (X, 5.5, s * 1.1), (X, 5.5, s * Z), (-X, 5.5, s * Z)], (0, 1, 0))
             paint(b, P_WALL, 0.5)
             b.poly([(-X, 5.0, s * 1.1), (X, 5.0, s * 1.1), (X, 5.5, s * 1.1), (-X, 5.5, s * 1.1)], (0, 0, -s))
@@ -2451,6 +2624,11 @@ def build_barracks(b, data, level):
         paint(b, P_BASE, 0.56)
         za, zb = sorted((s * (HZ + 0.12), s * (IZ - 0.02)))
         box(b, (u0 - 0.05, 0.0, za), (u1 + 0.05, 0.05, zb), chamfer=0.012, skip=("-y",))
+        # r2a (P4): threshold wear: the walked sill polished lighter inside its darker chamfered rim (no vertex
+        # in the middle of the doorway: the fit rule is per vertex)
+        paint(b, P_BASE, tone(1.3))
+        yp = 0.053
+        b.poly([(u0 + 0.03, yp, za + 0.03), (u1 - 0.03, yp, za + 0.03), (u1 - 0.03, yp, zb - 0.03), (u0 + 0.03, yp, zb - 0.03)], (0, 1, 0))
         # lamp housing beside the door (on the side towards the middle of the wall)
         lu = (u1 + 0.55) if s < 0 else (u0 - 0.45)
         paint(b, P_BRONZE, 0.5)
@@ -2532,6 +2710,932 @@ def build_barracks(b, data, level):
         fquad(b, nm, w, cu - 0.11, cu + 0.11, 2.48, 2.6, 0.071)
 
 
+# ---------------------------------------------------------------- astraA: transforms for tilted parts
+
+def sub_builder(b):
+    """A builder that shares the paints and the seeded rng of `b`; its triangles are moved into `b` by emit()."""
+    s = Builder(b.data, "sub")
+    s.rng = b.rng
+    s.color, s.sid, s.shade = b.color, b.sid, b.shade
+    return s
+
+
+def rot_xyz(p, yaw=0.0, roll=0.0, pitch=0.0):
+    """Rotates p (degrees): roll about z, then pitch about x, then yaw about y."""
+    x, y, z = p
+    if roll:
+        c, s = math.cos(math.radians(roll)), math.sin(math.radians(roll))
+        x, y = x * c - y * s, x * s + y * c
+    if pitch:
+        c, s = math.cos(math.radians(pitch)), math.sin(math.radians(pitch))
+        y, z = y * c - z * s, y * s + z * c
+    if yaw:
+        c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+        x, z = x * c + z * s, -x * s + z * c
+    return (x, y, z)
+
+
+def emit(b, s, at=(0.0, 0.0, 0.0), yaw=0.0, roll=0.0, pitch=0.0):
+    """Moves the sub-builder's triangles into b, rotated about the origin then shifted by `at` (winding kept)."""
+    for t in s.tris:
+        q = [add(rot_xyz(p, yaw, roll, pitch), at) for p in t[:3]]
+        b.tris.append((q[0], q[1], q[2]) + tuple(t[3:]))
+    s.tris = []
+
+
+# ---------------------------------------------------------------- astraA: the baked shade (F5)
+# Every look's vertices carry a brightness multiplier m (stored in UV2.y as 0.5 + (m - 1) / (2 * shade_range);
+# scripts/visual/world_kit_meshes.gd tells the shader the range per mesh in CUSTOM0.y). m is the part's own shade
+# (the old +-part_shade per 0.5) times the paint's value (bake.paint_value), a ground-contact gradient on faces that
+# do not look up (local height, so it works on raised terrain too; the shader's world-height grime is off for these
+# looks), a slight bleach on high upward faces, and an occlusion term from short rays against the look's own
+# triangles (recesses, reveals, the underside of cornices and decks, inner corners). Faces are split at the contact
+# heights so the gradient stays near the ground instead of spreading over a tall face.
+
+def _clip_poly_y(pts, y, keep_above):
+    out = []
+    n = len(pts)
+    for i in range(n):
+        p, q = pts[i], pts[(i + 1) % n]
+        pin = p[1] >= y if keep_above else p[1] <= y
+        qin = q[1] >= y if keep_above else q[1] <= y
+        if pin:
+            out.append(p)
+        if pin != qin:
+            t = (y - p[1]) / (q[1] - p[1])
+            out.append((p[0] + (q[0] - p[0]) * t, y, p[2] + (q[2] - p[2]) * t))
+    return out
+
+
+def split_at_heights(tris, heights, max_ny=0.7):
+    """Splits every face that is not near-horizontal where it crosses one of the heights (y planes)."""
+    out = tris
+    for y in heights:
+        nxt = []
+        for t in out:
+            a, b_, c = t[0], t[1], t[2]
+            lo, hi = min(a[1], b_[1], c[1]), max(a[1], b_[1], c[1])
+            n = norm(cross(sub(b_, a), sub(c, a)))
+            if abs(n[1]) > max_ny or not (lo < y - 1e-4 and hi > y + 1e-4):
+                nxt.append(t)
+                continue
+            for keep in (False, True):
+                poly = _clip_poly_y([a, b_, c], y, keep)
+                for i in range(1, len(poly) - 1):
+                    q = (poly[0], poly[i], poly[i + 1])
+                    if length(cross(sub(q[1], q[0]), sub(q[2], q[0]))) > 1e-10:
+                        nxt.append(q + tuple(t[3:]))
+        out = nxt
+    return out
+
+
+def _hemisphere(count):
+    """Cosine-weighted directions in a frame whose z is the normal (golden spiral; deterministic)."""
+    out = []
+    ga = math.pi * (3.0 - math.sqrt(5.0))
+    for i in range(count):
+        u = (i + 0.5) / count
+        r = math.sqrt(u)
+        a = ga * i
+        out.append((r * math.cos(a), r * math.sin(a), math.sqrt(max(0.0, 1.0 - u))))
+    return out
+
+
+def _smooth(e0, e1, x):
+    t = max(0.0, min(1.0, (x - e0) / (e1 - e0)))
+    return t * t * (3 - 2 * t)
+
+
+def _uneven(x, z, amp):
+    """A deterministic 0..amp wobble over the piece's ground plan (the foundation band's top is not a ruler line)."""
+    if amp <= 0.0:
+        return 0.0
+    w = 0.5 + 0.25 * math.sin(x * 1.73 + z * 0.91) + 0.25 * math.cos(z * 1.29 - x * 0.57)
+    return amp * w
+
+
+def bake_shade(data, tris, family, level=0):
+    """The geometry part of the shade (data/art_world_kit.json shade_bake.glb; the load-time bake in
+    scripts/visual/world_kit_meshes.gd adds paint value, facing and the per-type gain): tris
+    (a, b, c, rgba, sid, part shade) -> (a, b, c, rgba, sid, (m_a, m_b, m_c)), m = part x contact x occlusion.
+    part = the builder's part shade at part_shade (threshold and tread wear are written there by the builders, so
+    it may lie outside 0..1); contact = a darker, slightly uneven foundation band on faces that do not look up,
+    over contact.height_m above the piece's ground (y 0), faces split at split_m so the band stays a band;
+    occlusion = short cosine-weighted rays against the look's own triangles (recesses, reveals, soffits, inner
+    corners), per vertex position and face normal (shared corners agree, so a face shades smoothly), faded on long
+    faces (face_ref_m / longest edge) so a big flat face never shows a diagonal crease. skip_paints (glow, visor)
+    keep their part shade as it is (a float: the loader reads it at part_shade). family: "structure" / "cover"."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    sb = data.cfg["shade_bake"]
+    g = sb["glb"]
+    ps = float(sb["part_shade"])
+    skip = set(sb.get("skip_paints", []))
+    contact = g["contact"][family]
+    c_h, c_g = float(contact["height_m"]), float(contact["ground"])
+    c_amp = float(contact.get("uneven_m", 0.0))
+    ao = g["ao"][family]
+    ray_m, strength = float(ao["ray_m"]), float(ao["strength"])
+    max_occ, face_ref = float(ao["max"]), float(ao["face_ref_m"])
+    span_ref = float(contact.get("span_ref_m", 1000.0))
+    if level == 0:
+        tris = split_at_heights(tris, [float(y) for y in contact.get("split_m", [])])
+    verts, polys = [], []
+    for i, t in enumerate(tris):
+        verts.extend([Vector(t[0]), Vector(t[1]), Vector(t[2])])
+        polys.append((3 * i, 3 * i + 1, 3 * i + 2))
+    bvh = BVHTree.FromPolygons(verts, polys, all_triangles=True)
+    dirs = _hemisphere(int(ao["rays"]))
+    names = {}
+    for k, v in data.colors.items():
+        names[(round(float(v[0]), 4), round(float(v[1]), 4), round(float(v[2]), 4))] = k
+    cache = {}
+    out = []
+    for t in tris:
+        a, b_, c = t[0], t[1], t[2]
+        rgba, sid, shade = t[3], t[4], t[5]
+        name = names.get((round(rgba[0], 4), round(rgba[1], 4), round(rgba[2], 4)), "")
+        if name in skip:
+            out.append((a, b_, c, rgba, sid, min(1.0, max(0.0, shade))))
+            continue
+        base = 1.0 + (shade - 0.5) * 2.0 * ps
+        n = norm(cross(sub(b_, a), sub(c, a)))
+        ref = (0.0, 1.0, 0.0) if abs(n[1]) < 0.9 else (1.0, 0.0, 0.0)
+        tu = norm(cross(ref, n))
+        tv = cross(n, tu)
+        longest = max(length(sub(b_, a)), length(sub(c, b_)), length(sub(a, c)))
+        fade = min(1.0, face_ref / max(longest, 1e-6))
+        span = max(a[1], b_[1], c[1]) - min(a[1], b_[1], c[1])
+        smear = min(1.0, span_ref / max(span, 1e-6))
+        ms = []
+        for p in (a, b_, c):
+            m = base
+            if n[1] < 0.5 and c_g < 1.0:
+                h = p[1] - _uneven(p[0], p[2], c_amp)
+                m *= 1.0 - (1.0 - c_g) * (1.0 - _smooth(0.0, c_h, h)) * smear
+            key = (round(p[0], 4), round(p[1], 4), round(p[2], 4), round(n[0], 3), round(n[1], 3), round(n[2], 3))
+            occ = cache.get(key)
+            if occ is None:
+                o = Vector(add(p, mul(n, 0.004)))
+                acc = 0.0
+                for (dx, dy, dz) in dirs:
+                    d = add(add(mul(tu, dx), mul(tv, dy)), mul(n, dz))
+                    hit = bvh.ray_cast(o, Vector(d), ray_m)
+                    if hit[0] is not None:
+                        acc += 1.0 - hit[3] / ray_m
+                occ = min(max_occ, acc / len(dirs))
+                cache[key] = occ
+            m *= 1.0 - strength * occ * fade
+            ms.append(m)
+        out.append((a, b_, c, rgba, sid, tuple(ms)))
+    return out
+
+
+# ---------------------------------------------------------------- astraA: the cover looks (F4)
+# One look per cover type, designed in the box of its single collider (data/maps/alesia_cover.json "types" size;
+# breakables and chests: data/art_world_kit.json "cover" size). Built in a ground frame (y 0 = the collider's
+# bottom), shifted down by half the height on export (the cover body's origin is the box centre). Bases reach the
+# ground (a few centimetres under it, for terrain); everything stays within fit_tolerance_m of the box; the box is
+# filled (no see-through gaps in a box that blocks shots).
+
+P_STEEL = ("plate_dark", "steel")
+P_IRON = ("dark", "steel")
+P_SACK = ("canvas", "burlap")
+P_SACK_DARK = ("cloth", "burlap")
+P_ROPE = ("canvas", "burlap")
+P_ROCK = ("rock", None)
+P_STONE = ("stone", "ashlar")
+P_REDCLOTH = ("legion_red", "cloth")
+P_EMBER = ("ember", None)
+SINK = 0.04   # bases go this far under the collider's bottom (a piece on sloping ground shows no gap)
+
+
+def missing_stones(b, n, u0, u1, v0, v1, w_range=(0.22, 0.4), h_range=(0.14, 0.22)):
+    """n recessed stone pockets (non-overlapping in u) for face(): a missing or sunk stone."""
+    holes = []
+    span = (u1 - u0) / n
+    for i in range(n):
+        w = b.rng.uniform(*w_range)
+        h = b.rng.uniform(*h_range)
+        cu = u0 + span * (i + 0.5) + b.rng.uniform(-0.2, 0.2) * (span - w)
+        cv = b.rng.uniform(v0 + h * 0.5 + 0.04, v1 - h * 0.5 - 0.04)
+        holes.append({"u0": cu - w * 0.5, "u1": cu + w * 0.5, "v0": cv - h * 0.5, "v1": cv + h * 0.5,
+                      "depth": b.rng.uniform(0.035, 0.06), "back": "travertine_shade", "surface": "ashlar", "shade": 0.3})
+    return holes
+
+
+def cap_stones(b, xs, y0, y1, z0, z1, gap=0.012, chamfer=0.035, p=P_WALL):
+    """A row of coping stones over [xs[0], xs[-1]] with joints between them."""
+    for i in range(len(xs) - 1):
+        paint(b, p, 0.5 + b.rng.uniform(-0.06, 0.06))
+        ga = gap if i > 0 else 0.0
+        gb = gap if i < len(xs) - 2 else 0.0
+        box(b, (xs[i] + ga, y0, z0), (xs[i + 1] - gb, y1, z1), chamfer=chamfer, skip=("-y",))
+
+
+def build_cover_low_wall(b, X, H, Z):
+    """A masonry field wall: a dark base course, a coursed body with a few sunk stones, three coping stones."""
+    paint(b, P_BASE, 0.46, 0.04)
+    box(b, (-X, -SINK, -Z), (X, 0.24, Z), chamfer=0.03, skip=("-y",))
+    e = 0.035
+    paint(b, P_SHADE, 0.5, 0.02)
+    for nm, w in (("-z", -Z + e), ("+z", Z - e)):
+        face(b, nm, w, -X + e, X - e, 0.24, H - 0.15, missing_stones(b, 2, -X + 0.25, X - 0.25, 0.3, H - 0.2))
+    for s in (-1, 1):
+        fquad(b, "+x" if s > 0 else "-x", s * (X - e), -Z + e, Z - e, 0.24, H - 0.15)
+    # a bonding course line: one proud row of long stones at mid height
+    paint(b, P_WALL, 0.47, 0.03)
+    box(b, (-X + 0.02, 0.56, -Z + 0.02), (X - 0.02, 0.64, Z - 0.02), skip=("-y", "+y"))
+    xs = [-X, -X + 0.78 + b.rng.uniform(-0.08, 0.08), 0.3 + b.rng.uniform(-0.08, 0.08), X]
+    cap_stones(b, xs, H - 0.15, H, -Z, Z)
+
+
+def build_cover_tall_wall(b, X, H, Z):
+    """The field wall's taller kin: base course, coursed body, a central buttress with a sloped weathering on
+    each face, a marble string course and coping stones."""
+    paint(b, P_BASE, 0.45, 0.04)
+    box(b, (-X, -SINK, -Z), (X, 0.34, Z), chamfer=0.035, skip=("-y",))
+    e = 0.07
+    yt = H - 0.2
+    paint(b, P_SHADE, 0.5, 0.02)
+    for nm, w in (("-z", -Z + e), ("+z", Z - e)):
+        holes = missing_stones(b, 1, -X + 0.2, -0.5, 0.45, 1.25) + missing_stones(b, 1, 0.5, X - 0.2, 1.5, yt - 0.1)
+        face(b, nm, w, -X + e * 0.5, X - e * 0.5, 0.34, yt, holes)
+    for s in (-1, 1):
+        fquad(b, "+x" if s > 0 else "-x", s * (X - e * 0.5), -Z + e, Z - e, 0.34, yt)
+    # string course
+    paint(b, P_MARBLE, 0.5, 0.02)
+    box(b, (-X + 0.01, 1.3, -Z + e - 0.03), (X - 0.01, 1.4, Z - e + 0.03), chamfer=0.015, skip=())
+    # buttresses (both faces), with a sloped weathering
+    for s in (-1, 1):
+        paint(b, P_WALL, 0.48, 0.03)
+        za, zb = sorted((s * (Z - e), s * Z))
+        box(b, (-0.34, 0.34, za), (0.34, 1.5, zb), chamfer=0.02, skip=("-y", "+y", "+z" if s < 0 else "-z"))
+        prof = [(s * (Z - e), 1.5), (s * Z, 1.5), (s * (Z - e), 1.86)]
+        paint(b, P_MARBLE, 0.47)
+        prism(b, "x", [(y, z) for (z, y) in prof], -0.34, 0.34, skip=("-y",))
+    xs = [-X, -1.0 + b.rng.uniform(-0.1, 0.1), 0.05 + b.rng.uniform(-0.1, 0.1), 1.05 + b.rng.uniform(-0.1, 0.1), X]
+    cap_stones(b, xs, yt, H, -Z, Z, chamfer=0.04)
+
+
+def crate_bound(b, x0, x1, y0, y1, z0, z1, mark=("-z", "+z"), handles=True, guards=True):
+    """An iron- and bronze-bound timber supply crate filling the box: corner guards, two bronze bands, a lid with
+    battens, a stencilled legion mark (red bars) on the `mark` faces, rope handles on the x faces."""
+    e = 0.03
+    paint(b, P_TIMBER, 0.5, 0.06)
+    box(b, (x0 + e, y0, z0 + e), (x1 - e, y1 - 0.06, z1 - e), skip=("-y",))
+    paint(b, P_TIMBER, 0.56, 0.04)
+    box(b, (x0 + 0.012, y1 - 0.075, z0 + 0.012), (x1 - 0.012, y1 - 0.025, z1 - 0.012), chamfer=0.012, skip=("-y",))
+    paint(b, P_TIMBER, 0.42, 0.03)
+    for f in (0.2, 0.8):
+        bx = x0 + (x1 - x0) * f
+        box(b, (bx - 0.05, y1 - 0.03, z0 + 0.04), (bx + 0.05, y1, z1 - 0.04), skip=("-y",))
+    if guards:
+        paint(b, P_STEEL, 0.5, 0.03)
+        g = 0.1
+        for cx, sx in ((x0, 1), (x1, -1)):
+            for cz, sz in ((z0, 1), (z1, -1)):
+                box(b, (min(cx, cx + sx * g), y0, min(cz, cz + sz * g)), (max(cx, cx + sx * g), y1 - 0.07, max(cz, cz + sz * g)), skip=("-y", "+y"))
+    paint(b, P_BRONZE, 0.42, 0.03)
+    for (ya, yb) in ((y0 + 0.1, y0 + 0.16), (y1 - 0.24, y1 - 0.18)):
+        box(b, (x0 + e - 0.016, ya, z0 + e - 0.016), (x1 - e + 0.016, yb, z1 - e + 0.016), skip=("-y", "+y"))
+    cx, cy = (x0 + x1) * 0.5, (y0 + y1) * 0.5 + 0.02
+    paint(b, P_RED, 0.5)
+    for nm in mark:
+        w = z0 + e if nm == "-z" else z1 - e
+        if nm in ("-x", "+x"):
+            w = x0 + e if nm == "-x" else x1 - e
+            cx = (z0 + z1) * 0.5
+        sg = 1 if nm[0] == "+" else -1
+        d = 0.005
+        # a chevron (two bars) over a bar: the stencilled legion mark
+        for side in (-1, 1):
+            pts = [(cx, cy - 0.05), (cx + side * 0.07, cy - 0.05), (cx + side * 0.25, cy + 0.13), (cx + side * 0.18, cy + 0.13)]
+            b.poly([fpt(nm, w, u, v, d) for (u, v) in pts], DIRS[nm])
+        fquad(b, nm, w, cx - 0.2, cx + 0.2, cy - 0.17, cy - 0.11, d)
+    if handles:
+        paint(b, P_ROPE, 0.42, 0.04)
+        for s in (-1, 1):
+            nm = "+x" if s > 0 else "-x"
+            w = x1 - e if s > 0 else x0 + e
+            zc = (z0 + z1) * 0.5
+            fbox(b, nm, w, zc - 0.17, zc + 0.17, y1 - 0.42, y1 - 0.37, 0.0, 0.035)
+            for zz in (zc - 0.19, zc + 0.15):
+                fbox(b, nm, w, zz, zz + 0.04, y1 - 0.42, y1 - 0.3, 0.0, 0.022)
+
+
+def build_cover_crate(b, X, H, Z):
+    crate_bound(b, -X, X, -SINK, H, -Z, Z)
+
+
+def build_cover_crate_stack(b, X, H, Z):
+    """Two crates side by side, a third on top (offset), a rolled canvas lashed over it and a canvas fall."""
+    yb = 0.98
+    crate_bound(b, -X, X, -SINK, yb, -Z, -0.01, mark=("-z",), handles=False)
+    crate_bound(b, -X + 0.03, X - 0.05, -SINK, yb, 0.01, Z, mark=("+z",), handles=False)
+    xt0, xt1, zt0, zt1 = -X + 0.08, X - 0.04, -Z + 0.05, Z - 0.1
+    yt = H - 0.2
+    crate_bound(b, xt0, xt1, yb, yt, zt0, zt1, mark=("-z", "+x"), handles=False, guards=True)
+    # the rolled canvas (an eight-sided bundle along x) and two lashings
+    paint(b, P_CANVAS, 0.5, 0.04)
+    r = 0.105
+    zc = -0.1
+    prof = [(yt + r + r * math.sin(a), zc + r * math.cos(a)) for a in [2 * math.pi * k / 8 + math.pi / 8 for k in range(8)]]
+    prism(b, "x", prof, xt0 + 0.05, xt1 - 0.05, skip=("-y",))
+    paint(b, P_ROPE, 0.38)
+    for xx in (xt0 + 0.3, xt1 - 0.3):
+        box(b, (xx - 0.025, yt - 0.01, zt0 - 0.015), (xx + 0.025, yt + 2 * r + 0.01, zt1 + 0.015), skip=("-y",))
+        b.poly([(xx - 0.025, yt - 0.35, zt0 - 0.016), (xx + 0.025, yt - 0.35, zt0 - 0.016), (xx + 0.025, yt, zt0 - 0.016), (xx - 0.025, yt, zt0 - 0.016)], (0, 0, -1))
+    # a canvas fall over the top crate's +x / -z corner
+    paint(b, P_CANVAS, 0.45, 0.03)
+    xa = xt1 - 0.55
+    b.poly([(xa, yt + 0.004, zt0 - 0.004), (xt1 + 0.004, yt + 0.004, zt0 - 0.004), (xt1 + 0.004, yt - 0.45, zt0 - 0.008), (xa + 0.15, yt - 0.32, zt0 - 0.008)], (0, 0, -1))
+    b.poly([(xt1 + 0.004, yt + 0.004, zt0), (xt1 + 0.004, yt + 0.004, zt0 + 0.5), (xt1 + 0.008, yt - 0.3, zt0 + 0.38), (xt1 + 0.008, yt - 0.45, zt0)], (1, 0, 0))
+    b.poly([(xa, yt + 0.004, zt0 - 0.004), (xt1 + 0.004, yt + 0.004, zt0 + 0.5), (xt1 + 0.004, yt + 0.004, zt0)], (0, 1, 0))
+
+
+def bag(b, cx, y0, cz, length, height, width, along="x", pinch=0.78, sides=True):
+    """A filled sack lying along x or z: a six-sided section (flat bottom, bellied sides, rounded top) full at
+    its middle and pinched at both ends (the tied corners)."""
+    hw, h = width * 0.5, height
+    sec = [(-0.42 * hw, 0.0), (0.42 * hw, 0.0), (hw, 0.42 * h), (0.68 * hw, h), (-0.68 * hw, h), (-hw, 0.42 * h)]
+    half = length * 0.5
+    stations = [(-half, pinch), (0.0, 1.0), (half, pinch)]
+
+    def P(t, u, v, k):
+        uu = u * k
+        vv = v * (0.6 + 0.4 * k) if v > 0 else v
+        return (cx + t, y0 + vv, cz + uu) if along == "x" else (cx + uu, y0 + vv, cz + t)
+
+    for si in range(2):
+        (t0, k0), (t1, k1) = stations[si], stations[si + 1]
+        for i in range(len(sec)):
+            if i == 0:
+                continue                                   # the bottom lies on the bag below
+            if not sides and i in (2, 5):
+                continue                                   # sides pressed against the neighbours
+            j = (i + 1) % len(sec)
+            (u0, v0), (u1, v1) = sec[i], sec[j]
+            mu, mv = (u0 + u1) * 0.5, (v0 + v1) * 0.5 - h * 0.45
+            hint = (0.0, mv, mu) if along == "x" else (mu, mv, 0.0)
+            b.poly([P(t0, u0, v0, k0), P(t0, u1, v1, k0), P(t1, u1, v1, k1), P(t1, u0, v0, k1)], hint)
+    for (t, k), sgn in ((stations[0], -1), (stations[2], 1)):
+        nrm = (sgn, 0, 0) if along == "x" else (0, 0, sgn)
+        b.poly([P(t, u, v, k) for (u, v) in sec], nrm)
+
+
+def pillow(b, cx, y0, cz, length, height, width, along="x", ear=0.05, seam=False):
+    """r2a (P3): a filled sack as a squashed pillow: a rounded-rectangle section with bellied sides and a soft top
+    (8 points, the bottom left open: it lies on the course below), full at the middle and pinched towards both
+    ends, which close in a tied ear `ear` beyond the body; `seam`: a darker stitched strip along the top."""
+    hw, h = width * 0.5, height
+    sec = [(-0.9, 0.0), (-1.0, 0.32), (-0.88, 0.76), (-0.5, 1.0), (0.5, 1.0), (0.88, 0.76), (1.0, 0.32), (0.9, 0.0)]
+    half = length * 0.5
+    stations = [(-half, 0.62, 0.7), (0.0, 1.0, 1.0), (half, 0.62, 0.7)]
+
+    def P(t, u, v, k, kv):
+        uu, vv = u * hw * k, v * h * kv
+        return (cx + t, y0 + vv, cz + uu) if along == "x" else (cx + uu, y0 + vv, cz + t)
+
+    for si in range(2):
+        (t0, k0, v0), (t1, k1, v1) = stations[si], stations[si + 1]
+        for i in range(len(sec) - 1):
+            (ua, va), (ub, vb) = sec[i], sec[i + 1]
+            mu, mv = (ua + ub) * 0.5, (va + vb) * 0.5 - 0.45
+            hint = (0.0, mv, mu) if along == "x" else (mu, mv, 0.0)
+            b.poly([P(t0, ua, va, k0, v0), P(t0, ub, vb, k0, v0), P(t1, ub, vb, k1, v1), P(t1, ua, va, k1, v1)], hint)
+    for (t, k, kv), sg in ((stations[0], -1), (stations[2], 1)):
+        tip = P(t + sg * ear, 0.0, 0.42, 0.0, 1.0)
+        nrm = (sg, 0, 0) if along == "x" else (0, 0, sg)
+        for i in range(len(sec) - 1):
+            (ua, va), (ub, vb) = sec[i], sec[i + 1]
+            b.poly([P(t, ua, va, k, kv), P(t, ub, vb, k, kv), tip], nrm)
+    if seam:
+        color, sid, shade = b.color, b.sid, b.shade
+        paint(b, P_LEATHER, 0.42)
+        for si in range(2):
+            (t0, k0, v0), (t1, k1, v1) = stations[si], stations[si + 1]
+            a0, a1 = P(t0, -0.08, 1.0, k0, v0 + 0.012), P(t0, 0.08, 1.0, k0, v0 + 0.012)
+            c0, c1 = P(t1, -0.08, 1.0, k1, v1 + 0.012), P(t1, 0.08, 1.0, k1, v1 + 0.012)
+            b.poly([a0, a1, c1, c0], (0, 1, 0))
+        b.color, b.sid, b.shade = color, sid, shade
+
+
+def build_cover_sandbags(b, X, H, Z):
+    """r2a (P3): a sandbag breastwork in running bond: a header course (bags across, their tied ends to the
+    front and back), a stretcher course of two rows lapping the joints below, headers again on top; pillow bags
+    sagging onto the course below, three canvas tones, a few seams, two timber stakes; a dark core fills the box
+    inside (no see-through gap anywhere in the collider) and the bottom course sits a little under the ground."""
+    paint(b, P_SACK_DARK, tone(0.45))
+    box(b, (-X + 0.07, -SINK, -Z + 0.08), (X - 0.07, H - 0.1, Z - 0.08), skip=("-y",))
+    tones = [(P_SACK, tone(1.1)), (P_SACK, tone(0.9)), (P_SACK_DARK, tone(0.95)), (P_SACK, tone(1.0)), (P_SACK_DARK, tone(0.8))]
+    lh = H / 3.0
+    k = 0
+    for layer in range(3):
+        y0 = -SINK if layer == 0 else layer * lh - 0.03
+        hgt = lh + 0.05 + (SINK - 0.03 if layer == 0 else 0.0)
+        if layer != 1:
+            n = 4
+            w = 2 * X / n
+            for i in range(n):
+                p, s = tones[(k + layer) % len(tones)]
+                k += 1
+                paint(b, p, s + b.rng.uniform(-0.4, 0.4))
+                xc = -X + w * (i + 0.5) + (0.09 if layer == 2 else 0.0) * (1 if i < n - 1 else -0.2)
+                pillow(b, xc + b.rng.uniform(-0.015, 0.015), y0, b.rng.uniform(-0.02, 0.02), 2 * Z - 0.12,
+                       hgt + b.rng.uniform(-0.025, 0.0), w + 0.04, along="z", ear=0.06, seam=(i % 2 == 1 and layer == 2))
+        else:
+            n = 3
+            L = 2 * X / n
+            for row, zc in enumerate((-Z * 0.48, Z * 0.48)):
+                for i in range(n):
+                    p, s = tones[(k + 2) % len(tones)]
+                    k += 1
+                    paint(b, p, s + b.rng.uniform(-0.4, 0.4))
+                    off = 0.18 if row else -0.18
+                    xc = -X + L * (i + 0.5) + (off if i == 1 else off * 0.25)
+                    pillow(b, xc, y0, zc, L - 0.04, hgt + b.rng.uniform(-0.02, 0.0), Z + 0.02, along="x", ear=0.05)
+    # two timber stakes driven in at the ends (they hold the courses)
+    paint(b, P_TIMBER, 0.42, 0.04)
+    for (sx, sz) in ((-1, -1), (1, 1)):
+        x, z = sx * (X - 0.02), sz * (Z - 0.12)
+        box(b, (x - 0.035, -SINK, z - 0.035), (x + 0.035, H + 0.04, z + 0.035), skip=("-y",))
+
+
+def build_cover_sandbags_side(b, X, H, Z):
+    """The same sandbags turned a quarter (the 1 x 0.9 x 2.4 nest side)."""
+    s = sub_builder(b)
+    s.rng = random.Random(zlib.crc32("cover/cover_sandbags".encode("utf-8")))   # r2a: exactly the sandbags, turned
+    build_cover_sandbags(s, Z, H, X)
+    emit(b, s, yaw=90.0)
+
+
+def build_cover_barrier(b, X, H, Z):
+    """A legion mantlet (pluteus): a timber crib filled with earth behind a front of bronze-rimmed red shields,
+    end posts with iron caps, a top beam carrying an energy strip, braces on the back, ground sills."""
+    core = (-X + 0.07, Z - 0.1)
+    paint(b, P_TIMBER, 0.45, 0.04)
+    box(b, (core[0], 0.0, -Z + 0.12), (-core[0], H - 0.1, core[1]), skip=("-y", "+y"))
+    # ground sills
+    paint(b, P_TIMBER, 0.38, 0.03)
+    box(b, (-X + 0.02, -SINK, -Z), (X - 0.02, 0.1, -Z + 0.14), chamfer=0.015, skip=("-y",))
+    box(b, (-X + 0.02, -SINK, Z - 0.16), (X - 0.02, 0.1, Z), chamfer=0.015, skip=("-y",))
+    # end posts with iron caps
+    for s in (-1, 1):
+        xa, xb = sorted((s * X, s * (X - 0.12)))
+        paint(b, P_TIMBER, 0.5, 0.04)
+        box(b, (xa, -SINK, -Z + 0.04), (xb, H - 0.06, Z - 0.04), chamfer=0.02, skip=("-y",))
+        paint(b, P_IRON, 0.5)
+        box(b, (xa - 0.005, H - 0.06, -Z + 0.035), (xb + 0.005, H, Z - 0.035), chamfer=0.012, skip=("-y",))
+    # the shields
+    n = max(2, int(round((2 * X - 0.24) / 0.72)))
+    w = (2 * X - 0.24) / n
+    wf = -Z + 0.12
+    for i in range(n):
+        u0 = -X + 0.12 + w * i + 0.025
+        u1 = u0 + w - 0.05
+        paint(b, P_BRONZE, 0.44, 0.03)
+        fbox(b, "-z", wf, u0, u1, 0.1, H - 0.14, 0.0, 0.05)
+        paint(b, P_RED, 0.5 + b.rng.uniform(-0.05, 0.05))
+        fquad(b, "-z", wf, u0 + 0.05, u1 - 0.05, 0.15, H - 0.19, 0.052)
+        uc, vc = (u0 + u1) * 0.5, (0.1 + H - 0.14) * 0.5
+        paint(b, P_GOLD, 0.48)
+        fquad(b, "-z", wf, uc - 0.02, uc + 0.02, 0.18, H - 0.22, 0.054)
+        paint(b, P_BRONZE, 0.55)
+        fbox(b, "-z", wf, uc - 0.09, uc + 0.09, vc - 0.09, vc + 0.09, 0.05, 0.09, chamfer=0.02)
+    # the top beam and its energy strip
+    paint(b, P_TIMBER, 0.52, 0.03)
+    box(b, (-X + 0.12, H - 0.1, -Z + 0.06), (X - 0.12, H - 0.005, Z - 0.08), chamfer=0.02, skip=("-y",))
+    paint(b, P_GLOW, 0.5)
+    fquad(b, "-z", -Z + 0.06, -X + 0.14, X - 0.14, H - 0.075, H - 0.045, 0.006)
+    # braces on the back (relief), one X per bay
+    paint(b, P_TIMBER, 0.4, 0.03)
+    bays = max(1, n - 1)
+    bw = (2 * X - 0.24) / bays
+    for i in range(bays):
+        xa = -X + 0.12 + bw * i + 0.04
+        xb = xa + bw - 0.08
+        for (p0, p1) in (((xa, 0.1), (xb, H - 0.12)), ((xa, H - 0.12), (xb, 0.1))):
+            d = norm((p1[0] - p0[0], p1[1] - p0[1], 0.0))
+            nx = (-d[1] * 0.045, d[0] * 0.045)
+            pts = [(p0[0] + nx[0], p0[1] + nx[1]), (p1[0] + nx[0], p1[1] + nx[1]), (p1[0] - nx[0], p1[1] - nx[1]), (p0[0] - nx[0], p0[1] - nx[1])]
+            fplate(b, "+z", core[1], pts, 0.0, 0.05 if p0[1] < p1[1] else 0.08)
+
+
+def wheel(b, near_side, cx, cy, cz, r, t, spokes=False):
+    """A solid plank wheel (the camp's carts) in the x-y plane at z = cz: an iron tyre, the disc, a hub."""
+    zs = sorted((cz - t * 0.5, cz + t * 0.5))
+    pts = [(cx + r * math.cos(a), cy + r * math.sin(a)) for a in [2 * math.pi * k / 10 for k in range(10)]]
+    paint(b, P_IRON, 0.45)
+    prism(b, "z", pts, zs[0] + 0.01, zs[1] - 0.01, caps=(False, False))
+    paint(b, P_TIMBER, 0.48, 0.04)
+    inner = [(cx + (r - 0.04) * math.cos(a), cy + (r - 0.04) * math.sin(a)) for a in [2 * math.pi * k / 10 for k in range(10)]]
+    for (z, sg) in ((zs[0] + 0.01, -1), (zs[1] - 0.01, 1)):
+        b.poly([(u, v, z) for (u, v) in pts], (0, 0, sg))
+    paint(b, P_BRONZE, 0.5)
+    hz = zs[1] if near_side > 0 else zs[0]
+    za, zb = sorted((hz, hz + near_side * 0.06))
+    box(b, (cx - 0.08, cy - 0.08, za), (cx + 0.08, cy + 0.08, zb), chamfer=0.02)
+
+
+def spoked_wheel(b, r, t, hub_out):
+    """r2a (P3): a cart wheel in the x-y plane round the origin, z = 0 its middle: an iron tyre (10 sides, outer
+    face and both rims), a timber felloe ring, six spokes (crossed plates), a bronze hub standing hub_out (+z)."""
+    n = 8
+    ang = [2 * math.pi * (k + 0.5) / n for k in range(n)]
+    ro, rf, ri = r, r - 0.045, r - 0.11
+    paint(b, P_IRON, tone(0.75))
+    prism(b, "z", [(ro * math.cos(a), ro * math.sin(a)) for a in ang], -t * 0.5, t * 0.5, caps=(False, False))
+    paint(b, P_TIMBER, tone(1.0), 0.3)
+    for zf, sg in ((-t * 0.5, -1), (t * 0.5, 1)):
+        for k in range(n):
+            a0, a1 = ang[k], ang[(k + 1) % n]
+            b.poly([(ro * math.cos(a0), ro * math.sin(a0), zf), (ro * math.cos(a1), ro * math.sin(a1), zf),
+                    (ri * math.cos(a1), ri * math.sin(a1), zf), (ri * math.cos(a0), ri * math.sin(a0), zf)], (0, 0, sg))
+    paint(b, P_TIMBER, tone(0.9), 0.3)
+    for k in range(2):
+        a = math.pi * k / 2 + math.pi / 8
+        c, s_ = math.cos(a), math.sin(a)
+        w = 0.028
+        slab(b, [(-ri * c - w * s_, -ri * s_ + w * c, -0.02), (ri * c - w * s_, ri * s_ + w * c, -0.02),
+                 (ri * c + w * s_, ri * s_ - w * c, -0.02), (-ri * c + w * s_, -ri * s_ - w * c, -0.02)], (0, 0, 0.04))
+    paint(b, P_BRONZE, tone(1.1))
+    hub = [(0.09 * math.cos(a), 0.09 * math.sin(a)) for a in [2 * math.pi * k / 6 for k in range(6)]]
+    prism(b, "z", hub, -t * 0.5 - 0.03, t * 0.5 + hub_out)
+
+
+def build_cover_wreck_cart(b, X, H, Z):
+    """r2a (P3): a legion supply wagon left broken: a dark timber chassis (two long beams on two iron axles), a
+    bed with lighter side and end boards, a canvas-covered load lashed with leather straps, four spoked wheels
+    with iron tyres and bronze hubs (one sprung off its axle, leaning against the side), the pole dropped to the
+    ground. Values: chassis dark, boards light, canvas lightest, iron darkest. A dark under-bed shadow block fills
+    the box below the bed so no shot passes through the collider."""
+    yb = 0.62                          # top of the bed planks
+    # the shadow under the bed (fills the box)
+    paint(b, P_TIMBER, tone(0.3))
+    box(b, (-X + 0.17, -SINK, -Z + 0.2), (X - 0.17, yb - 0.1, Z - 0.2), skip=("-y",))
+    # axles (iron) and the two long chassis beams (dark timber)
+    paint(b, P_IRON, tone(0.8))
+    for ax in (-0.82, 0.82):
+        box(b, (ax - 0.05, 0.33, -Z + 0.03), (ax + 0.05, 0.43, Z - 0.03))
+    paint(b, P_TIMBER, tone(0.62), 0.2)
+    for zz in (-0.5, 0.5):
+        box(b, (-X + 0.06, 0.43, zz - 0.07), (X - 0.06, yb - 0.06, zz + 0.07), skip=("+y",))
+    # the bed planks
+    paint(b, P_TIMBER, tone(0.75), 0.3)
+    box(b, (-X + 0.08, yb - 0.06, -0.8), (X - 0.08, yb, 0.8), skip=("-y",))
+    # lighter side and end boards
+    paint(b, P_TIMBER, tone(1.12), 0.3)
+    for sz in (-1, 1):
+        za, zb = sorted((sz * 0.8, sz * 0.75))
+        box(b, (-X + 0.08, yb - 0.06, za), (X - 0.08, yb + 0.34, zb), chamfer=0.01)
+    for sx in (-1, 1):
+        xa, xb = sorted((sx * (X - 0.08), sx * (X - 0.13)))
+        box(b, (xa, yb - 0.06, -0.75), (xb, yb + 0.3, 0.75))
+    # the canvas-covered load (a rounded hump) and three leather straps over it
+    prof = [(-0.74, yb), (-0.72, yb + 0.3), (-0.55, yb + 0.48), (-0.22, yb + 0.56), (0.22, yb + 0.56), (0.55, yb + 0.48),
+            (0.72, yb + 0.3), (0.74, yb)]
+    paint(b, P_CANVAS, tone(1.18), 0.2)
+    prism(b, "x", [(y, z) for (z, y) in prof], -X + 0.16, X - 0.2, skip=("-y",))
+    paint(b, P_LEATHER, tone(0.7))
+    for xs in (-0.65, 0.0, 0.65):
+        band = [(z * 1.02, yb + (y - yb) * 1.03 + 0.008) for (z, y) in prof]
+        prism(b, "x", [(y, z) for (z, y) in band], xs - 0.04, xs + 0.04, skip=("-y",))
+    # the wheels: three on their axles, the fourth (+x, +z) sprung off and leaning against the side
+    for (wx, wz, sg) in ((-0.82, -Z + 0.06, -1), (-0.82, Z - 0.06, 1), (0.82, -Z + 0.06, -1)):
+        w = sub_builder(b)
+        spoked_wheel(w, 0.38, 0.07, 0.04)
+        emit(b, w, at=(wx, 0.38, wz), yaw=0.0 if sg > 0 else 180.0)
+    w = sub_builder(b)
+    spoked_wheel(w, 0.38, 0.07, 0.04)
+    emit(b, w, at=(0.98, 0.36, Z - 0.1), pitch=-24.0)
+    # the pole, dropped to the ground at the front
+    paint(b, P_TIMBER, tone(0.7), 0.2)
+    sh = sub_builder(b)
+    box(sh, (0.0, -0.04, -0.04), (0.62, 0.04, 0.04), chamfer=0.012)
+    emit(b, sh, at=(X - 0.5, 0.42, -0.12), roll=-38.0, yaw=8.0)
+
+
+def build_cover_rubble_pile(b, X, H, Z):
+    """Tumbled ashlar blocks and a fallen column drum, heaped to the box top and out to its corners."""
+    blocks = [  # (centre, half size, yaw, roll, pitch, paint)
+        ((-0.3, 0.2, -0.28), (0.46, 0.24, 0.3), 8.0, 0.0, 0.0, P_SHADE),
+        ((0.42, 0.18, 0.28), (0.34, 0.22, 0.27), -14.0, 4.0, 0.0, P_WALL),
+        ((-0.08, 0.63, 0.06), (0.36, 0.17, 0.26), 18.0, 10.0, -6.0, P_WALL),
+        ((-0.6, 0.12, 0.45), (0.2, 0.14, 0.2), 30.0, 8.0, 0.0, P_BASE),
+        ((0.62, 0.1, -0.5), (0.17, 0.12, 0.16), -20.0, 0.0, 9.0, P_SHADE),
+        ((0.58, 0.48, 0.3), (0.2, 0.13, 0.17), 25.0, -12.0, 0.0, P_SHADE),
+        ((-0.68, 0.08, -0.55), (0.12, 0.09, 0.12), 12.0, 0.0, 0.0, P_ROCK),
+    ]
+    for (c, h, yaw, roll, pitch, p) in blocks:
+        s = sub_builder(b)
+        paint(s, p, 0.5 + b.rng.uniform(-0.08, 0.08), 0.03)
+        box(s, (-h[0], -h[1], -h[2]), (h[0], h[1], h[2]), chamfer=0.04)
+        emit(b, s, at=c, yaw=yaw, roll=roll, pitch=pitch)
+    # the fallen column drum (marble, fluted), along x with a slight yaw
+    s = sub_builder(b)
+    r = 0.27
+    paint(s, P_MARBLE, 0.5, 0.03)
+    prof = []
+    for k in range(10):
+        a = 2 * math.pi * k / 10
+        rr = r if k % 2 == 0 else r * 0.9
+        prof.append((rr * math.cos(a), rr * math.sin(a)))
+    prism(s, "x", [(v, u) for (u, v) in prof], -0.42, 0.42)
+    emit(b, s, at=(0.15, r - 0.02, -0.4), yaw=-12.0)
+
+
+def strata_layer(b, cx, cz, y0, y1, rx, rz, segs, taper, jit, tilt=(0.0, 0.0)):
+    """One stratum of a boulder: an irregular ring at y0 to a smaller ring at y1 (top tilted by `tilt`, per metre
+    in x and z), flat facets, a fanned top."""
+    ang = [2 * math.pi * k / segs + b.rng.uniform(-0.12, 0.12) for k in range(segs)]
+    rad = [1.0 + b.rng.uniform(-jit, jit * 0.4) for _ in range(segs)]
+    lo = [(cx + rx * rad[k] * math.cos(ang[k]), y0, cz + rz * rad[k] * math.sin(ang[k])) for k in range(segs)]
+    hi = []
+    for k in range(segs):
+        x = cx + rx * taper * rad[k] * math.cos(ang[k])
+        z = cz + rz * taper * rad[k] * math.sin(ang[k])
+        hi.append((x, y1 + tilt[0] * (x - cx) + tilt[1] * (z - cz) + b.rng.uniform(-0.03, 0.0), z))
+    for k in range(segs):
+        j = (k + 1) % segs
+        out = (math.cos((ang[k] + ang[j]) * 0.5), 0.3, math.sin((ang[k] + ang[j]) * 0.5))
+        b.tri(*_wind(lo[k], lo[j], hi[j], out))
+        b.tri(*_wind(lo[k], hi[j], hi[k], out))
+    top = (cx, y1 + b.rng.uniform(0.0, 0.03), cz)
+    for k in range(segs):
+        j = (k + 1) % segs
+        b.tri(*_wind(hi[k], hi[j], top, (0, 1, 0)))
+
+
+def _wind(a, b_, c, hint):
+    return (a, b_, c) if dot(cross(sub(b_, a), sub(c, a)), hint) >= 0 else (a, c, b_)
+
+
+def build_cover_rock(b, X, H, Z):
+    """A faceted boulder in flat-bedded strata (three stacked, offset, slightly tilted layers) filling its box."""
+    paint(b, P_ROCK, 0.46, 0.03)
+    strata_layer(b, 0.0, 0.0, -SINK, 0.46, X * 1.04, Z * 1.04, 10, 0.93, 0.08, (0.04, -0.03))
+    paint(b, P_ROCK, 0.54, 0.03)
+    strata_layer(b, 0.06, -0.04, 0.44, 0.86, X * 0.88, Z * 0.9, 9, 0.9, 0.1, (-0.05, 0.03))
+    paint(b, P_DARKSTONE, 0.5, 0.03)
+    strata_layer(b, -0.1, 0.05, 0.84, H, X * 0.66, Z * 0.68, 8, 0.82, 0.12, (0.03, 0.02))
+
+
+def build_cover_pillar(b, X, H, Z):
+    """A broken column on its plinth: a dark plinth, an attic base, three fluted marble drums with sunk joints,
+    the top drum broken off on a slant."""
+    paint(b, P_BASE, 0.45, 0.03)
+    box(b, (-X, -SINK, -Z), (X, 0.3, Z), chamfer=0.035, skip=("-y",))
+    paint(b, P_MARBLE, 0.5)
+    lathe(b, 0.0, 0.0, [(0.3, 0.52), (0.36, 0.53), (0.44, 0.47)], 10, caps=(False, True))
+    r = 0.46
+    joints = [0.44, 1.26, 2.06]
+    for i in range(2):
+        ya, yb = joints[i], joints[i + 1] - 0.025
+        paint(b, P_MARBLE, 0.5 + 0.05 * (i % 2) + b.rng.uniform(-0.03, 0.03))
+        lathe(b, 0.01 * i, 0.0, [(ya, r - 0.01 * i), (yb, r - 0.012 - 0.01 * i)], 8, phase=0.15 * i, star=0.88)
+        paint(b, P_SHADE, 0.38)
+        lathe(b, 0.01 * i, 0.0, [(yb, r - 0.06), (yb + 0.025, r - 0.06)], 8)
+    # the broken top drum
+    paint(b, P_MARBLE, 0.53)
+    ya = joints[2]
+    n = 16
+    lo, hi = [], []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        rr = (r - 0.03) * (1.0 if k % 2 == 0 else 0.88)
+        x, z = 0.015 + rr * math.cos(a), rr * math.sin(a)
+        lo.append((x, ya, z))
+        brk = H - 0.02 - 0.42 * (0.5 + 0.5 * math.cos(a - 0.6)) + b.rng.uniform(-0.04, 0.02)
+        hi.append((x, brk, z))
+    for k in range(n):
+        j = (k + 1) % n
+        out = (math.cos(2 * math.pi * (k + 0.5) / n), 0.0, math.sin(2 * math.pi * (k + 0.5) / n))
+        b.tri(*_wind(lo[k], lo[j], hi[j], out))
+        b.tri(*_wind(lo[k], hi[j], hi[k], out))
+    paint(b, P_SHADE, 0.55)
+    cen = (0.015, sum(p[1] for p in hi) / n + 0.03, 0.0)
+    for k in range(n):
+        j = (k + 1) % n
+        b.tri(*_wind(hi[k], hi[j], cen, (0, 1, 0)))
+
+
+def build_cover_arch(b, X, H, Z):
+    """A small arch whose way is walled up (the box is solid): piers on a base course, marble imposts, a ring of
+    voussoirs with a keystone round a recessed rubble infill on both faces, an attic with a cornice."""
+    spring, half = 1.7, 0.72
+    yt = H - 0.32
+    for s in (-1, 1):
+        paints = {"face": (P_WALL[0], P_WALL[1], 0.5), "back": ("travertine_shade", "rock", 0.36),
+                  "ring": ("travertine", None, 0.56), "key": ("marble", None, 0.58)}
+        blind_arch(b, s * (Z - 0.06), s, -X + 0.02, X - 0.02, 0.28, yt, -half, half, spring, 0.12, 7,
+                   (0.2, 0.035, 0.24, 0.05, 0.012), paints)
+        paint(b, P_MARBLE, 0.52)
+        for sx in (-1, 1):
+            xa, xb = sorted((sx * (half + 0.02), sx * (half + 0.3)))
+            za, zb = sorted((s * (Z - 0.06), s * (Z - 0.01)))
+            box(b, (xa, spring - 0.14, za), (xb, spring, zb), skip=("-z" if s > 0 else "+z",))
+    for sx in (-1, 1):
+        fquad(b, "+x" if sx > 0 else "-x", sx * (X - 0.02), -Z + 0.06, Z - 0.06, 0.28, yt)
+    paint(b, P_BASE, 0.45, 0.03)
+    box(b, (-X, -SINK, -Z), (X, 0.28, Z), chamfer=0.03, skip=("-y",))
+    paint(b, P_MARBLE, 0.5, 0.03)
+    box(b, (-X, yt, -Z), (X, yt + 0.12, Z), chamfer=0.02, skip=("-y",))
+    paint(b, P_WALL, 0.52, 0.03)
+    box(b, (-X + 0.06, yt + 0.12, -Z + 0.06), (X - 0.06, H - 0.08, Z - 0.06), skip=("-y",))
+    paint(b, P_MARBLE, 0.55, 0.02)
+    box(b, (-X, H - 0.08, -Z), (X, H, Z), chamfer=0.025, skip=("-y",))
+
+
+def build_cover_breakable_crate(b, X, H, Z):
+    """A light supply crate (reads as breakable): plank faces with gaps between thin slats, a diagonal brace,
+    no iron, a red wax seal on the front and the lid, a rope tie."""
+    e = 0.04
+    paint(b, P_TIMBER, 0.42, 0.03)
+    box(b, (-X + e, -SINK, -Z + e), (X - e, H - 0.04, Z - e), skip=("-y",))
+    # slats: three planks per side face, standing out of the dark core
+    for nm, w, (u0, u1) in (("-z", -Z + e, (-X, X)), ("+z", Z - e, (-X, X)), ("-x", -X + e, (-Z, Z)), ("+x", X - e, (-Z, Z))):
+        rows = 3
+        ph = (H - 0.08) / rows
+        for i in range(rows):
+            paint(b, P_TIMBER, 0.6 + b.rng.uniform(-0.08, 0.06), 0.02)
+            fbox(b, nm, w, u0 + 0.075, u1 - 0.075, 0.02 + ph * i + 0.018, 0.02 + ph * (i + 1) - 0.018, 0.0, 0.028)
+        paint(b, P_TIMBER, 0.48, 0.02)
+        for su in (-1, 1):
+            uu = u1 - 0.075 if su > 0 else u0
+            fbox(b, nm, w, uu, uu + 0.075, -SINK, H - 0.05, 0.0, 0.035)
+        if nm in ("-z", "+z"):
+            # the diagonal brace
+            paint(b, P_TIMBER, 0.52, 0.02)
+            pa, pb = (u0 + 0.1, 0.08), (u1 - 0.1, H - 0.12)
+            d = norm((pb[0] - pa[0], pb[1] - pa[1], 0.0))
+            nx = (-d[1] * 0.05, d[0] * 0.05)
+            pts = [(pa[0] + nx[0], pa[1] + nx[1]), (pb[0] + nx[0], pb[1] + nx[1]), (pb[0] - nx[0], pb[1] - nx[1]), (pa[0] - nx[0], pa[1] - nx[1])]
+            fplate(b, nm, w, pts if nm == "-z" else [(-u, v) for (u, v) in pts], 0.028, 0.045)
+    # the lid: four boards with gaps
+    for k in range(4):
+        za = -Z + 0.02 + (2 * Z - 0.04) * k / 4 + 0.012
+        zb = -Z + 0.02 + (2 * Z - 0.04) * (k + 1) / 4 - 0.012
+        paint(b, P_TIMBER, 0.62 + b.rng.uniform(-0.06, 0.06), 0.02)
+        box(b, (-X + 0.02, H - 0.04, za), (X - 0.02, H, zb), skip=("-y",))
+    # the seal: a red wax disc with a bronze stamp on the front and on the lid
+    paint(b, P_RED, 0.55)
+    fplate(b, "-z", -Z + e, disc_pts(0.0, H * 0.55, 0.09, 6, math.pi / 6), 0.045, 0.06)
+    b.poly([(x, H + 0.004, z) for (x, z) in disc_pts(0.25, 0.0, 0.08, 6)], (0, 1, 0))
+    paint(b, P_GOLD, 0.5)
+    fquad(b, "-z", -Z + e, -0.03, 0.03, H * 0.55 - 0.03, H * 0.55 + 0.03, 0.062)
+    # the rope tie across the lid
+    paint(b, P_ROPE, 0.4)
+    box(b, (-0.04, H - 0.01, -Z + 0.01), (0.04, H + 0.012, Z - 0.01), skip=("-y",))
+
+
+def build_cover_breakable_barrel(b, X, H, Z):
+    """A staved cask: bellied staves, a sunk head with a chime, three bronze hoops, a red seal on the bung."""
+    r = min(X, Z)
+    paint(b, P_TIMBER, 0.5, 0.03)
+    rings = [(-SINK, r * 0.84), (0.3, r * 0.95), (H * 0.5, r * 0.99), (H - 0.3, r * 0.95), (H, r * 0.84)]
+    lathe(b, 0.0, 0.0, rings, 12, phase=0.13)
+    paint(b, P_TIMBER, 0.38)
+    lathe(b, 0.0, 0.0, [(H, r * 0.84), (H, r * 0.78), (H - 0.04, r * 0.78)], 12, phase=0.13)
+    paint(b, P_TIMBER, 0.56, 0.03)
+    b.poly([(x, H - 0.04, z) for (x, _, z) in ring_pts(0.0, 0.0, H - 0.04, r * 0.78, 12, 0.13)], (0, 1, 0))
+    paint(b, P_BRONZE, 0.45, 0.03)
+    for y, rr in ((0.12, r * 0.89), (H * 0.5, r * 0.99), (H - 0.18, r * 0.89)):
+        lathe(b, 0.0, 0.0, [(y - 0.04, rr + 0.018), (y + 0.04, rr + 0.018)], 12, phase=0.13)
+    paint(b, P_RED, 0.55)
+    b.poly([(x, H - 0.035, z) for (x, _, z) in ring_pts(r * 0.35, 0.0, H - 0.035, 0.06, 6)], (0, 1, 0))
+
+
+def chest_body(b, X, H, Z, open_=False):
+    """The legion strongbox below its lid: dark plate on bronze skids, bronze corner guards and straps, the
+    gold eagle on the front (-z), the energy lock."""
+    yl = 0.56
+    paint(b, P_STEEL, 0.48, 0.03)
+    for sx in (-1, 1):
+        xa, xb = sorted((sx * (X - 0.04), sx * (X - 0.24)))
+        box(b, (xa, 0.0, -Z), (xb, 0.07, Z), chamfer=0.015, skip=("-y",))
+    paint(b, P_PLATE, 0.5, 0.03)
+    if open_:
+        box(b, (-X + 0.04, 0.07, -Z + 0.03), (X - 0.04, yl, Z - 0.03), skip=("-y", "+y"))
+        # the open top: a rim and the glowing hoard inside
+        paint(b, P_BRONZE, 0.55)
+        t = 0.05
+        for (x0, x1, z0, z1) in ((-X + 0.04, X - 0.04, -Z + 0.03, -Z + 0.03 + t), (-X + 0.04, X - 0.04, Z - 0.03 - t, Z - 0.03),
+                                 (-X + 0.04, -X + 0.04 + t, -Z + 0.03 + t, Z - 0.03 - t), (X - 0.04 - t, X - 0.04, -Z + 0.03 + t, Z - 0.03 - t)):
+            b.poly([(x0, yl, z0), (x1, yl, z0), (x1, yl, z1), (x0, yl, z1)], (0, 1, 0))
+        paint(b, P_PLATE, 0.35)
+        xi, zi = X - 0.04 - t, Z - 0.03 - t
+        for (nm, w, u0, u1) in (("+z", -zi, -xi, xi), ("-z", zi, -xi, xi), ("+x", -xi, -zi, zi), ("-x", xi, -zi, zi)):
+            fquad(b, nm, w, u0, u1, yl - 0.14, yl)
+        paint(b, P_GLOW, 0.5)
+        b.poly([(-xi, yl - 0.14, -zi), (xi, yl - 0.14, -zi), (xi, yl - 0.14, zi), (-xi, yl - 0.14, zi)], (0, 1, 0))
+        paint(b, P_GOLD, 0.55)
+        for (x0, z0, yy) in ((-0.32, -0.1, 0.0), (0.05, 0.05, 0.03), (0.3, -0.12, 0.0)):
+            box(b, (x0 - 0.12, yl - 0.14, z0 - 0.06), (x0 + 0.12, yl - 0.06 + yy, z0 + 0.06), chamfer=0.015, skip=("-y",))
+    else:
+        box(b, (-X + 0.04, 0.07, -Z + 0.03), (X - 0.04, yl, Z - 0.03), skip=("-y", "+y"))
+    paint(b, P_BRONZE, 0.46, 0.03)
+    g = 0.09
+    for cx, sx in ((-X, 1), (X, -1)):
+        for cz, sz in ((-Z, 1), (Z, -1)):
+            box(b, (min(cx, cx + sx * g), 0.07, min(cz, cz + sz * g)), (max(cx, cx + sx * g), yl, max(cz, cz + sz * g)), skip=("-y", "+y"))
+    for xx in (-0.36, 0.36):
+        box(b, (xx - 0.04, 0.07, -Z + 0.015), (xx + 0.04, yl, Z - 0.015), skip=("-y", "+y"))
+    # the eagle (gold relief) and the energy lock on the front
+    paint(b, P_GOLD, 0.52)
+    wf = -Z + 0.03
+    for sx in (-1, 1):
+        wing = [(0.05, 0.3), (0.16, 0.34), (0.26, 0.42), (0.24, 0.45), (0.15, 0.4), (0.05, 0.38)]
+        fplate(b, "-z", wf, [(sx * u, v) for (u, v) in wing], 0.0, 0.02)
+    fplate(b, "-z", wf, [(-0.05, 0.22), (0.05, 0.22), (0.06, 0.4), (0.0, 0.46), (-0.06, 0.4)], 0.0, 0.025)
+    paint(b, P_GLOW, 0.5)
+    fbox(b, "-z", wf, -0.05, 0.05, yl - 0.08, yl + (0.0 if open_ else 0.06), 0.0, 0.035)
+    fquad(b, "-z", wf, -X + 0.13, X - 0.13, yl - 0.035, yl - 0.012, 0.004)
+
+
+def chest_lid(b, X, Z, yl):
+    """The lid: a low hipped top (prism along x) with bronze straps and a red field, in the closed position."""
+    prof = [(-Z, yl), (Z, yl), (Z, yl + 0.14), (Z - 0.14, yl + 0.3), (-Z + 0.14, yl + 0.3), (-Z, yl + 0.14)]
+    paint(b, P_REDCLOTH, 0.5)
+    prism(b, "x", [(y, z) for (z, y) in prof], -X + 0.03, X - 0.03, skip=("-y",))
+    paint(b, P_BRONZE, 0.5, 0.03)
+    big = [(-Z - 0.012, yl), (Z + 0.012, yl), (Z + 0.012, yl + 0.145), (Z - 0.14, yl + 0.312), (-Z + 0.14, yl + 0.312), (-Z - 0.012, yl + 0.145)]
+    for xx in (-X + 0.07, -0.36, 0.36, X - 0.07):
+        prism(b, "x", [(y, z) for (z, y) in big], xx - 0.04, xx + 0.04, skip=("-y",))
+    paint(b, P_GLOW, 0.5)
+    b.poly([(-0.3, yl + 0.304, -0.04), (0.3, yl + 0.304, -0.04), (0.3, yl + 0.304, 0.04), (-0.3, yl + 0.304, 0.04)], (0, 1, 0))
+
+
+def build_cover_chest(b, X, H, Z):
+    chest_body(b, X, H, Z)
+    chest_lid(b, X, Z, 0.56)
+
+
+def build_cover_chest_open(b, X, H, Z, angle=None):
+    """The open strongbox: the lid swung up about its back hinge (fit exception: the lid stands over the box)."""
+    chest_body(b, X, H, Z, open_=True)
+    ang = float(angle if angle is not None else b.data.cfg["cover"]["loot_chest_open"].get("lid_deg", 100.0))
+    s = sub_builder(b)
+    yl = 0.56
+    chest_lid(s, X, Z, 0.0)
+    # hinge at the back top edge: move the hinge to the origin, rotate about x, move back
+    for i, t in enumerate(s.tris):
+        q = []
+        for p in t[:3]:
+            p0 = (p[0], p[1], p[2] - Z)
+            p1 = rot_xyz(p0, pitch=ang)
+            q.append((p1[0], p1[1] + yl, p1[2] + Z))
+        s.tris[i] = (q[0], q[1], q[2]) + tuple(t[3:])
+    b.tris.extend(s.tris)
+
+
+COVER_BUILDERS = {
+    "low_wall": build_cover_low_wall,
+    "tall_wall": build_cover_tall_wall,
+    "crate": build_cover_crate,
+    "crate_stack": build_cover_crate_stack,
+    "sandbags": build_cover_sandbags,
+    "sandbags_side": build_cover_sandbags_side,
+    "barrier": build_cover_barrier,
+    "wreck_cart": build_cover_wreck_cart,
+    "rubble_pile": build_cover_rubble_pile,
+    "rock": build_cover_rock,
+    "pillar": build_cover_pillar,
+    "arch": build_cover_arch,
+    "breakable_crate": build_cover_breakable_crate,
+    "breakable_barrel": build_cover_breakable_barrel,
+    "chest": build_cover_chest,
+    "chest_open": build_cover_chest_open,
+}
+
+# the glb cover nodes (data/art_world_kit.json cover.<type>.node) and their builders
+COVER_NODES = {
+    "cover_sandbags": build_cover_sandbags,
+    "cover_sandbags_side": build_cover_sandbags_side,
+    "cover_wreck_cart": build_cover_wreck_cart,
+}
+
+
+def cover_fit(data, name, size, tris, exception):
+    """Overshoot (worst vertex distance outside the box), the insets per side (box face to the look's extreme;
+    > 0 = the look stops short of that face) and the bottom gap."""
+    h = [size[i] * 0.5 for i in range(3)]
+    worst = 0.0
+    lo = [1e9] * 3
+    hi = [-1e9] * 3
+    for t in tris:
+        for v in t[:3]:
+            d = [max(abs(v[i]) - h[i], 0.0) for i in range(3)]
+            worst = max(worst, length(d))
+            for i in range(3):
+                lo[i] = min(lo[i], v[i])
+                hi[i] = max(hi[i], v[i])
+    inset = {"-x": lo[0] + h[0], "+x": h[0] - hi[0], "-y": lo[1] + h[1], "+y": h[1] - hi[1], "-z": lo[2] + h[2], "+z": h[2] - hi[2]}
+    tol = float(exception) if exception else float(data.cfg["fit_tolerance_m"])
+    flag = "" if worst <= tol + 1e-5 and inset["-y"] <= 0.01 else " FIT_FAIL"
+    return "over=%.3f (limit %.2f) inset %s%s" % (worst, tol, " ".join("%s=%.2f" % (k, v) for k, v in inset.items()), flag)
+
+
 BUILDERS = {
     "barracks": build_barracks,
     "tent": build_tent,
@@ -2563,7 +3667,10 @@ def main():
             only = a[7:].split(",")
     bpy.ops.wm.read_factory_settings(use_empty=True)
     joint = data.cfg.get("joint", {})
+    SHADE_RANGE[0] = float(data.cfg["shade_bake"]["shade_range"])
+    assert abs(float(data.cfg["shade_bake"]["part_shade"]) - PART_SHADE) < 1e-9, "PART_SHADE must match shade_bake.part_shade"
     report = []
+    t_start = time.time()
     for type_name, entry in data.cfg["types"].items():
         if type_name.startswith("_") or (only and type_name not in only):
             continue
@@ -2577,9 +3684,32 @@ def main():
             tris = b.tris
             if type_name in joint.get("types", []):
                 tris = joint_bend(tris, joint)
+            tris = bake_shade(data, tris, "structure", level)
             make_object(node, tris)
             report.append("M2W1_KIT %s triangles=%d %s" % (node, len(tris), fit_check(data, type_name, tris)))
+    t_struct = time.time()
+    # M2W1 r2a: the glb cover looks (data/art_world_kit.json cover.<type>.node; the other cover types are kit parts
+    # built at load). Authored on the type's one box (data/maps/alesia_cover.json types, read only) in a ground
+    # frame, shifted down by half the height (the cover body's origin is the box centre).
+    cover_types = load_json("data/maps/alesia_cover.json")["types"]
+    built = set()
+    for name, entry in data.cfg.get("cover", {}).items():
+        if name.startswith("_") or "node" not in entry or (only and name not in only):
+            continue
+        node = entry["node"]
+        size = [float(v) for v in cover_types[name]["size"]]
+        if node in built:
+            continue
+        built.add(node)
+        b = Builder(data, "cover/" + node)
+        COVER_NODES[node](b, size[0] * 0.5, size[1], size[2] * 0.5)
+        tris = bake_shade(data, b.tris, "cover")
+        hy = size[1] * 0.5
+        tris = [((t[0][0], t[0][1] - hy, t[0][2]), (t[1][0], t[1][1] - hy, t[1][2]), (t[2][0], t[2][1] - hy, t[2][2])) + tuple(t[3:]) for t in tris]
+        make_object(node, tris)
+        report.append("M2W1_COVER %s triangles=%d %s" % (node, len(tris), cover_fit(data, name, size, tris, entry.get("fit_exception_m"))))
     export(out)
+    report.append("M2W1_KIT time structures=%.1fs cover=%.1fs total=%.1fs" % (t_struct - t_start, time.time() - t_struct, time.time() - t_start))
     for line in report:
         print(line)
     print("M2W1_KIT wrote", out)

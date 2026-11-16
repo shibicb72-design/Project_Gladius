@@ -127,13 +127,32 @@ static func cover_mesh(type: String) -> ArrayMesh:
 		return _meshes[key]
 	var made: ArrayMesh = null
 	var parts := cover_parts(type)
-	if not parts.is_empty():
+	var node_name := cover_node(type)
+	if node_name != "":
+		# M2W1 r2a: a glb look (authored on the type's box, centred as its collider is): the same loader as the
+		# structures (one surface, the shared material, CUSTOM0 as kit_custom for cover, the load-time bake)
+		var glb := String(config().get("glb", ""))
+		var source := _source_mesh(glb, node_name)
+		if source == null:
+			_report("WorldKitMeshes: cover %s: no mesh node %s in %s; its kit look stays" % [type, node_name, glb])
+		else:
+			made = rebuild(source, kit_custom(type, true), type if bake_enabled() else "")
+			made.resource_name = "M2W1_cover_" + type
+	elif not parts.is_empty():
 		var e := cover_entry(type)
 		var scale := float(e.get("shade_scale", cover_entry(String(e.get("same_as", type))).get("shade_scale", 1.0)))
 		made = parts_mesh(parts, kit_custom(type, true), scale)
 		made.resource_name = "M2W1_cover_" + type
 	_meshes[key] = made
 	return made
+
+
+## M2W1 r2a: the glb node of a cover entry (its own "node", or its same_as entry's), "" for a parts look or none.
+static func cover_node(type: String) -> String:
+	var e := cover_entry(type)
+	if e.has("same_as"):
+		e = cover_entry(String(e["same_as"]))
+	return String(e.get("node", ""))
 
 
 ## The parts of a cover entry: its own, or (same_as) another entry's, with x and z swapped when swap_xz is true
@@ -298,48 +317,33 @@ static func _commit(out: Array, count: int, custom: Vector4) -> ArrayMesh:
 	return mesh
 
 
-## M2W1 astraA (F5): the load-time shade of a glb structure mesh, per vertex, as UV2.y over `range_m` (data
-## "shade_bake", placeholders). m = part x paint x contact x facing x type gain, where part = the glb's own per-part
-## shade at the shader's part_shade strength (exactly what the old path drew), paint = paint_value[paint name] (the
-## vertex colour's art_astra.json colour), contact = darker towards the piece's own ground (its origin, y 0) up to
-## contact.height_m on faces that do not look up; a vertex of a face taller than contact.span_ref_m gets that much
-## less (a face interpolates between its corners, so a 4 m wall face would otherwise darken over its whole height),
-## facing = up.gain on faces looking up, down.gain on faces looking down; gain = by_type.<type>.gain. Paints in
-## skip_paints (glow, visor) keep only their part shade. Deterministic; near and far meshes get the same rules.
+## M2W1 astraA (F5), r2a: the load-time shade of a glb mesh, per vertex, as UV2.y over `range_m` (data
+## "shade_bake", placeholders). The shade is baked in two places, one term each: tools/blender/m2w1_world_kit.py
+## writes the geometry terms into the glb's UV2.y over the same shade_range (the part shade, threshold and tread
+## wear, the foundation band, occlusion; shade_bake.glb), this adds the material terms: m = glb x paint x facing x
+## type gain, paint = paint_value[paint name] (the vertex colour's art_astra.json colour), facing = up.gain on faces
+## looking up, down.gain on faces looking down, gain = by_type.<type>.gain (and by_type.<type>.paint_gain.<paint>,
+## r2a: ordinary pieces' marble trim one step down so the summit owns the brightest white). Paints in skip_paints (glow, visor) keep
+## their raw part shade (the glb's UV2.y read at part_shade, as the old path drew it). Deterministic; near and far
+## meshes get the same rules.
 static func bake_shade(type: String, verts: PackedVector3Array, normals: PackedVector3Array, colors: PackedColorArray,
-		uv2s: PackedVector2Array, indices: PackedInt32Array, range_m: float) -> PackedVector2Array:
+		uv2s: PackedVector2Array, _indices: PackedInt32Array, range_m: float) -> PackedVector2Array:
 	var b := shade_bake()
 	var part_shade := float(b.get("part_shade", 0.08))
 	var values: Dictionary = b.get("paint_value", {})
 	var skip: Array = b.get("skip_paints", [])
-	var contact: Dictionary = b.get("contact", {})
-	var height_m := maxf(float(contact.get("height_m", 0.0)), 0.001)
-	var ground := float(contact.get("ground", 1.0))
-	var span_ref := float(contact.get("span_ref_m", 1000.0))
 	var up: Dictionary = b.get("up", {})
 	var down: Dictionary = b.get("down", {})
-	var gain := float((b.get("by_type", {}) as Dictionary).get(type, {}).get("gain", 1.0))
-	# the tallest face each vertex belongs to
-	var span := PackedFloat32Array()
-	span.resize(verts.size())
-	var count := indices.size() if not indices.is_empty() else verts.size()
-	for t in count / 3:
-		var ids := [indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]] if not indices.is_empty() else [t * 3, t * 3 + 1, t * 3 + 2]
-		var lo := minf(verts[ids[0]].y, minf(verts[ids[1]].y, verts[ids[2]].y))
-		var hi := maxf(verts[ids[0]].y, maxf(verts[ids[1]].y, verts[ids[2]].y))
-		for i: int in ids:
-			span[i] = maxf(span[i], hi - lo)
+	var by_type: Dictionary = (b.get("by_type", {}) as Dictionary).get(type, {})
+	var gain := float(by_type.get("gain", 1.0))
+	var paint_gain: Dictionary = by_type.get("paint_gain", {})
 	var out := uv2s.duplicate()
 	for i in verts.size():
-		var m := 1.0 + (uv2s[i].y - 0.5) * 2.0 * part_shade
 		var paint := paint_of(colors[i])
+		var m := 1.0 + (uv2s[i].y - 0.5) * 2.0 * part_shade
 		if not skip.has(paint):
-			m *= float(values.get(paint, 1.0)) * gain
+			m = (1.0 + (uv2s[i].y - 0.5) * 2.0 * range_m) * float(values.get(paint, 1.0)) * float(paint_gain.get(paint, 1.0)) * gain
 			var n := normals[i]
-			var side := 1.0 - maxf(n.y, 0.0)
-			var near := 1.0 - smoothstep(0.0, height_m, verts[i].y)
-			var smear := clampf(span_ref / maxf(span[i], 0.001), 0.0, 1.0)
-			m *= 1.0 - (1.0 - ground) * near * side * smear
 			if n.y >= float(up.get("normal_y", 2.0)):
 				m *= float(up.get("gain", 1.0))
 			elif n.y <= float(down.get("normal_y", -2.0)):

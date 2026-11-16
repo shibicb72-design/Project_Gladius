@@ -213,6 +213,10 @@ func test_glb_holds_exactly_the_listed_nodes() -> void:
 		wanted[String(_cfg()["types"][type]["node"])] = true
 		if WorldKitMeshes.has_lod1(type):
 			wanted[String(_cfg()["types"][type]["lod1_node"])] = true
+	# M2W1 r2a: the glb cover looks (cover.<type>.node)
+	for type: String in _cover_types():
+		if (_cfg()["cover"][type] as Dictionary).has("node"):
+			wanted[String(_cfg()["cover"][type]["node"])] = true
 	for node_name: String in wanted:
 		assert_true(names.has(node_name), "glb has node " + node_name)
 		assert_eq(int(names.get(node_name, 0)), 1, node_name + ": one surface")
@@ -545,8 +549,15 @@ func test_cover_switch_and_fallback() -> void:
 	assert_true(WorldKit.cover_mesh("crate") != null, "on: the parts look")
 	assert_true(WorldKit.cover_mesh("wreck_apc") == null, "a type without an entry keeps its kit look")
 	assert_eq(lines.size(), 0, "no error line: %s" % str(lines))
+	# M2W1 r2a: an entry names parts (built at load) or a glb node, never both; the glb ones load as one surface
+	var glb_looks := 0
 	for type: String in _cover_types():
-		assert_true(not (_cfg()["cover"][type] as Dictionary).has("node"), type + ": no glb node named")
+		var e: Dictionary = _cfg()["cover"][type]
+		assert_true(not (e.has("node") and e.has("parts")), type + ": parts or a glb node, not both")
+		if WorldKitMeshes.cover_node(type) != "":
+			glb_looks += 1
+			assert_true(WorldKitMeshes.cover_mesh(type) != null and WorldKitMeshes.cover_mesh(type).resource_name == "M2W1_cover_" + type, type + ": the glb look loads")
+	assert_true(glb_looks >= 4, "nonvacuous: the sandbags, nests and cart are glb looks (%d)" % glb_looks)
 	var a := WorldKitMeshes.cover_mesh("sandbags").get_aabb()
 	var b := WorldKitMeshes.cover_mesh("sandbag_nest_side").get_aabb()
 	assert_true(Vector3(a.size.z, a.size.y, a.size.x).is_equal_approx(b.size), "swap_xz: the side piece is the sandbags turned (%s / %s)" % [a, b])

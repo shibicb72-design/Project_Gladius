@@ -65,26 +65,9 @@
 			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [3.14, 0.05, 0.86], "at": [0, 0.8, 0], "color": "bronze", "shade": 0.75},
 			{"shape": "taper", "top": [0.97, 0.78], "bevel": 0.03, "size": [3.28, 0.26, 0.98], "at": [0, 0.97, 0], "color": "travertine", "shade": 1.12}
 		]},
-		"sandbags": {"shade_scale": 0.6, "parts": [
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [2.3, 0.84, 0.76], "at": [0, -0.03, 0], "color": "canvas", "surface": "burlap", "shade": 0.42},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.64, 0.31, 0.98], "at": [-0.89, -0.315, 0], "color": "canvas", "surface": "burlap", "shade": 0.7},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.6, 0.31, 0.98], "at": [-0.29, -0.315, 0.01], "color": "canvas", "surface": "burlap", "shade": 0.66},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.62, 0.31, 0.98], "at": [0.3, -0.315, -0.01], "color": "canvas", "surface": "burlap", "shade": 0.73},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.6, 0.31, 0.98], "at": [0.9, -0.315, 0], "color": "canvas", "surface": "burlap", "shade": 0.68},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.38, 0.32, 0.94], "at": [-1.02, -0.01, 0.01], "color": "canvas", "surface": "burlap", "shade": 0.88},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.62, 0.32, 0.94], "at": [-0.6, -0.01, 0], "color": "canvas", "surface": "burlap", "shade": 0.82},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.6, 0.32, 0.94], "at": [0.0, -0.01, -0.01], "color": "canvas", "surface": "burlap", "shade": 0.93},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.62, 0.32, 0.94], "at": [0.6, -0.01, 0.01], "color": "canvas", "surface": "burlap", "shade": 0.86},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.86, 0.76], "size": [0.4, 0.32, 0.94], "at": [1.0, -0.01, 0], "color": "canvas", "surface": "burlap", "shade": 0.84},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.84, 0.8], "size": [0.62, 0.31, 0.9], "at": [-0.88, 0.295, 0], "color": "canvas", "surface": "burlap", "shade": 0.97},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.84, 0.8], "size": [0.6, 0.31, 0.9], "at": [-0.28, 0.295, 0.01], "color": "canvas", "surface": "burlap", "shade": 1.03},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.84, 0.8], "size": [0.62, 0.31, 0.9], "at": [0.31, 0.295, -0.01], "color": "canvas", "surface": "burlap", "shade": 0.92},
-			{"shape": "taper", "bevel": 0.16, "bottom": [0.97, 0.95], "top": [0.84, 0.8], "size": [0.6, 0.31, 0.9], "at": [0.89, 0.295, 0], "color": "canvas", "surface": "burlap", "shade": 1.0},
-			{"shape": "taper", "top": [0.6, 0.6], "bevel": 0, "size": [0.07, 0.95, 0.07], "at": [-1.16, 0.02, -0.46], "color": "timber", "shade": 0.8},
-			{"shape": "taper", "top": [0.6, 0.6], "bevel": 0, "size": [0.07, 0.9, 0.07], "at": [1.15, -0.005, 0.47], "color": "timber", "shade": 0.72}
-		]},
+		"sandbags": {"node": "cover_sandbags"},
 		"sandbag_nest": {"same_as": "sandbags"},
-		"sandbag_nest_side": {"same_as": "sandbags", "swap_xz": true},
+		"sandbag_nest_side": {"node": "cover_sandbags_side"},
 		"crate": {"parts": [
 			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1.2, 1.06, 1.2], "at": [0, 0.03, 0], "color": "timber", "shade": 0.42},
 			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1.3, 0.1, 0.18], "at": [0, -0.55, -0.42], "color": "timber", "shade": 0.6},
@@ -194,31 +177,7 @@
 			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.06, 1.1, 0.08], "rot": [-38, 0, 0], "at": [-1.88, -0.05, 0.05], "color": "timber", "shade": 0.74},
 			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.06, 1.1, 0.08], "rot": [-38, 0, 0], "at": [1.88, -0.05, 0.05], "color": "timber", "shade": 0.7}
 		]},
-		"wreck_cart": {"opaque_inset_m": 0.25, "parts": [
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [2.3, 0.5, 1.6], "at": [0, -0.33, 0], "color": "timber", "shade": 0.36},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.16, 0.14, 1.7], "at": [-0.75, -0.3, 0], "color": "timber", "shade": 0.55},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.16, 0.14, 1.7], "at": [0.75, -0.3, 0], "color": "timber", "shade": 0.5},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [2.5, 0.1, 1.5], "rot": [0, 0, -3], "at": [0, -0.07, 0], "color": "timber", "shade": 0.75},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [2.5, 0.4, 0.07], "at": [0, 0.18, -0.72], "color": "timber", "shade": 0.9},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1.45, 0.4, 0.07], "at": [-0.52, 0.18, 0.72], "color": "timber", "shade": 0.84},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [1.0, 0.07, 0.3], "rot": [0, 12, 0], "at": [0.72, -0.56, 0.7], "color": "timber", "shade": 0.7},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.07, 0.38, 1.44], "at": [-1.21, 0.17, 0], "color": "timber", "shade": 0.8},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.07, 0.38, 1.44], "at": [1.21, 0.17, 0], "color": "timber", "shade": 0.86},
-			{"shape": "taper", "bevel": 0.25, "top": [0.82, 0.62], "size": [2.1, 0.52, 1.32], "at": [-0.05, 0.3, 0], "color": "canvas", "shade": 0.76},
-			{"shape": "taper", "top": [1, 0.62], "bevel": 0, "size": [0.07, 0.54, 1.36], "at": [-0.75, 0.3, 0], "color": "leather", "shade": 0.8},
-			{"shape": "taper", "top": [1, 0.62], "bevel": 0, "size": [0.07, 0.54, 1.36], "at": [-0.05, 0.3, 0], "color": "leather", "shade": 0.76},
-			{"shape": "taper", "top": [1, 0.62], "bevel": 0, "size": [0.07, 0.54, 1.36], "at": [0.65, 0.3, 0], "color": "leather", "shade": 0.82},
-			{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [0.96, 0.1, 0.96], "at": [-0.75, -0.12, -0.85], "color": "timber", "shade": 1.1},
-			{"shape": "lathe", "segments": 8, "rot": [90, 0, 0], "size": [0.96, 0.1, 0.96], "at": [-0.75, -0.12, 0.85], "color": "timber", "shade": 1.05},
-			{"shape": "lathe", "segments": 8, "rot": [75, 0, 0], "size": [0.96, 0.1, 0.96], "at": [0.75, -0.14, 0.72], "color": "timber", "shade": 1.12},
-			{"shape": "lathe", "segments": 8, "size": [0.9, 0.08, 0.9], "at": [0.75, -0.56, -0.5], "color": "timber", "shade": 0.95},
-			{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.2, 0.14, 0.2], "at": [-0.75, -0.12, -0.86], "color": "bronze", "shade": 0.8},
-			{"shape": "lathe", "segments": 6, "rot": [90, 0, 0], "size": [0.2, 0.14, 0.2], "at": [-0.75, -0.12, 0.86], "color": "bronze", "shade": 0.78},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.1, 0.42, 0.1], "at": [-1.22, 0.17, -0.72], "color": "bronze", "shade": 0.76},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.1, 0.42, 0.1], "at": [1.22, 0.17, -0.72], "color": "bronze", "shade": 0.72},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.1, 0.42, 0.1], "at": [-1.22, 0.17, 0.72], "color": "bronze", "shade": 0.74},
-			{"shape": "taper", "top": [1, 1], "bevel": 0, "size": [0.1, 0.42, 0.1], "at": [1.22, 0.17, 0.72], "color": "bronze", "shade": 0.7}
-		]},
+		"wreck_cart": {"opaque_inset_m": 0.25, "node": "cover_wreck_cart"},
 		"rubble_pile": {"opaque_inset_m": 0.4, "parts": [
 			{"shape": "taper", "bevel": 0.3, "top": [0.72, 0.66], "size": [1.6, 0.42, 1.4], "at": [0, -0.265, 0], "color": "rock", "shade": 0.68},
 			{"shape": "taper", "bevel": 0.08, "top": [0.95, 0.92], "size": [0.72, 0.38, 0.5], "rot": [0, 22, 7], "at": [-0.28, 0.0, 0.12], "color": "travertine", "shade": 0.9},
@@ -266,15 +225,29 @@
 	"_shade_bake_note": "M2W1 astraA (F5, OQ-ART-WORLD): a shade baked at load into the glb structure meshes (WorldKitMeshes.bake_shade; the glb is unchanged): UV2.y = 0.5 + (m - 1) / (2 shade_range), CUSTOM0.y = shade_range, CUSTOM0.z = grime (the share of the shader's world-height grime the structure keeps). m = part x paint_value[paint] x contact x facing x by_type.gain. part = the glb's own per-part shade at part_shade (the shader's), so with enabled false nothing changes (the glb's UV2, no CUSTOM0.y, the shader's old path). contact: faces that do not look up darken towards the piece's ground (its origin) over height_m, to ground at y 0; a vertex of a face taller than span_ref_m gets span_ref_m / span of it (a face interpolates between its corners). up / down: faces with normal y >= / <= normal_y get gain. skip_paints keep their part shade only. by_type: the summit pieces one step brighter (F2), gate fronts a little brighter than walls. Cover looks use the shade_range and part_shade too (their parts' \"shade\").",
 	"shade_bake": {
 		"enabled": true,
-		"shade_range": 0.5,
+		"shade_range": 0.6,
 		"part_shade": 0.08,
 		"grime": 0.5,
 		"paint_value": {"rock": 0.52, "dark": 0.78, "plate_dark": 0.78, "travertine_shade": 0.64, "travertine": 0.72, "marble": 0.88, "timber": 0.82, "leather": 0.86, "bronze": 0.8, "gold": 0.95, "canvas": 0.92, "legion_red": 0.95, "roof_tile": 0.92},
-		"contact": {"height_m": 0.9, "ground": 0.6, "span_ref_m": 1.5},
+		"_glb_note": "M2W1 r2a (OQ-ART-WORLD, placeholders): the geometry part of the shade, baked by tools/blender/m2w1_world_kit.py into the glb's UV2.y as 0.5 + (m - 1) / (2 shade_range) (skip_paints keep their raw part shade): m = part shade (at part_shade; builders write threshold and tread wear there) x contact x occlusion. contact.<family>: faces that do not look up darken towards the piece's ground (y 0) to ground over height_m, the band's top wobbling by up to uneven_m; such faces are split at split_m. ao.<family>: rays cosine-weighted rays of ray_m against the look's own triangles per vertex position and face normal; m *= 1 - strength x min(occlusion, max) x min(1, face_ref_m / the face's longest edge). The load-time bake (WorldKitMeshes.bake_shade) multiplies paint_value, up / down and by_type gain on top; one place per term. enabled false: the glb's UV2 as is, the shader's old path.",
+		"glb": {
+			"contact": {
+				"structure": {"height_m": 0.9, "ground": 0.62, "uneven_m": 0.18, "split_m": [], "span_ref_m": 1.5},
+				"cover": {"height_m": 0.3, "ground": 0.7, "uneven_m": 0.05, "split_m": [], "span_ref_m": 1.0}
+			},
+			"ao": {
+				"structure": {"rays": 24, "ray_m": 0.5, "strength": 0.5, "max": 0.7, "face_ref_m": 1.6},
+				"cover": {"rays": 24, "ray_m": 0.35, "strength": 0.55, "max": 0.7, "face_ref_m": 1.2}
+			}
+		},
 		"up": {"normal_y": 0.7, "gain": 1.06},
-		"down": {"normal_y": -0.7, "gain": 0.62},
+		"down": {"normal_y": -0.7, "gain": 0.55},
 		"skip_paints": ["lit_accent", "accent", "ember", "visor"],
-		"by_type": {"column": {"gain": 1.12}, "colonnade": {"gain": 1.12}, "pediment_front": {"gain": 1.12}, "eagle_standard": {"gain": 1.1}, "terrace_block": {"gain": 1.05}, "gate": {"gain": 1.04}}
+		"_by_type_note": "r2a (P1, OQ-ART-WORLD): gain = the whole type; paint_gain.<paint> = one paint of the type (marble trim on walls, towers, barracks, the aqueduct and tents one step down, so the summit owns the brightest white; gates keep a little more).",
+		"by_type": {"column": {"gain": 1.12}, "colonnade": {"gain": 1.12}, "pediment_front": {"gain": 1.12}, "eagle_standard": {"gain": 1.1}, "terrace_block": {"gain": 1.05},
+			"gate": {"gain": 1.04, "paint_gain": {"marble": 0.9}},
+			"wall_walk": {"paint_gain": {"marble": 0.86}}, "wall_stair": {"paint_gain": {"marble": 0.86}}, "watchtower": {"paint_gain": {"marble": 0.85}},
+			"barracks": {"paint_gain": {"marble": 0.82}}, "aqueduct_span": {"paint_gain": {"marble": 0.85}}, "aqueduct_ramp": {"paint_gain": {"marble": 0.85}}, "tent": {"paint_gain": {"marble": 0.85}}}
 	},
 	"_variation_note": "M2W1 astraA (F6, OQ-ART-WORLD): per-instance variation in the shared world shader at no batch cost. A world-kit look gets CUSTOM0.x = its weight (weights.<type>, else weights.default; cover looks weights.cover); the shader hashes the instance's origin (MODEL_MATRIX, the batch instance: a near and a far mesh of one piece get the same value) into cells of cell_m (+-value brightness, +-warm warm/cool shift) and adds a broad value wave of broad_m (+-broad_value), so neighbouring bays differ and long walls get a slow rhythm. Uniform defaults are 0 (off) and every other mesh has no CUSTOM0, so soldiers, doors, clutter and kit meshes are unchanged. WorldKit sets the uniforms on the shared material when art_world_kit_enabled is on.",
 	"variation": {
@@ -289,13 +262,14 @@
 	"lod_required_over_tris": 300,
 	"budgets": {
 		"_note": "Triangle caps (placeholders): near per type, far per type, and the triangles of the structure batches in range at the four perf points of tests/test_alesia_1km.gd (instances x mesh triangles).",
-		"near_tris": {"wall_walk": 1000, "wall_stair": 1300, "gate": 2500, "watchtower": 2200, "barracks": 1600, "tent": 320, "stake_row": 200,
-			"aqueduct_span": 800, "aqueduct_ramp": 200, "column": 300, "colonnade": 1400, "pediment_front": 1800, "eagle_standard": 500, "ramp_block": 60, "terrace_block": 150},
+		"_r2a_note": "M2W1 r2a: wall_walk 1000 -> 1100 (bay hierarchy: wider buttress, sunk panel, blind arch), aqueduct_span lod1 80 -> 120 (the arch ring, lunette and spandrels kept as painted faces far; the near span stays at exactly 776 triangles: the small maps' backdrop instances it and tests/test_m2w1_backdrop.gd pins that count), aqueduct_ramp 200 -> 300 (worn treads: three strips a tread), eagle_standard 500 -> 550 and lod1 60 -> 80 (bigger vexillum, glow core, red plinth panels far).",
+		"near_tris": {"wall_walk": 1100, "wall_stair": 1300, "gate": 2500, "watchtower": 2200, "barracks": 1600, "tent": 320, "stake_row": 200,
+			"aqueduct_span": 800, "aqueduct_ramp": 300, "column": 300, "colonnade": 1400, "pediment_front": 1800, "eagle_standard": 550, "ramp_block": 60, "terrace_block": 150},
 		"_lod1_walls_note": "M2W1 item 2: wall_walk 80 -> 100 and wall_stair 120 -> 130: the far parapet keeps the new merlon rhythm (five merlons a piece, was three).",
 		"lod1_tris": {"wall_walk": 100, "wall_stair": 130, "gate": 250, "watchtower": 200, "barracks": 120, "tent": 40, "stake_row": 24,
-			"aqueduct_span": 80, "aqueduct_ramp": 12, "column": 40, "colonnade": 160, "pediment_front": 200, "eagle_standard": 60, "terrace_block": 24},
+			"aqueduct_span": 120, "aqueduct_ramp": 12, "column": 40, "colonnade": 160, "pediment_front": 200, "eagle_standard": 80, "terrace_block": 24},
 		"visible_structure_tris": 400000,
 		"_cover_tris_note": "M2W1 astraA: triangle caps of the parts cover looks (art_world_kit.json cover) and the props.json looks of breakables and chests (placeholders). Cover has no far meshes.",
-		"cover_tris": {"default": 400, "sandbags": 600, "sandbag_nest": 600, "sandbag_nest_side": 600, "crate_stack": 600, "wreck_cart": 600}
+		"cover_tris": {"default": 400, "sandbags": 700, "sandbag_nest": 700, "sandbag_nest_side": 700, "crate_stack": 600, "wreck_cart": 700}
 	}
 }
