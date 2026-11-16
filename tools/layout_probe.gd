@@ -132,6 +132,7 @@ func _probe(sz: Vector2, dpi: float, dp: float, lf: bool, ui: Dictionary) -> voi
 	ctrls["interact"] = interact.get_touch_rect()
 	interact.free()
 	ctrls["minimap_tap"] = HudArrangement.minimap_tap_rect(sz)  # M2 H1b: the reserved minimap's touch target
+	ctrls["coach_skip"] = HudCoach.skip_rect(sz)  # M2 H1b commit 5: the first-play coach's Skip (OQ-COACH)
 	var look: Rect2 = touch.get_look_area_rect()
 	var view := Rect2(Vector2.ZERO, sz)
 	var tag := "%dx%d dpi=%d left_fire=%s %s(%s)" % [sz.x, sz.y, dpi, lf, HudArrangement.placement(), HudArrangement.placement_for(sz)]

@@ -41,6 +41,14 @@ const MINIMAP_MAP := "res://data/maps/alesia_1km.json"
 ##                the enable_cover test seam (bots never take cover in M2), as tests/test_h1b_radar.gd does.
 ##   panel_zoom   no render: the whole radar + minimap panel of radar_blips cropped and enlarged
 const RADAR_KINDS: Array = ["radar_blips", "radar_cover", "panel_zoom"]
+## Commit 5 (the first-play coach): shot in a fifth match per size, set up as the prompt match (squads, idle bots, ground
+## loot). The coach never shows in a match here by itself (no AppFlow.coach_route); these kinds build one on purpose,
+## after the radar as GameHud does, saving to a scratch profile (never the player's), and force each step into view:
+## coach_<step>_<WxH>.png (fire twice: coach_fire_advanced / coach_fire_simple; pick up with a gun dropped in reach), and
+## editor_<WxH>.png (the HUD layout editor with the fixed elements); sheet_coach_<WxH>.png.
+const COACH_KINDS: Array = ["coach_move", "coach_look", "coach_aim", "coach_fire_advanced", "coach_fire_simple", "coach_cover",
+	"coach_pickup", "coach_map", "editor"]
+const COACH_PROFILE := "user://h1b_capture_coach_profile.json"
 ## Radar layout around the player, relative to its heading: [right m, ahead m]. The last is out of range.
 const RADAR_ENEMIES: Array = [Vector2(0, 9), Vector2(11, 12), Vector2(-15, -14), Vector2(-23, 3), Vector2(16, -6), Vector2(0, -31)]
 const RADAR_MATE := Vector2(9, -8)
@@ -49,7 +57,7 @@ const SHEET_CELL_W := 900
 const ARENA_X := 1000.0
 
 var _out: String = "build/shots"
-var _kinds: Array = KINDS + PROMPT_KINDS + MINIMAP_KINDS + RADAR_KINDS
+var _kinds: Array = KINDS + PROMPT_KINDS + MINIMAP_KINDS + RADAR_KINDS + COACH_KINDS
 var _sizes: Array = DEFAULT_SIZES
 
 
@@ -87,12 +95,15 @@ func _run() -> void:
 	var saved_dpi: float = PlatformServices.dpi_override
 	PlatformServices.dpi_override = DPI
 	_TouchHud.move_stick_override = "custom"
-	var c1: Array = _kinds.filter(func(k: String) -> bool: return not PROMPT_KINDS.has(k) and not MINIMAP_KINDS.has(k) and not RADAR_KINDS.has(k))
+	var c1: Array = _kinds.filter(func(k: String) -> bool: return not PROMPT_KINDS.has(k) and not MINIMAP_KINDS.has(k) and not RADAR_KINDS.has(k) and not COACH_KINDS.has(k))
 	var c2: Array = _kinds.filter(func(k: String) -> bool: return PROMPT_KINDS.has(k))
 	var c3: Array = _kinds.filter(func(k: String) -> bool: return MINIMAP_KINDS.has(k))
 	var c4: Array = _kinds.filter(func(k: String) -> bool: return RADAR_KINDS.has(k))
+	var c5: Array = _kinds.filter(func(k: String) -> bool: return COACH_KINDS.has(k))
+	AppFlow.coach_route = false  # never the real-match flag here: the coach kinds build their coach on purpose
 	for size in _sizes:
-		for group in [[c1, "sheet", false, false], [c2, "sheet_prompt", true, false], [c3, "sheet_minimap", false, true], [c4, "sheet_radar", false, true]]:
+		for group in [[c1, "sheet", false, false], [c2, "sheet_prompt", true, false], [c3, "sheet_minimap", false, true], [c4, "sheet_radar", false, true],
+				[c5, "sheet_coach", true, false]]:
 			if (group[0] as Array).is_empty():
 				continue
 			AppFlow.profile = {}
@@ -104,6 +115,8 @@ func _run() -> void:
 	if not c3.is_empty() and not _copy_minimap_textures():
 		failed += 1
 	AppFlow.profile = saved_profile
+	if FileAccess.file_exists(COACH_PROFILE):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(COACH_PROFILE))
 	PlatformServices.dpi_override = saved_dpi
 	HudArrangement.placement_override = ""
 	_TouchHud.move_stick_override = ""
@@ -728,6 +741,103 @@ func _zoom_pair(ctx: Dictionary, sources: Array, kind: String) -> bool:
 	var err := out.save_png(_out.path_join("%s_%s.png" % [kind, ctx["tag"]]))
 	print("[h1b_capture] %s_%s (%s, x%.2f) -> %s" % [kind, ctx["tag"], ", ".join(sources), scale, error_string(err)])
 	return err == OK
+
+
+# --- commit 5: the first-play coach ------------------------------------------------------------------------------------
+
+## The coach for this match, built once (as GameHud.bind does on a flagged match: after the radar, bound to the HUD),
+## saving to a scratch profile; then step `id` forced into view in shooting mode `mode`.
+func _coach_show(ctx: Dictionary, id: String, mode: String) -> HudCoach:
+	await _prompt_prep(ctx)
+	AppFlow.profile = {"shooting_mode": mode}
+	var touch: Control = ctx["touch"]
+	touch.refresh_shooting_mode()
+	touch.relayout()
+	var game: GameHud = ctx["game"]
+	if not ctx.has("coach"):
+		var c := HudCoach.new()
+		c.save = SaveService.new(COACH_PROFILE)
+		game.radar.add_sibling(c)
+		c.bind(game.director, game.pawn, touch, ctx["pm"], game)
+		ctx["coach"] = c
+	var coach: HudCoach = ctx["coach"]
+	var ids: Array = []
+	for st: Dictionary in coach.steps:
+		ids.append(str(st["id"]))
+	coach.forced_step = ids.find(id)
+	game.show_banner(String(game._banner_cfg["kill_text"]), true)
+	return coach
+
+
+func _coach_save(ctx: Dictionary, coach: HudCoach, kind: String) -> bool:
+	await _frames(4)
+	var h := coach.hint_layout(ctx["size"])
+	print("[h1b_capture] %s %s step=%s shown=%s reason=\"%s\" target=%s bubble=%s tip=%s covered=%.0f text=\"%s\" skip=%s" % [ctx["tag"], kind,
+		coach.current_id(), coach.showing_hint(), coach.paused_reason, h.get("target"), h.get("bubble"), h.get("tip"),
+		float(h.get("covered", -1.0)), h.get("text", ""), HudCoach.skip_rect(ctx["size"])])
+	var ok: bool = await _save(ctx["svp"], "%s_%s" % [kind, ctx["tag"]])
+	return ok and coach.showing_hint()
+
+
+func _shot_coach_move(ctx: Dictionary) -> bool:
+	return await _coach_save(ctx, await _coach_show(ctx, "move", "advanced"), "coach_move")
+
+
+func _shot_coach_look(ctx: Dictionary) -> bool:
+	return await _coach_save(ctx, await _coach_show(ctx, "look", "advanced"), "coach_look")
+
+
+func _shot_coach_aim(ctx: Dictionary) -> bool:
+	return await _coach_save(ctx, await _coach_show(ctx, "aim", "advanced"), "coach_aim")
+
+
+func _shot_coach_fire_advanced(ctx: Dictionary) -> bool:
+	return await _coach_save(ctx, await _coach_show(ctx, "fire", "advanced"), "coach_fire_advanced")
+
+
+func _shot_coach_fire_simple(ctx: Dictionary) -> bool:
+	return await _coach_save(ctx, await _coach_show(ctx, "fire", "simple"), "coach_fire_simple")
+
+
+func _shot_coach_cover(ctx: Dictionary) -> bool:
+	return await _coach_save(ctx, await _coach_show(ctx, "cover", "advanced"), "coach_cover")
+
+
+func _shot_coach_pickup(ctx: Dictionary) -> bool:
+	var coach := await _coach_show(ctx, "pickup", "advanced")
+	_drop_gun(ctx, _rel(ctx, 0.5, 1.4, 0.15))
+	return await _coach_save(ctx, coach, "coach_pickup")
+
+
+func _shot_coach_map(ctx: Dictionary) -> bool:
+	return await _coach_save(ctx, await _coach_show(ctx, "map", "advanced"), "coach_map")
+
+
+## The HUD layout editor (as Settings opens it) over the match, showing the fixed elements; the coach is hidden for it.
+func _shot_editor(ctx: Dictionary) -> bool:
+	if ctx.has("coach"):
+		(ctx["coach"] as HudCoach).forced_step = -1
+		(ctx["coach"] as HudCoach).skip()
+	# The editor's preview touch HUD releases the virtual-stick actions when it suspends; this capture match uses the
+	# custom stick, which never registers them, so register them as the virtual stick does (else 4 ERROR lines a frame).
+	for a in ["vjoy_move_left", "vjoy_move_right", "vjoy_move_up", "vjoy_move_down"]:
+		if not InputMap.has_action(a):
+			InputMap.add_action(a, 0.0)
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	(ctx["svp"] as SubViewport).add_child(layer)
+	var ed: LayoutEditor = load("res://scenes/ui/layout_editor.tscn").instantiate()
+	ed.save = SaveService.new(COACH_PROFILE)
+	layer.add_child(ed)
+	ed.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	ed.size = ctx["size"]
+	await _frames(6)
+	ed.refresh()
+	await _frames(3)
+	print("[h1b_capture] %s editor drawn_fixed=%s fixed=%s issues=%d" % [ctx["tag"], str(ed.drawn_fixed), str(LayoutEditor.fixed_elements(ctx["size"])), ed.issues.size()])
+	var ok: bool = await _save(ctx["svp"], "editor_" + ctx["tag"])
+	layer.queue_free()
+	return ok and ed.drawn_fixed.size() == LayoutEditor.fixed_elements(ctx["size"]).size()
 
 
 ## Contact sheet: the shots of one size scaled to SHEET_CELL_W wide, 3 columns, in KINDS order, on a dark background.

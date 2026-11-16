@@ -63,7 +63,9 @@ func _controls(touch: Control, pm: PauseMenu, sz: Vector2, minimap_expanded: boo
 	# M2 H1b commit 3: while the map is expanded, the tap target's square is the expanded map's close control
 	# (HudMinimap.close_rect); the two never show at once, so each state lists the one on screen.
 	var out := {"sprint_lock": touch.get_lock_button_rect(), "lock_target": touch.get_lock_target_rect(),
-		"gear": pm.get_gear_touch_rect(), "fire_mode": FireModeButton.touch_rect(ui["fire_mode_button"], sz)}
+		"gear": pm.get_gear_touch_rect(), "fire_mode": FireModeButton.touch_rect(ui["fire_mode_button"], sz),
+		# M2 H1b commit 5 (OQ-COACH): the first-play coach's Skip, its only touch target (shown while the coach runs).
+		"coach_skip": HudCoach.skip_rect(sz)}
 	if minimap_expanded:
 		out["minimap_close"] = HudMinimap.close_rect(sz)
 	else:

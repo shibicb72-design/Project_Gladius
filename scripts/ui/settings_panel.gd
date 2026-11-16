@@ -36,6 +36,9 @@ var shooting_mode: String = "advanced"
 ## M2 H1b (OQ-MINIMAP): the small minimap turns with the heading (true, default) or stays north up.
 var minimap_button: Button
 var minimap_rotate: bool = true
+## M2 H1b commit 5 (OQ-COACH): "Replay the coach" sets the profile's coach_done false, so the next real match shows the
+## first-play coach again. A coach running in this match is not restarted (it shows on the next match).
+var coach_button: Button
 
 
 func _ready() -> void:
@@ -69,6 +72,8 @@ func _ready() -> void:
 	minimap_button = _button("", toggle_minimap_rotate, "layout")  # M2 H1b: Minimap: Rotates / North up
 	_refresh_minimap_text()
 	layout_button = _button("HUD layout", open_layout_editor, "layout")  # G2e
+	coach_button = _button("", replay_coach, "target")  # M2 H1b commit 5: Replay the coach
+	_refresh_coach_text(SaveService.coach_done(profile.get("coach_done", null)))
 	add_child(MenuStyle.caption("VIBRATION"))
 	haptics_button = _button("Haptics", open_haptics, "vibrate")  # G2f
 	UiScale.apply_to(self)
@@ -226,6 +231,21 @@ func toggle_minimap_rotate() -> void:
 
 func _refresh_minimap_text() -> void:
 	minimap_button.text = "Minimap: %s" % ("Rotates" if minimap_rotate else "North up")
+
+
+## M2 H1b commit 5: coach_done = false in the stored profile at once (persist() never writes coach_done, so it keeps it).
+func replay_coach() -> void:
+	var profile := save.load_profile()
+	profile["coach_done"] = false
+	save.save_profile(profile)
+	persist()
+	_refresh_coach_text(false)
+
+
+## The row's wording (data/coach.json settings): "Replay the coach", or the pending text once the replay is set.
+func _refresh_coach_text(done: bool) -> void:
+	var s: Dictionary = HudCoach.data().get("settings", {})
+	coach_button.text = str(s.get("replay_text", "Replay the coach")) if done else str(s.get("replay_pending_text", "Coach: shows next match"))
 
 
 func _refresh_stick_text() -> void:

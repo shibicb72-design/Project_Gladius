@@ -12,6 +12,11 @@ static var lobby: LobbyState
 static var match_seed: int = 0
 static var last_result: Dictionary = {}
 static var profile: Dictionary = {}
+## M2 H1b commit 5 (OQ-COACH): the explicit "real match from the menu / lobby route" flag. Set ONLY by the lobby screen
+## when the match starts (lobby.gd _on_match_starting, on the host and every LAN client); taken (read and cleared) by
+## GameHud.bind, which shows the first-play coach when it is set and the profile's coach_done is not. Tests, sims and
+## capture tools start matches without it (MatchRoot.auto_start / use_map_select do not set it).
+static var coach_route: bool = false
 
 
 ## Returns the persistent session, creating it under the tree root on first use.
@@ -30,6 +35,14 @@ static func end_session() -> void:
 	session = null
 	lobby = null
 	match_seed = 0
+	coach_route = false
+
+
+## M2 H1b commit 5: reads the real-match flag and clears it (one match per lobby start).
+static func take_coach_route() -> bool:
+	var on := coach_route
+	coach_route = false
+	return on
 
 
 static func go(tree: SceneTree, scene_path: String) -> void:

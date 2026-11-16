@@ -15,6 +15,9 @@ var minimap: HudMinimap
 ## M2 H1b commit 4: the radar (scripts/ui/hud_radar.gd, data ui.json radar, OQ-RADAR), a passive sibling right after the
 ## minimap (drawn over its panel plate).
 var radar: HudRadar
+## M2 H1b commit 5: the first-play coach (scripts/ui/hud_coach.gd, data/coach.json, OQ-COACH); null unless this match
+## came through the menu / lobby route (AppFlow.coach_route) and the profile's coach_done is not set.
+var coach: HudCoach
 ## data/ui.json hud.roman_numerals (OQ-38); tests may override.
 var roman_numerals: bool = HudNumbers.roman_enabled()
 
@@ -87,6 +90,8 @@ func _exit_tree() -> void:
 		minimap.queue_free()
 	if is_instance_valid(radar) and radar.get_parent() != self:
 		radar.queue_free()
+	if is_instance_valid(coach) and coach.get_parent() != self:
+		coach.queue_free()
 
 
 ## M2 H1b commit 3: the map json of the match this HUD is in (MatchRoot.map_def), {} outside a match.
@@ -97,6 +102,11 @@ func _map_def() -> Dictionary:
 			return (n as MatchRoot).map_def
 		n = n.get_parent()
 	return {}
+
+
+## M2 H1b commit 5: the profile the coach gate reads (the menu's loaded profile, else the file, as MatchRoot does).
+func _coach_profile() -> Dictionary:
+	return AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
 
 
 func _build() -> void:
@@ -469,6 +479,17 @@ func bind(match_director: MatchDirector, local_pawn: Pawn) -> void:
 		else:
 			add_child(radar)
 	radar.bind(director, pawn, self)
+	# M2 H1b commit 5 (OQ-COACH): the first-play coach, only on a real match from the menu / lobby route (the flag is taken
+	# here, once) with coach_done not set. Right after the radar (deferred insertion runs after the radar's), so its _input
+	# sees a press on Skip before the touch HUD; z_index 1 draws it over the other HUD siblings.
+	if coach == null and AppFlow.take_coach_route() and HudCoach.wanted(true, _coach_profile()):
+		coach = HudCoach.new()
+		if touch_for_interact != null:
+			radar.add_sibling.call_deferred(coach)
+		else:
+			add_child(coach)
+	if coach != null:
+		coach.bind(director, pawn, touch_for_interact, get_node_or_null("../PauseMenu") as PauseMenu, self)
 	pawn.reload_rejected.connect(_on_reload_rejected)
 	pawn.fire_empty.connect(_on_fire_empty)
 	pawn.weapon_switched.connect(_on_weapon_switched)
