@@ -628,10 +628,15 @@ static func populate(builder: Node, chunks: MapChunks, map_def: Dictionary) -> D
 				by[by_key] = int(by.get(by_key, 0)) + 1
 				continue
 			_gap_add(gaps, o)
-			placed.append([type, t])
+			var spot := {"c": o["c"], "r": float(info(type)["radius"]), "v": float(type_cfg(type).get("contact", contact_prop))}
+			placed.append([type, t, bool(e.get("join", false)), spot])
 			counts[1] += 1
-			contact.append({"c": o["c"], "r": float(info(type)["radius"]), "v": float(type_cfg(type).get("contact", contact_prop))})
+			contact.append(spot)
 		report["dressing"][piece[0]] = counts
+	# M2W1 r2b: foreground pockets along the place map's roads (stones and weeds just outside the road edge).
+	if place != null and cfg.has("road_pockets"):
+		report["road_pockets"] = _road_pockets(cfg["road_pockets"], ctx, place, gaps, placed, contact)
+		report["scatter"]["road_pockets"] = report["road_pockets"]
 	# Scatter by the ground paint and patch noise.
 	var paint: Image = builder.get("ground_paint")
 	var size_m := float(builder.get("ground_size_m"))
@@ -647,6 +652,21 @@ static func populate(builder: Node, chunks: MapChunks, map_def: Dictionary) -> D
 		report["scatter"][kind] = made
 		report["scatter_ms_" + kind] = Time.get_ticks_msec() - kind_ms
 	# At most max_batches_per_chunk clutter types in one chunk: the types with the fewest instances there go first.
+	# M2W1 r2b: a "join" dressing entry only lands in a chunk that already holds its type from other placements
+	# (so it adds no batch).
+	var held := {}  # "<index>/<type>" -> true, from the non-join placements
+	for p: Array in placed:
+		if p.size() < 3 or not bool(p[2]):
+			held["%s/%s" % [chunks.index_of((p[1] as Transform3D).origin), p[0]]] = true
+	var kept: Array = []
+	for p: Array in placed:
+		if p.size() >= 3 and bool(p[2]) and not held.has("%s/%s" % [chunks.index_of((p[1] as Transform3D).origin), p[0]]):
+			report["unjoined"] = int(report.get("unjoined", 0)) + 1
+			if p.size() >= 4:
+				contact.erase(p[3])
+			continue
+		kept.append(p)
+	placed = kept
 	var per_chunk := {}  # chunk index -> {type: count}
 	for p: Array in placed:
 		var idx := chunks.index_of((p[1] as Transform3D).origin)
@@ -672,6 +692,62 @@ static func populate(builder: Node, chunks: MapChunks, map_def: Dictionary) -> D
 		report["instances"] = int(report["instances"]) + 1
 	report["ms"] = Time.get_ticks_msec() - started
 	return report
+
+
+## M2W1 r2b: one pocket every every_m metres along each road of the place map, on a side the hash picks, offset_m
+## beyond the road's solid half width (plus up to jitter_m more), type by the hash from types; each passes the same rules
+## as scatter (scatter rules: these are the scatter kinds) and the gap check. Returns the number placed.
+static func _road_pockets(k: Dictionary, ctx: Dictionary, place: Variant, gaps: Dictionary, placed: Array, contact: Array) -> int:
+	var every := maxf(float(k.get("every_m", 14.0)), 2.0)
+	var offset := float(k.get("offset_m", 2.5))
+	var jitter := float(k.get("jitter_m", 1.5))
+	var chance := float(k.get("chance", 0.7))
+	var types: Array = k.get("types", ["stone_patch", "veg_patch"])
+	var seed := int(k.get("seed", 611))
+	var trodden_max := float(k.get("trodden_max", 0.45))
+	var gap :=float((ctx["rules"] as Dictionary)["scatter_prop_gap_m"])
+	var terrain: MapTerrain = ctx["terrain"]
+	var made := 0
+	var roads: Array = place.get("roads")
+	for ri in roads.size():
+		var road: Dictionary = roads[ri]
+		var pts: PackedVector2Array = road["pts"]
+		var half := float(road["half"])
+		var run := 0.0
+		var next := every * 0.5
+		var n := 0
+		for i in pts.size() - 1:
+			var a := pts[i]
+			var b := pts[i + 1]
+			var seg := a.distance_to(b)
+			while next <= run + seg:
+				var at := a.lerp(b, (next - run) / maxf(seg, 0.001))
+				next += every
+				n += 1
+				if hash01(seed + ri, n, 1) >= chance:
+					continue
+				var side := 1.0 if hash01(seed + ri, n, 2) < 0.5 else -1.0
+				var perp := (b - a).normalized().orthogonal() * side
+				var p := at + perp * (half + offset + hash01(seed + ri, n, 3) * jitter)
+				var edge_m := float(place.get("size_m")) * 0.5 - 3.0
+				if absf(p.x) > edge_m or absf(p.y) > edge_m:
+					continue  # on the ground square only
+				if (place.sample(p) as Color).r > trodden_max:
+					continue  # not in a yard or apron the road runs into
+				var type := String(types[int(hash01(seed + ri, n, 4) * types.size()) % types.size()])
+				if mesh(type) == null:
+					continue
+				var t := _placed_xform(type, terrain, Vector3(p.x, 0.0, p.y), hash01(seed + ri, n, 5) * TAU, lerpf(0.9, 1.1, hash01(seed + ri, n, 6)))
+				var o := instance_obb(type, t)
+				if instance_problem(ctx, type, t, true, o) != "" or not _gap_free(gaps, o, gap):
+					continue
+				_gap_add(gaps, o)
+				placed.append([type, t])
+				var tc := type_cfg(type)
+				contact.append({"c": o["c"], "r": float(info(type)["radius"]) * 0.8, "v": float(tc.get("contact", 0.5))})
+				made += 1
+			run += seg
+	return made
 
 
 static func _paint_at(paint: Image, size_m: float, p: Vector2) -> Color:

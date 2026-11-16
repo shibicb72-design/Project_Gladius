@@ -80,6 +80,7 @@ uniform float shelter_grass = 0.0;
 uniform float contact_dark = 0.0;
 uniform float open_dark = 0.0;
 uniform float open_calm = 0.0;
+uniform float open_flat = 0.0;  // M2W1 r2b: 0 = the astraB patches; 1 = open ground takes one mid earth / grass colour
 uniform float near_break = 0.0;
 uniform float hill_amount = 0.0;
 uniform float hill_from_m = 0.4;
@@ -158,10 +159,13 @@ void fragment() {
 		float er = mix(te.r, 0.5, clamp(far_k + near_break * Nn.r + open_calm * openness * 0.5, 0.0, 1.0));  // breaks the pebble repeat
 		float gr = mix(tg.r, 0.5, far_k);
 		float rr = mix(tr.r, 0.5, far_k * 0.6);
-		vec3 earth_col = mix(earth_umber, earth_ochre, smoothstep(0.3, 0.7, L.g * 0.55 + M.r * 0.45));
-		earth_col = mix(earth_col, earth_worn, smoothstep(0.55, 0.85, M.b * 0.6 + M.g * 0.4) * earth_worn_amount);
+		// M2W1 r2b: open_flat calms the colour patches on open ground (far from every trodden or sheltered place), so
+		// the variation that remains means something (trodden, sheltered, slope).
+		float flat_k = open_flat * openness;
+		vec3 earth_col = mix(earth_umber, earth_ochre, mix(smoothstep(0.3, 0.7, L.g * 0.55 + M.r * 0.45), 0.6, flat_k));
+		earth_col = mix(earth_col, earth_worn, smoothstep(0.55, 0.85, M.b * 0.6 + M.g * 0.4) * earth_worn_amount * (1.0 - flat_k));
 		vec3 earth = earth_col * (1.0 + (er - 0.5) * earth_contrast);
-		vec3 green_col = mix(grass_lush, grass_dry, smoothstep(0.3, 0.72, L.r * 0.45 + M.g * 0.4 + M.b * 0.15));
+		vec3 green_col = mix(grass_lush, grass_dry, mix(smoothstep(0.3, 0.72, L.r * 0.45 + M.g * 0.4 + M.b * 0.15), 0.45, flat_k * 0.7));
 		vec3 green = green_col * (1.0 + (gr - 0.5) * grass_contrast);
 		vec3 creep_col = grass_dry * (1.0 + (gr - 0.5) * grass_contrast);
 		vec3 rock_c = rock_color * (1.0 + (rr - 0.5) * rock_contrast);

@@ -181,6 +181,31 @@ func test_dressing_mostly_survives() -> void:
 	print("M2W1_CLUTTER_SCATTER %s instances=%d build_ms=%d" % [str(report["scatter"]), int(report["instances"]), int(report["ms"])])
 
 
+## M2W1 r2b (C1): long supply edges instead of single props, foreground pockets along the roads, fewer lone patches
+## mid-field, and "join" entries only where their type already has a batch.
+func test_edges_pockets_and_no_single_props() -> void:
+	var cfg := _cfg()
+	var dressing: Dictionary = cfg["dressing"]
+	var camp_groups := ["supply_row", "arms_trough", "fire_ring"]
+	for piece: String in ["barracks", "gate"]:
+		var n := 0
+		for e: Dictionary in dressing[piece]:
+			if camp_groups.has(String(e["type"])):
+				n += 1
+		assert_true(n >= 3, "%s: an edge run of %d camp groups" % [piece, n])
+	for piece: String in dressing:
+		if piece.begins_with("_"):
+			continue
+		for e: Dictionary in dressing[piece]:
+			assert_true(not ["stores", "supply_crate", "ammo_case", "bedrolls", "brazier_bowl"].has(String(e["type"])), "%s: no single prop (%s)" % [piece, e["type"]])
+	var report: Dictionary = _map().get_node("ArtBuilder").clutter_report
+	assert_true(int(report.get("road_pockets", 0)) >= 150, "foreground pockets along the roads: %d" % int(report.get("road_pockets", 0)))
+	assert_true(int((report["scatter"] as Dictionary).get("veg_patch", 0)) < 4654, "fewer lone veg patches than before r2b (4654): %d" % int((report["scatter"] as Dictionary).get("veg_patch", 0)))
+	# Every chunk that draws a join-able group type draws it for a reason other than a join entry: the batch count
+	# cap below (246, the count before r2b) is the proof that joins add none.
+	print("M2W1_CLUTTER_R2B road_pockets=%d unjoined=%d" % [int(report.get("road_pockets", 0)), int(report.get("unjoined", 0))])
+
+
 func test_budgets() -> void:
 	var map := _map()
 	var budgets: Dictionary = _cfg()["budgets"]

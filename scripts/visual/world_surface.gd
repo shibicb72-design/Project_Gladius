@@ -135,6 +135,8 @@ static func ground_material(paint_map: Texture2D, map_size_m: float, key: String
 		_ground.set_shader_parameter("wet_roughness", float(cfg["wet"]["roughness"]))
 		_ground.set_shader_parameter("wet", _wet)
 		apply_ground_detail(_ground, bool(GraphicsPresets.new().get_preset().get("art_ground_detail_enabled", false)))
+		if not _ground_look.is_empty():
+			_apply_ground_look(_ground)
 	_ground.set_shader_parameter("paint_map", paint_map)
 	_ground.set_shader_parameter("map_size_m", map_size_m)
 	return _ground
@@ -162,6 +164,26 @@ static func apply_ground_detail(ground: ShaderMaterial, on: bool) -> void:
 		ground.set_shader_parameter(key, _color(value) if value is Array else float(value))
 	ground.set_shader_parameter("rock_layer", float((config()["layers"] as Array).find(String(detail["rock_layer_name"]))))
 	ground.set_shader_parameter("rock_tiles_per_m", 1.0 / float(detail["rock_tile_m"]))
+
+
+## M2W1 r2b: the look variant's optional "ground" block (art_look.json: ground detail uniform -> value) over the
+## detail file's uniforms, on every ground made here (and later ones). An empty block restores the file's values.
+static var _ground_look := {}
+
+
+static func set_ground_look(overrides: Dictionary) -> void:
+	_ground_look = overrides.duplicate()
+	for key in _grounds:
+		_apply_ground_look(_grounds[key] as ShaderMaterial)
+
+
+static func _apply_ground_look(ground: ShaderMaterial) -> void:
+	if not bool(ground.get_shader_parameter("detail_enabled")):
+		return
+	var uniforms: Dictionary = ground_detail_config()["uniforms"]
+	for key: String in uniforms:
+		var value: Variant = _ground_look.get(key, uniforms[key])
+		ground.set_shader_parameter(key, _color(value) if value is Array else float(value))
 
 
 ## How wet the world looks, 0..1 (set by the sky variant). Applies to every material made here.

@@ -45,6 +45,7 @@ static func resolved(variant: String = "") -> Dictionary:
 		"wet": float(over.get("wet", cfg["wet"])),
 		"glow_gain": float(over.get("glow_gain", cfg.get("glow_gain", 1.0))),  # M2W1 astraB, optional (1 = as before)
 		"weather": String(over.get("weather", cfg["weather"])),
+		"ground": over.get("ground", {}),  # M2W1 r2b, optional: ground detail uniforms for this variant ({} = the file's)
 	}
 
 

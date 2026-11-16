@@ -85,6 +85,33 @@ func test_detail_keys_reach_the_material_and_the_shader() -> void:
 	WorldSurface.set_wet(before)
 
 
+## M2W1 r2b: a look variant's optional "ground" block overrides detail uniforms on every ground; {} restores the
+## file's values. Only night uses one (art_look.json); dusk and storm have none.
+func test_variant_ground_look_overrides_and_restores() -> void:
+	var paint := ImageTexture.create_from_image(Image.create(8, 8, false, Image.FORMAT_RGBA8))
+	var mat := WorldSurface.ground_material(paint, 100.0, "m2w1_ground_look_test")
+	var file_value: Color = WorldSurface._color(WorldSurface.ground_detail_config()["uniforms"]["hill_crown_color"])
+	var night: Dictionary = MatchLook.resolved("night")["ground"]
+	assert_true(night.has("hill_crown_color"), "night darkens the hill crown")
+	WorldSurface.set_ground_look(night)
+	assert_eq(mat.get_shader_parameter("hill_crown_color"), WorldSurface._color(night["hill_crown_color"]), "night's crown reaches the ground")
+	WorldSurface.set_ground_look(MatchLook.resolved("dusk")["ground"])
+	assert_eq(mat.get_shader_parameter("hill_crown_color"), file_value, "dusk restores the file's crown")
+	assert_true((MatchLook.resolved("dusk")["ground"] as Dictionary).is_empty() and (MatchLook.resolved("storm")["ground"] as Dictionary).is_empty(), "dusk and storm override no ground key")
+	for key: String in night:
+		assert_true((WorldSurface.ground_detail_config()["uniforms"] as Dictionary).has(key), "night ground key %s is a detail uniform" % key)
+
+
+## M2W1 r2b (C2): open ground is calmed (open_flat), lifted (open_dark low) and the trodden roads are paler than it.
+func test_open_ground_is_calm_and_roads_paler() -> void:
+	var u: Dictionary = WorldSurface.ground_detail_config()["uniforms"]
+	assert_true(float(u["open_flat"]) > 0.0 and _code().contains("uniform float open_flat"), "open ground takes one calm colour")
+	assert_true(float(u["open_dark"]) <= 0.1, "open earth is no longer pushed a step darker (%.2f)" % float(u["open_dark"]))
+	var trod := WorldSurface._color(u["trodden_color"]) as Color
+	var ochre := WorldSurface._color(u["earth_ochre"]) as Color
+	assert_true(trod.get_luminance() > ochre.get_luminance() * 1.1, "roads are paler than open earth")
+
+
 func test_fetch_budget_and_one_branch() -> void:
 	var on: String = _branches()[0]
 	var fetches := on.count("texture(")

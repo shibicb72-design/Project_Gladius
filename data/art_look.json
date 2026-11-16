@@ -118,7 +118,8 @@
 		},
 		"night": {
 			"_astraB": "M2W1 astraB (F9): a low moon (22 degrees, azimuth unchanged) rim-lights the walls and leaves the flat ground quiet; less ambient; the haze is darker and reaches far (no uniform blue field); the world's own glow (energy lines, door lamps, beacons) x glow_gain with bloom from a lower threshold.",
-			"glow_gain": 2.2,
+			"_r2b": "M2W1 r2b (C4; OQ-ART-WORLD placeholders): the emissive accents carry the frame: glow_gain 2.2 -> 4.0, bloom threshold 0.85 -> 1.0 (moonlit stone no longer blooms, only the accents), intensity 0.9 -> 1.1, glow_levels weighted to the wide levels (5-7) so a thin band 300 m away spreads into a visible halo; the far ridges sink into the dark fog (art_backdrop.json tints).",
+			"glow_gain": 7.0,
 			"light": {
 				"sun_color": [0.62, 0.74, 1.0, 1.0],
 				"sun_energy": 0.75,
@@ -156,13 +157,16 @@
 				"horizon_haze_sun_color": [0.1, 0.15, 0.26, 1.0],
 				"star_energy": 2.2
 			},
-			"post": {"glow_intensity": 0.9, "glow_bloom": 0.0, "glow_hdr_threshold": 0.85, "adjust_saturation": 0.72, "adjust_contrast": 1.1, "fog_aerial_perspective": 0.3, "vignette": 0.3},
+			"post": {"glow_intensity": 1.1, "glow_bloom": 0.0, "glow_hdr_threshold": 1.0, "glow_levels": [0.0, 0.3, 1.0, 0.8, 1.0, 0.7, 0.4], "adjust_saturation": 0.72, "adjust_contrast": 1.1, "fog_sun_scatter": 0.04, "fog_aerial_perspective": 0.3, "vignette": 0.3},
+			"_ground_note": "M2W1 r2b: ground detail uniforms for night only (WorldSurface.set_ground_look): the moonlit limestone crown of the citadel hill one step darker, so the summit's glow, not the hill, is the brightest mass.",
+			"ground": {"hill_crown_color": [0.46, 0.44, 0.41, 1.0], "hill_ochre_a": [0.44, 0.36, 0.27, 1.0], "hill_ochre_b": [0.36, 0.3, 0.24, 1.0]},
 			"wet": 0.1,
 			"weather": "motes"
 		},
 		"storm": {
 			"_astraB": "M2W1 astraB (F9): rain-dark ground and stone with a restrained, varied sheen (art_materials.json wet, art_ground_detail.json puddle_* and wet_rough_vary), the sky in darker and lighter cloud layers, the emissive accents carrying the entrances (glow_gain); haze darker than before and reaching farther.",
-			"glow_gain": 1.8,
+			"_r2b": "M2W1 r2b (C4; OQ-ART-WORLD placeholders): glow_gain 1.8 -> 3.0, bloom threshold 0.95 -> 1.0 and the same wide glow_levels as night, so the gates, towers and summit lead the grey frame.",
+			"glow_gain": 3.0,
 			"light": {
 				"sun_color": [0.82, 0.86, 0.92, 1.0],
 				"sun_energy": 0.8,
@@ -211,7 +215,7 @@
 				"horizon_haze_sun_color": [0.55, 0.56, 0.57, 1.0],
 				"star_energy": 0.0
 			},
-			"post": {"glow_intensity": 0.6, "glow_bloom": 0.0, "glow_hdr_threshold": 0.95, "adjust_saturation": 0.78, "adjust_contrast": 1.1, "fog_sun_scatter": 0.0, "fog_aerial_perspective": 0.5, "vignette": 0.3, "vignette_color": [0.04, 0.05, 0.06, 1.0]},
+			"post": {"glow_intensity": 0.7, "glow_bloom": 0.0, "glow_hdr_threshold": 1.0, "glow_levels": [0.0, 0.3, 1.0, 0.8, 1.0, 0.7, 0.4], "adjust_saturation": 0.78, "adjust_contrast": 1.1, "fog_sun_scatter": 0.0, "fog_aerial_perspective": 0.5, "vignette": 0.3, "vignette_color": [0.04, 0.05, 0.06, 1.0]},
 			"wet": 1.0,
 			"weather": "rain"
 		}

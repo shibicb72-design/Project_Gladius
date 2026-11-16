@@ -284,7 +284,14 @@ func _build_far_hills(cfg: Dictionary) -> void:
 		var wobble := float(ring.get("radius_noise", 0.12))
 		var near := GreyboxArt.color_value(ring["color"])
 		var top := GreyboxArt.color_value(ring.get("ridge_color", ring["color"]))
-		var rows: Array = [[], [], [], []]  # inner foot, shoulder, ridge, back foot
+		var rows: Array = [[], [], [], [], []]  # inner foot, shoulder, cap line, ridge, back foot
+		var cols: Array = []  # per segment: [foot row, flank row, crest row, back row] colours
+		# M2W1 r2b (optional ring keys): "tint" [[bearing, value x], ...] darkens or lifts the ring by direction;
+		# "cliff" {bearings [from, to], fade_deg, shoulder_h, shoulder_depth, face, rim, rim_t} makes a steep dark face
+		# under a pale rim there (a mesa); "cap" {color, from_m, full_m, t} paints the crest pale where the ridge is high.
+		var tint: Array = ring.get("tint", [])
+		var cliff: Dictionary = ring.get("cliff", {})
+		var cap: Dictionary = ring.get("cap", {})
 		for i in segments:
 			var angle := TAU * float(i) / segments
 			var dir := Vector3(cos(angle), 0.0, sin(angle))
@@ -301,22 +308,44 @@ func _build_far_hills(cfg: Dictionary) -> void:
 				h = pr.x * (1.0 + pr.z * (fine - 0.5) * 0.5) * (1.0 if i % 2 == 0 else lerpf(1.0 - 0.28 * pr.z, 1.0, fine))
 			var foot := dir * r
 			var ground := skirt_height(foot.x, foot.z)
+			var compass := fposmod(rad_to_deg(angle) + 90.0, 360.0)
+			var cw := 0.0  # how much of the cliff look applies here
+			if not cliff.is_empty():
+				cw = _arc_weight(compass, float(cliff["bearings"][0]), float(cliff["bearings"][1]), float(cliff.get("fade_deg", 6.0)))
+			var sh_h := lerpf(h * lerpf(0.35, 0.6, broad), h * float(cliff.get("shoulder_h", 0.8)), cw)
+			var sh_d := lerpf(0.18 + 0.1 * fine, float(cliff.get("shoulder_depth", 0.4)), cw)
+			var ridge_d := 0.42 + 0.16 * fine * (1.0 - cw)
+			var shoulder := dir * (r + depth * sh_d) + Vector3.UP * (ground + sh_h)
+			var ridge := dir * (r + depth * ridge_d) + Vector3.UP * (ground + h)
+			var cap_t := lerpf(float(cap.get("t", 0.7)), float(cliff.get("rim_t", 0.9)), cw)
 			(rows[0] as Array).append(foot + Vector3.UP * (ground - 3.0))
-			(rows[1] as Array).append(dir * (r + depth * (0.18 + 0.1 * fine)) + Vector3.UP * (ground + h * lerpf(0.35, 0.6, broad)))
-			var ridge := dir * (r + depth * (0.42 + 0.16 * fine)) + Vector3.UP * (ground + h)
-			(rows[2] as Array).append(ridge)
-			(rows[3] as Array).append(dir * (r + depth) + Vector3.UP * (ground - 3.0))
+			(rows[1] as Array).append(shoulder)
+			(rows[2] as Array).append(shoulder.lerp(ridge, cap_t))
+			(rows[3] as Array).append(ridge)
+			(rows[4] as Array).append(dir * (r + depth) + Vector3.UP * (ground - 3.0))
 			if ring_index == 0:
 				_near_ridge.append(ridge)
+			var k := _bearing_value(tint, compass)
+			var flank := near.lerp(top, 0.5)
+			var crest := top
+			var capped := 0.0
+			if not cap.is_empty():
+				capped = smoothstep(float(cap["from_m"]), float(cap["full_m"]), h)
+				crest = crest.lerp(GreyboxArt.color_value(cap["color"]), capped)
+			if cw > 0.0:
+				flank = flank.lerp(GreyboxArt.color_value(cliff["face"]), cw)
+				crest = crest.lerp(GreyboxArt.color_value(cliff["rim"]), cw)
+			cols.append([near * k, flank * k, crest * lerpf(k, 1.0, maxf(capped, cw)), top * k])
 		for i in segments:
 			var j := (i + 1) % segments
 			LowpolyKit._shade = 0.5 + 0.35 * sin(float(i) * 12.9898 + ring_index)
-			for row in 3:
+			for row in 4:
 				var a: Vector3 = rows[row][i]
 				var b: Vector3 = rows[row][j]
 				var c: Vector3 = rows[row + 1][i]
 				var d: Vector3 = rows[row + 1][j]
-				var colour := near.lerp(top, float(row) / 2.0)
+				var colour: Color = cols[i][row]
+				colour.a = 1.0
 				# The hills code above: (b - a) x (c - a) points out of the hill.
 				LowpolyKit._triangle(st, a, d, c, colour)
 				LowpolyKit._triangle(st, a, b, d, colour)
@@ -324,6 +353,9 @@ func _build_far_hills(cfg: Dictionary) -> void:
 	# M2W1 astraB: flat pale bands on the skirt (a river or lake in the open direction), part of this mesh: no draw.
 	for band: Dictionary in cfg.get("bands", []):
 		_band(st, band)
+	# M2W1 r2b: lone rock spires (part of this mesh: no draw).
+	for spire: Dictionary in cfg.get("spires", []):
+		_spire(st, spire)
 	LowpolyKit._surface = -1
 	var mesh := st.commit()
 	mesh.surface_set_material(0, WorldSurface.material())
@@ -352,6 +384,62 @@ static func profile_at(profile: Array, bearing: float) -> Vector3:
 			return Vector3(lerpf(float(a[1]), float(b[1]), t), lerpf(float(a[2]), float(b[2]), t), lerpf(float(a[3]), float(b[3]), t))
 	var first: Array = profile[0]
 	return Vector3(float(first[1]), float(first[2]), float(first[3]))
+
+
+## M2W1 r2b: 1 inside the compass arc [from, to] (degrees, may wrap past 360), fading to 0 over fade degrees outside.
+static func _arc_weight(bearing: float, from: float, to: float, fade: float) -> float:
+	var span := fposmod(to - from, 360.0)
+	var into := fposmod(bearing - from, 360.0)
+	if into <= span:
+		return 1.0
+	var past := minf(into - span, 360.0 - into)  # degrees beyond the nearer end
+	return 1.0 - smoothstep(0.0, maxf(fade, 0.001), past)
+
+
+## M2W1 r2b: a value multiplier by compass bearing from [[bearing, value], ...] (1 when empty).
+static func _bearing_value(points: Array, bearing: float) -> float:
+	if points.is_empty():
+		return 1.0
+	var as_profile: Array = []
+	for p: Array in points:
+		as_profile.append([p[0], p[1], 1.0, 0.0])
+	return profile_at(as_profile, bearing).x
+
+
+## M2W1 r2b: a lone tapering rock spire on the skirt: {bearing_deg, radius_m, height_m, base_m, top_m, sides, color,
+## lean [x, z] m (the top's offset)}. Flat shaded, part of the hills mesh.
+func _spire(st: SurfaceTool, s: Dictionary) -> void:
+	var ang := deg_to_rad(float(s["bearing_deg"]) - 90.0)
+	var c := Vector3(cos(ang), 0.0, sin(ang)) * float(s["radius_m"])
+	var y0 := skirt_height(c.x, c.z) - 4.0
+	var hgt := float(s["height_m"])
+	var sides := maxi(3, int(s.get("sides", 6)))
+	var colour := GreyboxArt.color_value(s["color"])
+	var lean_v: Array = s.get("lean", [0.0, 0.0])
+	var lean := Vector3(float(lean_v[0]), 0.0, float(lean_v[1]))
+	# (radius, height share) rings: a broad foot, a waist, a shoulder and a blunt top.
+	var prof := [Vector2(float(s["base_m"]), 0.0), Vector2(float(s["base_m"]) * 0.55, 0.35), Vector2(float(s["top_m"]) * 1.4, 0.8), Vector2(float(s["top_m"]), 1.0)]
+	for k in prof.size() - 1:
+		var lo: Vector2 = prof[k]
+		var hi: Vector2 = prof[k + 1]
+		for i in sides:
+			var a0 := TAU * float(i) / sides + float(k) * 0.4
+			var a1 := TAU * float(i + 1) / sides + float(k) * 0.4
+			var b0 := TAU * float(i) / sides + float(k + 1) * 0.4
+			var b1 := TAU * float(i + 1) / sides + float(k + 1) * 0.4
+			LowpolyKit._shade = 0.4 + 0.25 * float(i % 3) / 2.0
+			var p0 := c + lean * lo.y + Vector3(cos(a0) * lo.x, y0 + hgt * lo.y, sin(a0) * lo.x)
+			var p1 := c + lean * lo.y + Vector3(cos(a1) * lo.x, y0 + hgt * lo.y, sin(a1) * lo.x)
+			var q0 := c + lean * hi.y + Vector3(cos(b0) * hi.x, y0 + hgt * hi.y, sin(b0) * hi.x)
+			var q1 := c + lean * hi.y + Vector3(cos(b1) * hi.x, y0 + hgt * hi.y, sin(b1) * hi.x)
+			LowpolyKit._triangle(st, p0, q1, p1, colour)
+			LowpolyKit._triangle(st, p0, q0, q1, colour)
+	var top_c := c + lean + Vector3(0.0, y0 + hgt, 0.0)
+	var last: Vector2 = prof[prof.size() - 1]
+	for i in sides:
+		var a0 := TAU * float(i) / sides + float(prof.size() - 1) * 0.4
+		var a1 := TAU * float(i + 1) / sides + float(prof.size() - 1) * 0.4
+		LowpolyKit._triangle(st, top_c + Vector3(cos(a0) * last.x, 0.0, sin(a0) * last.x), top_c, top_c + Vector3(cos(a1) * last.x, 0.0, sin(a1) * last.x), colour)
 
 
 ## A flat band on the skirt along an arc: {bearings_deg: [from, to], radius_m: [inner, outer], segments, lift_m, color}.

@@ -838,6 +838,14 @@ android/              debug.keystore (shared debug key only)
       adds height bands on the hill (`data/art_ground_detail.json`).
     - Clutter: composed groups merged at load (supply_row, fire_ring, arms_trough, veg_patch, stone_patch),
       placed against walls and in sheltered pockets; 246 batches (was 503), `budgets.batches` 250.
+    - Astra round 2 (with Blender again; `tools/blender/m2w1_world_kit.py` and its glb match from commit
+      4f173fb on): the script bakes part shade, tread and sill wear, a foundation band and ray occlusion into
+      the glb's shade; `WorldKitMeshes.bake_shade` keeps paint value, facing and per-type gains (one place per
+      term). A `cover` entry names kit `parts` OR a glb `node` (sandbags, the nests, wreck_cart). The summit
+      types swap to their far level only at 420 m. `place_map.gd` also paints broad roads (gate to camp to
+      citadel foot, two ring tracks, field tracks); `art_look.json` variants may carry a `ground` block that
+      overrides ground-look keys for that variant; `WorldClutter` places edge runs along walls, outposts round
+      cover and pockets along roads, with a `join` rule that adds no batch.
     - Looks: dusk is a low golden hour (sun 13.5 degrees, AgX tonemapper in dusk, night and storm; `dusk_deep`
       keeps ACES); optional keys `glow_gain` (scales surface glow per variant), `cloud_sun_3d`,
       `sun_halo_wide`, `wet_far_m`. The backdrop's hill rings take a compass profile (massif north, table

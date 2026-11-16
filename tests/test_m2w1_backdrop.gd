@@ -116,6 +116,25 @@ func test_1km_skyline_has_a_direction_each_way() -> void:
 			assert_true(south < Backdrop.profile_at(ring, bearing).x, "south is the open side (bearing %.0f)" % bearing)
 	var sectors: Array = Backdrop.config()["maps"]["alesia_1km"]["trees"]["sectors"]
 	assert_true(absf(float(sectors[0][0]) - 270.0) < 1.0 and float(sectors[0][2]) > 0.5, "most cypress clumps stand west")
+	# M2W1 r2b (C3): one bold feature per direction, and the sun's side darker.
+	var hills: Dictionary = Backdrop.config()["maps"]["alesia_1km"]["hills"]
+	var cap: Dictionary = rings[2].get("cap", {})
+	assert_true(not cap.is_empty() and peak_w > float(cap["full_m"]) and peak_e > float(cap["full_m"]) and saddle < float(cap["from_m"]), "north: both peaks capped pale, the saddle not")
+	var cliff: Dictionary = rings[1].get("cliff", {})
+	assert_true(not cliff.is_empty() and Backdrop._arc_weight(90.0, float(cliff["bearings"][0]), float(cliff["bearings"][1]), 1.0) == 1.0, "east: the table is a cliffed mesa")
+	assert_true(Backdrop.profile_at(mid, 94.0).x < Backdrop.profile_at(mid, 80.0).x * 0.75, "east: one notch in the mesa")
+	assert_true(Backdrop.profile_at(mid, 173.0).x > Backdrop.profile_at(mid, 190.0).x * 3.0 and Backdrop.profile_at(mid, 207.0).x > Backdrop.profile_at(mid, 190.0).x * 3.0, "south: two headlands over the low opening")
+	var bright_south := false
+	for band: Dictionary in hills.get("bands", []):
+		if float(band["bearings_deg"][0]) < 180.0 and float(band["bearings_deg"][1]) > 200.0 and GreyboxArt.color_value(band["color"]).get_luminance() > 0.7:
+			bright_south = true
+	assert_true(bright_south, "south: a bright plain band")
+	var spire_west := false
+	for s: Dictionary in hills.get("spires", []):
+		spire_west = spire_west or (float(s["bearing_deg"]) > 225.0 and float(s["bearing_deg"]) < 315.0)
+	assert_true(spire_west, "west: a lone spire")
+	for ring: Dictionary in rings:
+		assert_true(Backdrop._bearing_value(ring.get("tint", []), 45.0) < 0.8, "the sun's side (north-east in dusk) is darker on every ring")
 
 
 func test_small_maps_build_exactly_todays_backdrop() -> void:

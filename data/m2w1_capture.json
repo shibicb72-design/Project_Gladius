@@ -71,6 +71,15 @@
 		{"name": "67_wall_inner_40", "cam": [0.0, -100.0], "look": [0.0, 2.5, -140.0], "note": "M2W1 r2a: the same wall run from 40 m, inner face"},
 		{"name": "68_tower_150", "cam": [69.0, -167.0], "look": [126.3, 5.0, -304.9], "note": "M2W1 r2a: Specula (OuterRing_022) from 150 m inside"},
 		{"name": "69_sandbags_3m", "cam": [50.6, -198.8], "look": [52.5, 0.4, -196.5], "note": "M2W1 r2a: the sandbags Cover_029 from 3 m"},
-		{"name": "70_cart_3m", "cam": [30.9, -216.65], "look": [33.0, 0.6, -214.5], "note": "M2W1 r2a: the wrecked supply wagon Cover_031 from 3 m"}
+		{"name": "70_cart_3m", "cam": [30.9, -216.65], "look": [33.0, 0.6, -214.5], "note": "M2W1 r2a: the wrecked supply wagon Cover_031 from 3 m"},
+		{"name": "71_road_gate_out_70", "cam": [0.0, -400.0], "look": [0.0, 2.0, -330.0], "note": "M2W1 r2b: on the main road 70 m outside Porta Aquilae, walking in (foreground verge, the road, the gate)"},
+		{"name": "72_road_camp_120", "cam": [1.0, -318.0], "look": [55.6, 1.5, -209.2], "note": "M2W1 r2b: just inside Porta Aquilae on the road to Castra Prima's yard, 120 m out"},
+		{"name": "73_road_camp_60", "cam": [27.1, -262.0], "look": [55.6, 1.5, -209.2], "note": "M2W1 r2b: the same road 60 m from Castra Prima's yard"},
+		{"name": "74_road_camp_20", "cam": [46.1, -226.8], "look": [55.6, 1.2, -209.2], "note": "M2W1 r2b: the same road 20 m from the yard, between the barracks"},
+		{"name": "75_camp_approach", "cam": [277.9, -18.7], "look": [207.7, 2.0, -57.1], "note": "M2W1 r2b: Castra Secunda from 80 m along its road from Porta Solis"},
+		{"name": "76_barracks_edge_run", "cam": [30.0, -214.0], "look": [40.5, 0.5, -219.0], "note": "M2W1 r2b: along Castra1_Barracks_0's west end and back wall: its supply edge"},
+		{"name": "77_field_outpost_12", "cam": [-116.0, -350.0], "look": [-104.5, 0.5, -345.0], "note": "M2W1 r2b: the field cover by Ring_155 from 12 m (an outpost of cover, stones, weeds)"},
+		{"name": "79_orient_s_field", "cam": [160.0, 440.0], "look": [160.0, 30.0, 1440.0], "note": "M2W1 r2b: the south fields looking south over the open side (from 57's spot the fort hides that horizon)"},
+		{"name": "78_inner_road_citadel", "cam": [112.0, -112.0], "look": [0.0, 6.0, 0.0], "note": "M2W1 r2b: just outside Porta Iani on the road in to the citadel foot"}
 	]
 }

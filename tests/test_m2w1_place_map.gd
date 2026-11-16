@@ -114,6 +114,49 @@ func test_channels_mean_what_they_say() -> void:
 	assert_true(absf((place.sample(p) as Color).a - want) < 0.01, "A is the broad noise (%.3f, want %.3f)" % [(place.sample(p) as Color).a, want])
 
 
+## M2W1 r2b (C2): broad compacted roads. Every outer gate has one running out through it (straight for the gate
+## stretch), every camp yard is reached, and a main road is a solid 5-8 m band: full on its line, still trodden at
+## the solid half width, clear of trodden a few metres past its outer edge (unless something else is trodden there).
+func test_roads_are_broad_and_reach_every_gate_and_camp() -> void:
+	var builder := _map().get_node("ArtBuilder")
+	var place: RefCounted = _place()
+	var root := builder.get_parent()
+	var roads: Array = place.get("roads")
+	var cfg: Dictionary = PlaceMapCfg["roads"]
+	var main: Array = cfg["main"]
+	assert_true(float(main[0]) * 2.0 >= 5.0 and float(main[0]) * 2.0 <= 8.0, "main roads' solid core is 5-8 m wide (%.1f)" % (float(main[0]) * 2.0))
+	assert_true(roads.size() >= 4 + 4 + 6, "a road per outer gate, inner gate and camp at least (%d)" % roads.size())
+	var outer := 0
+	for body: Node in builder.get("structure_bodies"):
+		if String(body.get_meta(&"structure_type", "")) != "gate":
+			continue
+		var t := WorldClutter.xform_to(body, root)
+		var c := Vector2(t.origin.x, t.origin.z)
+		if c.length() < float(cfg["outer_gate_min_r_m"]):
+			continue
+		outer += 1
+		var out := c.normalized()  # the outer gates face the centre square-on
+		var at := c + out * 50.0  # past the field ring track
+		var on := place.sample(at) as Color
+		var side := place.sample(at + out.orthogonal() * (float(main[0]) - 0.5)) as Color
+		var past := place.sample(at + out.orthogonal() * (float(main[1]) + 4.0)) as Color
+		assert_true(on.r >= 0.8 and side.r >= 0.6 and past.r < 0.3, "the road 50 m outside the gate at %s: centre %.2f, edge %.2f, past it %.2f" % [c, on.r, side.r, past.r])
+	assert_eq(outer, 4, "four outer gates")
+	var parts := {}
+	for body: Node in builder.get("structure_bodies"):
+		var id := String(body.name)
+		if String(body.get_meta(&"structure_type", "")) == "barracks" and id.contains("_"):
+			var t := WorldClutter.xform_to(body, root)
+			parts[id.get_slice("_", 0)] = Vector2(t.origin.x, t.origin.z)
+	for camp: String in parts:
+		var reached := false
+		for road: Dictionary in roads:
+			var pts: PackedVector2Array = road["pts"]
+			if pts[pts.size() - 1].distance_to(parts[camp]) < 30.0:
+				reached = true
+		assert_true(reached, "a road ends in %s's yard" % camp)
+
+
 func test_deterministic() -> void:
 	var first: PackedByteArray = _place().data
 	var again := _build()

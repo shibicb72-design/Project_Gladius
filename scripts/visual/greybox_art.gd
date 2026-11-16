@@ -216,6 +216,7 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 	sun.light_volumetric_fog_energy = float(plus.get("volumetric_sun_energy", 1.0))
 	WorldSurface.set_wet(float(look["wet"]))
 	WorldSurface.set_glow_gain(float(look.get("glow_gain", 1.0)))
+	WorldSurface.set_ground_look(look.get("ground", {}))
 	var match_look := world.get_node_or_null("MatchLook") as MatchLook
 	if match_look == null:
 		match_look = MatchLook.new()

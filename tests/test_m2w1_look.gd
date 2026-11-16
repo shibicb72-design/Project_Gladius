@@ -157,6 +157,27 @@ func test_astra_b_optional_keys() -> void:
 	stage.free()
 
 
+## M2W1 r2b (C4): night and storm lead with their own glow: a higher gain than dusk, only emissive surfaces past the
+## bloom threshold, wide glow levels, and no moonlit haze on the far ridges (night's sun scatter near zero).
+func test_night_and_storm_lead_with_the_glow() -> void:
+	var dusk := MatchLook.resolved("dusk")
+	for id: String in ["night", "storm"]:
+		var look := MatchLook.resolved(id)
+		assert_true(float(look["glow_gain"]) >= 3.0 and float(look["glow_gain"]) > float(dusk["glow_gain"]), "%s: the accents carry the frame (glow gain %.1f)" % [id, look["glow_gain"]])
+		assert_true(float(look["post"]["glow_hdr_threshold"]) >= 1.0, "%s: only HDR emission blooms" % id)
+		var levels: Array = look["post"].get("glow_levels", [])
+		assert_eq(levels.size(), 7, "%s: seven glow levels" % id)
+		if levels.size() == 7:
+			assert_true(float(levels[4]) + float(levels[5]) + float(levels[6]) >= 1.5, "%s: the wide levels carry a far halo" % id)
+		assert_true(float(look["post"]["fog_sun_scatter"]) <= 0.1, "%s: no sun/moon haze lights the far ridges" % id)
+	var stage := _stage()
+	var world := stage.get_node("WorldEnvironment") as WorldEnvironment
+	world.call("_apply_environment", world, "night")
+	assert_true(is_equal_approx(world.environment.get_glow_level(5), float(MatchLook.resolved("night")["post"]["glow_levels"][5])), "night's glow levels reach the environment")
+	world.call("_apply_environment", world, "dusk")
+	stage.free()
+
+
 func test_no_light_increase_and_decor_out_of_the_hill() -> void:
 	for path: String in ["res://data/maps/alesia_1km.json", "res://data/maps/alesia_section.json"]:
 		var stage := _stage(path)
