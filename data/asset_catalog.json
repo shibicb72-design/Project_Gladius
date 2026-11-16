@@ -1387,6 +1387,14 @@
 			"sha256": "84245cfed83d4d1789f69343d46d35e34830fa82a75f4bbe176e91cf5587596c"
 		},
 		{
+			"path": "res://assets/generated/characters/soldier_clips.glb",
+			"made_by": "tools/blender/build_soldier_clips.py",
+			"derived_from": "quaternius_ual_standard_glb",
+			"licence": "derived in this project from Quaternius Universal Animation Library Standard (data/asset_catalog.json assets id quaternius_ual_standard_glb, CC0-1.0)",
+			"bytes": 771152,
+			"sha256": "8ac1d5c18f7b862cfe75a78cf590c6dd0f1d4f2215ae3d237cfe30df35c2dc4d"
+		},
+		{
 			"path": "res://assets/generated/textures/noise_pack.png",
 			"made_by": "tools/gen_textures.gd",
 			"licence": "generated in this project (no source material)",

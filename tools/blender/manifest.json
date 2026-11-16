@@ -8,6 +8,10 @@
 		"res://assets/generated/characters/soldier.glb": {
 			"made_by": "tools/blender/build_soldier.py",
 			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier_clips.glb": {
+			"made_by": "tools/blender/build_soldier_clips.py",
+			"derived_from": "quaternius_ual_standard_glb"
 		}
 	}
 }

@@ -36,8 +36,8 @@
 			"clip_bones": ["Spine", "Chest", "RightUpperArm", "RightForeArm", "RightHand", "LeftUpperArm", "LeftForeArm", "LeftHand"]
 		},
 		"revive": {
-			"_clip_note": "M2 AN1 commit 4: with the library reviver clip (anim_sources revive, UAL Fixing_Kneeling) the whole body plays it: the kneel-down once, then clip_loop_from_s..clip_loop_to_s (kneeling, both hands working low) loops; the head rides the chest. body_pitch_deg, body_offset_m and bones stay the fallback.",
-			"clip_loop_from_s": 0.9, "clip_loop_to_s": 4.1
+			"_clip_note": "M2 AN1 commit 4: with the library reviver clip (anim_sources revive, UAL Fixing_Kneeling) the whole body plays it: the kneel-down once, then clip_loop_from_s..clip_loop_to_s (kneeling, both hands working low) loops; the head rides the chest. body_pitch_deg, body_offset_m and bones stay the fallback. M2 AN2 item 2: 1.4..3.3 s (was 0.9..4.1: its two ends differed by 79 degrees at the right hand, 35 here) and tools/blender/build_soldier_clips.py bakes the clip with this loop closed (the frames before clip_loop_to_s blend into clip_loop_from_s).",
+			"clip_loop_from_s": 1.4, "clip_loop_to_s": 3.3
 		}
 	},
 	"gait": {
@@ -52,8 +52,8 @@
 		"chest_upright": 0.85,
 		"hips_bob_scale": 0.2,
 		"leg_reach": 0.97,
-		"_cycle_scale_note": "M2 AN1 commit 6: a per-slot factor on the measured cycle_m (SoldierAnimation.build). The longer legs of data/art_soldier.json soldier.part_overrides lengthen the sprint's raw stride more than the re-solved, hip-locked legs show it; this corrects the playback rate, not the foot_slide_max_m limit.",
-		"cycle_scale": {"run_fwd": 0.95, "walk_slow": 1.05},
+		"_cycle_scale_note": "M2 AN1 commit 6: a per-slot factor on the measured cycle_m (SoldierAnimation.build). The longer legs of data/art_soldier.json soldier.part_overrides lengthen the sprint's raw stride more than the re-solved, hip-locked legs show it; this corrects the playback rate, not the foot_slide_max_m limit. M2 AN2 item 2: 1 for every slot (was run_fwd 0.95, walk_slow 1.05): the Blender clips keep each planted foot within leg reach (tools/blender/build_soldier_clips.py), so the re-solve keeps the clip's feet and the measured cycle is the played one.",
+		"cycle_scale": {"run_fwd": 1.0, "walk_slow": 1.0},
 		"foot_floor_slack_m": 0.02,
 		"neck_drop_max_m": 0.1,
 		"upper_keeps_lower": ["Spine"],
@@ -69,7 +69,7 @@
 	"cover": {
 		"_placeholder": true,
 		"_todo": "OQ-COVER / OQ-ANIM (M2 AN1 commit 4): third-person cover look only (scripts/visual/cover_anim.gd; data/cover.json keeps the gameplay and its pose angles). The crouched cover pose takes crouch_bones from the library crouch (anim_sources cover_crouch_idle, UAL Crouch_Idle) at crouch_hold_s, the pelvis staying at the crouched hitbox height; peek_lean_deg rolls the spine toward the peek side. Presentation trials, not design values.",
-		"crouch_bones": ["Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"],
+		"crouch_bones": ["Hips", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "LeftToes", "RightUpperLeg", "RightLowerLeg", "RightFoot", "RightToes"],
 		"crouch_hold_s": 1.0,
 		"_rest_note": "M2 AN1 commit 6: the arms while hugging the wall (replaces data/cover.json animation.rest_upper_pose_deg for the look only; cover.json is unchanged): the gun held at a low ready angle across the body instead of straight up. Same bones, so the lean still blends back to the aimed pose.",
 		"rest_upper_pose_deg": {"RightUpperArm": [10, 0, 8], "RightForeArm": [55, 0, 0], "RightHand": [-30, 0, 0]},

@@ -16,8 +16,10 @@ static func cfg() -> Dictionary:
 	return SoldierRig.config()["gait"]
 
 
-## The ground contact points of the soldier's boots: per foot [bone, heel, toe], bone-local, the bottom back and
-## bottom front centre of the boot part's bind-pose box (the toe is the -Z end). A rolling foot touches with one or
+## The ground contact points of the soldier's boots: per foot [bone, heel, toe, shin, toe bone], the bottom back and
+## bottom front centre of the boot part's bind-pose box (the toe is the -Z end), heel local to the foot, toe local
+## to the toe bone (M2 AN2 item 2: the Blender clips bend the toes up at the toe-off, so the toe tip rides the
+## LeftToes / RightToes bone; a skeleton without toe bones keeps it on the foot). A rolling foot touches with one or
 ## the other, so each is a contact point of its own.
 static func sole_points(skeleton: Skeleton3D) -> Array:
 	var parts: Array = SoldierLook.parts()
@@ -29,7 +31,13 @@ static func sole_points(skeleton: Skeleton3D) -> Array:
 				var box: AABB = bounds[i]
 				var mid := box.get_center()
 				var foot := skeleton.find_bone("LeftFoot" if side == "l" else "RightFoot")
-				out.append([foot, Vector3(mid.x, box.position.y, box.end.z), Vector3(mid.x, box.position.y, box.position.z), skeleton.get_bone_parent(foot)])
+				var toes := skeleton.find_bone("LeftToes" if side == "l" else "RightToes")
+				var toe := Vector3(mid.x, box.position.y, box.position.z)
+				if toes >= 0 and skeleton.get_bone_parent(toes) == foot:
+					toe -= skeleton.get_bone_rest(toes).origin
+				else:
+					toes = foot
+				out.append([foot, Vector3(mid.x, box.position.y, box.end.z), toe, skeleton.get_bone_parent(foot), toes])
 	return out
 
 
@@ -39,7 +47,7 @@ static func contacts(poses: Array[Transform3D], soles: Array) -> Array[Vector3]:
 	var out: Array[Vector3] = []
 	for sole: Array in soles:
 		out.append(poses[int(sole[0])] * (sole[1] as Vector3))
-		out.append(poses[int(sole[0])] * (sole[2] as Vector3))
+		out.append(poses[int(sole[4])] * (sole[2] as Vector3))
 	for sole: Array in soles:
 		out.append(poses[int(sole[3])].origin)
 	return out

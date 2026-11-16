@@ -111,7 +111,8 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	var free_bones: Array = gait_cfg["upper_keeps_lower"]
 	for i in skeleton.get_bone_count():
 		var bone := String(skeleton.get_bone_name(i))
-		if bone == "Hips" or bone.contains("Leg") or bone.contains("Foot"):
+		# M2 AN2 item 2: the toes belong to the legs (the Blender clips bend them at the toe-off).
+		if bone == "Hips" or bone.contains("Leg") or bone.contains("Foot") or bone.contains("Toes"):
 			continue
 		var path := NodePath("Skeleton3D:" + bone)
 		upper.set_filter_path(path, not free_bones.has(bone))

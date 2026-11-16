@@ -6,12 +6,15 @@ extends "res://tests/test_case.gd"
 
 const UAL := "res://assets/third_party/quaternius_ual/UAL1_Standard.glb"
 ## state -> [library slot, expected source]. "code" = built in code on purpose (see SOURCES_WHY).
+## M2 AN2 item 2: the library slots resolve to "blender" (soldier_clips.glb, baked on the soldier's own rig); the UAL
+## candidates stay listed behind them as the fallback.
 const STATES := {
-	"idle": ["idle", "ual"], "walk (slow)": ["walk_slow", "ual"], "move speed (jog)": ["walk_fwd", "ual"],
-	"sprint": ["run_fwd", "ual"], "back-pedal (reversed jog)": ["walk_back", "ual"], "strafe left": ["strafe_l", "ual"],
-	"strafe right": ["strafe_r", "ual"], "airborne": ["jump_air", "ual"], "hit chest": ["hit_chest", "ual"],
-	"hit head": ["hit_head", "ual"], "death": ["death", "ual"], "revive (reviver)": ["revive", "ual"],
-	"blade swing": ["blade_swing", "ual"], "cover crouch": ["cover_crouch_idle", "ual"],
+	"idle": ["idle", "blender"], "walk (slow)": ["walk_slow", "blender"], "move speed (jog)": ["walk_fwd", "blender"],
+	"sprint": ["run_fwd", "blender"], "back-pedal (reversed jog)": ["walk_back", "blender"], "strafe left": ["strafe_l", "blender"],
+	"strafe right": ["strafe_r", "blender"], "airborne": ["jump_air", "blender"], "hit chest": ["hit_chest", "blender"],
+	"hit head": ["hit_head", "blender"], "death": ["death", "blender"], "revive (reviver)": ["revive", "blender"],
+	"blade swing": ["blade_swing", "blender"], "cover crouch": ["cover_crouch_idle", "blender"],
+	"cover crouch move": ["cover_crouch_move", "blender"],
 	"aim": ["aim", "procedural"], "aim up": ["aim_up", "procedural"], "aim down": ["aim_down", "procedural"],
 	"fire": ["fire", "procedural"], "reload": ["reload", "procedural"],
 }
@@ -35,13 +38,13 @@ func test_every_state_resolves_to_its_source_and_library_clips_are_really_used()
 		var resolved := clips.resolve(slot, Animation.new(), model.skeleton)
 		print("CLIP_SOURCE %s slot=%s source=%s" % [state, slot, clips.source_for(slot)])
 		assert_eq(clips.source_for(slot), expected, "%s comes from %s" % [state, expected])
-		if expected == "ual":
+		if expected == "blender":
 			assert_true(resolved != null and resolved.get_track_count() > 10, "%s: a baked library clip with the soldier's tracks" % state)
 	# The graph plays the library clips, not the code-built fallbacks.
 	var graph_clips := model.animation_tree.get_meta(&"clip_library") as ClipLibrary
 	for slot in ["idle", "walk_slow", "walk_fwd", "walk_back", "strafe_l", "strafe_r", "run_fwd"]:
-		assert_eq(graph_clips.source_for(slot), "ual", "the soldier's graph resolved %s from the UAL" % slot)
-	assert_eq(model.animation_tree.get_animation(&"idle"), clips.resolve("idle", null, model.skeleton), "the graph's idle is the shared UAL bake")
+		assert_eq(graph_clips.source_for(slot), "blender", "the soldier's graph resolved %s from the Blender clips" % slot)
+	assert_eq(model.animation_tree.get_animation(&"idle"), clips.resolve("idle", null, model.skeleton), "the graph's idle is the shared library clip")
 	assert_true(not (model.animation_tree.get_meta(&"gait_cycles") as Dictionary).is_empty(), "the gait cycles were measured on the library clips")
 	assert_true(model.animation_tree.has_animation(&"jump_air") and model.animation_tree.has_animation(&"hit_chest"), "airborne and flinch clips are in the graph")
 	assert_true(model.pose._swing_clip != null and model.pose._revive_clip != null, "the blade swing and the reviver use the library clips")
