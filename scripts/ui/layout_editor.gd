@@ -85,6 +85,7 @@ func build() -> void:
 	add_child(preview)
 	preview.cfg["force_touch_hud"] = true
 	preview.use_profile_lock_fallback = false  # the slots own the Sprint lock position while editing
+	preview.show_move_stick_for_editing = true  # M2 H1c (OQ-STICK-VISIBLE): the stick is drawn only here, to drag it
 	preview.visible = true
 	preview.set_suspended(true)  # the editor handles all touches; no sticks or fire while editing
 	_ignore_mouse(preview)

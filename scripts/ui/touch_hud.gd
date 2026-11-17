@@ -1,5 +1,5 @@
 extends Control
-## Touch HUD: always-visible move stick (bottom-left, re-centres under the thumb) and look stick (bottom
+## Touch HUD: move stick (bottom-left, re-centres under the thumb; not drawn by default, M2 H1c OQ-STICK-VISIBLE) and look stick (bottom
 ## centre-right, drag to turn; M2 H1a: a look touch never fires), plus action buttons.
 ## Feeds TouchProvider; buttons press InputMap actions. Layout comes from data/input.json.
 
@@ -40,6 +40,11 @@ var vjoy_layout: String = "floating"  # "floating" | "fixed"; only used when mov
 var suspended: bool = false  # true while the in-match menu is open
 ## G2e: the active saved layout slot (element key -> {pos, size_pct, alpha_pct}); {} = the data defaults.
 var slot_layout: Dictionary = {}
+## M2 H1c (OQ-STICK-VISIBLE): the layout editor sets this on its preview so the (normally undrawn) move stick shows.
+var show_move_stick_for_editing: bool = false:
+	set(v):
+		show_move_stick_for_editing = v
+		_apply_move_stick_drawn()
 const LOCK_KEY := "sprint_lock"
 
 ## M2 C1b stage 4 (decision 3, fix 4): no slot is hidden in cover any more (the old cover FIRE / Crouch slot swaps and
@@ -735,6 +740,7 @@ func _update_sticks() -> void:
 		look_stick.modulate.a = _alpha("look_stick")
 		look_stick.set_knob_offset((_look_pos - _look_origin) if _look_touch != -1 else Vector2.ZERO)
 	move_stick.modulate.a = _alpha("move_stick")
+	_apply_move_stick_drawn()
 	if move_mode == "virtual":
 		var vj := move_stick as VirtualJoystick
 		var side := _vjoy_side()
@@ -759,6 +765,24 @@ func _update_sticks() -> void:
 	else:
 		move_stick.place(get_move_rest(), r)
 		move_stick.set_knob_offset(Vector2.ZERO)
+
+
+## M2 H1c (OQ-STICK-VISIBLE): data/input.json touch_layout.move_stick_visible (default false) hides the move stick's
+## drawing for both kinds; the layout editor's preview shows it anyway (show_move_stick_for_editing) so there is
+## something to drag. Never visible = false: the VirtualJoystick takes its touches through the GUI.
+func move_stick_drawn() -> bool:
+	return show_move_stick_for_editing or bool(_layout.get("move_stick_visible", false))
+
+
+## Drawing only: VirtualJoystick self_modulate alpha (modulate.a stays the layout alpha_pct); StickVisual skips _draw.
+func _apply_move_stick_drawn() -> void:
+	if move_stick == null:
+		return
+	var on := move_stick_drawn()
+	if move_stick is StickVisual:
+		(move_stick as StickVisual).drawn = on
+	else:
+		move_stick.self_modulate.a = 1.0 if on else 0.0
 
 
 func _vjoy_side() -> float:

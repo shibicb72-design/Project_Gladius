@@ -118,6 +118,8 @@
 		"look_stick_rest": [0.75, 0.6],
 		"_move_stick_note": "Which move stick the touch HUD builds. 'virtual' (the default) = Godot 4.7 VirtualJoystick; 'custom' = the hand-written stick, kept as a working fallback. The player profile (Settings in the main menu) overrides this value. See docs/CONTROLS.md and OQ-VJOY.",
 		"move_stick": "virtual",
+		"_move_stick_visible_note": "M2 H1c (OQ-STICK-VISIBLE, Shibi Nov 17 2026: the stick takes up too much of the screen): false (the default) = the move stick works exactly as before (same touch area, rest point, dead zone, sprint gesture, rects) but nothing is drawn, no base and no knob, for both stick kinds (move_stick 'virtual' and 'custom'). true = today's drawing. The layout editor always shows it so it can be dragged. Placeholder pending playtest, not a design value.",
+		"move_stick_visible": false,
 		"_vjoy_layout_note": "Only used when move_stick is 'virtual'. 'floating' (default): JOYSTICK_DYNAMIC, a touch anywhere in the left half (move_zone) spawns the base under the thumb. 'fixed': JOYSTICK_FIXED at move_stick_rest, only touches on the stick grab it; other touches go to look.",
 		"vjoy_layout": "floating",
 		"_vjoy_todo": "OQ-VJOY: all values below are trial placeholders, not design values. Sizes are fractions of the custom stick radius / ring.",

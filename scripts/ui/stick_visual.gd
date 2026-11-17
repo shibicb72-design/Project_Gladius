@@ -7,6 +7,11 @@ var ring_alpha: float = 0.35
 var knob_frac: float = 0.4
 ## Knob offset from the ring centre in pixels (clamped to the ring radius when drawn).
 var knob_offset: Vector2 = Vector2.ZERO
+## M2 H1c (OQ-STICK-VISIBLE): false = draw nothing (ring and knob skipped); place, size and the input are unchanged.
+var drawn: bool = true:
+	set(v):
+		drawn = v
+		queue_redraw()
 
 
 func _init() -> void:
@@ -27,6 +32,8 @@ func set_knob_offset(off: Vector2) -> void:
 
 
 func _draw() -> void:
+	if not drawn:
+		return
 	var r := size.x * 0.5
 	var c := Vector2(r, r)
 	var ring := Color(1, 1, 1, ring_alpha)

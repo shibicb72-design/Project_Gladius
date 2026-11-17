@@ -28,7 +28,7 @@ turns the view, and the buttons sit at the edges. Every number is a placeholder 
   the screen centre, Swap just left of it; Interact (contextual) above Swap; the fire-mode button on the bottom edge,
   left of Swap; the pause gear top-right (unchanged, below the HUD top row). With the gear 56 dp down, the right edge of
   1512x648 at 420 dpi holds only Aim and Fire, so the ring is on the bottom edge on every size.
-- **Left:** move stick bottom-left; the Sprint lock button above it, up and to the right of its lock target
+- **Left:** move stick bottom-left (not drawn by default, see Move-stick modes); the Sprint lock button above it, up and to the right of its lock target
   (`touch_layout.sprint_lock_offset` in lock button sides from the target's rest centre); Left Fire (optional) as before.
 - **Look stick:** drawn and editable only in look mode "stick" (`look.mode`); in "drag" (default) nothing is drawn.
 - **Probe:** `godot --headless --path . --script res://tools/layout_probe.gd` prints every control's old and new rect, the
@@ -106,6 +106,13 @@ index, position and the button/stick it hit (OQ-DEVICE-TOUCH). Default off.
 |---|---|
 | `virtual` (default) | Godot 4.7 `VirtualJoystick`. Drives four private InputMap actions (`vjoy_move_*`); `touch_hud.gd` turns them into `TouchProvider.move_value`. Gameplay never reads the joystick. |
 | `custom` (fallback) | The hand-written `StickVisual` driven by `touch_hud.gd`. Fully working; keeps its own dead zone (`dead_zones.touch_move`) and ignores `move_feel`. |
+
+**Not drawn (M2 H1c, OQ-STICK-VISIBLE):** `touch_layout.move_stick_visible` (default `false`) hides the move stick's
+drawing, base and knob, at rest and while held, for both kinds; it works exactly as before (same touch area, rest point,
+dead zone, sprint gesture and rects). The VirtualJoystick stays `visible` (it takes its touches through the GUI) with
+`self_modulate` alpha 0; the custom `StickVisual` skips its `_draw`. `true` brings the old drawing back. The layout
+editor always shows the stick so its start area can be dragged; the first-play coach's "Drag here to move" hint draws
+its own ring at the stick's rest rect.
 
 ## Layouts (virtual stick only, `vjoy_layout`)
 
