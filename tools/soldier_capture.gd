@@ -11,7 +11,9 @@ extends SceneTree
 ## Saves <out>/<state>/<state>_NNN.jpg every (60 / fps) frames and prints one line per state. Presentation only.
 ## Cover hug / lean / rise: use tools/cover_capture.gd (real cover sequences in a real match).
 ## Options: --out=<dir> --states=<comma list> --fps=<n, default 20> --size=<w>x<h> (default 1440x810);
-## --procedural passes the library over (ClipLibrary.skip_sources) for before-captures of the code-built clips.
+## --procedural passes the library over (ClipLibrary.skip_sources) for before-captures of the code-built clips;
+## --legacy-head records the pre-AN3 head and body (SoldierRig.head_legacy: the bobblehead before its fix);
+## --code-reload plays the code-built reload where the gun has a Blender-keyed one (SoldierModel.code_built_reload).
 ## Contact sheets: tools/contact_sheet.gd -- --dir=<out>/<state>.
 
 ## M2 AN2 items 3/5: ladder_up / ladder_down / ladder_top (a real Ladder prop on a 3.3 m wall, pawn.climbing set the way
@@ -19,7 +21,9 @@ extends SceneTree
 ## and door_open / chest_open / pickup_ground (SoldierModel.play_action next to a stand-in door, chest, item).
 const STATES: Array[String] = ["idle", "walk", "run", "sprint", "strafe", "strafe_left", "backpedal", "back_diag",
 		"aim_fire", "reload", "hit", "jump", "death", "downed_crawl", "revive", "blade",
-		"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground"]
+		"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground",
+		"fall", "fall_side", "turn", "crouch", "crouch_walk",  # M2 AN3 stage C
+		"aim_sweep", "reload_sagittarii"]  # M2 AN3 stage D
 
 var _out := "build/an1_after/c4_soldier"
 var _fps := 20
@@ -52,6 +56,10 @@ func _initialize() -> void:
 				_states.append(s)
 		elif a == "--procedural":  # before-captures: the code-built clips, library passed over
 			ClipLibrary.skip_sources.assign(["ual"])
+		elif a == "--legacy-head":  # M2 AN3: before-captures of the pre-AN3 head and body (SoldierRig.head_legacy)
+			SoldierRig.head_legacy = true
+		elif a == "--code-reload":  # M2 AN3: the code-built reload instead of the Blender-keyed one (keyed vs code)
+			SoldierModel.code_built_reload = true
 	if _states.is_empty():
 		_states = STATES.duplicate()
 	if not _out.is_absolute_path():
@@ -128,8 +136,11 @@ func _build_stage() -> void:
 	_camera.current = true
 
 
-func _spawn() -> void:
+func _spawn(state: String = "") -> void:
 	_pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	if state.begins_with("crouch"):
+		# M2 AN3 stage C: the free crouch through the H1c stand-in (Pawn.crouch_amount(), tests/crouch_stub_pawn.gd).
+		_pawn.set_script(load("res://tests/crouch_stub_pawn.gd"))
 	_stage.add_child(_pawn)
 	_pawn.set_physics_process(false)
 	_pawn.global_position = Vector3.ZERO
@@ -187,7 +198,7 @@ func _hold(seconds: float, velocity: Vector3 = Vector3.ZERO) -> void:
 
 func _capture(state: String) -> void:
 	_build_stage()
-	_spawn()
+	_spawn(state)
 	_state = state
 	_dir = _out.path_join(state)
 	DirAccess.make_dir_recursive_absolute(_dir)
@@ -276,6 +287,64 @@ func _capture(state: String) -> void:
 			for swing in 2:
 				_pawn.shot.emit(_pawn.get_muzzle_position(), Vector3.FORWARD, _pawn.loadout.get_active().def.id)
 				await _hold(0.8)
+		"aim_sweep":
+			# M2 AN3 stage D: the aim pitch from -1 to +1 x aim_pitch_limit_deg and back (2 s), then held up and down.
+			_cam_offset = Vector3(2.0, 1.4, -2.6)
+			var limit := deg_to_rad(float(SoldierRig.config()["upper_body"]["aim_pitch_limit_deg"]))
+			for i in 120:
+				_pawn.pitch = -limit * cos(TAU * i / 120.0)
+				await _frame(Vector3.ZERO)
+			_pawn.pitch = 0.0
+		"reload_sagittarii":
+			# M2 AN3 stage D: the Sagittarii's reload (its own WeaponDef.reload_s) on the shown Sagittarii, built the way
+			# SoldierModel._on_reload_started builds it. The Sagittarii is made the active weapon (the default loadout
+			# carries the Pilum, and SoldierModel shows the active weapon's gun every frame).
+			_cam_offset = Vector3(2.0, 1.4, -2.6)
+			var def := registry.get_weapon_def("sagittarii_rifle")
+			_pawn.loadout.slots[_pawn.loadout.active] = Weapon.new(def)
+			await _hold(0.3)
+			_pawn.reload_started.emit()
+			await _hold(def.reload_s + 0.5)
+		"fall", "fall_side":
+			# M2 AN3 stage C: the drop as the owner filmed it. 0.8 s free fall, then the glide stick forward, left and
+			# right (Pawn._apply_fall: velocity = pawn basis x stick x drop_glide_mps), then the landing (drop_state NONE
+			# + landed, as Pawn._apply_fall) and 0.5 s standing. "fall": the camera behind and above, like the drop view;
+			# "fall_side": the usual side view.
+			_follow_y = true
+			_cam_offset = Vector3(0.0, 2.4, 4.8) if state == "fall" else Vector3(3.4, 0.4, -0.6)
+			var glide := float(_pawn.drop_glide_mps)
+			_vy = -float(_pawn.drop_max_fall_mps)
+			_pawn.global_position = Vector3(0, -_vy * 2.4 + 1.0, 0)
+			_pawn.drop_state = Pawn.Drop.FALLING
+			await _hold(0.8)
+			for stick: Vector3 in [Vector3.FORWARD, Vector3.LEFT, Vector3.RIGHT]:
+				await _hold(0.5, _pawn.global_transform.basis * stick * glide)
+			_vy = 0.0
+			_pawn.global_position.y = 0.0
+			_pawn.drop_state = Pawn.Drop.NONE
+			_pawn.landed.emit()
+			_follow_y = false
+			await _hold(0.5)
+		"turn":
+			# M2 AN3 stage C: a yaw sweep (+-90 degrees, 1.5 s period) standing, then while jogging straight on.
+			_cam_offset = Vector3(2.6, 1.3, -2.6)
+			for moving in [false, true]:
+				for i in 90:
+					_pawn.rotation.y = deg_to_rad(90.0) * sin(TAU * i / 90.0)
+					await _frame(Vector3.FORWARD * speed if moving else Vector3.ZERO)
+			_pawn.rotation.y = 0.0
+		"crouch", "crouch_walk":
+			# M2 AN3 stage C: the free crouch (the stub's crouch_amount() 0 -> 1 over 0.3 s; the Head node lowered with
+			# it by head.free_crouch.nominal_head_drop_m, as H1c will), then 1.5 s held or walked at 0.4 x move speed.
+			_cam_offset = Vector3(2.6, 1.0, -2.6)
+			var head_node := _pawn.get_node("Head") as Node3D
+			var standing := head_node.position.y
+			var drop := float(SoldierRig.config()["head"]["free_crouch"]["nominal_head_drop_m"])
+			for i in 18:
+				_pawn.set("crouch_value", (i + 1) / 18.0)
+				head_node.position.y = standing - drop * (i + 1) / 18.0
+				await _frame(Vector3.ZERO)
+			await _hold(1.5, Vector3.FORWARD * speed * 0.4 if state == "crouch_walk" else Vector3.ZERO)
 		"ladder_up", "ladder_down", "ladder_top":
 			var ladder := _ladder_stage()
 			var climb := float(ladder.cfg.get("climb_speed_mps", 2.0))

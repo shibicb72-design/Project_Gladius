@@ -482,6 +482,10 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   (the slot still hit-tests and presses `swap_shoulder`, which the rig ignores in first person, so a tap there
   never reaches the look area or fires).
 - Tests: `tests/test_first_person_camera.gd`; captures: `tools/fp_capture.gd`.
+- Third-person soldier under the camera (M2 AN3, section 4.22): the camera code is unchanged; the soldier's helmet
+  now stays on the pawn's head hitbox in every upright state and the body is brought under it (`SoldierNeck`,
+  `SoldierGait`, data `anim_third_person.json` `head`), so the head the camera frames no longer bobbles against the
+  torso. `--legacy-head` on `soldier_capture.gd`, `cover_capture.gd` and `drop_capture.gd` records the old look.
 
 ### 4.17 Networking (host authority)
 - Transport: `ENetMultiplayerPeer` + Godot high-level multiplayer (RPCs, MultiplayerSpawner/
@@ -1204,7 +1208,7 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   `data/ui.json` (`cover_button`, `cover_fire_dim`), `data/haptics.json` (`cover_snap`); read-only
   `stats.json movement.muzzle_height_m` and `combat.auto_reload_on_empty`. See docs/OPEN_QUESTIONS.md OQ-COVER (M2 C1b).
 
-### 4.22 Soldier and view-model art and animation (M2 AN1, M2 AN2)
+### 4.22 Soldier and view-model art and animation (M2 AN1, M2 AN2, M2 AN3)
 Everything here is presentation: no collider, hitbox, muzzle, speed, ray, timing or net message reads it. Every
 look is a trial for Shibi (OQ-ART-SOLDIER), not a design decision. Since M2 AN2 the soldier, the first-person
 arms, the three weapons and most clips are built in Blender by scripts; the code-built paths below stay as the
@@ -1216,7 +1220,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   outputs: `build_pipeline_proof.py` -> `characters/pipeline_proof.glb` (the pipeline test asset);
   `build_soldier.py` (+ `soldier_geom.py`, `soldier_data.py`, `soldier_design.json`) -> `characters/soldier.glb`;
   `build_soldier_clips.py` (+ `soldier_clips_design.json`) -> `characters/soldier_clips.glb`;
-  `build_soldier_keyed.py` -> `characters/soldier_keyed.glb`; `build_view_arms.py` (+ `view_geom.py`,
+  `build_soldier_keyed.py` -> `characters/soldier_keyed.glb`; `build_soldier_rifle.py` (M2 AN3) ->
+  `characters/soldier_rifle.glb`; `build_view_arms.py` (+ `view_geom.py`,
   `view_bl.py`) -> `characters/view_arms.glb`; `build_weapons.py` (+ `weapon_geom.py`) ->
   `weapons/pilum_br.glb`, `sagittarii_rifle.glb`, `gladius_lux.glb`; `build_view_clips.py` ->
   `characters/view_clips_<weapon>.glb` (all under `assets/generated/`, each with its own `.glb.import`). Each
@@ -1273,7 +1278,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   imported without the mannequin) is only the fallback, retargeted at runtime by `anim_retarget.gd` when no
   `blender` clip resolves. `soldier_clips.gd` measures each gait's stride on the soldier's legs, so the graph
   plays ground speed / stride and the feet stay planted; every soldier shares the clips. Still code-built:
-  third-person aim, fire and reload (hands on the gun through the upper layer and the left-hand IK), the downed
+  third-person aim and fire (hands on the gun through the upper layer and the left-hand IK; the code-built
+  reload is now the fallback behind the keyed one, below), the downed
   knee-crawl (`soldier_crawl.gd`), landing; strafes play the turned jog, the back-pedal the reversed jog.
   Cover: `cover_anim.gd` asks for the keyed clip per state and falls back to the old procedural pose.
   Actions: `SoldierPose` has an action layer; `SoldierModel.drive_actions` plays the ladder clips from
@@ -1281,6 +1287,62 @@ fallback when a `mesh_source` is empty or a clip is missing.
   top step; `SoldierModel.play_action(&"door_open" | &"chest_open" | &"pickup_ground")` is the entry point for
   the rest, but no gameplay signal calls it yet (OQ-ANIM-ACTIONS). `soldier_gait.gd` turns the hips toward a
   strafe while the chest and rifle keep the aim, and limits the pelvis bob (the helmet stays on the head hitbox).
+- **Head and body (M2 AN3, the bobblehead fix; OQ-ANIM-HEAD).** Cause [measured, `tools/head_motion_measure.gd`]:
+  the gait clips pitch the pelvis forward (jog 22, sprint 41 degrees) under a helmet pinned to the head hitbox, so
+  the chest top swung ahead of the neck; in the drop the run cycle started under the fall pose in one frame. Fix,
+  the body follows the head: `soldier_gait.gd` keeps `hips_keep` of the clip's pelvis pitch and roll, turns the
+  Spine by at most `torso_reach_max_deg` so the chest top sits under the neck (stretch up to
+  `torso_stretch_max_m`; `neck_drop_max_m` 0, `leg_reach`, feet goals unchanged); `soldier_neck.gd` (new
+  `SoldierNeck`, the last body modifier, before the hand sync) turns the Neck about the head hitbox centre toward
+  the chest top, clamped per axis (`neck_max_deg`, `head_max_deg`, `neck_tilt_max_deg`, `exceptions.cover_crouch`),
+  first-order low-pass (`neck_smooth_s`, at most `neck_max_rate_dps`), no spring; `SoldierModel` rate-limits the
+  locomotion blend (`blend_max_rate`) and holds it at 0 while falling; `SoldierPose` turns fall, land and lean about
+  the head hitbox centre (`fall_pivot_head`, `offset_moves_head`); `CoverAnim` fades its mixes
+  (`cover_mix_fade_s`, `cover_rest_fade_s`); the corpse returns the chest to its rest offset. All numbers:
+  `data/anim_third_person.json` `head` (placeholders; `limits` is what the test asserts). `SoldierRig.head_legacy`
+  (tools: `--legacy-head`) restores the old behaviour. Gap max before -> after [measured]: idle 0.035 -> 0.010,
+  jog 0.191 -> 0.060, sprint 0.340 -> 0.047, fall and land 0.286 -> 0.084 m; helmet off the hitbox 0.06-0.135 ->
+  0.000 m upright. Test: `tests/test_soldier_head_motion.gd`. The fall's limits were fitted to the measured result
+  (`head._limits_note`: 30.99 deg vs 32, 0.0843 m vs 0.09).
+- **Crouched low-cover hug (M2 AN3 review fix).** `test_crouched_cover_hug_ramped` ticks the real `CoverController`
+  with a low-wall probe, so `crouch_amount` ramps over `cover.json` `crouch_blend_s` and the head hitbox lowers with
+  it, then rises over the wall (Aim, `aim_out_s`) and back. Cause found: CoverAnim showed the cover crouch at its
+  layer's fade times `crouch_amount`, so entering low cover the helmet lagged the lowering hitbox (0.088 m) and the
+  hunch turned at up to 841 deg/s; `CoverAnim._show_crouch` now divides the crouch blend by the layer's weight while
+  it fades in (settled poses unchanged). Ramped rise [measured; legacy and after by `cover_rise_ramped`, before this
+  fix by the test at fc6a118], legacy -> before this fix -> after: gap max 0.133 ->
+  0.068 -> 0.069 m, helmet off the hitbox 0.000 -> 0.088 -> 0.000 m, neck-chest rate 726 -> 936 -> 709 deg/s,
+  neck-chest 75.6 -> 88.3 -> 88.6 deg (within `exceptions.cover_crouch`). The rate cannot stay under 650: the rise
+  sweeps about 82 deg of hunch in `aim_out_s` (0.12 s, gameplay), 681 deg/s on average, the legacy path too (726), so
+  `exceptions.cover_crouch.neck_chest_rate_max_dps` is 750 (`head._exceptions_note`). The tool's old `cover_crouch` /
+  `cover_rise` states snap the crouch (0.136 m, 1357 deg/s); `cover_crouch_ramped` / `cover_rise_ramped` do not.
+- **Tool and debug switches, default off, not gameplay** (static vars; nothing in the game sets them):
+  `SoldierRig.head_legacy` (the pre-AN3 head and body; `--legacy-head` in `head_motion_measure.gd`,
+  `soldier_capture.gd`, `cover_capture.gd`, `drop_capture.gd`, `anim_cost.gd`), `SoldierPose.measure_off` and `CoverAnim.measure_clip_neck` (per-source attribution in
+  `tools/head_motion_measure.gd` only), `SoldierModel.code_built_reload` (the code-built reload; capture
+  `--code-reload`).
+- **Free crouch (M2 AN3).** `SoldierModel.crouch_amount()` reads `pawn.crouch_amount()` only if the pawn has the
+  method (H1c), else the cover crouch behind `in_cover()`; without the method nothing changes. Out of cover the
+  lower body blends to the existing `cover_crouch_idle` / `cover_crouch_move` clips (idle to moving by ground
+  speed, cycle matched to speed; nothing new keyed), and the helmet follows the pawn's Head node height every
+  frame. `head.free_crouch` keys (`unmoved_head_share` 0.2, `nominal_head_drop_m` 0.55, `hips_drop_per_head`,
+  `move_full_mps`, `reach_max_deg`) are tuned for a 0.55 m head drop, an assumption until H1c merges. Test:
+  `tests/test_soldier_crouch.gd` with the stub `tests/crouch_stub_pawn.gd`.
+- **Keyed rifle reload (M2 AN3; OQ-ANIM-RELOAD).** `build_soldier_rifle.py` writes `soldier_rifle.glb`: one staged
+  reload per gun (`reload_pilum_br`, `reload_sagittarii_rifle`), 50 frames at 30 fps, starting and ending on the
+  aimed pose (a port of `SoldierRig.arm_rotations`) with the left hand on that gun's foregrip; stage times, cant
+  and chest lean are the code-built `upper_body.reload_*` numbers, the left-hand points (foregrip, magazine =
+  `weapons.<gun>.cell.at`, charging handle = `charge.at`, belt pouch) are `upper_body.reload_keyed`; UpperArm
+  position keys carry the shoulder offset (slot `"positions"` in `anim_sources.json`, kept by
+  `AnimRetarget.same_rig_clip`). `SoldierModel.play_reload` plays `reload_<shown gun>` first, via
+  `SoldierAnimation.resolve_reload`: scaled to `WeaponDef.reload_s` and cut to the code-built reload's tracks (no
+  new bones move); the code-built reload is the fallback (`SoldierModel.code_built_reload`, capture
+  `--code-reload`). Its `.glb.import` turns the animation optimizer off (`_subresources` nodes
+  `PATH:AnimationPlayer` `optimizer/enabled` false): the default optimizer dropped keys. Measured
+  (`tools/rifle_hands_measure.gd`), code-built -> keyed: Pilum start error 0.134 -> 0.000 m, snap when the hand IK
+  resumes 0.136 -> 0.0096 m; Sagittarii 0.171 -> 0.020 m and 0.156 -> 0.0048 m. The Sagittarii's foregrip is 2 cm
+  out of the left arm's reach in the aimed pose too (the IK leaves the same gap). Aim and fire stay code-built.
+  Test: `tests/test_soldier_rifle_glb.gd`.
 - **Soldier look.** `soldier_look.gd` lays `art_soldier.json` `soldier.part_overrides` and `parts_add` over the
   art_astra soldier parts (these feed the part boxes and the code-built fallback), writes per-class metallic and
   roughness into the soldier material's own copy of the surface data (one surface), and gives the hands the
@@ -1296,7 +1358,10 @@ fallback when a `mesh_source` is empty or a clip is missing.
   16 2026 (RTX 3080, not a phone): `tools/anim_cost.gd`, 18 soldiers in mixed states, about 2.3-3.0 ms of
   main-thread animation per frame (about 130-165 us per soldier: model script 0.8-1.0 ms, AnimationTree
   0.4-0.6 ms, skeleton modifiers and IK 1.1-1.4 ms); `tools/frame_time.gd` on alesia_1km, 1509x648: 303 draw
-  calls, render CPU 0.69-0.71 ms, GPU 0.87-0.89 ms. Frame time on the Fold is not measured.
+  calls, render CPU 0.69-0.71 ms, GPU 0.87-0.89 ms. Frame time on the Fold is not measured. M2 AN3 (same desktop
+  proxy, 18 soldiers, legacy head vs after): 2.58 vs 3.17 ms in one pair, 2.82 vs 3.11 ms in another, noisy on the
+  shared machine; the phone cost is unknown. Both "after" figures are above the 2.3-3.0 ms band measured at AN2
+  (the soldier gained a modifier, SoldierNeck): check the animation cost on the phone before more is added.
 - **Tests** (AN1): `test_view_model_art.gd`, `test_view_motion.gd`, `test_view_combat_fx.gd`,
   `test_soldier_clips.gd`, `test_soldier_footslide.gd`, `test_soldier_budget.gd`. (AN2):
   `test_blender_pipeline.gd` (bone axes, weights, colour and UV2 through the importer), `test_soldier_glb.gd`
@@ -1304,12 +1369,17 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `test_soldier_keyed_glb.gd` (cover, ladder and action clips, contacts), `test_view_glb.gd` (arms, weapons,
   anchors), `test_view_clips.gd` (rig and clips per weapon, reload length and stages, the cell in the hand, ADS end
   pose, the procedural fallback), and the made_by pairing in
-  `test_generated_assets.gd`.
+  `test_generated_assets.gd`. (AN3): `test_soldier_head_motion.gd`, `test_soldier_crouch.gd`,
+  `test_soldier_rifle_glb.gd`.
 - **Tools:** `tools/fp_capture.gd` (AN2: `dense_*` states for clip sequences, `--every=N`, `--no-clips`),
   `tools/soldier_capture.gd` (AN2: `ladder_up`, `ladder_down`, `ladder_top`, `door_open`, `chest_open`,
   `pickup_ground`; `--procedural` for code-built before-captures), `tools/l1c_capture.gd` (`--ladder-seq`),
   `tools/cover_capture.gd`, `tools/contact_sheet.gd`, `tools/sheet_from_list.gd`, `tools/fp_light_cost.gd`,
   `tools/glb_inspect.gd`, `tools/anim_cost.gd` (AN2: animation CPU time for 18 soldiers; run `--headless`).
+  AN3: `tools/head_motion_measure.gd` (head-to-body gap and neck angles per state, with per-source attribution),
+  `tools/rifle_hands_measure.gd` (left hand to foregrip in aim and reload, keyed vs code-built);
+  `soldier_capture.gd` gains `fall`, `fall_side`, `turn`, `crouch`, `crouch_walk`, `aim_sweep`,
+  `reload_sagittarii`, `--legacy-head` and `--code-reload`.
 
 ## 5. Testing
 

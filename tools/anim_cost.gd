@@ -40,6 +40,8 @@ func _initialize() -> void:
 			_block = maxi(10, int(arg.substr(8)))
 		elif arg.begins_with("--warmup="):
 			_warmup = maxi(0, int(arg.substr(9)))
+		elif arg == "--legacy-head":  # M2 AN3: the pre-AN3 head and body paths (SoldierRig.head_legacy), for before/after
+			(load("res://scripts/visual/soldier_rig.gd") as GDScript).set("head_legacy", true)
 	_run.call_deferred()
 
 

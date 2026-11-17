@@ -32,6 +32,13 @@ static func authored_collapse(skeleton: Skeleton3D, snapshot: Array[Transform3D]
 			position = animation.add_track(Animation.TYPE_POSITION_3D)
 			animation.track_set_path(position, NodePath("Skeleton3D:" + String(skeleton.get_bone_name(i))))
 			animation.position_track_insert_key(position, 0.0, snapshot[i].origin)
+		elif i == chest and not snapshot[i].origin.is_equal_approx(skeleton.get_bone_rest(i).origin):
+			# M2 AN3: a bone the live layers moved off its rest offset (SoldierGait's torso stretch lifts the Chest)
+			# goes back to its rest offset over the crossfade: the death clip keys no position for it.
+			var back := animation.add_track(Animation.TYPE_POSITION_3D)
+			animation.track_set_path(back, NodePath("Skeleton3D:" + String(skeleton.get_bone_name(i))))
+			animation.position_track_insert_key(back, 0.0, snapshot[i].origin)
+			animation.position_track_insert_key(back, blend, skeleton.get_bone_rest(i).origin)
 		positions.append(position)
 	for k in count + 1:
 		var t := death.length * float(k) / count

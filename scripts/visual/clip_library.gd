@@ -67,7 +67,8 @@ static func cached_count() -> int:
 	return _clips.size()
 
 ## A rig row with "same_rig": the source skeleton is the soldier's own (checked: names and rests); its clips are
-## copied as authored (AnimRetarget.same_rig_clip). A source that fails the check is retargeted like any other.
+## copied as authored (AnimRetarget.same_rig_clip; a candidate's "positions" lists non-root bones whose position
+## tracks it keeps). A source that fails the check is retargeted like any other.
 static func _scene_clip(scene: PackedScene, candidate: Dictionary, target: Skeleton3D, key: String, source_map: Dictionary = {}, same: bool = false) -> Animation:
 	var instance := scene.instantiate()
 	var rigs := instance.find_children("*", "Skeleton3D", true, false)
@@ -82,7 +83,7 @@ static func _scene_clip(scene: PackedScene, candidate: Dictionary, target: Skele
 		var name: StringName = candidate.get("clip", "")
 		for player: AnimationPlayer in players:
 			if player.has_animation(name) and same and AnimRetarget.same_rig(rigs[0], target):
-				result = AnimRetarget.same_rig_clip(player.get_animation(name), rigs[0], target, key)
+				result = AnimRetarget.same_rig_clip(player.get_animation(name), rigs[0], target, key, candidate.get("positions", []))
 				break
 			if player.has_animation(name):
 				result = AnimRetarget.bake(player.get_animation(name), rigs[0], target, key, source_map, bool(candidate.get("root_motion", false)))

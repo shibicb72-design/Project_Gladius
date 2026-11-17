@@ -19,7 +19,23 @@
 		"reload_left_offsets_m": [[0, 0, 0], [0.0, -0.1, 0.13], [0.02, -0.3, 0.16], [0.1, -0.4, 0.24], [0.0, -0.1, 0.13], [0.06, 0.03, 0.02], [0, 0, 0]],
 		"reload_cant_deg": [0, 18, 26, 22, 26, 12, 0],
 		"reload_chest_deg": [0, -4, -7, -5, -6, -2, 0],
-		"fire_chest_deg": -2.5, "fire_spine_deg": -1.2, "fire_arm_deg": -3.5
+		"fire_chest_deg": -2.5, "fire_spine_deg": -1.2, "fire_arm_deg": -3.5,
+		"reload_keyed": {
+			"_placeholder": true,
+			"_todo": "OQ-ANIM-RELOAD (M2 AN3): the Blender-keyed rifle reload per gun (tools/blender/build_soldier_rifle.py -> assets/generated/characters/soldier_rifle.glb, slots reload_<gun> in data/anim_sources.json; SoldierModel plays it before the code-built reload). Same stage times (reload_key_fractions), rifle cant (reload_cant_deg) and chest lean (reload_chest_deg) as the code-built clip, but every left-hand key is a point ON the shown gun (or on the belt), so the hand rides the canted gun and starts and ends on that gun's foregrip (no jump when the reload starts, no snap when the left-hand IK takes the hand back). left: per key, at = foregrip (soldier.gun.weapons.<gun>.foregrip_m), cell (the magazine: data/art_soldier.json weapons.<gun>.cell.at), charge (the charging handle: weapons.<gun>.charge.at) or pouch (pouch_m, skeleton metres, the belt pouch; it stays with the hips while the chest leans); off_m: metres from that point in the gun's frame (barrel -Z, top +Y) or the body's for the pouch; hand_deg: the left hand's turn in the chest frame (Euler YXZ degrees); then_m: after the key the hand moves through this extra offset and back over the first half of the next stage (the magazine shoved home, the charging handle run). authored_frames: the clip's length in 1/30 s frames (every key fraction lands on a frame); the runtime scales it to WeaponDef.reload_s (ClipLibrary.fit). snap_max_m: the largest one-frame left-hand move allowed when the reload ends and the IK takes the hand back (tests/test_soldier_rifle_glb.gd). Every number is a presentation trial, not a design value.",
+			"authored_frames": 50,
+			"pouch_m": [-0.13, 1.02, -0.13],
+			"left": [
+				{"at": "foregrip", "off_m": [0.0, 0.0, 0.0], "hand_deg": [0.0, 0.0, 0.0]},
+				{"at": "cell", "off_m": [-0.03, -0.1, 0.02], "hand_deg": [0.0, 0.0, -30.0]},
+				{"at": "cell", "off_m": [-0.05, -0.27, 0.05], "hand_deg": [0.0, 0.0, -40.0]},
+				{"at": "pouch", "off_m": [0.0, 0.0, 0.0], "hand_deg": [10.0, 0.0, -20.0]},
+				{"at": "cell", "off_m": [-0.03, -0.1, 0.02], "hand_deg": [0.0, 0.0, -30.0], "then_m": [0.0, 0.03, 0.0]},
+				{"at": "charge", "off_m": [-0.04, 0.05, 0.0], "hand_deg": [0.0, 0.0, 20.0], "then_m": [0.0, 0.0, 0.07]},
+				{"at": "foregrip", "off_m": [0.0, 0.0, 0.0], "hand_deg": [0.0, 0.0, 0.0]}
+			],
+			"snap_max_m": 0.02
+		}
 	},
 	"death": {
 		"_clip_note": "M2 AN1 commit 4: with the library death clip (anim_sources death, UAL Death01) the corpse plays it instead of the end rotations, after blend_s of crossfade from the last pose, the upper arms keeping arm_follow of the clip's turn from rest (the fall flings them past the helmet); DeathFx skips the outer topple. The end rotations stay the fallback.",
@@ -59,6 +75,34 @@
 		"upper_keeps_lower": ["Spine"],
 		"hit": {"fade_in_s": 0.03, "fade_out_s": 0.12, "bones": ["Spine", "Chest", "LeftUpperArm", "RightUpperArm"], "scale": 1.6, "min_drop": 0.5, "head_drop": 40.0},
 		"air": {"min_vertical_mps": 1.5, "min_s": 0.1}
+	},
+	"head": {
+		"_placeholder": true,
+		"_todo": "OQ-ANIM-HEAD (M2 AN3): the body follows the head (the bobblehead fix). The helmet stays on the head hitbox; the torso is brought under it and the neck carries the chest's turn. SoldierGait: the library Hips swing (pitch/roll, never the yaw) keeps hips_keep of itself (cover_crouch_hips_keep in the crouched cover hug), then the Spine turns by at most torso_reach_max_deg so the chest top points at the pinned neck (the chest keeps its aimed orientation) and the chest rises along the spine by at most torso_stretch_max_m where it still hangs below the neck; neck_drop_max_m and leg_reach replace gait.neck_drop_max_m (0.1) and gait.leg_reach (0.97), the legacy values. SoldierNeck (the last modifier; it fades out while downed or reviving, whose poses carry the neck already): the Neck points from the chest top to the helmet centre and takes neck_follow of the chest's yaw, never more than neck_max_deg [pitch, yaw, roll] from the chest (exceptions.cover_crouch while crouched in cover) and never tilted more than neck_tilt_max_deg from upright outside the fall, landing and crouched hug (the neck and neck guard keep their clearance under the head hitbox, tests/test_soldier_model.gd; about 10 degrees is where the guard's box reaches it), low-passed with neck_smooth_s (1 - exp(-dt / tau), no spring) and at most neck_max_rate_dps, turned about the head hitbox centre so the helmet never leaves it; the Head keeps its own turn but stays within head_max_deg of the chest. SoldierModel: the locomotion blend moves at most blend_max_rate (blend units per second) per frame and is 0 while falling. CoverAnim: cover_mix and the hug's rest layer fade over cover_mix_fade_s / cover_rest_fade_s (cover_mix_fade_s must stay within data/cover.json animation.xfade_s). SoldierPose: fall_pivot_head turns the whole body (lean, fall, land) about the head hitbox centre (downed and revive keep the pelvis pivot); offset_moves_head: whether a pose's body_offset_m moves the head too. limits: what tests/test_soldier_head_motion.gd asserts. SoldierRig.head_legacy = true (tools: --legacy-head) skips this whole block (the pre-AN3 behaviour). Every number is a presentation trial, not a design value.",
+		"neck_follow": 0.5,
+		"neck_max_deg": [30.0, 25.0, 15.0],
+		"head_max_deg": [35.0, 40.0, 25.0],
+		"neck_tilt_max_deg": 8.0,
+		"neck_smooth_s": 0.04,
+		"neck_max_rate_dps": 600.0,
+		"hips_keep": 0.35,
+		"cover_crouch_hips_keep": 1.0,
+		"torso_reach_max_deg": 20.0,
+		"neck_drop_max_m": 0.0,
+		"leg_reach": 0.995,
+		"torso_stretch_max_m": 0.04,
+		"blend_max_rate": 24.0,
+		"cover_mix_fade_s": 0.08,
+		"cover_rest_fade_s": 0.12,
+		"fall_pivot_head": true,
+		"offset_moves_head": {"fall": false, "land": true, "downed": true, "revive": true, "blade": true},
+		"_free_crouch_note": "M2 AN3 stage C: the free crouch (out of cover). The amount is Pawn.crouch_amount() when the pawn has it (H1c), else the cover crouch in cover (CoverAnim keeps showing that one, so nothing changes without the method). The lower body blends to the library crouch (cover_crouch_idle / cover_crouch_move, idle to moving over move_full_mps of ground speed). The helmet follows the pawn's Head node every frame (the head hitbox): the neck pin drops with it and the pelvis's lift target drops hips_drop_per_head of it (the cover crouch: hips 0.36 m under a 0.85 m head, 0.6 / 0.9). The crouch clip shows by unmoved_head_share while the Head node has not lowered (a pawn without a lowering head hitbox: only a slight knee bend, so no neck stretches), and fully once it has dropped nominal_head_drop_m (cover.json: 1.75 - 0.85).",
+		"free_crouch": {"unmoved_head_share": 0.2, "nominal_head_drop_m": 0.55, "hips_drop_per_head": 0.9, "move_full_mps": 1.0, "reach_max_deg": 30.0},
+		"_exceptions_note": "M2 AN3 review fix: cover_crouch.neck_chest_rate_max_dps (750, only tests/test_soldier_head_motion.gd reads it) replaces limits.neck_chest_rate_max_dps (650) for the crouched LOW-cover hug and its transitions. Measured (the test, the real CoverController ramping crouch_amount): the keyed hunched hug holds the chest about 88 deg from the neck (inside neck_max_deg here), and the rise over the wall sweeps about 82 deg of it in cover.json aim_out_s (0.12 s, gameplay, not this file's): 681 deg/s on average, 710 at the peak, of which the chest's own turn is about 560 and the rest the neck turning the other way to stay on the chest top (the gap stays at or under 0.069 m). Under 650 it would need a slower rise (aim_out_s), a less hunched keyed hug, or a neck that lags its chest top (a larger gap): none is a head-block number. The low-cover entry (crouch_blend_s 0.2 s) peaks at 694.",
+		"exceptions": {"cover_crouch": {"neck_max_deg": [95.0, 90.0, 90.0], "head_max_deg": [95.0, 90.0, 90.0], "neck_chest_rate_max_dps": 750.0}},
+		"_limits_note": "M2 AN3 review: neck_chest_max_deg (32) and gap_max_m (0.09) were fitted to the result measured after the fix, not set beforehand: the fall reaches 30.99 deg and 0.0843 m (tests/test_soldier_head_motion.gd, runs/M2AN3 gate_suite2.log), about 1 deg and 6 mm under them, so a small drift in the fall pose fails the test. The other upright states sit well under both.",
+		"limits": {"neck_chest_max_deg": 32.0, "neck_chest_rate_max_dps": 650.0, "gap_max_m": 0.09, "helmet_tolerance_m": 0.005,
+			"monotonic_eps_deg": 0.5, "flinch_neck_max_deg": 10.0, "legacy_gap_ratio": 2.0}
 	},
 	"crawl": {
 		"_placeholder": true,

@@ -13,6 +13,9 @@ var _previous_position := Vector3.ZERO
 var _replica_velocity := Vector3.ZERO
 var _upper_cfg: Dictionary
 var reload_duration_s := 0.0
+## M2 AN3, tools and tests only (keyed vs code-built captures and measurements): play the code-built reload even
+## where the shown gun has a Blender-keyed one (SoldierAnimation.resolve_reload).
+static var code_built_reload := false
 var rifle: MeshInstance3D
 var rifle_far: MeshInstance3D  # M2 AN1 commit 6: the gun's far detail level (child of rifle)
 var shown_gun := ""  # the weapon art id of the gun in the hands
@@ -44,6 +47,9 @@ static var _blade: ArrayMesh
 ## M2 AN1 commit 4: library gait (data/anim.json "gait").
 var gait: SoldierGait
 var crawl: SoldierCrawl
+var neck: SoldierNeck
+var _blend_shown := Vector2.ZERO  # M2 AN3: the locomotion blend as shown (rate-limited)
+var crouch_shown := 0.0  # M2 AN3 stage C: the free crouch clip's blend as shown (tests, captures)
 var gait_rate := 1.0  # gait cycles per second shown (ground speed / cycle_m)
 var airborne := false
 var hit_count := 0  # flinches requested so far (tests, captures)
@@ -152,6 +158,14 @@ func _ready() -> void:
 	crawl.name = "Crawl"
 	skeleton.add_child(crawl)
 	crawl.setup()
+	# M2 AN3: the neck follows the chest (about the head hitbox centre): the last body modifier (only the hand sync and
+	# the left-arm IK, which never touch the neck or head, come after it: tests/test_anim_layers.gd).
+	neck = SoldierNeck.new()
+	neck.name = "Neck"
+	neck.gait = gait
+	neck.pose = pose
+	skeleton.add_child(neck)
+	neck.setup()
 	_keyed = SoldierRig.config().get("keyed", {})
 	for slot: String in ["ladder_up", "ladder_down", "ladder_top"] + ACTIONS:
 		var clip := SoldierAnimation.shared(slot, skeleton)
@@ -300,8 +314,19 @@ func _process(delta: float) -> void:
 		velocity = _replica_velocity
 	var local := _pawn.global_transform.basis.inverse() * velocity
 	var blend := Vector2(local.x, local.z) / pawn.get_move_speed()
+	var head := SoldierRig.head_cfg()
+	if not head.is_empty():
+		# M2 AN3: no run cycle under the fall pose (the glide stick threw the torso off the helmet in one frame), and
+		# the blend moves at most blend_max_rate per second (start, stop and landing steps), short enough that the
+		# feet still match the ground speed.
+		if pawn.drop_state == Pawn.Drop.FALLING:
+			blend = Vector2.ZERO
+		var rate := float(head["blend_max_rate"])
+		_blend_shown = _blend_shown.move_toward(blend, rate * delta) if rate > 0.0 else blend
+		blend = _blend_shown
 	animation_tree.set("parameters/locomotion/blend_position", blend)
 	_drive_gait(blend, velocity.length())
+	_drive_crouch(head, velocity.length())
 	crawl.move_local = local
 	crawl.weight = float(pose.weights["downed"])
 	_drive_air(delta)
@@ -369,10 +394,17 @@ func _on_reload_started() -> void:
 	if weapon == null or weapon.def.is_melee():
 		return
 	reload_duration_s = weapon.def.reload_s
+	play_reload(SoldierLook.gun_id(weapon.def.id), reload_duration_s)
+
+
+## M2 AN3: the reload for the gun art id `gun` over `duration` s: its Blender-keyed clip (reload_<gun>) when one
+## resolves, else the code-built one (SoldierAnimation.resolve_reload).
+func play_reload(gun: String, duration: float) -> void:
 	var library := animation_tree.get_animation_library(&"")
 	library.remove_animation(&"reload")
 	var clips := animation_tree.get_meta(&"clip_library") as ClipLibrary
-	library.add_animation(&"reload", SoldierAnimation.resolve_slot(clips, "reload", SoldierAnimation.reload_clip(skeleton, reload_duration_s, _upper_cfg), skeleton))
+	var procedural := SoldierAnimation.reload_clip(skeleton, duration, _upper_cfg)
+	library.add_animation(&"reload", SoldierAnimation.resolve_reload(clips, gun, procedural, skeleton, not code_built_reload))
 	animation_tree.set("parameters/reload/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
 
@@ -427,6 +459,52 @@ func _drive_gait(blend: Vector2, ground_speed: float) -> void:
 				var clip := (point as AnimationNodeBlendTree).get_node(&"clip") as AnimationNodeAnimation
 				if clip.has_meta(&"strafe"):
 					clip.animation = &"walk_back" if gait.backward else StringName(clip.get_meta(&"strafe"))
+
+
+## M2 AN3 stage C: how crouched the pawn is, 0..1: Pawn.crouch_amount() when the pawn has it (the H1c free crouch,
+## read only if present), else the cover crouch while in cover.
+func crouch_amount() -> float:
+	var pawn := _pawn as Pawn
+	if pawn == null:
+		return 0.0
+	if pawn.has_method(&"crouch_amount"):
+		return clampf(float(pawn.call(&"crouch_amount")), 0.0, 1.0)
+	return pawn.cover.crouch_amount if pawn.in_cover() else 0.0
+
+
+## M2 AN3 stage C: the free crouch out of cover (data head.free_crouch). The helmet follows the Head node's current
+## height (SoldierGait drops the neck pin and the pelvis's lift target, SoldierPose its pivot, by head_drop); the
+## crouch clip blends in by the crouch amount, only unmoved_head_share of it while the Head node has not lowered.
+## In cover CoverAnim shows the crouch (its own pinned clips), so all of this fades out with the cover layer.
+func _drive_crouch(head: Dictionary, ground_speed: float) -> void:
+	var cycle := float(animation_tree.get_meta(&"crouch_cycle_m", 0.0))
+	var cfg: Dictionary = head.get("free_crouch", {})
+	var drop := 0.0
+	var shown := 0.0
+	if not cfg.is_empty() and cycle > 0.0:
+		var pawn := _pawn as Pawn
+		var cover_mix: Variant = animation_tree.get("parameters/cover_mix/blend_amount")
+		var open := 1.0 - (float(cover_mix) if cover_mix != null else 0.0)
+		open *= 1.0 - clampf(float(pose.weights["downed"]), 0.0, 1.0)
+		if not pawn.is_alive() or pawn.drop_state != Pawn.Drop.NONE or not pawn.has_method(&"crouch_amount"):
+			open = 0.0  # without the method there is no free crouch: the cover crouch stays CoverAnim's, as before
+		# Assumption: the skeleton-space Head rest height is compared with the pawn-local Head node height. That holds
+		# only while SoldierModel sits at the pawn origin with unit scale (it does: helmet 0.0000 m off the hitbox in
+		# every upright state, tests/test_soldier_head_motion.gd); an offset or scaled model must convert between them.
+		var standing := skeleton.get_bone_global_rest(skeleton.find_bone("Head")).origin.y
+		var raw := maxf(standing - (_pawn.get_node("Head") as Node3D).position.y, 0.0)
+		drop = raw * open
+		var lowered := clampf(raw / maxf(float(cfg["nominal_head_drop_m"]), 0.001), 0.0, 1.0)
+		shown = crouch_amount() * open * lerpf(float(cfg["unmoved_head_share"]), 1.0, lowered)
+		animation_tree.set("parameters/crouch_gait/blend_amount", clampf(ground_speed / maxf(float(cfg["move_full_mps"]), 0.001), 0.0, 1.0))
+		animation_tree.set("parameters/crouch_move/speed/scale", ground_speed / cycle * SoldierClips.CYCLE_S)
+	if cycle > 0.0:
+		animation_tree.set("parameters/crouch/blend_amount", shown)
+	crouch_shown = shown
+	gait.head_drop = drop
+	gait.free_crouch = shown
+	gait.hips_drop = drop * float(cfg.get("hips_drop_per_head", 0.0))
+	pose.head_drop = drop
 
 
 ## Jump, fall off a ledge: the library's airborne loop after air.min_s off the floor with real vertical speed.

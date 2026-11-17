@@ -164,6 +164,21 @@
 			"mixamo_local": [],
 			"procedural": true
 		},
+		"reload_pilum_br": {
+			"_note": "M2 AN3: the Blender-keyed rifle reload per shown gun (assets/generated/characters/soldier_rifle.glb, tools/blender/build_soldier_rifle.py; data/anim_third_person.json upper_body.reload_keyed). SoldierModel plays reload_<gun> before the code-built reload slot, scaled to WeaponDef.reload_s and cut to the code-built reload's tracks (SoldierAnimation.resolve_reload); positions keeps the UpperArm shoulder offset. The code-built reload stays the fallback (and is what a tool passing the blender source over shows).",
+			"blender": [{"path": "res://assets/generated/characters/soldier_rifle.glb", "clip": "reload_pilum_br", "rig": "soldier", "loop": false, "positions": ["LeftUpperArm", "RightUpperArm"]}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
+		"reload_sagittarii_rifle": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_rifle.glb", "clip": "reload_sagittarii_rifle", "rig": "soldier", "loop": false, "positions": ["LeftUpperArm", "RightUpperArm"]}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": true
+		},
 		"cover_enter": {
 			"_note": "M2 AN2 items 3/5: the hand-keyed clips of assets/generated/characters/soldier_keyed.glb (tools/blender/build_soldier_keyed.py). Cover: CoverAnim plays them per state (keeping its own pelvis/neck heights; the _l slots are the mirrored left-side clips CoverAnim swaps in by CoverController.side). The procedural rows stay the fallback.",
 			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "cover_enter", "rig": "soldier", "loop": false}],
