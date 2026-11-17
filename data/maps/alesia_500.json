@@ -2271,7 +2271,7 @@
 	},
 	"structure_data": "res://data/maps/alesia_500_structures.json",
 	"terrain": {
-		"_far_step_note": "OQ-ALESIA-500 placeholder (M2 L2a): the far terrain's step 4 m (every 2nd sample of this 2 m grid; divides the 100 m chunks). At 10 m (the 1 km map's step) the Arx ring walls floated up to 0.42 m over the coarse far ground (tests/test_ground_contact.gd GROUND_CONTACT_FAR).",
+		"_far_step_note": "OQ-ALESIA-500 placeholder (M2 L2b): the far terrain's step 4 m (every 2nd sample of this 2 m grid; divides the 100 m chunks). At 10 m (the 1 km map's step) the Arx ring walls floated up to 0.42 m over the coarse far ground (tests/test_ground_contact.gd GROUND_CONTACT_FAR).",
 		"_placeholder": true,
 		"_todo": "OQ-ALESIA-500 placeholder: flat (0) everywhere except the citadel hill (generator.hill); heights baked by tools/gen_alesia.gd into a binary HeightMapShape3D .res at 2 m (251 x 251 samples). max_piece_slope_deg and max_piece_float_m as alesia_1km.",
 		"_visual_float_note": "M2 L2a placeholder, OQ-ALESIA-500: max_visual_float_m = the most any drawn piece's lowest point may stand above the ground sampled under its footprint (corners, edge middles, centre). tests/test_ground_contact.gd asserts it on this map (alesia_1km: report only); tools/gen_alesia.gd rejects a placement that would break it (generator.ground_contact).",
