@@ -714,6 +714,8 @@ func test_real_match_simple_fires_never_in_lan_and_settings_switch_live() -> voi
 	# LAN: the same pawn, sight still up, on the same enemy.
 	local.pitch = 0.0
 	match_scene.networked_match = true
+	# M2 H1c item 1: a LAN session also needs another human; a client's view (the host is one) stands in for it.
+	match_scene.director.authoritative = false
 	await frames(2)
 	var before: int = count[0]
 	var seen := false
@@ -724,6 +726,7 @@ func test_real_match_simple_fires_never_in_lan_and_settings_switch_live() -> voi
 	assert_eq(touch.simple_fire_block_reason(), "lan", "reason lan (MatchRoot.networked_match via Pawn.in_lan_session)")
 	assert_true(not seen and count[0] == before, "in a LAN session Simple never fires")
 	match_scene.networked_match = false
+	match_scene.director.authoritative = true
 	# The in-match Settings row switches the live HUD (MatchRoot wires settings.changed to reload_profile_layout).
 	var panel: SettingsPanel = match_scene.pause_menu.settings
 	panel.save = SaveService.new(TMP)

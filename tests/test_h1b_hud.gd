@@ -63,7 +63,9 @@ func test_default_placement_is_above_row_and_layout_version_kept() -> void:
 	var ui := DataRegistry.new().load_file("res://data/ui.json")
 	assert_eq(str(ui["hud_arrangement"]["placement"]), HudArrangement.ABOVE_ROW, "data default placement")
 	assert_eq(HudArrangement.placement(), HudArrangement.ABOVE_ROW, "no override: data placement")
-	assert_eq(HudLayoutModel.current_version(), 2, "above_row moves no button default: layout_version stays 2")
+	# M2 H1c item 4: was 2 ("above_row moves no button default"); the Crouch button moved defaults, so it is 3. H1b itself
+	# still moves no default (above_row).
+	assert_eq(HudLayoutModel.current_version(), 3, "above_row moves no button default; M2 H1c's Crouch raised layout_version to 3")
 	assert_true(not bool(ui["hud"]["roman_numerals"]), "OQ-38: no Roman numerals")
 	# M2 H1b commit 4: the minimap and the radar are both drawn (data switches on).
 	assert_true(bool(ui["minimap"]["enabled"]) and bool(ui["radar"]["enabled"]), "minimap and radar drawn")

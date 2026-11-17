@@ -6,8 +6,8 @@ extends RefCounted
 ## buttons, the pause gear, the tests and the probe all read the same rects without instancing each other.
 ## Placement (hud_arrangement.placement, OQ-HUD):
 ##   "above_row": the weapon block sits just above the bottom-centre action row, right of the Interact slot; no button moves.
-##   "split_row": the block sits on the bottom edge at the centre and the row is split around it (Fire mode and Swap left,
-##                Cover / Shoulder right, Interact above the block's left end). Only where the view is at least split_row.min_aspect wide;
+##   "split_row": the block sits on the bottom edge at the centre and the row is split around it (Swap and Cover / Shoulder
+##                left, Fire mode left of Swap, Crouch, Jump and Reload right; Interact above the block's left end: M2 H1c). Only where the view is at least split_row.min_aspect wide;
 ##                narrower views (the near-square Fold inner and 1152x959) use "above_row" (they have no room, see notes).
 ## All rects are in view (HUD) space, origin top-left. Every number is a placeholder (OQ-HUD, OQ-MINIMAP, OQ-RADAR).
 
@@ -119,12 +119,17 @@ static func split_center(key: String, view: Vector2) -> Variant:
 	var block := weapon_block_rect(view)
 	var ring := ring_side(view)
 	var row_y := _bottom_centre(view).y + float(sr["row_offset_y_buttons"]) * s
-	var swap_x := block.position.x - gap - ring * 0.5
+	# M2 H1c item 4 (OQ-CROUCH): the Crouch button sits left of Jump, where the Cover / Shoulder slot was (right of the
+	# block), so the slot is now directly left of the block, Swap left of it and the fire-mode button left of Swap (was:
+	# Swap left of the block, Cover / Shoulder right of it). FireModeButton.touch_rect moves the fire-mode button off the
+	# move stick (left of it) where they meet (1512x648).
+	var shoulder_x := block.position.x - gap - ring * 0.5
+	var swap_x := shoulder_x - ring - gap
 	match key:
 		"swap_weapon":
 			return Vector2(swap_x, row_y)
 		"swap_shoulder":
-			return Vector2(block.end.x + gap + ring * 0.5, row_y)
+			return Vector2(shoulder_x, row_y)
 		"fire_mode":
 			var fm := float(ui()["fire_mode_button"]["touch_dp"]) * dp()
 			return Vector2(swap_x - ring * 0.5 - gap - fm * 0.5, row_y)

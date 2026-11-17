@@ -657,7 +657,8 @@ func test_old_layout_loads_unchanged_and_editor_shows_fixed_elements() -> void:
 	var p := save.load_profile()
 	assert_eq(JSON.stringify(p["hud_layouts"]), JSON.stringify(m.to_dict()), "loaded unchanged")
 	assert_true(not p["layout_notice_pending"], "no reset notice")
-	assert_eq(HudLayoutModel.current_version(), 2, "layout_version not raised (no default moved)")
+	# M2 H1c item 4: was 2 ("not raised, no default moved" by the coach); the Crouch button raised it to 3.
+	assert_eq(HudLayoutModel.current_version(), 3, "layout_version not raised by the coach (3 since M2 H1c's Crouch)")
 	# The editor lists and draws the fixed elements at their match rects.
 	var ed: Control = _EditorScene.instantiate()
 	ed.save = save

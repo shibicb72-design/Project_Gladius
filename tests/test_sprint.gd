@@ -391,6 +391,8 @@ func test_release_on_target_locks_release_elsewhere_stops() -> void:
 	_TouchHud.move_stick_override = ""
 
 
+## M2 H1c (OQ-SPRINT-LOCK): was "a tap while moving forward locks"; now the button exists only while locked (a tap
+## releases), and a tap where it would be never locks.
 func test_lock_button_locks_without_holding_and_cancels() -> void:
 	for m in _modes():
 		var mode: String = m[0]
@@ -400,6 +402,8 @@ func test_lock_button_locks_without_holding_and_cancels() -> void:
 		var r := InputRouter.new()
 		r.add_provider(hud.provider)
 		var btn: Vector2 = hud.get_lock_button_rect().get_center()
+		hud._place_sprint_elements()
+		assert_true(not hud.lock_button.visible, tag + ": button hidden at rest")
 		_touch(hud, 1, btn, true)  # not moving: nothing to lock
 		_touch(hud, 1, btn, false)
 		assert_true(not hud.provider.sprint_locked, tag + ": button does nothing while standing still")
@@ -408,14 +412,22 @@ func test_lock_button_locks_without_holding_and_cancels() -> void:
 		_push(hud, mode, 0, start + Vector2(0.0, -hud._radius() * 0.5), Vector2(0.0, -0.5))
 		_touch(hud, 1, btn, true)  # tap with the other thumb while moving forward
 		_touch(hud, 1, btn, false)
-		assert_true(hud.provider.sprint_locked, tag + ": tap while moving forward locks")
-		_touch(hud, 0, start, false)  # finger up: still locked
+		assert_true(not hud.provider.sprint_locked, tag + ": a tap while moving forward no longer locks")
+		# Lock the only way left: push to the forward extreme and lift the thumb on the Lock target.
+		_push(hud, mode, 0, start + Vector2(0.0, -hud._radius()), Vector2(0.0, -1.0))
+		var target: Rect2 = hud.get_lock_target_rect()
+		_push(hud, mode, 0, target.get_center(), Vector2(0.0, -1.0))
+		_touch(hud, 0, target.get_center(), false)  # finger up: locked
 		var fr := r.update_frame(DT)
-		assert_true(fr.sprint and fr.move == Vector2(0.0, -1.0), tag + ": locked without holding")
+		assert_true(hud.provider.sprint_locked and fr.sprint and fr.move == Vector2(0.0, -1.0), tag + ": locked without holding")
+		hud._place_sprint_elements()
+		assert_true(hud.lock_button.visible and hud.lock_button.text == "Locked", tag + ": button shown as Locked")
 		_touch(hud, 1, btn, true)
 		_touch(hud, 1, btn, false)
 		assert_true(not hud.provider.sprint_locked, tag + ": tap while locked cancels")
 		assert_true(r.update_frame(DT).move == Vector2.ZERO, tag + ": stopped after cancel")
+		hud._place_sprint_elements()
+		assert_true(not hud.lock_button.visible, tag + ": button hidden again after release")
 		r.free()
 		hud.free()
 	_TouchHud.move_stick_override = ""
@@ -427,7 +439,7 @@ func test_locked_pawn_holds_sprint_speed_then_eases_down() -> void:
 	var p: Pawn = g[1]
 	var tp: TouchProvider = g[2]
 	tp.move_value = Vector2(0.0, -0.5)
-	tp.toggle_sprint_lock()
+	tp.lock_sprint()  # M2 H1c: was toggle_sprint_lock() (removed; it locked while moving forward)
 	assert_true(tp.sprint_locked, "locked")
 	var rec := _rec()
 	_sim(p, tp, g[3], Vector2.ZERO, 120, rec)

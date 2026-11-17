@@ -34,7 +34,15 @@
     "strafe_back_ratio": {"_source": "TSG Forge Wiki community tag data: sideways 2 / forward 2.25, backward 2", "value": 0.889, "note": "sideways and backward speed as a ratio of forward speed"},
     "jump_enabled": true,
     "jump_velocity": 7.0,
-    "muzzle_height_m": 1.3
+    "muzzle_height_m": 1.3,
+    "crouch": {
+      "_placeholder": true,
+      "_todo": "OQ-CROUCH (M2 H1c item 4, Shibi Nov 17 2026: 'there isn't even a Crouch button'): the free crouch outside cover, offline only (where cover works; Pawn.in_lan_session false), toggled by the Crouch button / InputMap action 'crouch' through Pawn.handle_action_press. enabled false ships it off (no press, no button). The crouched shapes reuse data/cover.json crouch_height_m and crouch_head_y_m; the first-person eye and the muzzle scale with the head (crouch_head_y_m / the standing head height). speed_multiplier: move speed at full crouch (placeholder guess). spread_multiplier: shot spread at full crouch; 1.0 = no effect (a crouch accuracy bonus is an open question). blend_s: seconds to ease fully down or up (as cover.json crouch_blend_s). Jump while crouched only stands up (no jump on that press); sprint while crouched stands up and sprints; both stay crouched when the standing shapes do not fit (CoverProbe.standing_clear). All placeholders, not design values.",
+      "enabled": true,
+      "speed_multiplier": 0.6,
+      "spread_multiplier": 1.0,
+      "blend_s": 0.2
+    }
   },
   "melee": {
     "_todo": "OQ-56 (DECIDED Oct 22 2026: Gladius Lux follows the DESIGN.md:15 melee rule). Only the entries listed in _placeholders are placeholders.",

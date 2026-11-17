@@ -360,6 +360,10 @@ func _offline_match() -> MatchRoot:
 
 func test_offline_ground_slot_is_the_cover_button_and_shoulder_elsewhere() -> void:
 	var m := await _offline_match()
+	# M2 H1c: two more process frames (was none): under machine load the helper's physics waits can fall in one catch-up,
+	# so the HUD's per-frame slot refresh had not run yet (load-sensitive, not a behaviour change).
+	await _tree().process_frame
+	await _tree().process_frame
 	var touch: Control = m.get_node("Hud/TouchHud")
 	var pawn := m.local_player
 	assert_true(not m.networked_match and pawn.cover != null, "offline local player has cover")
@@ -444,6 +448,8 @@ func test_lan_host_has_no_cover_button_and_no_auto_snap() -> void:
 	_tree().root.add_child(s)
 	s.host_game()
 	s.lobby.host_open(2, 3, "Host")
+	# M2 H1c item 1: a LAN session needs another human (a host alone is offline for cover; test_h1c_cover_button.gd).
+	assert_true(s.lobby.state.add_human(2, "Client"), "a second human joins the lobby")
 	assert_true(s.lobby.start_match(), "host lobby starts")
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false

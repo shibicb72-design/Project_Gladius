@@ -290,12 +290,15 @@ android/              debug.keystore (shared debug key only)
 
 ### 4.13 Input abstraction and providers
 - InputMap actions are the vocabulary: move, look, fire, aim, reload, swap_weapon, jump, pause, crouch
-  (D1: the in-cover Crouch control); prone and interact are reserved (action plus InputFrame bit, no
-  behaviour or bindings yet); later melee, grenade, deployable, streak and command pages.
+  (M2 H1c: the free crouch toggle, keyboard C / gamepad B, and the touch Crouch button); prone and interact are
+  reserved (action plus InputFrame bit, no behaviour or bindings yet); later melee, grenade, deployable, streak and
+  command pages.
 - One-shot presses (D1): a provider's `trigger_action(action)` emits `action_triggered`; the router
   re-emits it at once and latches one pressed+just_pressed frame edge (even for a sub-tick tap).
-  MatchRoot forwards it to the local pawn (`handle_action_press`), which toggles cover crouch. The
-  frame bit is transport only until the host-side cover slice, so the pawn never toggles from it.
+  MatchRoot forwards it to the local pawn (`handle_action_press`). M2 H1c: "crouch" toggles the free crouch
+  (`Pawn.press_free_crouch`); keyboard / gamepad reach the same signal through `KeyboardMouseProvider.PRESS_ACTIONS`
+  (one emit per InputMap press, no echo). The frame bit is transport only until the host-side cover slice, so the
+  pawn never toggles from it.
 - Held press-time actions (D2): the in-cover FIRE control uses the action `cover_fire`, listed in
   `InputRouter.NON_FRAME_ACTIONS` and not in `InputFrame.BUTTONS`/`LOCAL_BUTTONS` (no bit, no latch,
   never sent). The provider's `trigger_action` / `release_action(action, cancel)` /
@@ -332,7 +335,7 @@ android/              debug.keystore (shared debug key only)
 ### 4.15 HUD and touch HUD
 - `hud.tscn`: presentation only. Binds to signals from MatchDirector (or its replicated mirror on
   clients) and the local pawn. Classic Halo layout, red/gold theme (`theme.tres`), Roman numerals via
-  `roman_numerals.gd` (off by default, OQ-38). The radar (25 m, cover-crouch hide) is built (M2 H1b, below). Later: prone hide, jammer blanking, smoke animation,
+  `roman_numerals.gd` (off by default, OQ-38). The radar (25 m, crouch hide: `Pawn.crouch_amount()`, the cover or the free crouch, M2 H1c) is built (M2 H1b, below). Later: prone hide, jammer blanking, smoke animation,
   streak/deployable slots, killfeed, Latin medal popups, bad-trait banner.
 - `touch_hud.tscn`: a separate CanvasLayer above the HUD. Floating move stick bottom left; a look
   area (right half, no control in it by default) where a touch only turns the view; action buttons hung off
@@ -363,7 +366,8 @@ android/              debug.keystore (shared debug key only)
 - Look area and anchors are data (`input.json` `touch_layout.look_area`, `button_anchor`, `bottom_centre_anchor`, per-button
   `offset` / `anchor` / `ring`); read the rects with `TouchHud.get_look_area_rect()` and `get_button_rect(key)`. The drawn
   look stick exists only in look mode "stick" (`look_stick_rest` is used only there).
-- Layout version: `layout_editor.layout_version` (2) is stored as `hud_layouts.version`. On load `SaveService` resets an
+- Layout version: `layout_editor.layout_version` (3; M2 H1c item 4 raised it from 2 when the Crouch button moved the
+  Cover / Shoulder, Swap and fire-mode defaults) is stored as `hud_layouts.version`. On load `SaveService` resets an
   older or unversioned layout and the legacy `sprint_lock_pos` once, writes the profile back, and sets
   `layout_notice_pending` when something edited was discarded; the touch HUD shows a one-time notice and clears it.
   The layout editor only warns when a control sits in the look area.
@@ -378,7 +382,8 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   objective strip, kill banner, radar disc, minimap square, panel, minimap tap target and gear top, from the view size,
   one HUD unit (`unit_frac_of_height` of the height, floor `unit_min_dp`) and the touch layout's button side. Placement is
   `above_row` (data default; no button moves, `layout_version` stays 2) or `split_row` (only at aspect 2.0 or wider, else
-  above_row; it hooks Swap, Cover / Shoulder and Interact in `touch_hud.gd`, `fire_mode_button.gd`, `interact_button.gd`
+  above_row; M2 H1c: Swap and Cover / Shoulder both left of the block, the fire-mode button left of Swap; it hooks
+  Swap, Cover / Shoulder and Interact in `touch_hud.gd`, `fire_mode_button.gd`, `interact_button.gd`
   `get_touch_rect`; a saved slot position still wins). `placement_override` is a seam for tests and tools. Match, tests,
   layout editor and tools all read the same getters.
 - `hud_style.gd` (`HudStyle`): menu-style plates (surface fill, gold hairline, cut corners) and HUD labels that ignore
@@ -441,6 +446,31 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   `minimap_test_300.png`, `minimap_alesia_section.png`.
 - LAN: no protocol change. What a client lacks for the minimap and radar (zone progress, match seed, cover state, downed,
   drop state) is listed under OQ-MINIMAP and OQ-RADAR for M3.
+
+#### M2 H1c: the free crouch (item 4, OQ-CROUCH)
+- State on `Pawn` (plain, for M3 to replicate; no protocol change): `free_crouch` (the toggle) and
+  `free_crouch_amount` (0..1, eased over `stats.json movement.crouch.blend_s`). Read-only: `crouch_amount()` (the
+  larger of `cover.crouch_amount` and `free_crouch_amount`; the radar, CameraRig and presentation read it),
+  `crouch_button_available()` (switch on, LOCAL, no Brain, not `in_lan_session()`), `free_crouch_possible()` (also
+  ALIVE, drop NONE, not climbing, not in cover), `crouch_height_scale()`, `free_crouch_height_scale()`.
+- The only toggle is `press_free_crouch()` from `handle_action_press("crouch")`; `_tick_free_crouch` (every LOCAL
+  physics tick, before the carrier return) clears it wherever a press would not act (carrier, falling, ladder; in
+  cover it eases out under the cover crouch) and eases the amount; downed / dead (the life setter) and `respawn_at`
+  clear it at once. Standing up (a press, a sprint, a jump) needs `CoverProbe.standing_clear`; a jump press while
+  crouched only stands; no sprint while crouched; a crouch press while sprinting is ignored.
+- Shapes: `_apply_body_shapes` is the one writer (downed, then `crouch_amount()` with `cover.json crouch_height_m` /
+  `crouch_head_y_m`, else standing). The first-person eye (`CameraRig._crouch_eye_scale`, a marked block) and the
+  muzzle (`get_muzzle_position`, the free crouch only, never in cover) scale by the head's ratio, so eye, head and
+  muzzle move together. Speed: `movement.crouch.speed_multiplier`; spread: `get_spread_mult` times
+  `movement.crouch.spread_multiplier` (1.0, no effect).
+- HUD: `input.json touch_layout.buttons.crouch` (a ring button on the bottom edge directly left of Jump, `button_anchor`
+  [-3.9, -0.6]); to make room the Cover / Shoulder slot moved [0.65, -0.6] -> [-0.45, -0.6], Swap [-0.65, -0.6] ->
+  [-1.7, -0.6] (`bottom_centre_anchor`), `ui.json fire_mode_button` [-1.75, -0.6] -> [-2.8, -0.6] (left of Swap; `FireModeButton.touch_rect`
+  moves it left of the move stick's default rect, or to `crowded_offset_buttons` [-1.7, -1.8] above Swap, where the
+  row slot meets the stick), `HudArrangement.split_center` in the same order, and `layout_version` 2 -> 3 (saved layouts reset once);
+  `TouchHud.crouch_button_shown` (the one rule; hidden buttons catch nothing), looks normal / held / dimmed
+  (`ui.json cover_fire_dim`); the layout editor shows it (`show_crouch_for_editing`). Radar: `HudRadar.classify_with`
+  hides an enemy whose `crouch_amount()` >= `radar.cover_crouch_min`. Tests: `tests/test_h1c_crouch.gd`.
 
 ### 4.16 Camera and FOV per aspect ratio
 - `CameraRig` (SpringArm3D + Camera3D, third person). FOV and offset come from `camera.json`: a table
@@ -1056,9 +1086,10 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   unchanged (crouch_amount 0 while out, back after). The probe locks one wall box, and the slide is clamped to
   that box's own ends, so today a slide cannot reach a section of another height; the rule follows any height
   change the probe reports (tested by resizing the wall). `toggle_crouch()` is a no-op (stage 4 removes it);
-  `Pawn.handle_action_press("crouch")` returns at once (outside cover the old toggle never acted either). The
-  InputFrame bits and router entries stay. The old cover Crouch button still draws and consumes its touch; its
-  routed press reaches the pawn and does nothing.
+  in cover `Pawn.handle_action_press("crouch")` does nothing (cover owns the crouch); M2 H1c item 4 made the press
+  toggle the free crouch outside cover (see "M2 H1c: the free crouch" under 4.15; it said a press outside cover does
+  nothing). The InputFrame bits and router entries stay. The old cover Crouch button still draws and consumes its
+  touch; its routed press reaches the pawn and does nothing.
 - **Data keys (stage 2):** `camera.json cover_blend_s` 0.6 [Shibi default]; `camera.json cover`: `distance_m` 1.6,
   `side_offset_m` 0.55, `height_m` 1.45, `crouch_height_m` 1.05, `out_distance_m` 1.1, `out_side_offset_m` 0.4,
   `out_ease_s` 0.15, `side_ease_s` 0.3, `turn_cancel_look_deg` 0.05; `cover.json animation.hug_out_deg` 30. All
@@ -1175,7 +1206,8 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   `set_cover_controls_active`, `is_cover_slot_hidden` and their uses; `ui.json cover_fire`, `cover_crouch`,
   `cover_buttons`; `cover.json fire_requires_peek`, `quick_draw_stay_out`, `cover_edge_quickdraw_m` (renamed
   `lean_reach_m`). `peek_s` is no longer an input lock (only CoverAnim's peek clip length). Kept as no-op plumbing
-  (fix 4): `Pawn.handle_action_press("cover_fire")` (and "crouch") return at once, `handle_action_release` /
+  (fix 4): `Pawn.handle_action_press("cover_fire")` (and "crouch" in cover; M2 H1c: outside cover it toggles the
+  free crouch) return at once, `handle_action_release` /
   `handle_action_look` do nothing; `InputRouter.NON_FRAME_ACTIONS` "cover_fire", the InputFrame bits,
   `TouchProvider.release_action` / `set_action_look` and match_root.gd are unchanged. Files to delete (unreferenced):
   `scripts/ui/cover_fire_button.gd`, `scripts/ui/cover_crouch_button.gd` (+ .uid), `tests/test_cover_fire_input_d2.gd`
@@ -1198,8 +1230,8 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   `enter_duration`, `exit_duration`, `lock_durations`, `can_enter_by_button`, and the fields `state`, `side`,
   `crouched`, `crouch_amount`, `aim_out_amount`, `aimed_out`, `normal`, `tangent`. Signals `entered`, `exited`.
 - **Pawn hooks:** `_ensure_cover` (local, offline, no Brain), `handle_action_press("cover")`, `cover_button_available`,
-  `cover_button_valid`, `in_cover`, `cover_fire_available`, the entry turn (`_begin_cover_turn`), `_apply_cover_shapes`
-  (capsule and Head follow the crouch), `_apply_movement` (Sprint-lock and Jump exits, the tick), `_apply_weapon`
+  `cover_button_valid`, `in_cover`, `cover_fire_available`, the entry turn (`_begin_cover_turn`), `_apply_body_shapes`
+  (capsule and Head follow the crouch; M2 H1c: the one shape writer, was `_apply_cover_shapes` + `_apply_life_shapes`), `_apply_movement` (Sprint-lock and Jump exits, the tick), `_apply_weapon`
   (the trigger, no recoil), `_kick_camera` (no knockback in cover).
 - **HUD wiring:** the Shoulder slot is the Cover button on the ground (`ui.json cover_button`); in cover the stick's
   forward extreme does not sprint (`TouchProvider.cover_suppress_sprint`); only the Fire buttons fire; the Fire buttons

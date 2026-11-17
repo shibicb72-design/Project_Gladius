@@ -5,8 +5,8 @@ extends InputProvider
 ## Crouch, D1) call trigger_action instead: the router acts on it at press time and latches the frame edge.
 ## The held cover FIRE (D2) uses trigger_action / release_action / set_action_look on "cover_fire", which the
 ## router re-emits without touching the frame.
-## TODO(D2): keyboard/gamepad crouch must reach the same router action_triggered signal (one press, one toggle)
-## without also toggling from the polled crouch_just_pressed bit.
+## M2 H1c item 4: keyboard/gamepad crouch reaches the same router action_triggered signal (one press, one toggle)
+## through KeyboardMouseProvider.PRESS_ACTIONS, never from the polled crouch_just_pressed bit (was a TODO(D2)).
 ## Look is radians per physics tick (see look_math.gd), in "stick" or "drag" mode.
 
 const _LookMath := preload("res://scripts/input/look_math.gd")
@@ -31,6 +31,9 @@ var sprint_locked: bool = false
 ## M2 C1b stage 3 (decision 8, fixes 3, 24): set by the touch HUD from the local pawn's cover state (this provider has
 ## no pawn reference). While true the stick's forward-extreme gesture does not sprint (a hard push in cover slides);
 ## the Sprint lock and its target (lock_target_visible) are unchanged, so the lock stays the sprint exit.
+## M2 H1c (OQ-SPRINT-LOCK): the lock is set only by lifting the thumb on the Lock target (TouchHud._on_up) and released
+## by a tap on the Sprint lock button (shown only while locked), a new move touch or the in-match menu. In cover, a push
+## to the forward extreme still shows the target (it ignores this flag); the lift locks, which exits cover (Pawn).
 var cover_suppress_sprint: bool = false
 ## M2 H1a hold-to-ADS (data/input.json shooting.hold_to_ads, off by default, OQ-SHOOT-MODE): set by the touch HUD while a
 ## Fire button has been held for hold_s, cleared on release. InputRouter ORs it into InputFrame.aim_pressed AFTER the Aim
@@ -123,14 +126,6 @@ func release_action(action: String, cancel: bool = false) -> void:
 ## The look state for a touch control (D2: cover FIRE). Emitted every call, changed or not.
 func set_action_look(action: String, active: bool) -> void:
 	action_look_changed.emit(action, active)
-
-
-## Tap on the Sprint lock button: locks while moving forward, cancels while locked.
-func toggle_sprint_lock() -> void:
-	if sprint_locked:
-		cancel_sprint_lock()
-	elif _shaped_move().y < 0.0:
-		lock_sprint()
 
 
 ## Fail loudly, once per provider: shaping is on but data/input.json has no top-level move_feel.

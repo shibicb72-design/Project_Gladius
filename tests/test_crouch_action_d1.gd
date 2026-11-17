@@ -20,10 +20,12 @@ func tree() -> SceneTree:
 # ---- T1 InputMap ------------------------------------------------------------------------------
 
 ## D2 adds keyboard/gamepad bindings for crouch and may update the "no events" assertion.
+## M2 H1c item 4 (OQ-CROUCH): crouch is bound (keyboard C, gamepad B) so keyboard / gamepad reach the same press path
+## (KeyboardMouseProvider.PRESS_ACTIONS); prone and interact stay unbound (was: all three with no bindings).
 func test_t1_inputmap_has_crouch_prone_interact_without_events() -> void:
 	for a in NEW_BUTTONS:
 		assert_true(InputMap.has_action(a), "InputMap has %s" % a)
-		assert_eq(InputMap.action_get_events(a).size(), 0, "%s has no bindings yet (D2)" % a)
+		assert_eq(InputMap.action_get_events(a).size(), 2 if a == "crouch" else 0, "%s bindings (H1c: crouch C + B)" % a)
 
 
 # ---- T2 BUTTONS order -------------------------------------------------------------------------

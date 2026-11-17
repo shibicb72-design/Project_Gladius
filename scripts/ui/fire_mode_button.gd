@@ -55,7 +55,30 @@ static func touch_rect(settings: Dictionary, view_size: Vector2) -> Rect2:
 	var split: Variant = HudArrangement.split_center("fire_mode", view_size)
 	if split != null:
 		c = split
+	# M2 H1c item 4 (OQ-CROUCH): the Crouch button took a bottom-row slot, so on crowded views (1152x959, split_row on
+	# 1512x648) the bottom-row slot left of Swap meets the move stick. Then: the slot left of the move stick on the same
+	# row if it is on screen, else crowded_offset_buttons (above Swap). The stick is its data default (move_stick_rest,
+	# stick_radius_frac_of_height, the 48 dp floor), not a layout-editor position.
+	var stick := _default_stick_rect(tl, view_size, scale_dp)
+	if Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side).intersects(stick):
+		var gap := float(settings.get("crowded_gap_buttons", 0.06)) * s
+		var left_x := stick.position.x - gap - side * 0.5
+		if left_x - side * 0.5 >= 0.0:
+			c.x = left_x
+		else:
+			var co: Array = settings["crowded_offset_buttons"]
+			c = Vector2(float(a[0]), float(a[1])) * view_size + Vector2(float(co[0]), float(co[1])) * s
 	return Rect2(c - Vector2.ONE * side * 0.5, Vector2.ONE * side)
+
+
+## The move stick's default drawn rect at rest (TouchHud._move_visual_local with no layout-editor slot).
+static func _default_stick_rect(tl: Dictionary, view_size: Vector2, scale_dp: float) -> Rect2:
+	var rest: Array = tl["move_stick_rest"]
+	var editor: Dictionary = DataRegistry.new().load_file("res://data/input.json")["layout_editor"]
+	var r := maxf(maxf(1.0, float(tl.get("stick_radius_frac_of_height", 0.12)) * view_size.y), 0.5 * float(editor["min_target_dp"]) * scale_dp)
+	var half := r * maxf(1.0, float(tl["vjoy"]["size_frac_of_ring"]))
+	var c := Vector2(float(rest[0]), float(rest[1])) * view_size
+	return Rect2(c - Vector2.ONE * half, Vector2.ONE * half * 2.0)
 
 
 func get_touch_rect() -> Rect2:
@@ -124,7 +147,7 @@ func _input(event: InputEvent) -> void:
 		for key in touch_hud.get_button_actions():
 			if touch_hud.get_element_rect(key).has_point(point):
 				return
-		if touch_hud.get_lock_button_rect().has_point(point):
+		if touch_hud.lock_button_hit(point):  # M2 H1c: only while shown (OQ-SPRINT-LOCK)
 			return
 	var modes: Array = _weapons[weapon.def.id]["modes"]
 	var current := modes.find(weapon.fire_mode)
