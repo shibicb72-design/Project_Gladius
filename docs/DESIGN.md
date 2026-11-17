@@ -11,7 +11,7 @@ Futuristic Roman Republic (Rome never fell), Halo 2/3 feel. Map: futuristic Ales
 Battle royale is the only mode. King of the Hill is cut; Slayer, Capture the Eagle and Oddball are not planned. Offline only: local LAN (phone hotspot or Wi-Fi) plus bots; no online servers, accounts, matchmaking or analytics. Polish bar: PUBG / BGMI-level controls, feel, HUD, looting flow, bot quality and performance (not their art).
 - Players: up to 8 humans, up to 18 total; bots fill. Fully playable solo against bots.
 - Teams: solo and squads. Squad size up to 3, bot squads too.
-- Map: 1 km across (futuristic Alesia). No vehicles in v1.
+- Map: 500 m across (futuristic Alesia), denser, with more world building (Shibi, Nov 17 2026; was 1 km across, decided Nov 9). The 1 km map stays in the project as an alternative. No vehicles in v1.
 - Flow: everyone drops from the sky onto the map, loots weapons, ammo and armor from the ground, and fights while a shrinking zone forces them together. Outside the zone you take damage. Last squad or player standing wins.
 - Squads: a player at zero health is downed, not dead; a squad mate can revive them. Solo: no downed state. TODO: bleed-out time, revive time, what downed players can do (placeholders until decided).
 - No respawn. After elimination: spectate (squad mate or killer); killcam later.
