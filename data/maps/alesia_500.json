@@ -13,6 +13,7 @@
 	],
 	"generator": {
 		"_aqueduct_note": "OQ-ALESIA-500 placeholder: the three aqueducts of the 1 km map from the inner wall (inner_m = its apothem) out to about r 208, ending in the fields inside the outer wall. spans_in 0 (the spec's 1 would put the inner ramp on the hill's skirt, r 60-69, where the ground falls up to 17 degrees; with 0 it stands on the ring road at r 70-79).",
+		"_max_cover_walls_note": "M2 L2a density pass (placeholder, OQ-ALESIA-500): 700 -> 850 for the longer field wall runs, the picket posts, the small farmsteads and the town's half blocks.",
 		"_placeholder": true,
 		"_todo": "OQ-ALESIA-500: every number and name in this block is a placeholder (a guess for Shibi), from Fable's layout spec. Bearings are compass degrees (0 = north = -z, 90 = east = +x). A ring radius is the apothem. The keys arx_wall, doorway_apron_m, camps.extras, town, farmsteads, field_walls, outside, doors.door.id_patterns and ladders.id_patterns are the 500 m map's own (tools/gen_alesia.gd runs their passes only when they are present; alesia_1km has none).",
 		"aqueducts": [
@@ -66,7 +67,7 @@
 			"tower_clear_m": 6.0
 		},
 		"camps": {
-			"_note": "OQ-ALESIA-500 placeholder: six 40 x 40 m blocks at bearings 15 + 60 k, centred at r 164: a barracks row of two, eight tents in two rows, a supply corner (extras: fixed cover pieces, block frame, unturned), stake rows and random cover inside the block.",
+			"_note": "OQ-ALESIA-500 placeholder: six 40 x 40 m blocks at bearings 15 + 60 k, centred at r 164: a barracks row of two, ten tents in three rows (M2 L2a density pass: the third row of two at z 14, lanes 2.4 m between tents, 3 m between rows), a supply corner (extras: fixed cover pieces, block frame, unturned), stake rows and random cover inside the block.",
 			"barracks": [
 				[
 					-8.0,
@@ -161,10 +162,19 @@
 				[
 					-2.0,
 					7.0
+				],
+				[
+					-14.0,
+					14.0
+				],
+				[
+					-8.0,
+					14.0
 				]
 			]
 		},
 		"citadel": {
+			"_slope_note": "M2 L2a placeholder, OQ-ALESIA-500: cover_slope 28 pieces on the hill skirt (top_radius_m .. radius_m + 5), only slope_cover_types (small or organic footprints that sink acceptably, ground_contact); the flat top keeps cover_types.",
 			"arches": [
 				{
 					"at": [
@@ -174,7 +184,7 @@
 					"yaw": 0.0
 				}
 			],
-			"cover_slope": 10.0,
+			"cover_slope": 28.0,
 			"cover_top": 8.0,
 			"cover_top_radius_m": 20.0,
 			"cover_types": [
@@ -260,7 +270,22 @@
 					"yaw": 0.0
 				}
 			],
-			"rocks": 6.0
+			"rocks": 6.0,
+			"slope_cover_types": [
+				"rubble_pile",
+				"pillar",
+				"sandbags",
+				"rock",
+				"crate"
+			]
+		},
+		"density_check": {
+			"_note": "M2 L2a placeholder, OQ-ALESIA-500 (report only): tools/gen_alesia.gd prints every square of at least report_m in the fields band (from_m..to_m, the main streets |x|, |z| < street_half_m excluded) with no footprint at all, on a cell_m grid. The lead's aim: none of about 40 m.",
+			"cell_m": 2.0,
+			"from_m": 142.0,
+			"report_m": 30.0,
+			"street_half_m": 4.0,
+			"to_m": 216.0
 		},
 		"doors": {
 			"_placeholder": true,
@@ -372,32 +397,87 @@
 				"Villa VI"
 			],
 			"radius_m": 182.0,
+			"small": {
+				"_note": "M2 L2a placeholder, OQ-ALESIA-500: six smaller farmsteads (Villa VII-XII, town.templates.villula: a barracks, two tall_wall, a tent, a crate) in the emptiest field wedges (SE 120, SW 240, NE 60, NW 300) and beside the north and south outer gates (352, 172); each at the search spot nearest its bearing and radius that drops nothing (search: bearings +-4 x 2 deg, radii +-3 x 4 m).",
+				"cover": 1.0,
+				"cover_types": [
+					"crate",
+					"sandbags",
+					"barrier"
+				],
+				"half_size_m": 10.0,
+				"names": [
+					"Villa VII",
+					"Villa VIII",
+					"Villa IX",
+					"Villa X",
+					"Villa XI",
+					"Villa XII"
+				],
+				"search": {
+					"bearing_step_deg": 2.0,
+					"bearing_steps": 4.0,
+					"radius_step_m": 4.0,
+					"radius_steps": 3.0
+				},
+				"spots": [
+					{
+						"bearing_deg": 60.0,
+						"radius_m": 158.0
+					},
+					{
+						"bearing_deg": 120.0,
+						"radius_m": 200.0
+					},
+					{
+						"bearing_deg": 172.0,
+						"radius_m": 204.0
+					},
+					{
+						"bearing_deg": 240.0,
+						"radius_m": 200.0
+					},
+					{
+						"bearing_deg": 300.0,
+						"radius_m": 158.0
+					},
+					{
+						"bearing_deg": 352.0,
+						"radius_m": 204.0
+					}
+				],
+				"template": "villula"
+			},
 			"template": "villa"
 		},
 		"field_walls": {
+			"_density_note": "M2 L2a density pass (placeholder, OQ-ALESIA-500): runs 30 -> 60 and 3-5 pieces, mostly tall_wall (2.2 m, above eye height) with a low_wall between, so eye-level sight across the fields is broken; runs along z have no tall box type (the cover file has no yaw), so pillars (2.8 m) with sandbag sides between.",
 			"_note": "OQ-ALESIA-500 placeholder: about 30 runs of 2-4 pieces with 1.5-2.5 m gaps (never end to end) in the fields, along the ring tangent (tangent_share) or the radius, snapped to the nearer axis: cover boxes have no yaw, so x_types run along x and z_types (boxes long along z) along z.",
 			"from_m": 150.0,
 			"gap_max_m": 2.5,
 			"gap_min_m": 1.5,
 			"pieces_max": 4.0,
-			"pieces_min": 2.0,
-			"runs": 30.0,
+			"pieces_min": 3.0,
+			"runs": 60.0,
 			"tangent_share": 0.6,
 			"to_m": 214.0,
 			"x_types": [
+				"tall_wall",
 				"low_wall",
+				"tall_wall",
 				"tall_wall",
 				"low_wall"
 			],
 			"z_types": [
-				"sandbag_nest_side",
 				"pillar",
-				"sandbag_nest_side"
+				"sandbag_nest_side",
+				"pillar"
 			]
 		},
 		"fields": {
+			"_cover_note": "M2 L2a density pass (placeholder, OQ-ALESIA-500): 36 -> 20 random field pieces; the laid-out plots, posts, farmsteads and the longer wall runs fill the fields instead (max_cover_walls).",
 			"_note": "OQ-ALESIA-500 placeholder: the fields between the town and the outer wall (outside the camp and farmstead blocks).",
-			"cover": 36.0,
+			"cover": 20.0,
 			"cover_types": [
 				"low_wall",
 				"crate",
@@ -419,6 +499,12 @@
 			"cover_per_side": 2.0,
 			"lateral_m": 12.0,
 			"reach_m": 8.0
+		},
+		"ground_contact": {
+			"_note": "M2 L2a placeholder, OQ-ALESIA-500: the placement rule against floating pieces (tests/test_ground_contact.gd). A piece stands on the ground under its origin; its bottom may be at most max_float_m above the lowest ground under its footprint grown by margin_m (corners, edge middles, centre). max_float_m = terrain.max_visual_float_m 0.08 less the 0.03 m some kit looks stand above their origin (aqueduct span, Arx pieces). A cover box that would float more may sink up to max_sink_m (its file y is lowered); every other piece is moved (another random draw) or, when laid out, dropped. Absent on alesia_1km.",
+			"margin_m": 0.3,
+			"max_float_m": 0.05,
+			"max_sink_m": 0.25
 		},
 		"ground_size_m": 500.0,
 		"heights_path": "res://data/maps/alesia_500_heights.res",
@@ -477,7 +563,7 @@
 		},
 		"landmarks_rules_note": "No \"rules\" block (as alesia_1km): alesia's landmark rules are tested on alesia_section only. OQ-ALESIA-500 placeholder.",
 		"landmarks_todo": "OQ-ALESIA-500: the 500 m map's landmark names and places are placeholders for Shibi; generated by tools/gen_alesia.gd, do not edit by hand. District landmarks (kind district) come from the town's templates.",
-		"max_cover_walls": 700.0,
+		"max_cover_walls": 850.0,
 		"outer_wall": {
 			"_note": "OQ-ALESIA-500 placeholder: 32 sides (24 cannot put towers at 22.5 + 45 k on side middles), gates on the cardinals, eight towers half-way between them.",
 			"gate_bearings_deg": [
@@ -511,7 +597,7 @@
 			"stake_rows": 10.0,
 			"to_m": 234.0
 		},
-		"paint_sha256": "b0906090d57d28163b694613122d4194ac91d235f3fd34cb7e042ac14feebd1a",
+		"paint_sha256": "971191911b36bc21aa67a65b93c5e6dce600d40bcdc55e0fdaa2d63cf7d0fbbf",
 		"placement": {
 			"anchor_clear_m": 2.5,
 			"edge_margin_m": 4.0,
@@ -635,14 +721,99 @@
 			"y": 0.1
 		},
 		"specula_bearing_deg": 22.5,
+		"statio": {
+			"_note": "M2 L2a placeholder, OQ-ALESIA-500: a picket post behind each camp towards the outer wall (the camp's bearing, r 203): three tents, a sandbag nest (sandbag_nest with two sandbag_nest_side, three separate low pieces own_gap_m apart) on the outer side, a crate_stack and two crates. Block frame as town templates (front = -z to the map centre); quarter_types swaps the nest pieces in a block turned by 90 or 270. Placed at the search spot nearest that drops nothing.",
+			"half_size_m": 9.0,
+			"own_gap_m": 0.3,
+			"pieces": [
+				{
+					"at": [
+						-6.0,
+						-1.0
+					],
+					"type": "tent",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						0.0,
+						-1.0
+					],
+					"type": "tent",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						6.0,
+						-1.0
+					],
+					"type": "tent",
+					"yaw": 0.0
+				},
+				{
+					"at": [
+						0.0,
+						7.5
+					],
+					"type": "sandbag_nest"
+				},
+				{
+					"at": [
+						-2.05,
+						5.8
+					],
+					"type": "sandbag_nest_side"
+				},
+				{
+					"at": [
+						2.05,
+						5.8
+					],
+					"type": "sandbag_nest_side"
+				},
+				{
+					"at": [
+						-6.0,
+						-6.5
+					],
+					"type": "crate_stack"
+				},
+				{
+					"at": [
+						-3.0,
+						-6.5
+					],
+					"type": "crate"
+				},
+				{
+					"at": [
+						6.0,
+						6.0
+					],
+					"type": "crate"
+				}
+			],
+			"quarter_types": {
+				"sandbag_nest": "sandbag_nest_side",
+				"sandbag_nest_side": "sandbag_nest"
+			},
+			"radius_m": 203.0,
+			"search": {
+				"bearing_step_deg": 1.5,
+				"bearing_steps": 4.0,
+				"radius_step_m": 2.0,
+				"radius_steps": 3.0
+			}
+		},
 		"town": {
+			"_breakables_note": "M2 L2a placeholder, OQ-ALESIA-500: [2, 1] -> [1, 2] (same total) so the even cells (the forum's among them) keep room for their district chest after the density pass.",
 			"_note": "OQ-ALESIA-500 placeholder: the Oppidum, a street grid. Cells every pitch_m on both axes (centres at cell_offset_m + pitch_m k, so streets lie on x = 0, z = 0 and every 28 m), a block_m square each; built when the centre lies band_from_m..band_to_m out, the block keeps inner_clear_m from the centre and camp_clear_m from the camp blocks. cells: the free cell nearest each bearing gets that template, the rest default_template. Template pieces {type, at [x, z] in the block frame (front = -z), yaw, every} are fixed: a piece that would meet another footprint (placement.minimum_gap_m), stand on a barracks doorway's apron (doorway_apron_m), leave the block or a kept spot is DROPPED (counted, never moved). face centre: the front looks at the map centre; else the block turns by its index (four variants) unless another quarter drops fewer pieces. Cover boxes have no yaw: in a block turned by 90 or 270, quarter_types swaps a long box for one long along z. cover: random pieces per cell (cover_types); breakables_per_cell cycles. labels: structure id labels (Oppidum<cell>_<label>_<n>).",
 			"band_from_m": 100.0,
 			"band_to_m": 134.0,
 			"block_m": 22.0,
 			"breakables_per_cell": [
-				2.0,
-				1.0
+				1.0,
+				2.0
 			],
 			"camp_clear_m": 1.0,
 			"cell_offset_m": 14.0,
@@ -700,6 +871,14 @@
 				"rubble_pile"
 			],
 			"default_template": "insula",
+			"fill": {
+				"_note": "M2 L2a placeholder, OQ-ALESIA-500: the grid cells left unbuilt (their centre outside the band, or too near the inner wall) whose centre lies from_m..to_m out get a half block (templates.insula_dimidia: a house, a tall_wall, a crate_stack) in the half that keeps inner_clear_m and camp_clear_m, when it drops at most max_dropped pieces: the holes beside the aqueducts by the inner wall and the edge between the town and the camps. cover 0: no random pieces (max_cover_walls).",
+				"cover": 0.0,
+				"from_m": 94.0,
+				"max_dropped": 1.0,
+				"template": "insula_dimidia",
+				"to_m": 160.0
+			},
 			"inner_clear_m": 90.0,
 			"labels": {
 				"barracks": "Domus"
@@ -799,11 +978,12 @@
 					]
 				},
 				"forum": {
+					"_cover_note": "M2 L2a placeholder, OQ-ALESIA-500: cover 1 -> 0 (as thermae) so the district chest always finds room in the square whatever the density pass's random draws.",
 					"anchor": [
 						0.0,
 						-4.0
 					],
-					"cover": 1.0,
+					"cover": 0.0,
 					"face": "centre",
 					"landmark": {
 						"id": "forum",
@@ -1131,6 +1311,33 @@
 						}
 					]
 				},
+				"insula_dimidia": {
+					"_note": "M2 L2a placeholder, OQ-ALESIA-500: a half block (22 x 11 m, frame x +-11, z +-5.5) for town.fill: one house with its doorways on the long sides, a tall_wall and a crate_stack.",
+					"pieces": [
+						{
+							"at": [
+								-5.0,
+								0.0
+							],
+							"type": "barracks",
+							"yaw": 0.0
+						},
+						{
+							"at": [
+								5.5,
+								-3.5
+							],
+							"type": "tall_wall"
+						},
+						{
+							"at": [
+								8.0,
+								2.5
+							],
+							"type": "crate_stack"
+						}
+					]
+				},
 				"taberna": {
 					"anchor": [
 						0.0,
@@ -1309,11 +1516,12 @@
 					]
 				},
 				"thermae": {
+					"_cover_note": "M2 L2a placeholder, OQ-ALESIA-500: cover 1 -> 0 so the district chest finds room in the court after the density pass re-rolled the town's random pieces.",
 					"anchor": [
 						0.0,
 						-4.5
 					],
-					"cover": 1.0,
+					"cover": 0.0,
 					"face": "centre",
 					"landmark": {
 						"id": "thermae",
@@ -1456,7 +1664,144 @@
 							"type": "crate"
 						}
 					]
+				},
+				"villula": {
+					"_note": "M2 L2a placeholder, OQ-ALESIA-500: a small farmstead (20 x 20 m block, front = -z to the map centre): one barracks, two tall_wall pieces (kept tall in every turn: quarter_types {}), a tent and a crate.",
+					"pieces": [
+						{
+							"at": [
+								0.0,
+								-3.5
+							],
+							"type": "barracks",
+							"yaw": 0.0
+						},
+						{
+							"at": [
+								-5.5,
+								5.0
+							],
+							"type": "tent",
+							"yaw": 0.0
+						},
+						{
+							"at": [
+								2.5,
+								7.5
+							],
+							"type": "tall_wall"
+						},
+						{
+							"at": [
+								7.0,
+								2.5
+							],
+							"type": "tall_wall"
+						},
+						{
+							"at": [
+								6.5,
+								7.5
+							],
+							"type": "crate"
+						}
+					],
+					"quarter_types": {}
 				}
+			}
+		},
+		"vineae": {
+			"_note": "M2 L2a placeholder, OQ-ALESIA-500: seventeen vineyard / crop plots in the fields (the last five, three rows each, in the five widest bare squares tools/gen_alesia.gd's density check found after the first density pass), each rows x per_row stake_row pieces (end to end, end_gap_m apart) with row_pitch_m between rows (2.3 m walkable lanes), along the ring's tangent snapped to an axis; six at r 156 in the gaps between the camps (inside the farmsteads), six at r 206 behind the farmsteads (bearings 45 + 60 k - 9, clear of the lily and jump pad spots). Each at the search spot nearest that drops nothing.",
+			"end_gap_m": 0.4,
+			"per_row": 3.0,
+			"plots": [
+				{
+					"bearing_deg": 45.0,
+					"radius_m": 156.0
+				},
+				{
+					"bearing_deg": 105.0,
+					"radius_m": 156.0
+				},
+				{
+					"bearing_deg": 165.0,
+					"radius_m": 156.0
+				},
+				{
+					"bearing_deg": 225.0,
+					"radius_m": 156.0
+				},
+				{
+					"bearing_deg": 285.0,
+					"radius_m": 156.0
+				},
+				{
+					"bearing_deg": 345.0,
+					"radius_m": 156.0
+				},
+				{
+					"bearing_deg": 36.0,
+					"radius_m": 206.0,
+					"rows": 4.0
+				},
+				{
+					"bearing_deg": 96.0,
+					"radius_m": 206.0,
+					"rows": 4.0
+				},
+				{
+					"bearing_deg": 156.0,
+					"radius_m": 206.0,
+					"rows": 4.0
+				},
+				{
+					"bearing_deg": 216.0,
+					"radius_m": 206.0,
+					"rows": 4.0
+				},
+				{
+					"bearing_deg": 276.0,
+					"radius_m": 206.0,
+					"rows": 4.0
+				},
+				{
+					"bearing_deg": 336.0,
+					"radius_m": 206.0,
+					"rows": 4.0
+				},
+				{
+					"bearing_deg": 63.0,
+					"radius_m": 186.0,
+					"rows": 3.0
+				},
+				{
+					"bearing_deg": 293.0,
+					"radius_m": 195.0,
+					"rows": 3.0
+				},
+				{
+					"bearing_deg": 23.0,
+					"radius_m": 197.0,
+					"rows": 3.0
+				},
+				{
+					"bearing_deg": 264.5,
+					"radius_m": 200.0,
+					"rows": 3.0
+				},
+				{
+					"bearing_deg": 207.0,
+					"radius_m": 196.0,
+					"rows": 3.0
+				}
+			],
+			"row_pitch_m": 3.0,
+			"rows": 5.0,
+			"search": {
+				"bearing_step_deg": 2.0,
+				"bearing_steps": 4.0,
+				"radius_step_m": 3.0,
+				"radius_steps": 3.0
 			}
 		},
 		"wall": {
@@ -1888,6 +2233,10 @@
 		}
 	],
 	"scene": "res://scenes/maps/alesia_500.tscn",
+	"sight_lines": {
+		"_note": "M2 L2a placeholder, OQ-ALESIA-500 (REPORT ONLY, nothing asserts it): tools/sight_lines.gd -- --map=alesia_500 casts 16 horizontal rays from eye points (1.65 m) every 10 m of walkable ground; target_share_past_80m = the share of rays per district that should travel past 80 m without a hit (the lead's proposal 0.10).",
+		"target_share_past_80m": 0.1
+	},
 	"spawns": {
 		"spot_0": [
 			100.0,
@@ -1925,6 +2274,7 @@
 		"_far_step_note": "OQ-ALESIA-500 placeholder: as alesia_1km, the far terrain's step 10 m (every 5th sample of this 2 m grid) divides the 100 m chunks.",
 		"_placeholder": true,
 		"_todo": "OQ-ALESIA-500 placeholder: flat (0) everywhere except the citadel hill (generator.hill); heights baked by tools/gen_alesia.gd into a binary HeightMapShape3D .res at 2 m (251 x 251 samples). max_piece_slope_deg and max_piece_float_m as alesia_1km.",
+		"_visual_float_note": "M2 L2a placeholder, OQ-ALESIA-500: max_visual_float_m = the most any drawn piece's lowest point may stand above the ground sampled under its footprint (corners, edge middles, centre). tests/test_ground_contact.gd asserts it on this map (alesia_1km: report only); tools/gen_alesia.gd rejects a placement that would break it (generator.ground_contact).",
 		"far_step_m": 10.0,
 		"height_source": {
 			"path": "res://data/maps/alesia_500_heights.res",
@@ -1932,6 +2282,7 @@
 		},
 		"max_piece_float_m": 0.3,
 		"max_piece_slope_deg": 15.0,
+		"max_visual_float_m": 0.08,
 		"resolution_m": 2.0,
 		"size_m": 500.0
 	},

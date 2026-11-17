@@ -172,8 +172,35 @@ func test_town_landmarks_doors_and_ladders() -> void:
 		var camp_or_farm := id.begins_with("Castra") or id.begins_with("Villa")
 		assert_eq(with_door.has(id), camp_or_farm, id + ": doors only on camp and farmstead barracks")
 		assert_eq(ladders.has(id), camp_or_farm or id.match("Oppidum*_Domus_0"), id + ": ladders on camp and farmstead barracks and each cell's first house")
-	assert_eq((l500["farms"] as Array).size(), 6, "six farmsteads")
+	assert_eq((l500["farms"] as Array).size(), 6 + (gen["farmsteads"]["small"]["spots"] as Array).size(), "six farmsteads and the small ones (M2 L2a density pass: twelve)")
 	print("ALESIA_500_TOWN cells=%d per_template=%s dropped=%d doors=%d ladders=%d" % [cells.size(), str(counts), (l500["dropped"] as Array).size(), doors.size(), ladders.size()])
+
+
+## M2 L2a density pass: every picket post, small farmstead and vineyard plot is placed whole (nothing dropped), the
+## posts carry their sandbag nest, the fields keep no bare square of 40 m (density_check), no laid-out piece fails
+## the ground-contact rule, and the generator reports no shortfall.
+func test_density_pass() -> void:
+	var def := _def()
+	var gen: Dictionary = def["generator"]
+	var out: Dictionary = _Gen.generate(def)
+	var l500: Dictionary = out["l500"]
+	assert_eq((l500["posts"] as Array).size(), 6, "a picket post behind each camp")
+	assert_eq((l500["plots"] as Array).size(), (gen["vineae"]["plots"] as Array).size(), "every vineyard plot is placed")
+	for list: String in ["posts", "plots"]:
+		for block: Dictionary in l500[list]:
+			assert_eq(int(block["dropped"]), 0, "%s drops nothing" % block["prefix"])
+	for farm: Dictionary in l500["farms"]:
+		assert_eq(int(farm["dropped"]), 0, "%s drops nothing" % farm["prefix"])
+	var cover: Array = out["cover"]["pieces"]
+	var nest := cover.filter(func(e: Dictionary) -> bool: return String(e["type"]).begins_with("sandbag_nest")).size()
+	assert_true(nest >= 18, "the six posts' sandbag nests, three pieces each (%d pieces)" % nest)
+	var tents := (out["structures"]["pieces"] as Array).filter(func(e: Dictionary) -> bool: return String(e["id"]).begins_with("Castra1_Tent")).size()
+	assert_eq(tents, (gen["camps"]["tents"] as Array).size(), "each camp has its three rows of tents")
+	var bare: Array = out["bare"]
+	for sq: Array in bare:
+		assert_true(float(sq[0]) < 40.0, "no bare square of 40 m in the fields: %.0f m at %s" % [float(sq[0]), str(sq[1])])
+	assert_true((out["shortfalls"] as PackedStringArray).is_empty(), "no shortfall: " + ", ".join(out["shortfalls"]))
+	print("ALESIA_500_DENSITY posts=%d plots=%d farms=%d fills=%d bare=%s cover_walls=%d" % [(l500["posts"] as Array).size(), (l500["plots"] as Array).size(), (l500["farms"] as Array).size(), (l500["fills"] as Array).size(), str(bare), int(out["cover_walls"])])
 
 
 ## The id filter of the door and ladder passes: absent = every piece (the 1 km map), else the globs.
