@@ -19,6 +19,7 @@ var splashes: GPUParticles3D
 var shafts: MultiMeshInstance3D
 var vignette: CanvasLayer
 var _seed_checked := false
+var _shafts_pending := false
 var _flash_left := 0.0
 var _flash_wait := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -42,7 +43,9 @@ static func resolved(variant: String = "") -> Dictionary:
 		"sky": (cfg["sky"] as Dictionary).merged(over.get("sky", {}), true),
 		"post": (cfg["post"] as Dictionary).merged(over.get("post", {}), true),
 		"wet": float(over.get("wet", cfg["wet"])),
+		"glow_gain": float(over.get("glow_gain", cfg.get("glow_gain", 1.0))),  # M2W1 astraB, optional (1 = as before)
 		"weather": String(over.get("weather", cfg["weather"])),
+		"ground": over.get("ground", {}),  # M2W1 r2b, optional: ground detail uniforms for this variant ({} = the file's)
 	}
 
 
@@ -69,6 +72,7 @@ func show_variant(new_look: Dictionary, new_preset: Dictionary) -> void:
 	splashes = null
 	shafts = null
 	vignette = null
+	_shafts_pending = false
 	_flash_left = 0.0
 	if bool(preset.get("art_weather_enabled", false)):
 		_build_weather()
@@ -138,6 +142,12 @@ func _build_weather() -> void:
 		var mat := _unshaded(color, false)
 		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 		mat.billboard_keep_scale = true
+		# M2W1 (optional "near_fade_m" [start, full]): streaks right at the lens are invisible and fade in with distance,
+		# so the few that pass the camera do not show as wide bars.
+		if w.has("near_fade_m"):
+			mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+			mat.distance_fade_min_distance = float(w["near_fade_m"][0])
+			mat.distance_fade_max_distance = float(w["near_fade_m"][1])
 		streak.material = mat
 		weather = _particles(int(w["amount"]), float(w["lifetime_s"]), Vector3(box.x, 0.5, box.z), streak)
 		weather.name = "Rain"
@@ -196,12 +206,38 @@ func _build_weather() -> void:
 		weather.set_meta(&"height_m", 1.5)
 
 
+## M2W1: the map builder (the node in group ground_paint), or null while the map is not built yet.
+func _map_builder() -> Node:
+	return get_tree().get_first_node_in_group(&"ground_paint") if is_inside_tree() else null
+
+
+## M2W1: where the shafts hang. shafts.at on a flat map; on a map with a terrain the map's "shafts_at" of
+## data/art_world_maps.json (y above the terrain), which stops them hanging inside the 1 km map's citadel hill.
+static func shaft_places(builder: Node) -> Array:
+	var places: Array = config()["shafts"]["at"]
+	var terrain := WorldAmbient.terrain_of(builder)
+	if terrain == null:
+		return places
+	var out: Array = []
+	for p: Array in WorldAmbient.map_block(builder).get("shafts_at", []):
+		out.append([p[0], float(p[1]) + terrain.height_at(p[0], p[2]), p[2]])
+	return out
+
+
 func _build_shafts() -> void:
 	var s: Dictionary = config()["shafts"]
 	var sun := _sun()
 	if sun == null or float(look["light"]["sun_energy"]) < float(s["min_sun_energy"]):
 		return
-	var places: Array = s["at"]
+	# The look is built before the map (the WorldEnvironment readies first): wait for the builder (_process).
+	var builder := _map_builder()
+	if builder == null:
+		_shafts_pending = true
+		return
+	_shafts_pending = false
+	var places: Array = shaft_places(builder)
+	if places.is_empty():
+		return
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
 	var mat := ShaderMaterial.new()
@@ -261,6 +297,8 @@ func _process(delta: float) -> void:
 			if id != String(look.get("id", "")):
 				get_parent().call("_apply_environment", get_parent(), id)
 				return
+	if _shafts_pending and _map_builder() != null:
+		_build_shafts()
 	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
 	if camera != null:
 		var at := camera.global_position

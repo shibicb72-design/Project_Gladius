@@ -3,7 +3,7 @@
 	"_free_yaw_note": "M2L1 binding fix 8: only these wall piece types may take a free yaw (on the polygonal rings' tangents); every other structure keeps alesia_structures.json rules.yaw_step_deg. DataRegistry.validate_map_def checks it.",
 	"_placeholder": true,
 	"_todo": "OQ-ALESIA-LAYOUT: the M2 L1 grey-box of the concentric Alesia (docs/DESIGN.md:8, :14). Every size, count, radius, position and name here and in the generated files is a PROPOSAL, a guess for Shibi to change. Change a number in \"generator\" and rerun tools/gen_alesia.gd; never hand-edit the generated files (alesia_1km_cover.json, alesia_1km_structures.json, alesia_1km_landmarks.json, alesia_1km_heights.res, alesia_1km_paint.res) or the generated keys of this file (spawns, reserved_spots, generator.heights_sha256, generator.paint_sha256).",
-	"backdrop": false,
+	"backdrop": true,
 	"cover_data": "res://data/maps/alesia_1km_cover.json",
 	"free_yaw_types": [
 		"wall_walk",

@@ -11,7 +11,53 @@ var particles: Array[CPUParticles3D] = []
 var elapsed := 0.0
 var flicker := FastNoiseLite.new()
 
+const MAPS_PATH := "res://data/art_world_maps.json"
+## M2W1: the map's height field when this node hangs under a map builder whose map has a terrain (else null).
+var terrain: MapTerrain
+
+
+## M2W1: the builder's map terrain, or null (no builder, or a flat map).
+static func terrain_of(builder: Node) -> MapTerrain:
+	if builder == null or not ("terrain" in builder):
+		return null
+	return builder.get("terrain") as MapTerrain
+
+
+## M2W1: the per-map block of data/art_world_maps.json for a builder whose map has a terrain ({} on a flat map:
+## everything stays as art_world.json / art_look.json place it).
+static func map_block(builder: Node) -> Dictionary:
+	if terrain_of(builder) == null:
+		return {}
+	var data := DataRegistry.new().load_file(MAPS_PATH)
+	var key := String(builder.get("map_json")).get_file().get_basename() if "map_json" in builder else ""
+	return (data.get("maps", {}) as Dictionary).get(key, data.get("terrain_default", {}))
+
+
+## M2W1: art_world.json with the map's block on top (sections merged key by key; lists replaced). Unchanged on a
+## flat map or without a builder.
+static func config_for(cfg: Dictionary, builder: Node) -> Dictionary:
+	var block := map_block(builder)
+	if block.is_empty():
+		return cfg
+	var out := cfg.duplicate(true)
+	for section: String in block:
+		if section.begins_with("_") or section == "shafts_at":
+			continue
+		if out.get(section) is Dictionary and block[section] is Dictionary:
+			(out[section] as Dictionary).merge(block[section], true)
+		else:
+			out[section] = block[section]
+	return out
+
+
+## M2W1: a data point raised by the terrain under it (unchanged without a terrain).
+func _lift(at: Vector3) -> Vector3:
+	return at if terrain == null else at + Vector3(0.0, terrain.height_at(at.x, at.z), 0.0)
+
+
 func configure(cfg: Dictionary, on: bool) -> void:
+	terrain = terrain_of(get_parent())
+	cfg = config_for(cfg, get_parent())
 	config = cfg
 	flicker.seed = int(cfg["braziers"]["flicker_seed"])
 	flicker.frequency = float(cfg["braziers"]["flicker_speed"])
@@ -125,7 +171,7 @@ func _build_flags() -> void:
 	for at: Array in cfg["positions"]:
 		var flag := Node3D.new()
 		flag.name = "Banner_%d" % get_child_count()
-		flag.position = LowpolyKit.vec(at)
+		flag.position = _lift(LowpolyKit.vec(at))
 		add_child(flag)
 		_mesh(pole, Vector3(0, float(cfg["pole_size"][1]) * 0.5, 0), flag)
 		var size := Vector2(cfg["size"][0], cfg["size"][1])
@@ -137,7 +183,7 @@ func _build_tents() -> void:
 	for at: Array in cfg["positions"]:
 		var tent := Node3D.new()
 		tent.name = "Tent_%d" % get_child_count()
-		tent.position = LowpolyKit.vec(at)
+		tent.position = _lift(LowpolyKit.vec(at))
 		add_child(tent)
 		# Two pitched cloth roof planes; their ridge stays structurally fixed.
 		for side in [-1, 1]:
@@ -159,14 +205,16 @@ func _build_foliage() -> void:
 	var builder := get_parent()
 	var paint: Image = builder.get("ground_paint") if builder != null else null
 	var wanted := String(cfg.get("on_surface", ""))
+	var centre := Vector2(cfg["centre"][0], cfg["centre"][1]) if cfg.has("centre") else Vector2.ZERO  # M2W1: optional
 	for i in multi.instance_count:
 		var at := Vector3.ZERO
 		for attempt in maxi(int(cfg.get("place_tries", 1)), 1):
 			var angle := rng.randf_range(0, TAU)
 			var radius := rng.randf_range(float(cfg["radius_min_m"]), float(cfg["radius_max_m"]))
-			at = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+			at = Vector3(centre.x + cos(angle) * radius, 0.0, centre.y + sin(angle) * radius)
 			if paint == null or wanted == "" or GroundPaint.surface_at(paint, float(builder.ground_size_m), at) == wanted:
 				break
+		at = _lift(at)
 		var grow := rng.randf_range(float(cfg.get("scale_min", 1.0)), float(cfg.get("scale_max", 1.0)))
 		multi.set_instance_transform(i, Transform3D(Basis(Vector3.UP, rng.randf_range(0, TAU)).scaled(Vector3.ONE * grow), at))
 	batch.multimesh = multi
@@ -188,7 +236,7 @@ func _build_dust() -> void:
 	for at: Array in cfg["positions"]:
 		var dust := CPUParticles3D.new()
 		dust.name = "DriftingDust"
-		dust.position = LowpolyKit.vec(at)
+		dust.position = _lift(LowpolyKit.vec(at))
 		dust.amount = int(cfg["amount"])
 		dust.lifetime = float(cfg["lifetime_s"])
 		dust.one_shot = false
@@ -209,7 +257,7 @@ func _build_braziers() -> void:
 	for at: Array in cfg["positions"]:
 		var base := Node3D.new()
 		base.name = "Brazier"
-		base.position = LowpolyKit.vec(at)
+		base.position = _lift(LowpolyKit.vec(at))
 		add_child(base)
 		var stand := LowpolyKit.vec(cfg["stand_size"])
 		var bowl := LowpolyKit.vec(cfg["bowl_size"])
@@ -241,7 +289,7 @@ func _build_beacons() -> void:
 	for at: Array in cfg["positions"]:
 		var light := SpotLight3D.new()
 		light.name = "Searchlight"
-		light.position = LowpolyKit.vec(at)
+		light.position = _lift(LowpolyKit.vec(at))
 		light.spot_range = float(cfg["range_m"])
 		light.spot_angle = float(cfg["angle_deg"])
 		light.light_energy = float(cfg["energy"])
@@ -253,10 +301,10 @@ func _build_beacons() -> void:
 
 func _build_props() -> void:
 	for entry: Dictionary in config["props"]:
-		_mesh(LowpolyKit.build(entry["kind"], LowpolyKit.vec(entry["size"])), LowpolyKit.vec(entry["at"]))
+		_mesh(LowpolyKit.build(entry["kind"], LowpolyKit.vec(entry["size"])), _lift(LowpolyKit.vec(entry["at"])))
 	for cable: Dictionary in config["cables"]:
-		var start := LowpolyKit.vec(cable["from"])
-		var end := LowpolyKit.vec(cable["to"])
+		var start := _lift(LowpolyKit.vec(cable["from"]))
+		var end := _lift(LowpolyKit.vec(cable["to"]))
 		var segments := int(cable["segments"])
 		for i in segments:
 			var t0 := float(i) / segments

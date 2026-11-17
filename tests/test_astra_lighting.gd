@@ -14,14 +14,16 @@ func test_mobile_lighting_depth_fog_and_one_hard_sun() -> void:
 	match_scene.auto_start = false
 	tree.root.add_child(match_scene)
 	var env: Environment = match_scene.get_node("WorldEnvironment").environment
-	var cfg: Dictionary = LowpolyKit.config()["environment"]
+	# M2W1: the scene shows the base variant's resolved look (art_astra "environment" + art_look.json's variant fog).
+	var cfg: Dictionary = MatchLook.resolved()["fog"]
 	var preset := GraphicsPresets.new().get_preset()
 	assert_eq(env.fog_enabled, bool(preset["art_fog_enabled"]), "fog preset")
 	assert_eq(env.glow_enabled, bool(preset["art_glow_enabled"]), "glow preset")
 	assert_eq(env.fog_mode, Environment.FOG_MODE_DEPTH, "explicit nonvolumetric depth fog")
 	assert_eq(env.fog_light_color, GreyboxArt.color_value(cfg["fog_color"]), "fog color from data")
 	assert_true(is_equal_approx(env.fog_density, float(cfg["fog_density"])), "fog density from data")
-	assert_eq(env.tonemap_mode, Environment.TONE_MAPPER_ACES, "ACES placeholder")
+	# M2W1 astraB: the variant may choose its tonemapper (dusk, night and storm: AgX; dusk_deep keeps ACES).
+	assert_eq(env.tonemap_mode, GreyboxArt.TONEMAPPERS[String(cfg["tonemap"])], "the base variant's tonemapper")
 	assert_true(not env.ssao_enabled and not env.ssil_enabled and not env.ssr_enabled and not env.sdfgi_enabled and not env.volumetric_fog_enabled, "advanced effects disabled")
 	var lights := _shadow_lights(match_scene)
 	# Shibi Oct 29 2026 5:05 AM: no lighting perf caps. Always verify the actual sun.

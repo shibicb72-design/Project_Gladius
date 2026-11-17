@@ -12,8 +12,11 @@ func _initialize() -> void:
 	var frames := 400
 	var variant := ""
 	var off := {}
+	var map_json := ""
 	for arg in OS.get_cmdline_user_args():
-		if arg.begins_with("--frames="):
+		if arg.begins_with("--map="):  # M2W1: e.g. --map=res://data/maps/alesia_1km.json (default: the match fixture)
+			map_json = arg.substr(6)
+		elif arg.begins_with("--frames="):
 			frames = int(arg.substr(9))
 		elif arg.begins_with("--variant="):
 			variant = arg.substr(10)
@@ -31,6 +34,8 @@ func _initialize() -> void:
 	match_scene.auto_start = false
 	match_scene.bake_navmesh = true
 	match_scene.seed_override = 20261109
+	if map_json != "":
+		match_scene.set("map_path_override", map_json)
 	root.add_child(match_scene)
 	await process_frame
 	match_scene.director.load_config()
@@ -62,6 +67,8 @@ func _initialize() -> void:
 		primitives += RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)
 	var whole := (Time.get_ticks_usec() - started) / 1000.0 / frames
 	var size := root.get_viewport().get_visible_rect().size
+	if map_json != "":
+		print("FRAME_TIME map=%s" % map_json)
 	print("FRAME_TIME desktop, not device: renderer=%s size=%dx%d variant=%s frames=%d frame_ms=%.2f worst_ms=%.1f render_cpu_ms=%.2f render_gpu_ms=%.2f draw_calls=%.0f primitives=%.0f texture_mem_mb=%.1f video_mem_mb=%.1f" % [
 			str(ProjectSettings.get_setting("rendering/renderer/rendering_method")), int(size.x), int(size.y), variant if variant != "" else "(data)", frames,
 			whole, worst, cpu / frames, gpu / frames, draws / frames, primitives / frames,

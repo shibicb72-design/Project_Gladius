@@ -1484,6 +1484,20 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 173236,
 			"sha256": "31e03efd416595c5c345005cbe7440ec7dd5824548b168f5188ea21eecbc008c"
+		},
+		{
+			"path": "res://assets/generated/world/m2w1_clutter.glb",
+			"made_by": "tools/blender/m2w1_clutter.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 410108,
+			"sha256": "8eafaf89bb2af458cabc1e1b3d1f65b20c80010ddd6f139d2d106af85c895571"
+		},
+		{
+			"path": "res://assets/generated/world/m2w1_world_kit.glb",
+			"made_by": "tools/blender/m2w1_world_kit.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 2551064,
+			"sha256": "b5b17d2a394bb3ae899fbb46f494b0c2c96f874fa217ecd58e21fbf66b2c2100"
 		}
 	],
 	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that CC0 asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."

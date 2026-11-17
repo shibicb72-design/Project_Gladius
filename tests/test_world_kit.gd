@@ -309,6 +309,14 @@ func test_placed_pieces_are_structure_bodies_under_nav_drawn_as_one_batch_per_ty
 	var triangles := 0
 	for node: MultiMeshInstance3D in batches:
 		var type := String(node.get_meta(&"type"))
+		# M2W1: a far LOD batch ("<type>_lod1", lod_level 1) draws the same pieces as its near batch beyond the swap
+		# distance: it is checked against its near batch here, not as a placed type of its own.
+		if int(node.get_meta(&"lod_level", 0)) == 1:
+			var near_type := String(node.get_meta(&"lod_of"))
+			var near_node := node.get_parent().get_node_or_null("Batch_structure_" + near_type) as MultiMeshInstance3D
+			assert_true(per_type.has(near_type) and near_node != null and near_node.get_meta(&"transforms") == node.get_meta(&"transforms"), type + ": a far LOD of a placed type's batch, the same pieces")
+			assert_true(node.multimesh.mesh == WorldKit.mesh_for(type) and node.multimesh.mesh.surface_get_material(0) == WorldKit.material(), type + ": shared far mesh and material")
+			continue  # (its triangles are not added: one of the pair draws at a time)
 		assert_true(per_type.has(type), type + ": a placed type")
 		var same_type := 0
 		for sibling in node.get_parent().get_children():

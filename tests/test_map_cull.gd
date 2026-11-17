@@ -45,6 +45,9 @@ func test_batches_stay_at_the_origin_and_measure_from_their_content() -> void:
 			# The renderer measures from the world AABB centre: it must lie in the chunk cell, grown by the largest
 			# instance's half extent (an instance origin is always in its cell).
 			var local := batch.multimesh.mesh.get_aabb()
+			if int(batch.get_meta(&"lod_level", -1)) == 1:
+				# M2W1: a far LOD batch measures from its near batch's content (its custom_aabb), so both swap at one distance.
+				local = (batch.get_parent().get_node("Batch_%s_%s" % [batch.get_meta(&"source"), batch.get_meta(&"lod_of")]) as MultiMeshInstance3D).multimesh.mesh.get_aabb()
 			var reach := 0.0
 			var lo := Vector2(INF, INF)
 			var hi := Vector2(-INF, -INF)
@@ -205,17 +208,29 @@ func test_every_batch_follows_its_class_rule() -> void:
 		for batch in chunks.batches():
 			var tag := "%s %s/%s" % [label, batch.get_parent().name, batch.name]
 			var cls := String(batch.get_meta(&"class", ""))
-			assert_eq(cls, MapChunks.class_of(String(batch.get_meta(&"source")), String(batch.get_meta(&"type")), classes), tag + ": class from the data")
+			# M2W1: a far LOD batch ("<type>_lod1") has its near type's class, centre and radius (MapChunks.pair_lod).
+			var lod := int(batch.get_meta(&"lod_level", -1))
+			var near: MultiMeshInstance3D = batch
+			if lod == 1:
+				near = batch.get_parent().get_node("Batch_%s_%s" % [batch.get_meta(&"source"), batch.get_meta(&"lod_of")])
+			assert_eq(cls, MapChunks.class_of(String(batch.get_meta(&"source")), String(near.get_meta(&"type")), classes), tag + ": class from the data")
 			assert_true(list.has(cls), tag + ": a known class (" + cls + ")")
 			seen[cls] = true
 			var want := MapChunks.effective_range(float(list.get(cls, {}).get("range_m", 0.0)), bool(batch.get_meta(&"collides")), floor_m)
 			assert_true(is_equal_approx(float(batch.get_meta(&"range_m")), want), tag + ": range_m is the class range (floor applied)")
-			var radius := _radius(batch)
+			var radius := _radius(near)
 			assert_true(is_equal_approx(float(batch.get_meta(&"radius_m")), radius), tag + ": radius is half the world AABB diagonal")
 			var end := 0.0 if want <= 0.0 else want + radius + margin_m
+			var swap_end := MapChunks.range_end_for(float(batch.get_meta(&"lod_swap_m", 0.0)), radius, margin_m)
+			if lod == 0:
+				end = swap_end  # a near LOD batch ends at the swap; its far batch carries on to the class range
 			assert_true(is_equal_approx(batch.visibility_range_end, end), "%s: end %.3f = range + radius + margin %.3f" % [tag, batch.visibility_range_end, end])
 			assert_true(is_equal_approx(batch.visibility_range_end_margin, margin_m if want > 0.0 else 0.0), tag + ": end margin from data")
-			assert_eq(batch.visibility_range_begin, 0.0, tag + ": no begin range")
+			if lod == 1:
+				assert_true(is_equal_approx(batch.visibility_range_begin, swap_end) and is_equal_approx(batch.visibility_range_begin_margin, margin_m), tag + ": a far LOD batch begins where its near batch ends")
+				assert_true(MapChunks.range_centre(batch).is_equal_approx(MapChunks.range_centre(near)), tag + ": measured from its near batch's centre")
+			else:
+				assert_eq(batch.visibility_range_begin, 0.0, tag + ": no begin range")
 			assert_eq(batch.visibility_range_fade_mode, GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED, tag + ": fade disabled")
 		print("MAP_CULL map=", label, " classes=", seen.keys())
 		map.free()
@@ -250,6 +265,10 @@ func test_sight_floor_holds_for_every_batch_with_real_colliders() -> void:
 		for batch: MultiMeshInstance3D in backed:
 			var tag := "%s %s/%s" % [label, batch.get_parent().name, batch.name]
 			var end := batch.visibility_range_end
+			if int(batch.get_meta(&"lod_level", -1)) == 0:
+				# M2W1: a near LOD batch hands over to its far batch, which is drawn out to the class range.
+				var far := batch.get_parent().get_node("Batch_%s_%s_lod1" % [batch.get_meta(&"source"), batch.get_meta(&"type")]) as MultiMeshInstance3D
+				end = far.visibility_range_end
 			var meaning := end - float(batch.get_meta(&"radius_m")) - margin_m
 			assert_true(end == 0.0 or meaning >= floor_m - 1e-3, "%s: drawn to at least the sight floor (%.1f m)" % [tag, meaning])
 			assert_true(bool(batch.get_meta(&"collides")), tag + ": a body-backed batch is marked collides")

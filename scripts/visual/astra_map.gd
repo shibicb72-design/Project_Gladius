@@ -11,6 +11,11 @@ var chunks: MapChunks  # M2P1A: the looks of cover, ring cover, structures and d
 ## M2P1A: decor id -> its batch type in source "decor" ("<kind>_<n>", n = the index of the entry's size among
 ## its kind's distinct sizes, first seen first). A decor look is chunks.batch_of("decor", decor_types[id], xform).
 var decor_types := {}
+## M2W1 item 5: WorldClutter.populate's report ({} = no clutter on this map or the switch is off).
+var clutter_report := {}
+## M2W1 astraB: the place map (PlaceMap; null when the ground has no detail path).
+var place_map: PlaceMap
+const PlaceMap := preload("res://scripts/visual/place_map.gd")
 ## The map json this scene builds. MatchRoot sets it before the map enters the tree; scenes built
 ## directly keep the default.
 @export var map_json: String = "res://data/maps/alesia_section.json"
@@ -36,7 +41,9 @@ func _ready() -> void:
 	var meshes := {}
 	for type: String in cfg["types"]:
 		var definition: Dictionary = cfg["types"][type]
-		meshes[type] = LowpolyKit.build_cover(definition)
+		# M2W1 astraA (F4): the kit-parts cover look on the same box when the world-kit looks are on (WorldKit.cover_mesh).
+		var look := WorldKit.cover_mesh(type)
+		meshes[type] = look if look != null else LowpolyKit.build_cover(definition)
 	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
 	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
 	# runs once, after the decor loop.
@@ -123,10 +130,24 @@ func _ready() -> void:
 	# M2 L1c commit 5: the ladders (the cover file's "ladders"), after the doors: outside Nav, non-blocking triggers.
 	if placed.has("ladders"):
 		_build_ladders(placed["ladders"])
+	# M2W1 item 5: the paint is made from the bodies' data only, so it comes before chunks.build(): the clutter
+	# (looks only, MapChunks source "clutter") reads the paint and every body, door and ladder built above.
+	_paint_ground(nav)
+	# M2W1 astraB: the place map (looks only; from the built bodies, never saved, never a hashed input) for the ground
+	# shader and the clutter; the clutter adds its contact blobs, then the texture goes to the ground material.
+	place_map = null
+	if ground_material != null and bool(ground_material.get_shader_parameter("detail_enabled")):
+		place_map = PlaceMap.build(self, ground_size_m)
+	clutter_report = WorldClutter.populate(self, chunks, map_def)
+	if place_map != null:
+		var contact_started := Time.get_ticks_usec()
+		place_map.add_contact(clutter_report.get("contact", []))
+		ground_material.set_shader_parameter("place_map", place_map.texture())
+		ground_material.set_shader_parameter("place_enabled", 1.0)
+		place_map.build_ms += int((Time.get_ticks_usec() - contact_started) / 1000)
 	chunks.build()
 	for body in chest_bodies:
 		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
-	_paint_ground(nav)
 	_build_terrain(nav)
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	# M2L1 (binding fix 5): a map json may switch it off ("backdrop": false; default true).
@@ -134,7 +155,7 @@ func _ready() -> void:
 		var backdrop := Backdrop.new()
 		backdrop.name = "Backdrop"
 		add_child(backdrop)
-		backdrop.build(ground_material)
+		backdrop.build(ground_material, map_json, terrain)  # M2W1 item 9: a map with an art_backdrop.json "maps" block gets its far backdrop
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
@@ -162,7 +183,9 @@ func _build_breakables(entries: Array) -> void:
 		if not meshes.has(key):
 			var look: Dictionary = (type_cfg.get("look", {}) as Dictionary).duplicate()
 			look["size"] = entry["size"]  # a "kind" look is sized by the collider box; "parts" carry their own sizes
-			meshes[key] = LowpolyKit.build_cover(look)
+			# M2W1 astraA (F4): parts looks get the cover looks' vertex data (part shades, variation) when the kit is on.
+			var kit_look := WorldKit.prop_look(key, look.get("parts", []))
+			meshes[key] = kit_look if kit_look != null else LowpolyKit.build_cover(look)
 		chunks.add("cover", type, meshes[key], WorldSurface.palette_material(body.palette), body.transform, true, body.prop_id)
 		body.chunks = chunks
 		body.fx_parent = self
@@ -190,10 +213,12 @@ func _build_chests(nav: Node, entries: Array) -> void:
 		var key := str(entry["size"])
 		if not meshes.has(key):
 			var k := LowpolyKit.vec(entry["size"]) / look_size
-			meshes[key] = [
-				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_closed", {}) as Dictionary).get("parts", []), k)}),
-				LowpolyKit.build_cover({"parts": scaled_parts((chest_cfg.get("look_open", {}) as Dictionary).get("parts", []), k)}),
-			]
+			meshes[key] = []
+			for look_key: String in ["look_closed", "look_open"]:
+				var parts := scaled_parts((chest_cfg.get(look_key, {}) as Dictionary).get("parts", []), k)
+				# M2W1 astraA (F4): the cover looks' vertex data (part shades, variation) when the kit is on.
+				var kit_look := WorldKit.prop_look("chest_%s%s" % [look_key, key], parts)
+				meshes[key].append(kit_look if kit_look != null else LowpolyKit.build_cover({"parts": parts}))
 		chunks.add("cover", "loot_chest", meshes[key][0], material, body.transform, true, body.prop_id)
 		chunks.add("cover", "loot_chest_open", meshes[key][1], material, body.transform, true, LootChest.open_id(body.prop_id))
 		body.chunks = chunks

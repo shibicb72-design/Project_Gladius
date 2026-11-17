@@ -36,8 +36,10 @@
 		"_shadow_rule": "Big cover = a cover type at least 1.8 m tall (taller than a standing soldier): pillar, arch, tall_wall, crate_stack, wreck_truck, wreck_apc; the same split for the ring. Rim decor (arches 9 m, rocks 4 m) is big but stays off: it stands at the map's rim, away from the fights, and never cast before.",
 		"sight_floor_m": 250,
 		"margin_m": 5,
-		"by_source": {"cover": "cover_small", "ring": "ring_small", "structure": "structure", "decor": "paving"},
+		"by_source": {"cover": "cover_small", "ring": "ring_small", "structure": "structure", "decor": "paving", "clutter": "clutter_prop"},
+		"_clutter_note": "M2W1 item 5 (OQ-ART-WORLD placeholders): clutter (data/art_clutter.json) never collides, so no sight floor applies; props end at 70 m, field scatter at 45 m (M2W1 astraB: the patches at 60 m; the foliage shader shrinks them away from 42 to 60 m, so they end softly) (plus the batch radius and margin, as every class), no shadows.",
 		"by_type": {
+			"clutter/veg_patch": "clutter_scatter", "clutter/stone_patch": "clutter_scatter",
 			"decor/arch": "decor_solid", "decor/rock": "decor_solid",
 			"cover/pillar": "cover_big", "cover/arch": "cover_big", "cover/tall_wall": "cover_big", "cover/crate_stack": "cover_big", "cover/wreck_truck": "cover_big", "cover/wreck_apc": "cover_big",
 			"ring/pillar": "ring_big", "ring/arch": "ring_big", "ring/tall_wall": "ring_big", "ring/crate_stack": "ring_big", "ring/wreck_truck": "ring_big", "ring/wreck_apc": "ring_big"
@@ -49,7 +51,9 @@
 			"ring_small": {"range_m": 300, "cast_shadows": false},
 			"ring_big": {"range_m": 300, "cast_shadows": true},
 			"decor_solid": {"range_m": 400, "cast_shadows": false},
-			"structure": {"range_m": 500, "cast_shadows": true}
+			"structure": {"range_m": 500, "cast_shadows": true},
+			"clutter_prop": {"range_m": 70, "cast_shadows": false},
+			"clutter_scatter": {"range_m": 60, "cast_shadows": false}
 		}
 	}
 }

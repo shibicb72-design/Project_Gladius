@@ -12,7 +12,9 @@ extends SceneTree
 const ROOT := "res://assets/generated"
 const CATALOG := "res://data/asset_catalog.json"
 const MANIFEST := "res://tools/blender/manifest.json"
-const TOOLS := {"textures": "tools/gen_textures.gd", "audio": "tools/gen_audio.gd", "ui": "tools/render_layout.gd"}  # M2 H1b: ui = the minimap pictures (--minimap)
+const TOOLS := {"textures": "tools/gen_textures.gd", "audio": "tools/gen_audio.gd", "ui": "tools/render_layout.gd", "world": "tools/blender/m2w1_world_kit.py"}  # M2 H1b: ui = the minimap pictures (--minimap); M2W1: world = the kit looks
+## M2W1 item 5: a file whose tool differs from its folder's (checked after the Blender manifest, before TOOLS).
+const FILE_TOOLS := {"res://assets/generated/world/m2w1_clutter.glb": "tools/blender/m2w1_clutter.py"}
 const NO_SOURCE := "generated in this project (no source material)"
 
 
@@ -54,7 +56,7 @@ static func entries(catalog: Dictionary = {}) -> Array:
 	for path in files(ROOT):
 		var folder := path.trim_prefix(ROOT + "/").get_slice("/", 0)
 		var row: Dictionary = made.get(path, {})
-		var entry := {"path": path, "made_by": String(row.get("made_by", TOOLS.get(folder, "")))}
+		var entry := {"path": path, "made_by": String(row.get("made_by", FILE_TOOLS.get(path, TOOLS.get(folder, ""))))}
 		var derived := String(row.get("derived_from", ""))
 		if derived != "":
 			entry["derived_from"] = derived

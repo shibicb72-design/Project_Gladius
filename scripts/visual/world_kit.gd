@@ -28,9 +28,41 @@ static func pieces_for(map_def: Dictionary) -> Array:
 
 
 ## The one material of every world kit mesh: vertex colours as paint (sRGB in data), textured by the paint's
-## surface (S2: WorldSurface, data/art_materials.json).
+## surface (S2: WorldSurface, data/art_materials.json). M2W1 astraA: with the Blender looks on, the shared material
+## also gets the per-instance variation uniforms (data/art_world_kit.json "variation"); they only touch vertices
+## whose CUSTOM0.x is not 0 (the glb looks), so every other user of the material draws as before.
 static func material() -> ShaderMaterial:
-	return WorldSurface.material()
+	var made := WorldSurface.material()
+	apply_variation(made, WorldKitMeshes.enabled())
+	return made
+
+
+## Sets (on) or zeroes (off) the variation uniforms of a world material.
+static func apply_variation(target: ShaderMaterial, on: bool) -> void:
+	var v: Dictionary = WorldKitMeshes.config().get("variation", {})
+	target.set_shader_parameter("variation_value", float(v.get("value", 0.0)) if on else 0.0)
+	target.set_shader_parameter("variation_warm", float(v.get("warm", 0.0)) if on else 0.0)
+	target.set_shader_parameter("variation_broad", float(v.get("broad_value", 0.0)) if on else 0.0)
+	target.set_shader_parameter("variation_cell_m", float(v.get("cell_m", 8.0)))
+	target.set_shader_parameter("variation_broad_m", float(v.get("broad_m", 70.0)))
+
+
+## M2W1 astraA (F4): the look of a one-box cover type (data/maps/alesia_cover.json types): its kit-parts look from
+## data/art_world_kit.json "cover" when art_world_kit_enabled is on and the type has an entry, else null (the
+## caller keeps LowpolyKit.build_cover). Every cover type has one box size, so the look is authored on it.
+static func cover_mesh(type: String) -> ArrayMesh:
+	if not WorldKitMeshes.enabled():
+		return null
+	return WorldKitMeshes.cover_mesh(type)
+
+
+## M2W1 astraA (F4): a breakable's or a chest's data/props.json look parts as one kit mesh with the cover looks'
+## vertex data (per-part "shade", CUSTOM0) when art_world_kit_enabled is on; else null (LowpolyKit.build_cover).
+## Cached per key.
+static func prop_look(key: String, parts: Array) -> ArrayMesh:
+	if not WorldKitMeshes.enabled() or parts.is_empty():
+		return null
+	return WorldKitMeshes.prop_mesh(key, parts)
 
 
 ## A "block" is the plain four-cornered box (16 triangles; the kit's chamfered box has 64).
@@ -75,10 +107,33 @@ static func build_mesh(definition: Dictionary) -> ArrayMesh:
 	return mesh
 
 
+## The look a batch draws for `type`. M2W1: with art_world_kit_enabled on and an entry in
+## data/art_world_kit.json, the Blender near mesh (WorldKitMeshes); "<type>_lod1" names its far mesh. Otherwise,
+## or when the glb or node is missing (one error line), the kit mesh built from the type's parts.
 static func mesh_for(type: String) -> ArrayMesh:
-	if not _meshes.has(type):
-		_meshes[type] = build_mesh(config()["types"][type])
-	return _meshes[type]
+	var split := WorldKitMeshes.split_level(type)
+	var base := String(split[0])
+	var level := int(split[1])
+	var glb := WorldKitMeshes.enabled() and WorldKitMeshes.has_entry(base)
+	var key := "%s/%d/%s" % [base, level, "glb" if glb else "kit"]
+	if not _meshes.has(key):
+		var made: ArrayMesh = WorldKitMeshes.mesh(base, level) if glb else null
+		_meshes[key] = made if made != null else build_mesh(config()["types"][base])
+	return _meshes[key]
+
+
+## M2W1: [far mesh, swap distance] when `type` draws a far LOD (the glb look is on and has both meshes), else [].
+static func lod_for(type: String) -> Array:
+	if not (WorldKitMeshes.enabled() and WorldKitMeshes.has_entry(type)) or WorldKitMeshes.swap_m(type) <= 0.0:
+		return []
+	if WorldKitMeshes.mesh(type, 0) == null or WorldKitMeshes.mesh(type, 1) == null:
+		return []
+	return [mesh_for(type + WorldKitMeshes.LOD1_SUFFIX), WorldKitMeshes.swap_m(type)]
+
+
+## Tests: forgets the cached looks (after switching art_world_kit_enabled).
+static func clear_mesh_cache() -> void:
+	_meshes.clear()
 
 
 ## The eight corners of a collider entry's size box (a wedge lies inside its box), in piece space.
@@ -246,5 +301,12 @@ static func populate(nav: Node, chunks: MapChunks, pieces: Array, terrain: MapTe
 		var body := build_body(String(entry["id"]), type, types[type], at, float(entry.get("yaw", 0.0)))
 		nav.add_child(body)
 		bodies.append(body)
-		chunks.add("structure", type, mesh_for(type), null, body.transform, not (types[type]["colliders"] as Array).is_empty())
+		var collides := not (types[type]["colliders"] as Array).is_empty()
+		chunks.add("structure", type, mesh_for(type), null, body.transform, collides)
+		# M2W1: the far look of the same piece (MapChunks draws one of the two by distance).
+		var lod := lod_for(type)
+		if not lod.is_empty():
+			var far_type := type + WorldKitMeshes.LOD1_SUFFIX
+			chunks.add("structure", far_type, lod[0], null, body.transform, collides)
+			chunks.pair_lod("structure", type, far_type, float(lod[1]))
 	return bodies
