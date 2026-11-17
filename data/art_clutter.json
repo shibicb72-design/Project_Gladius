@@ -166,8 +166,10 @@
 	"road_pockets": {"_placeholder": true, "every_m": 13.0, "offset_m": 2.2, "jitter_m": 1.5, "chance": 0.75, "types": ["stone_patch", "veg_patch", "veg_patch"], "seed": 611},
 	"_maps_note": "Clutter is built only for a map with a block here (the fixture maps alesia_section and test_300 have none, so they build exactly as before). scatter_half_m: scatter covers the square of this half width round the origin (the ground).",
 	"maps": {
-		"alesia_1km": {"scatter_half_m": 500}
+		"alesia_1km": {"scatter_half_m": 500},
+		"alesia_500": {"scatter_half_m": 250}
 	},
+	"_alesia_500_note": "M2 L2a (OQ-ART-WORLD / OQ-ALESIA-500 placeholder): maps.alesia_500 scatters over its 500 m ground square; the shared rules (max_height_m 0.6) and budgets apply unchanged.",
 	"_budgets_note": "Checked by tests/test_m2w1_clutter.gd: clutter triangles of the batches in range at the four perf points of tests/test_alesia_1km.gd (instances x mesh triangles, frustum ignored), clutter instances map-wide, clutter batches in one chunk (also rules.max_batches_per_chunk). M2W1 r2b: batches 250 -> 246 (the count before r2b: the edges and outposts may not add any).",
 	"budgets": {
 		"visible_tris": 80000,

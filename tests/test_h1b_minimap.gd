@@ -11,7 +11,7 @@ const _H1a := preload("res://tests/test_h1a_layout.gd")
 const _TouchHud := preload("res://scripts/ui/touch_hud.gd")
 const RenderLayout := preload("res://tools/render_layout.gd")
 const SIZES := [Vector2(2520, 1080), Vector2(2176, 1812), Vector2(1512, 648), Vector2(1152, 959), Vector2(2340, 1080), Vector2(3120, 1440)]
-const MAPS := ["alesia_1km", "test_300", "alesia_section"]
+const MAPS := ["alesia_1km", "test_300", "alesia_section", "alesia_500"]
 const TMP := "user://test_h1b_minimap_profile.json"
 const TOL := 1.0  # px
 

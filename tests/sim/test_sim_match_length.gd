@@ -12,8 +12,12 @@ extends "res://tests/test_case.gd"
 ## A match not over after WALL_CAP_MS of wall time is REPORTED (an "ML UNFINISHED" line), not failed.
 ## Output: single-line "ML ..." lines, key=value, mode and seed on every line. On each line the part before
 ## " | " is the deterministic part (compare runs on it); wall-clock numbers come after it.
+## M2 L2a: --sim-map=<id> (after `--`) plays res://data/maps/<id>.json instead (default alesia_1km; the ML line
+## format is unchanged and has no map field).
 
 const _MatchScene := preload("res://scenes/match/match.tscn")
+const _Sim := preload("res://tests/sim/test_sim_alesia_1km.gd")
+## The default map (no --sim-map); the one played is _Sim.sim_map().
 const MAP := "res://data/maps/alesia_1km.json"
 const WALL_CAP_MS := 25 * 60 * 1000
 ## Seed 1 of each mode is the L1 sim's (tests/sim/test_sim_alesia_1km.gd SOLO_SEED / SQUADS_SEED).
@@ -70,7 +74,8 @@ func test_match_length() -> void:
 func _run(mode: String, seed_value: int, max_game_s: float) -> void:
 	var tree := _tree()
 	var tag := "mode=%s seed=%d" % [mode, seed_value]
-	var def := DataRegistry.parse_quiet(MAP)
+	var map := _Sim.sim_map()
+	var def := DataRegistry.parse_quiet(map)
 	var landmarks: Array = DataRegistry.parse_quiet(String(def["landmarks"]))["landmarks"]
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false
@@ -78,10 +83,10 @@ func _run(mode: String, seed_value: int, max_game_s: float) -> void:
 	m.seed_override = seed_value
 	m.drop_from_sky = true
 	m.ground_loot = true
-	m.map_path_override = MAP
+	m.map_path_override = map
 	tree.root.add_child(m)
 	await tree.physics_frame
-	m.director.load_config(MAP)  # the merge a real match does; nothing below changes a timing
+	m.director.load_config(map)  # the merge a real match does; nothing below changes a timing
 	m.director.mode_cfg["teams"]["mode"]["value"] = mode
 	var wall_start := Time.get_ticks_msec()
 	var tps := float(Engine.physics_ticks_per_second)
@@ -127,7 +132,7 @@ func _run(mode: String, seed_value: int, max_game_s: float) -> void:
 	var begin_t := Time.get_ticks_msec()
 	assert_true(m.begin(), "begin %s" % mode)
 	var begin_ms := Time.get_ticks_msec() - begin_t
-	assert_eq(m.map_path, MAP, "the match plays alesia_1km")
+	assert_eq(m.map_path, map, "the match plays " + _Sim.sim_map_id())
 	assert_eq(m.nav_bakes, 0, "the saved 1 km mesh loads (no bake at match start)")
 	# Real timings: the phases and the carrier are the map's own (generated) numbers, unscaled.
 	var zone_cfg: Dictionary = m.director.mode_cfg["zone"]

@@ -34,13 +34,13 @@ func _new_match() -> MatchRoot:  # call with await; same setup as test_match_sce
 	return m
 
 
-## M2L1 (binding fix 2): the select file names alesia_1km for real matches; MAP_PATH stays the test fixture.
+## M2L1 (binding fix 2): the select file names the real-match map (M2 L2a: alesia_500); MAP_PATH stays the test fixture.
 func test_map_select_defaults_to_alesia() -> void:
 	var data := DataRegistry.new().load_file(DataRegistry.MAP_SELECT_PATH)
-	assert_eq(str(data.get("map", "")), "res://data/maps/alesia_1km.json", "map_select.json names alesia_1km (real matches)")
+	assert_eq(str(data.get("map", "")), "res://data/maps/alesia_500.json", "map_select.json names alesia_500 (real matches)")
 	assert_eq(MatchRoot.MAP_PATH, "res://data/maps/alesia_section.json", "MatchRoot.MAP_PATH stays the alesia_section fixture")
 	var chosen := MatchRoot.select_map(DataRegistry.MAP_SELECT_PATH, NO_FILE)
-	assert_eq(chosen["path"], "res://data/maps/alesia_1km.json", "selected path")
+	assert_eq(chosen["path"], "res://data/maps/alesia_500.json", "selected path")
 	assert_eq(chosen["error"], "", "no error")
 
 

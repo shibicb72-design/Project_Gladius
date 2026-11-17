@@ -119,7 +119,7 @@ func test_the_three_navigation_meshes_are_fresh() -> void:  # not "saved_nav": -
 		assert_true(reasons.is_empty(), "%s: saved navigation is stale: %s" % [map_path, "; ".join(reasons)])
 		var manifest := DataRegistry.parse_quiet(MapNav.manifest_path(map_path))
 		print("M2W1_NAV map=%s mesh_sha256=%s polygons=%s fresh=%s" % [map_path, manifest.get("mesh_sha256", ""), str(manifest.get("polygons", "")), reasons.is_empty()])
-	assert_eq(_BakeTool.DEFAULT_MAPS.size(), 3, "three saved maps")
+	assert_eq(_BakeTool.DEFAULT_MAPS.size(), 4, "four saved maps (M2L2a: alesia_500 joined the three)")
 
 
 ## The snapshot file is no input of any saved navigation manifest (it must never make a mesh stale).

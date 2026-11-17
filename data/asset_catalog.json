@@ -1451,6 +1451,13 @@
 			"sha256": "26a6b1b5c4c9938896590acd294293238a9a03c9c742556700cc28314fef9411"
 		},
 		{
+			"path": "res://assets/generated/ui/minimap_alesia_500.png",
+			"made_by": "tools/render_layout.gd",
+			"licence": "generated in this project (no source material)",
+			"bytes": 84826,
+			"sha256": "6893ad2514088ed40af910da3474254efcef2d75b9e50654c0dca52597663fc0"
+		},
+		{
 			"path": "res://assets/generated/ui/minimap_alesia_section.png",
 			"made_by": "tools/render_layout.gd",
 			"licence": "generated in this project (no source material)",

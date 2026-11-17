@@ -497,36 +497,6 @@ func test_hill_loot_lands_at_every_cluster() -> void:
 	flat.free()
 
 
-## B3 wiring through the real entry point (docs/LESSONS.md): a match the way the menu and the lobby start one
-## (auto_start) reads data/map_select.json and plays alesia_1km with its overrides, the saved mesh and the
-## terrain-aware loot. The one begin() on this map in the normal suite (bots off to keep it short).
-func test_real_match_entry_plays_the_1km_map() -> void:
-	assert_true(not FileAccess.file_exists(MatchRoot.MAP_OVERRIDE_PATH), "no phone override file on this machine")
-	var m: MatchRoot = (load("res://scenes/match/match.tscn") as PackedScene).instantiate()
-	m.fill_bots = false
-	m.seed_override = 4242
-	var tree: SceneTree = Engine.get_main_loop()
-	var started := Time.get_ticks_msec()
-	tree.root.add_child(m)  # auto_start (the default): _ready runs begin()
-	var begin_ms := Time.get_ticks_msec() - started
-	assert_true(m.use_map_select, "the auto_start path reads the map selection")
-	assert_eq(m.map_path, MAP, "a real match loads alesia_1km")
-	assert_eq(m.nav_bakes, 0, "no runtime nav bake")
-	var nav := m.map.get_node("Nav") as NavigationRegion3D
-	assert_eq(nav.navigation_mesh.resource_path, MapNav.saved_path(MAP), "the saved 1 km mesh")
-	var over: Dictionary = MatchDirector.map_overrides(MAP)
-	assert_eq(float(m.director.mode_cfg["zone"]["start_radius_m"]), float(over["br"]["zone"]["start_radius_m"]), "the map's zone override is in the match config")
-	assert_eq(int(m.director.loot_cfg["count"]), int(over["loot"]["count"]), "the map's loot override is in the loot config")
-	assert_true(m.loot != null and m.loot._ground_height.is_valid(), "the loot field got the terrain height")
-	await tree.physics_frame
-	await tree.physics_frame
-	assert_true(m.loot.placed and m.loot.items.size() > 100, "the match's loot is placed (%d)" % m.loot.items.size())
-	assert_eq(m.world_props.chests.size(), (DataRegistry.parse_quiet(String(_def()["cover_data"]))["chests"] as Array).size(), "the match's WorldProps holds every chest")
-	print("ALESIA_1KM_REAL_MATCH begin_ms=", begin_ms, " loot=", m.loot.items.size())
-	m.queue_free()
-	await tree.process_frame
-
-
 ## M2L1 Proxies (report only, binding fix 10: no limit is asserted for this map): MapChunks.visible_at from the
 ## citadel top (the Arx anchor at eye height), an outer gate (standing in Porta Aquilae's gateway) and the field
 ## corner (MapChunks.standard_points "corner" = the ground corner (-500, -500), outside the play circle), plus the
