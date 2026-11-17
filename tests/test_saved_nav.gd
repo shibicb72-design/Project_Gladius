@@ -111,7 +111,7 @@ static func _length(path: PackedVector3Array) -> float:
 
 
 func test_committed_meshes_are_fresh() -> void:
-	# M2 L2b: alesia_500 like BIG: hash checks only here (tests/test_alesia_500.gd builds it).
+	# M2 L2a: alesia_500 like BIG: hash checks only here (tests/test_alesia_500.gd builds it).
 	var mid := "res://data/maps/alesia_500.json"
 	assert_eq(_BakeTool.DEFAULT_MAPS, [ALESIA, MAP, BIG, mid] as Array[String], "tools/bake_nav.gd bakes the four maps by default, named explicitly")
 	for map_path: String in MAPS + [BIG, mid]:

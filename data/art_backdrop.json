@@ -165,7 +165,7 @@
 			"budgets": {"draws": 8, "tris": 15000}
 		}
 	},
-	"_alesia_500_note": "M2 L2b (OQ-ART-WORLD / OQ-ALESIA-500 placeholders): maps.alesia_500 is alesia_1km's far backdrop over a 250 m half ground: the same skirt steps (from the 250 m edge), hill rings, bands, spire and beacons (all far beyond the 500 m ground: the nearest hill foot at about 860 m), the far aqueduct moved in by 250 m (from 430 m out), the cypress clumps 400 to 780 m out (beyond the square by clear_of_square_m and 150 m beyond the outer wall at 222 m).",
+	"_alesia_500_note": "M2 L2a (OQ-ART-WORLD / OQ-ALESIA-500 placeholders): maps.alesia_500 is alesia_1km's far backdrop over a 250 m half ground: the same skirt steps (from the 250 m edge), hill rings, bands, spire and beacons (all far beyond the 500 m ground: the nearest hill foot at about 860 m), the far aqueduct moved in by 250 m (from 430 m out), the cypress clumps 400 to 780 m out (beyond the square by clear_of_square_m and 150 m beyond the outer wall at 222 m).",
 	"hills": {
 		"seed": 17,
 		"surface": "rock",

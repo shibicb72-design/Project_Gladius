@@ -1,5 +1,5 @@
 extends "res://tests/test_case.gd"
-## M2 L2b: the ONE suite file that builds the 500 m Alesia scene (data/maps/alesia_500.json, OQ-ALESIA-500
+## M2 L2a: the ONE suite file that builds the 500 m Alesia scene (data/maps/alesia_500.json, OQ-ALESIA-500
 ## placeholders) for its scene checks, as tests/test_alesia_1km.gd does for the 1 km map: the built map is a static,
 ## built by the first method that asks (_map()) and freed by the last method (test_zz_free_the_map). Data-only checks
 ## live in tests/test_alesia_500_data.gd; tests/test_ground_contact.gd measures the visuals once more on its own.

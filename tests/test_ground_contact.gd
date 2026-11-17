@@ -102,7 +102,7 @@ static func contact_report(map: Node, def: Dictionary) -> Dictionary:
 		"far_families": far_families, "far_floating": far_floating, "far_step_m": far_step, "terrain_tris": terrain_tris(builder)}
 
 
-## M2 L2b: the terrain's triangles as built (ArtBuilder/Terrain/Chunk_*/Mesh and Far): {chunks, near, far}.
+## M2 L2a: the terrain's triangles as built (ArtBuilder/Terrain/Chunk_*/Mesh and Far): {chunks, near, far}.
 static func terrain_tris(builder: Node) -> Dictionary:
 	var out := {"chunks": 0, "near": 0, "far": 0}
 	var root := builder.get_node_or_null("Terrain")
