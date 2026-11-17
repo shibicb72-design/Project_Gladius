@@ -1267,7 +1267,25 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `data/anim_third_person.json` `head` (placeholders; `limits` is what the test asserts). `SoldierRig.head_legacy`
   (tools: `--legacy-head`) restores the old behaviour. Gap max before -> after [measured]: idle 0.035 -> 0.010,
   jog 0.191 -> 0.060, sprint 0.340 -> 0.047, fall and land 0.286 -> 0.084 m; helmet off the hitbox 0.06-0.135 ->
-  0.000 m upright. Test: `tests/test_soldier_head_motion.gd`.
+  0.000 m upright. Test: `tests/test_soldier_head_motion.gd`. The fall's limits were fitted to the measured result
+  (`head._limits_note`: 30.99 deg vs 32, 0.0843 m vs 0.09).
+- **Crouched low-cover hug (M2 AN3 review fix).** `test_crouched_cover_hug_ramped` ticks the real `CoverController`
+  with a low-wall probe, so `crouch_amount` ramps over `cover.json` `crouch_blend_s` and the head hitbox lowers with
+  it, then rises over the wall (Aim, `aim_out_s`) and back. Cause found: CoverAnim showed the cover crouch at its
+  layer's fade times `crouch_amount`, so entering low cover the helmet lagged the lowering hitbox (0.088 m) and the
+  hunch turned at up to 841 deg/s; `CoverAnim._show_crouch` now divides the crouch blend by the layer's weight while
+  it fades in (settled poses unchanged). Ramped rise [measured; legacy and after by `cover_rise_ramped`, before this
+  fix by the test at fc6a118], legacy -> before this fix -> after: gap max 0.133 ->
+  0.068 -> 0.069 m, helmet off the hitbox 0.000 -> 0.088 -> 0.000 m, neck-chest rate 726 -> 936 -> 709 deg/s,
+  neck-chest 75.6 -> 88.3 -> 88.6 deg (within `exceptions.cover_crouch`). The rate cannot stay under 650: the rise
+  sweeps about 82 deg of hunch in `aim_out_s` (0.12 s, gameplay), 681 deg/s on average, the legacy path too (726), so
+  `exceptions.cover_crouch.neck_chest_rate_max_dps` is 750 (`head._exceptions_note`). The tool's old `cover_crouch` /
+  `cover_rise` states snap the crouch (0.136 m, 1357 deg/s); `cover_crouch_ramped` / `cover_rise_ramped` do not.
+- **Tool and debug switches, default off, not gameplay** (static vars; nothing in the game sets them):
+  `SoldierRig.head_legacy` (the pre-AN3 head and body; `--legacy-head` in `head_motion_measure.gd`,
+  `soldier_capture.gd`, `cover_capture.gd`, `drop_capture.gd`, `anim_cost.gd`), `SoldierPose.measure_off` and `CoverAnim.measure_clip_neck` (per-source attribution in
+  `tools/head_motion_measure.gd` only), `SoldierModel.code_built_reload` (the code-built reload; capture
+  `--code-reload`).
 - **Free crouch (M2 AN3).** `SoldierModel.crouch_amount()` reads `pawn.crouch_amount()` only if the pawn has the
   method (H1c), else the cover crouch behind `in_cover()`; without the method nothing changes. Out of cover the
   lower body blends to the existing `cover_crouch_idle` / `cover_crouch_move` clips (idle to moving by ground
@@ -1307,7 +1325,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   0.4-0.6 ms, skeleton modifiers and IK 1.1-1.4 ms); `tools/frame_time.gd` on alesia_1km, 1509x648: 303 draw
   calls, render CPU 0.69-0.71 ms, GPU 0.87-0.89 ms. Frame time on the Fold is not measured. M2 AN3 (same desktop
   proxy, 18 soldiers, legacy head vs after): 2.58 vs 3.17 ms in one pair, 2.82 vs 3.11 ms in another, noisy on the
-  shared machine; the phone cost is unknown.
+  shared machine; the phone cost is unknown. Both "after" figures are above the 2.3-3.0 ms band measured at AN2
+  (the soldier gained a modifier, SoldierNeck): check the animation cost on the phone before more is added.
 - **Tests** (AN1): `test_view_model_art.gd`, `test_view_motion.gd`, `test_view_combat_fx.gd`,
   `test_soldier_clips.gd`, `test_soldier_footslide.gd`, `test_soldier_budget.gd`. (AN2):
   `test_blender_pipeline.gd` (bone axes, weights, colour and UV2 through the importer), `test_soldier_glb.gd`

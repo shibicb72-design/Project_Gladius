@@ -24,12 +24,14 @@ const DEFAULT_OUT := "C:/Users/shibi/OpenBot/Agents/agent-afa1d96b-b33b-4ce0-8b3
 const STATES: Array[String] = ["idle", "walk", "jog", "sprint", "strafe_left", "strafe_right", "backpedal",
 	"turn_stand", "turn_jog", "aim_down", "aim_level", "aim_up", "aim_sweep", "fire", "reload", "hit_chest", "hit_head",
 	"fall_land", "cover_stand", "cover_crouch", "cover_peek", "cover_rise", "downed_crawl", "revive",
-	"crouch_idle", "crouch_walk", "crouch_unmoved"]
+	"crouch_idle", "crouch_walk", "crouch_unmoved", "cover_crouch_ramped", "cover_rise_ramped"]
+## cover_crouch and cover_rise are SNAPPED (crouch_amount forced to 1 at entry, the rise's crouch forced from
+## aim_out_amount over 0.25 s); cover_crouch_ramped / cover_rise_ramped tick the real CoverController (M2 AN3 review fix).
 const ALL := ["*"]
 ## source id -> [label, states it is run on (ALL = every state)]
 const SOURCES := {
 	"aim": ["1 aim pitch on the Chest (aim clips' Chest key = identity)", ["aim_down", "aim_level", "aim_up", "aim_sweep"]],
-	"cover_pin": ["2 cover Neck pin (keyed cover clips keep their own Neck tracks)", ["cover_stand", "cover_crouch", "cover_peek", "cover_rise"]],
+	"cover_pin": ["2 cover Neck pin (keyed cover clips keep their own Neck tracks)", ["cover_stand", "cover_crouch", "cover_peek", "cover_rise", "cover_crouch_ramped", "cover_rise_ramped"]],
 	"carry_neck": ["3a _carry_neck (revive kneel carries no neck)", ["revive"]],
 	"body_turn_neck": ["3b whole-body turn not applied to the Neck root (what-if: helmet held on the hitbox)", ALL],
 	"lean": ["3c lean into movement (poses.lean = 0)", ALL],
@@ -356,7 +358,37 @@ func _script(state: String) -> void:
 			_pawn.drop_state = Pawn.Drop.NONE
 			_pawn.landed.emit()
 			await _hold(1.4)
+		"cover_crouch_ramped", "cover_rise_ramped":
+			# M2 AN3 review fix: the low-cover hug as the game drives it. The REAL CoverController is ticked every frame
+			# with a hand-built probe of a LOW wall (height_m 1.0 under muzzle_height_m 1.3, the same wall_key, clear to
+			# stand), from ENTERING: its _update_crouch ramps crouch_amount 0 -> 1 over cover.json crouch_blend_s and
+			# Pawn._apply_cover_shapes lowers the head hitbox with it (as Pawn's physics tick). The rise: Aim held 1 s
+			# (crouch 1 -> 0 over aim_out_s), then released 0.6 s (back down over aim_return_s).
+			var controller := _pawn.cover
+			controller.side = 1
+			controller.tangent = Vector3.RIGHT
+			controller.normal = Vector3.BACK
+			controller.wall_key = "measure_wall"
+			controller.state = CoverController.State.ENTERING
+			var probe := {"hit": true, "wall_key": "measure_wall", "height_m": 1.0, "muzzle_height_m": 1.3, "stand_clear": true,
+				"weapon_ready": true, "shot_clear": true, "left_m": 5.0, "right_m": 5.0, "slide_speed_mps": 0.0, "basis": Basis.IDENTITY}
+			var aiming := [false]
+			var tick := func(_t: float) -> void:
+				probe["position"] = _pawn.global_position
+				controller.tick(DT, Vector2.ZERO, false, probe, aiming[0])
+				_pawn._apply_cover_shapes()
+				_pawn.set_meta(&"measure_velocity", Vector3.ZERO)
+			await _hold(1.4, Vector3.ZERO, tick)
+			if state == "cover_rise_ramped":
+				aiming[0] = true
+				await _hold(1.0, Vector3.ZERO, tick)
+				aiming[0] = false
+				await _hold(0.6, Vector3.ZERO, tick)
+			else:
+				await _hold(1.0, Vector3.ZERO, tick)
+			_log("  %s: crouch_amount=%.2f state=%s head_node_y=%.3f" % [state, controller.crouch_amount, controller.state_name(), (_pawn.get_node("Head") as Node3D).position.y])
 		"cover_stand", "cover_crouch", "cover_peek", "cover_rise":
+			# cover_crouch / cover_rise: SNAPPED (crouch_amount forced; see the STATES note).
 			var controller := _pawn.cover
 			controller.side = 1
 			controller.tangent = Vector3.RIGHT

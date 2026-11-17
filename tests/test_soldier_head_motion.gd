@@ -166,6 +166,116 @@ func test_neck_stays_connected_and_the_helmet_on_the_hitbox() -> void:
 		await _free()
 
 
+## M2 AN3 review fix: the crouched (LOW cover) hug, entered and left the way the game does it. The REAL CoverController
+## is ticked every frame with a hand-built probe (a low wall: height_m under muzzle_height_m, the same wall_key, clear
+## to stand), so its own _update_crouch ramps crouch_amount 0 -> 1 over cover.json crouch_blend_s while ENTERING, and
+## Pawn._apply_cover_shapes lowers the head hitbox with it, as Pawn's physics tick does. Sampled from the first
+## ENTERING frame through the settled hug, the rise over the wall (Aim held: crouch 1 -> 0 over aim_out_s) and back
+## down (aim_return_s). Asserts exceptions.cover_crouch's neck limit (the hunched low hug), the gap, the rate and the
+## helmet on the lowered hitbox, and that the low-pass never passes its target and the neck settles monotonically.
+func test_crouched_cover_hug_ramped() -> void:
+	SoldierRig.head_legacy = false
+	await _spawn(true)
+	var controller := _pawn.cover
+	var cover_cfg := controller.config
+	controller.side = 1
+	controller.tangent = Vector3.RIGHT
+	controller.normal = Vector3.BACK
+	controller.wall_key = "test_wall"
+	controller.state = CoverController.State.ENTERING
+	var probe := {"hit": true, "wall_key": "test_wall", "height_m": 1.0, "muzzle_height_m": 1.3, "stand_clear": true,
+		"weapon_ready": true, "shot_clear": true, "left_m": 5.0, "right_m": 5.0, "slide_speed_mps": 0.0, "basis": Basis.IDENTITY}
+	var aiming := [false]
+	var amounts: Array[float] = []
+	var eps := deg_to_rad(float(_limits()["monotonic_eps_deg"]))
+	var overshoot := [0.0]
+	var settle: Array[Quaternion] = []
+	var each := func(_f: int) -> Vector3:
+		probe["position"] = _pawn.global_position
+		controller.tick(DT, Vector2.ZERO, false, probe, aiming[0])
+		_pawn._apply_cover_shapes()
+		amounts.append(controller.crouch_amount)
+		return Vector3.ZERO
+	var ramp_frames := ceili(float(cover_cfg["crouch_blend_s"]) / DT)
+	# Entry and crouch ramp, then the settled hug: the neck must approach its settled pose monotonically.
+	var worst: Dictionary = await _run_watched(ramp_frames + 60, each, overshoot, settle)
+	var reversal := _reversal(settle)
+	assert_true(controller.state == CoverController.State.IN_COVER and controller.crouched, "nonvacuous: the controller crouched in the low hug")
+	assert_true(amounts[0] > 0.0 and amounts[0] < 0.5 and is_equal_approx(amounts[-1], 1.0), "nonvacuous: crouch_amount ramped in (%.3f .. %.3f), not snapped" % [amounts[0], amounts[-1]])
+	# The rise over the wall (Aim held) and back down.
+	aiming[0] = true
+	var rise: Dictionary = await _run_watched(ceili(float(cover_cfg["aim_out_s"]) / DT) + 20, each, overshoot, [])
+	assert_true(controller.crouch_amount == 0.0 and controller.aim_out_amount == 1.0, "nonvacuous: the soldier rose (crouch %.2f)" % controller.crouch_amount)
+	aiming[0] = false
+	var down: Dictionary = await _run_watched(ceili(float(cover_cfg["aim_return_s"]) / DT) + 40, each, overshoot, [])
+	assert_true(controller.crouch_amount == 1.0, "nonvacuous: back down in the low hug (crouch %.2f)" % controller.crouch_amount)
+	for key: String in worst:
+		if worst[key] is Vector3:
+			worst[key] = (worst[key] as Vector3).max(rise[key]).max(down[key])
+		else:
+			worst[key] = maxf(float(worst[key]), maxf(float(rise[key]), float(down[key])))
+	var limits := _limits()
+	var exception: Dictionary = SoldierRig.head_cfg()["exceptions"]["cover_crouch"]
+	print("HEAD_MOTION cover_crouch_ramped neck_chest_max_deg=%.2f rate_max_dps=%.1f gap_max_m=%.4f helmet_off_m=%.4f neck_axes=%s head_axes=%s overshoot_deg=%.4f reversal_deg=%.4f" % [
+		worst["angle"], worst["rate"], worst["gap"], worst["helmet"], worst["Neck"], worst["Head"], rad_to_deg(overshoot[0]), rad_to_deg(reversal)])
+	for key: String in ["Neck", "Head"]:
+		var allowed := LowpolyKit.vec(exception[key.to_lower() + "_max_deg"]) + Vector3.ONE * NOISE_DEG
+		var axes: Vector3 = worst[key]
+		assert_true(axes.x <= allowed.x and axes.y <= allowed.y and axes.z <= allowed.z, "cover crouch: %s vs Chest %s deg (pitch, yaw, roll) within exceptions.cover_crouch %s" % [key, axes, exception[key.to_lower() + "_max_deg"]])
+	assert_true(float(worst["angle"]) <= float((exception["neck_max_deg"] as Array).max()), "cover crouch: neck-chest %.2f deg within the exception's largest axis" % worst["angle"])
+	# The rate: exceptions.cover_crouch's (the rise sweeps the hunch in cover.json aim_out_s; see head._exceptions_note).
+	assert_true(float(worst["rate"]) <= float(exception["neck_chest_rate_max_dps"]), "cover crouch: neck-chest rate %.1f deg/s within %s" % [worst["rate"], exception["neck_chest_rate_max_dps"]])
+	assert_true(float(worst["gap"]) <= float(limits["gap_max_m"]), "cover crouch: gap %.4f m within %s" % [worst["gap"], limits["gap_max_m"]])
+	assert_true(float(worst["helmet"]) <= float(limits["helmet_tolerance_m"]), "cover crouch: helmet %.4f m off the lowered head hitbox (tolerance %s)" % [worst["helmet"], limits["helmet_tolerance_m"]])
+	assert_true(overshoot[0] <= eps, "cover crouch: the neck low-pass never passes its target (%.4f deg)" % rad_to_deg(overshoot[0]))
+	assert_true(reversal <= eps, "cover crouch: the neck settles monotonically through the ramp (%.4f deg back)" % rad_to_deg(reversal))
+	await _free()
+
+
+## _run with the low-pass overshoot (shown vs target, as test_step_inputs_have_no_overshoot) kept in overshoot[0] and
+## each frame's neck rotation appended to `poses`.
+func _run_watched(frames: int, each: Callable, overshoot: Array, poses: Array) -> Dictionary:
+	var worst := {"angle": 0.0, "rate": 0.0, "gap": 0.0, "helmet": 0.0}
+	var previous: Variant = null
+	for f in frames:
+		var before := _model.neck.shown
+		await _step(each.call(f))
+		var reach := before.angle_to(_model.neck.target)
+		overshoot[0] = maxf(float(overshoot[0]), maxf(_model.neck.shown.angle_to(_model.neck.target) - reach, before.angle_to(_model.neck.shown) - reach))
+		var now := _frame()
+		worst["angle"] = maxf(worst["angle"], rad_to_deg((now[0] as Quaternion).get_angle()))
+		var rate := rad_to_deg((previous as Quaternion).angle_to(now[0])) / DT if previous != null else 0.0
+		worst["rate"] = maxf(worst["rate"], rate)
+		previous = now[0]
+		worst["gap"] = maxf(worst["gap"], float(now[1]))
+		worst["helmet"] = maxf(worst["helmet"], float(now[2]))
+		# Per axis (pitch, yaw, roll; SoldierNeck's Euler order) against the chest, for the exception's per-axis limits.
+		var chest_q := _bone("Chest").basis.get_rotation_quaternion()
+		for key: String in ["Neck", "Head"]:
+			var e := Basis(chest_q.inverse() * _bone(key).basis.get_rotation_quaternion()).get_euler()
+			var axes: Vector3 = worst.get(key, Vector3.ZERO)
+			worst[key] = Vector3(maxf(axes.x, absf(rad_to_deg(e.x))), maxf(axes.y, absf(rad_to_deg(e.y))), maxf(axes.z, absf(rad_to_deg(e.z))))
+		poses.append(now[3])
+		if OS.get_cmdline_user_args().has("--head-trace"):
+			print("HEAD_TRACE f=%d crouch=%.3f mix=%.2f angle=%.2f rate=%.0f gap=%.4f helmet=%.4f chest=%s neck=%s" % [f, _pawn.cover.crouch_amount, _cover._mix_shown, rad_to_deg((now[0] as Quaternion).get_angle()),
+				rate, now[1], now[2],
+				(_bone("Chest").basis.get_euler() * 57.2958).round(), (_bone("Neck").basis.get_euler() * 57.2958).round()])
+	return worst
+
+
+## The largest step back away from the last pose, once a pose sequence has come closer to it (0: monotonic).
+func _reversal(poses: Array) -> float:
+	var reversal := 0.0
+	var end: Quaternion = poses[-1]
+	var best := INF
+	for pose: Quaternion in poses:
+		var away := pose.angle_to(end)
+		if away > best:
+			reversal = maxf(reversal, away - best)
+		best = minf(best, away)
+	return reversal
+
+
 ## SoldierNeck's low-pass never passes its target, and a settling neck approaches its end pose monotonically.
 func test_step_inputs_have_no_overshoot() -> void:
 	SoldierRig.head_legacy = false

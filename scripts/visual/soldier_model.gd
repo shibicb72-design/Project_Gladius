@@ -166,7 +166,7 @@ func _ready() -> void:
 	neck.pose = pose
 	skeleton.add_child(neck)
 	neck.setup()
-	_keyed =SoldierRig.config().get("keyed", {})
+	_keyed = SoldierRig.config().get("keyed", {})
 	for slot: String in ["ladder_up", "ladder_down", "ladder_top"] + ACTIONS:
 		var clip := SoldierAnimation.shared(slot, skeleton)
 		if clip != null:
@@ -488,6 +488,9 @@ func _drive_crouch(head: Dictionary, ground_speed: float) -> void:
 		open *= 1.0 - clampf(float(pose.weights["downed"]), 0.0, 1.0)
 		if not pawn.is_alive() or pawn.drop_state != Pawn.Drop.NONE or not pawn.has_method(&"crouch_amount"):
 			open = 0.0  # without the method there is no free crouch: the cover crouch stays CoverAnim's, as before
+		# Assumption: the skeleton-space Head rest height is compared with the pawn-local Head node height. That holds
+		# only while SoldierModel sits at the pawn origin with unit scale (it does: helmet 0.0000 m off the hitbox in
+		# every upright state, tests/test_soldier_head_motion.gd); an offset or scaled model must convert between them.
 		var standing := skeleton.get_bone_global_rest(skeleton.find_bone("Head")).origin.y
 		var raw := maxf(standing - (_pawn.get_node("Head") as Node3D).position.y, 0.0)
 		drop = raw * open
