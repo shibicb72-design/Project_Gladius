@@ -17,6 +17,10 @@
                                                                               "made_by":  "tools/blender/build_soldier_keyed.py",
                                                                               "derived_from":  ""
                                                                           },
+                  "res://assets/generated/characters/soldier_rifle.glb":  {
+                                                                              "made_by":  "tools/blender/build_soldier_rifle.py",
+                                                                              "derived_from":  ""
+                                                                          },
                   "res://assets/generated/characters/view_arms.glb":  {
                                                                           "made_by":  "tools/blender/build_view_arms.py",
                                                                           "derived_from":  ""

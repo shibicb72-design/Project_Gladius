@@ -19,7 +19,23 @@
 		"reload_left_offsets_m": [[0, 0, 0], [0.0, -0.1, 0.13], [0.02, -0.3, 0.16], [0.1, -0.4, 0.24], [0.0, -0.1, 0.13], [0.06, 0.03, 0.02], [0, 0, 0]],
 		"reload_cant_deg": [0, 18, 26, 22, 26, 12, 0],
 		"reload_chest_deg": [0, -4, -7, -5, -6, -2, 0],
-		"fire_chest_deg": -2.5, "fire_spine_deg": -1.2, "fire_arm_deg": -3.5
+		"fire_chest_deg": -2.5, "fire_spine_deg": -1.2, "fire_arm_deg": -3.5,
+		"reload_keyed": {
+			"_placeholder": true,
+			"_todo": "OQ-ANIM-RELOAD (M2 AN3): the Blender-keyed rifle reload per gun (tools/blender/build_soldier_rifle.py -> assets/generated/characters/soldier_rifle.glb, slots reload_<gun> in data/anim_sources.json; SoldierModel plays it before the code-built reload). Same stage times (reload_key_fractions), rifle cant (reload_cant_deg) and chest lean (reload_chest_deg) as the code-built clip, but every left-hand key is a point ON the shown gun (or on the belt), so the hand rides the canted gun and starts and ends on that gun's foregrip (no jump when the reload starts, no snap when the left-hand IK takes the hand back). left: per key, at = foregrip (soldier.gun.weapons.<gun>.foregrip_m), cell (the magazine: data/art_soldier.json weapons.<gun>.cell.at), charge (the charging handle: weapons.<gun>.charge.at) or pouch (pouch_m, skeleton metres, the belt pouch; it stays with the hips while the chest leans); off_m: metres from that point in the gun's frame (barrel -Z, top +Y) or the body's for the pouch; hand_deg: the left hand's turn in the chest frame (Euler YXZ degrees); then_m: after the key the hand moves through this extra offset and back over the first half of the next stage (the magazine shoved home, the charging handle run). authored_frames: the clip's length in 1/30 s frames (every key fraction lands on a frame); the runtime scales it to WeaponDef.reload_s (ClipLibrary.fit). snap_max_m: the largest one-frame left-hand move allowed when the reload ends and the IK takes the hand back (tests/test_soldier_rifle_glb.gd). Every number is a presentation trial, not a design value.",
+			"authored_frames": 50,
+			"pouch_m": [-0.13, 1.02, -0.13],
+			"left": [
+				{"at": "foregrip", "off_m": [0.0, 0.0, 0.0], "hand_deg": [0.0, 0.0, 0.0]},
+				{"at": "cell", "off_m": [-0.03, -0.1, 0.02], "hand_deg": [0.0, 0.0, -30.0]},
+				{"at": "cell", "off_m": [-0.05, -0.27, 0.05], "hand_deg": [0.0, 0.0, -40.0]},
+				{"at": "pouch", "off_m": [0.0, 0.0, 0.0], "hand_deg": [10.0, 0.0, -20.0]},
+				{"at": "cell", "off_m": [-0.03, -0.1, 0.02], "hand_deg": [0.0, 0.0, -30.0], "then_m": [0.0, 0.03, 0.0]},
+				{"at": "charge", "off_m": [-0.04, 0.05, 0.0], "hand_deg": [0.0, 0.0, 20.0], "then_m": [0.0, 0.0, 0.07]},
+				{"at": "foregrip", "off_m": [0.0, 0.0, 0.0], "hand_deg": [0.0, 0.0, 0.0]}
+			],
+			"snap_max_m": 0.02
+		}
 	},
 	"death": {
 		"_clip_note": "M2 AN1 commit 4: with the library death clip (anim_sources death, UAL Death01) the corpse plays it instead of the end rotations, after blend_s of crossfade from the last pose, the upper arms keeping arm_follow of the clip's turn from rest (the fall flings them past the helmet); DeathFx skips the outer topple. The end rotations stay the fallback.",

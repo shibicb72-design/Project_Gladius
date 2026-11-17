@@ -186,6 +186,9 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	# Bake the slots other owners use (corpse, poses, cover) now, once, then drop the held source scene.
 	for slot in SHARED_SLOTS:
 		clips.resolve(slot, null, skeleton)
+	# M2 AN3: the keyed reload of every gun the soldier can show (SoldierModel.play_reload picks one per reload).
+	for gun: String in SoldierLook.config()["gun"]["weapons"]:
+		clips.resolve("reload_" + gun, null, skeleton)
 	ClipLibrary.release_sources()
 	return tree
 
@@ -258,6 +261,24 @@ static func resolve_slot(clips: ClipLibrary, name: String, procedural: Animation
 	if clips.source_for(name) == "procedural":
 		return procedural
 	return ClipLibrary.fit(resolved, procedural.length, procedural.loop_mode, name == "fire")
+
+
+## M2 AN3: the reload for the shown gun `gun` (a soldier.gun.weapons id): the Blender-keyed slot reload_<gun>
+## (soldier_rifle.glb) when it resolves, scaled to the code-built clip's length (WeaponDef.reload_s) and cut to the
+## code-built clip's tracks (the reload layer moves exactly the bones it moved before); otherwise the "reload" slot
+## (the code-built `procedural`). `keyed` false: the code-built one even where a keyed one exists (tools, tests).
+static func resolve_reload(clips: ClipLibrary, gun: String, procedural: Animation, skeleton: Skeleton3D, keyed: bool = true) -> Animation:
+	var clip: Animation = clips.resolve("reload_" + gun, null, skeleton) if keyed else null
+	if clip == null:
+		return resolve_slot(clips, "reload", procedural, skeleton)
+	var kept: Dictionary = {}
+	for track in procedural.get_track_count():
+		kept["%s|%d" % [procedural.track_get_path(track), procedural.track_get_type(track)]] = true
+	var result := ClipLibrary.fit(clip, procedural.length, Animation.LOOP_NONE)
+	for track in range(result.get_track_count() - 1, -1, -1):
+		if not kept.has("%s|%d" % [result.track_get_path(track), result.track_get_type(track)]):
+			result.remove_track(track)
+	return result
 
 
 static func _rotation_track(animation: Animation, bone: String, times: Array, values: Array[Quaternion]) -> void:

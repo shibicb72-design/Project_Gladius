@@ -98,7 +98,8 @@ static func same_rig(source: Skeleton3D, target: Skeleton3D, tolerance_m: float 
 ## "Skeleton3D:<bone>". No resampling, no retarget: the played clip is the authored one key for key. The Blender
 ## clips are in place by construction (the pelvis keeps its own sway under pinned feet; Death01 keeps its root motion),
 ## so nothing is stripped. Cached like bake().
-static func same_rig_clip(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_key: String = "") -> Animation:
+## `positions`: non-root bones whose position tracks are kept too (M2 AN3: the rifle reload's UpperArm shoulder offset).
+static func same_rig_clip(clip: Animation, source: Skeleton3D, target: Skeleton3D, cache_key: String = "", positions: Array = []) -> Animation:
 	var key := "same:" + (str(clip.get_instance_id()) if cache_key.is_empty() else cache_key)
 	if _baked.has(key):
 		return _baked[key]
@@ -114,7 +115,7 @@ static func same_rig_clip(clip: Animation, source: Skeleton3D, target: Skeleton3
 		if index < 0 or source.find_bone(bone) < 0:
 			continue
 		var kind := clip.track_get_type(track)
-		if kind == Animation.TYPE_POSITION_3D and target.get_bone_parent(index) >= 0:
+		if kind == Animation.TYPE_POSITION_3D and target.get_bone_parent(index) >= 0 and not positions.has(bone):
 			continue
 		if kind != Animation.TYPE_ROTATION_3D and kind != Animation.TYPE_POSITION_3D:
 			continue

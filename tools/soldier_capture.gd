@@ -12,7 +12,8 @@ extends SceneTree
 ## Cover hug / lean / rise: use tools/cover_capture.gd (real cover sequences in a real match).
 ## Options: --out=<dir> --states=<comma list> --fps=<n, default 20> --size=<w>x<h> (default 1440x810);
 ## --procedural passes the library over (ClipLibrary.skip_sources) for before-captures of the code-built clips;
-## --legacy-head records the pre-AN3 head and body (SoldierRig.head_legacy: the bobblehead before its fix).
+## --legacy-head records the pre-AN3 head and body (SoldierRig.head_legacy: the bobblehead before its fix);
+## --code-reload plays the code-built reload where the gun has a Blender-keyed one (SoldierModel.code_built_reload).
 ## Contact sheets: tools/contact_sheet.gd -- --dir=<out>/<state>.
 
 ## M2 AN2 items 3/5: ladder_up / ladder_down / ladder_top (a real Ladder prop on a 3.3 m wall, pawn.climbing set the way
@@ -21,7 +22,8 @@ extends SceneTree
 const STATES: Array[String] = ["idle", "walk", "run", "sprint", "strafe", "strafe_left", "backpedal", "back_diag",
 		"aim_fire", "reload", "hit", "jump", "death", "downed_crawl", "revive", "blade",
 		"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground",
-		"fall", "fall_side", "turn", "crouch", "crouch_walk"]  # M2 AN3 stage C
+		"fall", "fall_side", "turn", "crouch", "crouch_walk",  # M2 AN3 stage C
+		"aim_sweep", "reload_sagittarii"]  # M2 AN3 stage D
 
 var _out := "build/an1_after/c4_soldier"
 var _fps := 20
@@ -56,6 +58,8 @@ func _initialize() -> void:
 			ClipLibrary.skip_sources.assign(["ual"])
 		elif a == "--legacy-head":  # M2 AN3: before-captures of the pre-AN3 head and body (SoldierRig.head_legacy)
 			SoldierRig.head_legacy = true
+		elif a == "--code-reload":  # M2 AN3: the code-built reload instead of the Blender-keyed one (keyed vs code)
+			SoldierModel.code_built_reload = true
 	if _states.is_empty():
 		_states = STATES.duplicate()
 	if not _out.is_absolute_path():
@@ -283,6 +287,24 @@ func _capture(state: String) -> void:
 			for swing in 2:
 				_pawn.shot.emit(_pawn.get_muzzle_position(), Vector3.FORWARD, _pawn.loadout.get_active().def.id)
 				await _hold(0.8)
+		"aim_sweep":
+			# M2 AN3 stage D: the aim pitch from -1 to +1 x aim_pitch_limit_deg and back (2 s), then held up and down.
+			_cam_offset = Vector3(2.0, 1.4, -2.6)
+			var limit := deg_to_rad(float(SoldierRig.config()["upper_body"]["aim_pitch_limit_deg"]))
+			for i in 120:
+				_pawn.pitch = -limit * cos(TAU * i / 120.0)
+				await _frame(Vector3.ZERO)
+			_pawn.pitch = 0.0
+		"reload_sagittarii":
+			# M2 AN3 stage D: the Sagittarii's reload (its own WeaponDef.reload_s) on the shown Sagittarii, built the way
+			# SoldierModel._on_reload_started builds it. The Sagittarii is made the active weapon (the default loadout
+			# carries the Pilum, and SoldierModel shows the active weapon's gun every frame).
+			_cam_offset = Vector3(2.0, 1.4, -2.6)
+			var def := registry.get_weapon_def("sagittarii_rifle")
+			_pawn.loadout.slots[_pawn.loadout.active] = Weapon.new(def)
+			await _hold(0.3)
+			_pawn.reload_started.emit()
+			await _hold(def.reload_s + 0.5)
 		"fall", "fall_side":
 			# M2 AN3 stage C: the drop as the owner filmed it. 0.8 s free fall, then the glide stick forward, left and
 			# right (Pawn._apply_fall: velocity = pawn basis x stick x drop_glide_mps), then the landing (drop_state NONE

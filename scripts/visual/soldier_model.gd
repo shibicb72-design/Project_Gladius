@@ -13,6 +13,9 @@ var _previous_position := Vector3.ZERO
 var _replica_velocity := Vector3.ZERO
 var _upper_cfg: Dictionary
 var reload_duration_s := 0.0
+## M2 AN3, tools and tests only (keyed vs code-built captures and measurements): play the code-built reload even
+## where the shown gun has a Blender-keyed one (SoldierAnimation.resolve_reload).
+static var code_built_reload := false
 var rifle: MeshInstance3D
 var rifle_far: MeshInstance3D  # M2 AN1 commit 6: the gun's far detail level (child of rifle)
 var shown_gun := ""  # the weapon art id of the gun in the hands
@@ -391,10 +394,17 @@ func _on_reload_started() -> void:
 	if weapon == null or weapon.def.is_melee():
 		return
 	reload_duration_s = weapon.def.reload_s
+	play_reload(SoldierLook.gun_id(weapon.def.id), reload_duration_s)
+
+
+## M2 AN3: the reload for the gun art id `gun` over `duration` s: its Blender-keyed clip (reload_<gun>) when one
+## resolves, else the code-built one (SoldierAnimation.resolve_reload).
+func play_reload(gun: String, duration: float) -> void:
 	var library := animation_tree.get_animation_library(&"")
 	library.remove_animation(&"reload")
 	var clips := animation_tree.get_meta(&"clip_library") as ClipLibrary
-	library.add_animation(&"reload", SoldierAnimation.resolve_slot(clips, "reload", SoldierAnimation.reload_clip(skeleton, reload_duration_s, _upper_cfg), skeleton))
+	var procedural := SoldierAnimation.reload_clip(skeleton, duration, _upper_cfg)
+	library.add_animation(&"reload", SoldierAnimation.resolve_reload(clips, gun, procedural, skeleton, not code_built_reload))
 	animation_tree.set("parameters/reload/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
 
