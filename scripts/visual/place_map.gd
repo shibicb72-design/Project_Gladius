@@ -28,8 +28,34 @@ var roads: Array = []
 var _cfg := {}
 
 
-static func config() -> Dictionary:
-	return WorldSurface.ground_detail_config().get("place_map", {})
+## The place_map block for a map: the global block, with the optional per-map override place_map.maps.<map_id>
+## merged over it (M2 L2a; dictionaries merge by key, arrays and scalars replace, "_" keys are not merged; the
+## result has no "maps" key). A map without an override (or map_id "") gets the global block itself.
+static func config(map_id: String = "") -> Dictionary:
+	var cfg: Dictionary = WorldSurface.ground_detail_config().get("place_map", {})
+	var maps: Variant = cfg.get("maps", {})
+	var over: Variant = (maps as Dictionary).get(map_id, {}) if typeof(maps) == TYPE_DICTIONARY else {}
+	if map_id == "" or typeof(over) != TYPE_DICTIONARY or (over as Dictionary).is_empty():
+		return cfg
+	var out := _merged(cfg, over)
+	out.erase("maps")
+	return out
+
+
+## A deep copy of base with over merged in (dictionaries by key, anything else replaced, "_" keys skipped).
+static func _merged(base: Dictionary, over: Dictionary) -> Dictionary:
+	var out := base.duplicate(true)
+	for key: Variant in over:
+		if String(key).begins_with("_"):
+			continue
+		var v: Variant = over[key]
+		if typeof(v) == TYPE_DICTIONARY and typeof(out.get(key)) == TYPE_DICTIONARY:
+			out[key] = _merged(out[key], v)
+		elif typeof(v) == TYPE_DICTIONARY or typeof(v) == TYPE_ARRAY:
+			out[key] = v.duplicate(true)
+		else:
+			out[key] = v
+	return out
 
 
 func _init(ground_size_m: float = 1000.0, pixels: int = 512) -> void:
@@ -160,8 +186,11 @@ static func footprints(body: Node, root: Node, terrain: MapTerrain) -> Array:
 ## Builds R, G and A from the map builder's bodies (call after the doors and ladders exist). Returns the map.
 static func build(builder: Node, ground_size_m: float) -> RefCounted:
 	var started := Time.get_ticks_usec()
-	var cfg := config()
+	# M2 L2a: the map id is the builder's map json file name (alesia_500.json -> alesia_500), for place_map.maps.
+	var map_json: Variant = builder.get("map_json")
+	var cfg := config(String(map_json).get_file().get_basename() if typeof(map_json) == TYPE_STRING else "")
 	var map = load("res://scripts/visual/place_map.gd").new(ground_size_m, int(cfg.get("px", 512)))
+	map._cfg = cfg
 	var root := builder.get_parent()
 	var terrain: MapTerrain = builder.get("terrain")
 	var aprons: Dictionary = cfg.get("apron_by_type", {})
@@ -280,6 +309,8 @@ func _build_roads(cfg: Dictionary, camp_parts: Dictionary, camp_ids: Array, gate
 	var foot_r := float(cfg.get("citadel_foot_m", 72.0))
 	var reach := float(cfg.get("camp_reach_m", 260.0))
 	var split_r := float(cfg.get("outer_gate_min_r_m", 240.0))
+	# M2 L2a, optional (absent = as before): inner gates nearer the centre than inner_gate_min_r_m get no legs.
+	var inner_min_r := float(cfg.get("inner_gate_min_r_m", 0.0))
 	var outer: Array = []  # [centre, inward unit]
 	var inner: Array = []
 	for body: Node in gate_bodies:
@@ -291,7 +322,7 @@ func _build_roads(cfg: Dictionary, camp_parts: Dictionary, camp_ids: Array, gate
 			through = -through  # inward: towards the centre
 		if c.length() >= split_r:
 			outer.append([c, through])
-		else:
+		elif c.length() >= inner_min_r:
 			inner.append([c, through])
 	var legs: Array = []  # control points of each leg
 	for g: Array in outer:
@@ -302,7 +333,12 @@ func _build_roads(cfg: Dictionary, camp_parts: Dictionary, camp_ids: Array, gate
 		var c: Vector2 = g[0]
 		var dir: Vector2 = g[1]
 		legs.append([c, c + dir * straight, c.normalized() * foot_r])
+	# M2 L2a, optional (absent = every group): only building groups whose id starts with camp_prefix get camp legs
+	# (alesia_500's town blocks and farmsteads are barracks groups too).
+	var camp_prefix := String(cfg.get("camp_prefix", ""))
 	for camp: String in camp_ids:
+		if not camp.begins_with(camp_prefix):
+			continue
 		var parts: Dictionary = camp_parts[camp]
 		var bs: Array = parts["barracks"]
 		var ts: Array = parts["tent"]
@@ -319,6 +355,18 @@ func _build_roads(cfg: Dictionary, camp_parts: Dictionary, camp_ids: Array, gate
 			var dir: Vector2 = best[1]
 			var side := 1.0 if which == 0 else -1.0  # an outer gate's camps lie inside it, an inner gate's outside
 			legs.append([c, c + dir * straight * side, yard])
+	# M2 L2a, optional (absent = none): outer_gate_in_m = each outer gate also runs inward to that radius (a cardo or
+	# decumanus); inner_gate_out_m = each inner gate also runs outward to that radius.
+	var in_r := float(cfg.get("outer_gate_in_m", 0.0))
+	if in_r > 0.0:
+		for g: Array in outer:
+			var c: Vector2 = g[0]
+			legs.append([c, c + (g[1] as Vector2) * straight, c.normalized() * in_r])
+	var out_r := float(cfg.get("inner_gate_out_m", 0.0))
+	if out_r > 0.0:
+		for g: Array in inner:
+			var c: Vector2 = g[0]
+			legs.append([c, c - (g[1] as Vector2) * straight, c.normalized() * out_r])
 	var bend := float(cfg.get("bend_m", 4.0))
 	var bend_every := float(cfg.get("bend_every_m", 70.0))
 	# Ring tracks [radius m, inner, outer, value, segments, wobble m]: narrower loops round the centre (along the inside

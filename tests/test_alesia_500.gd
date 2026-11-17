@@ -8,7 +8,8 @@ extends "res://tests/test_case.gd"
 ## (data/maps/snapshots/alesia_500_colliders.json, tools/m2w1_collider_snapshot.gd -- --map=res://data/maps/alesia_500.json),
 ## and paths on the SAVED navigation mesh: through every gate of the three rings, through every barracks doorway and
 ## from each spawn to the Arx top. Report only: sight lines, proxies and visible counts (data/map_build.json limits).
-## Real matches still load alesia_1km (tests/test_alesia_1km.gd test_real_match_entry_plays_the_1km_map).
+## M2 L2a stage 3: real matches load alesia_500 (data/map_select.json): test_real_match_entry_plays_the_500_map, moved
+## here from tests/test_alesia_1km.gd.
 
 const MAP := "res://data/maps/alesia_500.json"
 const Gen := preload("res://tools/gen_alesia.gd")
@@ -377,6 +378,37 @@ func test_proxies_and_visible_counts_report() -> void:
 	var over_visible := MapChunks.visible_problems(MapChunks.visible_proxies(map), limits.get("visible", {}))
 	print("ALESIA_500_LIMITS report only, not in the limits test: would exceed: %s; visible (standard points): %s" % [
 			"; ".join(over) if not over.is_empty() else "none", "; ".join(over_visible) if not over_visible.is_empty() else "none"])
+
+
+## B3 wiring through the real entry point (docs/LESSONS.md): a match the way the menu and the lobby start one
+## (auto_start) reads data/map_select.json and plays alesia_500 with its overrides, the saved mesh and the
+## terrain-aware loot. The one begin() on this map in the normal suite (bots off to keep it short). Moved here from
+## tests/test_alesia_1km.gd (test_real_match_entry_plays_the_1km_map) when real matches switched maps (M2 L2a).
+func test_real_match_entry_plays_the_500_map() -> void:
+	assert_true(not FileAccess.file_exists(MatchRoot.MAP_OVERRIDE_PATH), "no phone override file on this machine")
+	var m: MatchRoot = (load("res://scenes/match/match.tscn") as PackedScene).instantiate()
+	m.fill_bots = false
+	m.seed_override = 4242
+	var tree: SceneTree = Engine.get_main_loop()
+	var started := Time.get_ticks_msec()
+	tree.root.add_child(m)  # auto_start (the default): _ready runs begin()
+	var begin_ms := Time.get_ticks_msec() - started
+	assert_true(m.use_map_select, "the auto_start path reads the map selection")
+	assert_eq(m.map_path, MAP, "a real match loads alesia_500")
+	assert_eq(m.nav_bakes, 0, "no runtime nav bake")
+	var nav := m.map.get_node("Nav") as NavigationRegion3D
+	assert_eq(nav.navigation_mesh.resource_path, MapNav.saved_path(MAP), "the saved 500 m mesh")
+	var over: Dictionary = MatchDirector.map_overrides(MAP)
+	assert_eq(float(m.director.mode_cfg["zone"]["start_radius_m"]), float(over["br"]["zone"]["start_radius_m"]), "the map's zone override is in the match config")
+	assert_eq(int(m.director.loot_cfg["count"]), int(over["loot"]["count"]), "the map's loot override is in the loot config")
+	assert_true(m.loot != null and m.loot._ground_height.is_valid(), "the loot field got the terrain height")
+	await tree.physics_frame
+	await tree.physics_frame
+	assert_true(m.loot.placed and m.loot.items.size() > 100, "the match's loot is placed (%d)" % m.loot.items.size())
+	assert_eq(m.world_props.chests.size(), (DataRegistry.parse_quiet(String(_def()["cover_data"]))["chests"] as Array).size(), "the match's WorldProps holds every chest")
+	print("ALESIA_500_REAL_MATCH begin_ms=", begin_ms, " loot=", m.loot.items.size())
+	m.queue_free()
+	await tree.process_frame
 
 
 ## Last in this file: frees the shared 500 m map so later suite files start clean.

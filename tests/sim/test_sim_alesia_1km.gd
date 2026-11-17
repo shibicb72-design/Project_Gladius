@@ -13,10 +13,15 @@ extends "res://tests/test_case.gd"
 ## dropped ids, each vanished id credited to the nearest pawn in pickup range; kill/down distances at the zeroing
 ## blow; --sim-profile=<tiro|miles|centurion|legatus> (after `--`) gives every bot that bots.json profile; the CPU
 ## proxy brain_us_per_think is printed after " | " (wall clock, never compared).
+## M2 L2a: --sim-map=<id> (after `--`) plays res://data/maps/<id>.json instead (default alesia_1km, the output
+## unchanged); every "map=" field prints that id. The area bands of the unstick report and reached_inner /
+## reached_hill keep the 1 km radii (report only).
 
 const _MatchScene := preload("res://scenes/match/match.tscn")
 const _Metrics := preload("res://tests/sim/sim_metrics.gd")
+## The default map (no --sim-map).
 const MAP := "res://data/maps/alesia_1km.json"
+const DEFAULT_MAP_ID := "alesia_1km"
 ## The existing sim's scaling (test_sim_bot_match.gd:24-27): phases x0.4; its carrier_s 8 is br.json's 20 x 0.4,
 ## so here the map's own carrier_s (40, OQ-BR-DROP) gets the same x0.4 = 16 s: the opening is shortened in the
 ## same proportion, and the carrier still crosses 960 m (60 m/s).
@@ -28,6 +33,19 @@ const SQUADS_SEED := 199
 
 func _tree() -> SceneTree:
 	return Engine.get_main_loop()
+
+
+## M2 L2a: the map id of --sim-map=<id> (after `--`), DEFAULT_MAP_ID when absent.
+static func sim_map_id() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--sim-map="):
+			return a.substr(10)
+	return DEFAULT_MAP_ID
+
+
+## The map json the sim plays: res://data/maps/<sim_map_id()>.json (MAP by default).
+static func sim_map() -> String:
+	return "res://data/maps/%s.json" % sim_map_id()
 
 
 ## The area name of a ground point for the unstick report: a landmark when inside its radius, else the nearest
@@ -157,7 +175,9 @@ static func closed_doors(props: WorldProps) -> int:
 
 func _run(mode: String, seed_value: int) -> Dictionary:
 	var tree := _tree()
-	var def := DataRegistry.parse_quiet(MAP)
+	var map := sim_map()
+	var mid := sim_map_id()
+	var def := DataRegistry.parse_quiet(map)
 	var landmarks: Array = DataRegistry.parse_quiet(String(def["landmarks"]))["landmarks"]
 	var pieces := _named_pieces(def)
 	var m: MatchRoot = _MatchScene.instantiate()
@@ -166,13 +186,13 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 	m.seed_override = seed_value
 	m.drop_from_sky = true
 	m.ground_loot = true
-	m.map_path_override = MAP  # binding fix 21: the one allowed override use
+	m.map_path_override = map  # binding fix 21: the one allowed override use
 	tree.root.add_child(m)
 	await tree.physics_frame
 	# Merges the map's overrides (zone, drop, loot) and, with --sim-length=<id> (M2 Z2), applies that match length
 	# preset first; the --sim-scale multiply below composes with it. The scaling survives begin().
 	var length_id := _Metrics.cli_length()
-	m.director.load_config(MAP, length_id)
+	m.director.load_config(map, length_id)
 	var wall_cap_ms := WALL_CAP_MS
 	if length_id != "":
 		# last_close_s is the preset's nominal last close BEFORE --sim-scale. A rejected id keeps the map's own
@@ -221,22 +241,23 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 			if k != "none" and blow_dist.has(id):
 				kill_dist[k].append(int(blow_dist[id]))
 		if v != null:
-			print("SIM_WHERE map=alesia_1km mode=%s seed=%d cause=%s killer=%d at=(%d, %d) r=%d game_s=%.1f" % [mode, seed_value, cause, killer, int(v.global_position.x), int(v.global_position.z), int(Vector2(v.global_position.x, v.global_position.z).length()), m.director.tick_count / 60.0]))
+			print("SIM_WHERE map=%s mode=%s seed=%d cause=%s killer=%d at=(%d, %d) r=%d game_s=%.1f" % [mid, mode, seed_value, cause, killer, int(v.global_position.x), int(v.global_position.z), int(Vector2(v.global_position.x, v.global_position.z).length()), m.director.tick_count / 60.0]))
 	var results: Array = []
 	m.director.match_over.connect(func(r: Dictionary) -> void: results.append(r))
 	var begin_t := Time.get_ticks_msec()
 	assert_true(m.begin(), "begin %s" % mode)
 	var begin_ms := Time.get_ticks_msec() - begin_t
 	var doors_closed_start := closed_doors(m.world_props)  # M2 L1c SIM_DOORS: before the first tick
-	assert_eq(m.map_path, MAP, "the sim plays alesia_1km")
-	assert_eq(m.nav_bakes, 0, "the saved 1 km mesh loads (no bake at match start)")
+	assert_eq(m.map_path, map, "the sim plays " + mid)
+	assert_eq(m.nav_bakes, 0, "the saved %s mesh loads (no bake at match start)" % mid)
 	# Binding fix 21: begin() does not merge again, so the sim's scaled values survive on alesia_1km.
 	var got_phases: Array = []
 	for ph in m.director.mode_cfg["zone"]["phases"]:
 		got_phases.append([ph["wait_s"], ph["shrink_s"], ph["radius_m"]])
 	assert_eq(got_phases, want_phases, "the scaled phases survive begin()")
 	assert_eq(float(m.director.mode_cfg["drop"]["carrier_s"]), carrier_s, "the scaled carrier_s survives begin()")
-	assert_eq(float(m.director.mode_cfg["zone"]["start_radius_m"]), 480.0, "the map's zone override is in")
+	if def.has("play_radius_m"):  # a map with overrides starts its zone on its play circle (alesia_1km: 480)
+		assert_eq(float(m.director.mode_cfg["zone"]["start_radius_m"]), float(def["play_radius_m"]), "the map's zone override is in")
 	var profile := metrics.bind(m)  # --sim-profile (if given) goes onto every bot Brain here, before the first tick
 	assert_true(profile != "", "--sim-profile names a data/bots.json profile (got '%s')" % _Metrics.cli_profile())
 	for id in m.director.all_players():
@@ -309,8 +330,8 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 					var path := agent.get_current_navigation_path()
 					var idx := agent.get_current_navigation_path_index()
 					at_next = _v3(path[idx]) if idx >= 0 and idx < path.size() else "none"
-				print("SIM_UNSTICK_AT map=alesia_1km mode=%s seed=%d bot=%d game_s=%.1f pos=%s area=%s goal=%s goal_pos=%s nav=%s next=%s" % [
-						mode, seed_value, b.player_id, n / 60.0, _v3(p), area, gk, at_goal, at_nav, at_next])
+				print("SIM_UNSTICK_AT map=%s mode=%s seed=%d bot=%d game_s=%.1f pos=%s area=%s goal=%s goal_pos=%s nav=%s next=%s" % [
+						mid, mode, seed_value, b.player_id, n / 60.0, _v3(p), area, gk, at_goal, at_nav, at_next])
 			unstick_prev[b.player_id] = left
 			var r := Vector2(b.global_position.x, b.global_position.z).length()
 			if r < 140.0:
@@ -330,30 +351,30 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 		unstick_total += int(unstick_per_bot[id])
 	var over := not results.is_empty()
 	# Deterministic part first (compared by the repeat check); wall-clock numbers after "|".
-	var line := "SIM map=alesia_1km mode=%s seed=%d profile=%s game_s=%.1f over=%s alive=%d zone_phase=%d zone_r=%.0f causes=%s kills_gun=%d kills_blade=%d kills_unknown=%d downs_gun=%d downs_blade=%d downs_unknown=%d kill_dist_gun=%s kill_dist_blade=%s down_dist_gun_mean=%.1f down_dist_blade_mean=%.1f zone_deaths=%d zone_before_fight=%d %s %s unstick=%d reached_inner=%d reached_hill=%d goals=%s%s %s" % [
-			mode, seed_value, profile, n / 60.0, over, m.director.players_alive(), m.director.rules.zone_phase(), m.director.rules.zone_radius(),
+	var line := "SIM map=%s mode=%s seed=%d profile=%s game_s=%.1f over=%s alive=%d zone_phase=%d zone_r=%.0f causes=%s kills_gun=%d kills_blade=%d kills_unknown=%d downs_gun=%d downs_blade=%d downs_unknown=%d kill_dist_gun=%s kill_dist_blade=%s down_dist_gun_mean=%.1f down_dist_blade_mean=%.1f zone_deaths=%d zone_before_fight=%d %s %s unstick=%d reached_inner=%d reached_hill=%d goals=%s%s %s" % [
+			mid, mode, seed_value, profile, n / 60.0, over, m.director.players_alive(), m.director.rules.zone_phase(), m.director.rules.zone_radius(),
 			causes, kills["gun"], kills["blade"], kills["none"], downs["gun"], downs["blade"], downs["none"],
 			kill_dist["gun"], kill_dist["blade"], _mean(down_dist["gun"]), _mean(down_dist["blade"]), zone["deaths"], zone["before_fight"],
 			metrics.shot_fields(), metrics.loot_fields(), unstick_total, reached_inner.size(), reached_hill.size(), shares,
 			route_fields(m.bots, landmarks), metrics.prop_fields()]
 	print(line + " | scale=%.2f wall_s=%.1f begin_ms=%d carrier_s=%.1f wall_capped=%s %s" % [scale, wall_s, begin_ms, carrier_s, capped, metrics.cpu_fields()])
 	var bands := metrics.bands_fields()
-	print("SIM_BANDS map=alesia_1km mode=%s seed=%d %s" % [mode, seed_value, bands])
+	print("SIM_BANDS map=%s mode=%s seed=%d %s" % [mid, mode, seed_value, bands])
 	if over:
-		print("SIM result map=alesia_1km mode=%s winner=%s draw=%s" % [mode, results[0]["winner"], results[0]["draw"]])
+		print("SIM result map=%s mode=%s winner=%s draw=%s" % [mid, mode, results[0]["winner"], results[0]["draw"]])
 	else:
-		print("SIM UNFINISHED map=alesia_1km mode=%s seed=%d: no result after %.1f s wall (cap %d s); game_s=%.1f alive=%d squads_alive=%d zone_phase=%d of %d zone_state=%s zone_r=%.0f" % [
-				mode, seed_value, wall_s, wall_cap_ms / 1000, n / 60.0, m.director.players_alive(), m.director.squads_alive(),
+		print("SIM UNFINISHED map=%s mode=%s seed=%d: no result after %.1f s wall (cap %d s); game_s=%.1f alive=%d squads_alive=%d zone_phase=%d of %d zone_state=%s zone_r=%.0f" % [
+				mid, mode, seed_value, wall_s, wall_cap_ms / 1000, n / 60.0, m.director.players_alive(), m.director.squads_alive(),
 				m.director.rules.zone_phase(), m.director.rules.phase_count(), m.director.rules.zone_state(), m.director.rules.zone_radius()])
-	print("SIM_UNSTICK map=alesia_1km mode=%s seed=%d total=%d bots_with_any=%d by_band=%s by_area=%s per_bot=%s" % [
-			mode, seed_value, unstick_total, unstick_per_bot.size(), _top(unstick_bands, 12), _top(unstick_areas, 14), unstick_per_bot])
-	print("SIM_UNSTICK_GOALS map=alesia_1km mode=%s seed=%d by_goal=%s worst=%s nav={reachable:%d, unreachable:%d, finished:%d}" % [
-			mode, seed_value, _top(unstick_goals, 20), _worst_unstick(unstick_per_bot, unstick_bot_goals, unstick_bot_areas),
+	print("SIM_UNSTICK map=%s mode=%s seed=%d total=%d bots_with_any=%d by_band=%s by_area=%s per_bot=%s" % [
+			mid, mode, seed_value, unstick_total, unstick_per_bot.size(), _top(unstick_bands, 12), _top(unstick_areas, 14), unstick_per_bot])
+	print("SIM_UNSTICK_GOALS map=%s mode=%s seed=%d by_goal=%s worst=%s nav={reachable:%d, unreachable:%d, finished:%d}" % [
+			mid, mode, seed_value, _top(unstick_goals, 20), _worst_unstick(unstick_per_bot, unstick_bot_goals, unstick_bot_areas),
 			int(unstick_nav["reachable"]), int(unstick_nav["unreachable"]), int(unstick_nav["finished"])])
 	# M2 L1c commit 4 SIM_DOORS (a separate line, so the repeat-compared SIM line keeps its format): the map's doors,
 	# how many stood closed at begin and at the end, and MatchDirector.bot_doors_opened (a report counter only).
-	print("SIM_DOORS map=alesia_1km mode=%s seed=%d doors=%d closed_at_start=%d opened_by_bots=%d closed_at_end=%d" % [
-			mode, seed_value, m.world_props.doors.size() if m.world_props != null else 0, doors_closed_start,
+	print("SIM_DOORS map=%s mode=%s seed=%d doors=%d closed_at_start=%d opened_by_bots=%d closed_at_end=%d" % [
+			mid, mode, seed_value, m.world_props.doors.size() if m.world_props != null else 0, doors_closed_start,
 			m.director.bot_doors_opened, closed_doors(m.world_props)])
 	m.queue_free()
 	await tree.process_frame
@@ -362,12 +383,12 @@ func _run(mode: String, seed_value: int) -> Dictionary:
 
 func test_match_solo() -> void:
 	var a := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
-	assert_true(bool(a["over"]), "the solo match on alesia_1km ended within the wall cap")
+	assert_true(bool(a["over"]), "the solo match on %s ended within the wall cap" % sim_map_id())
 
 
 func test_match_squads() -> void:
 	var s := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
-	assert_true(bool(s["over"]), "the squads match on alesia_1km ended within the wall cap")
+	assert_true(bool(s["over"]), "the squads match on %s ended within the wall cap" % sim_map_id())
 
 
 ## The repeat check, as test_sim_bot_match.gd does it: the same seed twice in one process, the same SIM line
@@ -375,7 +396,7 @@ func test_match_squads() -> void:
 func test_repeat_solo() -> void:
 	var a := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
 	var b := await _run("solo", _Metrics.cli_seed(SOLO_SEED))
-	print("SIM map=alesia_1km repeat_identical=%s" % (a["line"] == b["line"]))
+	print("SIM map=%s repeat_identical=%s" % [sim_map_id(), a["line"] == b["line"]])
 	assert_true(bool(a["over"]) and bool(b["over"]), "both solo matches ended")
 	assert_eq(a["line"], b["line"], "same seed, same match")
 	assert_eq(a["bands"], b["bands"], "same seed, same distance bands")
@@ -384,7 +405,7 @@ func test_repeat_solo() -> void:
 func test_repeat_squads() -> void:
 	var a := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
 	var b := await _run("squads", _Metrics.cli_seed(SQUADS_SEED))
-	print("SIM map=alesia_1km mode=squads repeat_identical=%s" % (a["line"] == b["line"]))
+	print("SIM map=%s mode=squads repeat_identical=%s" % [sim_map_id(), a["line"] == b["line"]])
 	assert_true(bool(a["over"]) and bool(b["over"]), "both squads matches ended")
 	assert_eq(a["line"], b["line"], "same seed, same match")
 	assert_eq(a["bands"], b["bands"], "same seed, same distance bands")
@@ -393,8 +414,8 @@ func test_repeat_squads() -> void:
 # --- Proxies (report only, binding fix 10: alesia_1km is in no limits test) ---
 
 func _build_map() -> Node3D:
-	var map: Node3D = load(String(DataRegistry.parse_quiet(MAP)["scene"])).instantiate()
-	map.get_node("ArtBuilder").set("map_json", MAP)
+	var map: Node3D = load(String(DataRegistry.parse_quiet(sim_map())["scene"])).instantiate()
+	map.get_node("ArtBuilder").set("map_json", sim_map())
 	_tree().root.add_child(map)
 	return map
 
@@ -403,7 +424,7 @@ func _build_map() -> Node3D:
 ## caches fill on first use). terrain_build_ms = the scene build minus nothing: the builder makes the terrain
 ## inside the build and has no separate timer, so only the parts it loads from files are apart.
 func test_report_load() -> void:
-	var def := DataRegistry.parse_quiet(MAP)
+	var def := DataRegistry.parse_quiet(sim_map())
 	var t0 := Time.get_ticks_usec()
 	var heights := MapTerrain.from_block(def["terrain"], def)
 	var heights_us := Time.get_ticks_usec() - t0
@@ -414,7 +435,7 @@ func test_report_load() -> void:
 	var paint_us := Time.get_ticks_usec() - t0
 	assert_true(paint != null, "the paint loads")
 	t0 = Time.get_ticks_usec()
-	var nav := MapNav.load_fresh(MAP)
+	var nav := MapNav.load_fresh(sim_map())
 	var nav_us := Time.get_ticks_usec() - t0
 	assert_true(nav != null, "the saved nav is fresh and loads")
 	t0 = Time.get_ticks_usec()
@@ -430,12 +451,12 @@ func test_report_load() -> void:
 	m.seed_override = SOLO_SEED
 	m.drop_from_sky = true
 	m.ground_loot = true
-	m.map_path_override = MAP
+	m.map_path_override = sim_map()
 	_tree().root.add_child(m)
 	await _tree().physics_frame
-	m.director.load_config(MAP)
+	m.director.load_config(sim_map())
 	t0 = Time.get_ticks_usec()
-	assert_true(m.begin(), "an 18-player match starts on alesia_1km")
+	assert_true(m.begin(), "an 18-player match starts on " + sim_map_id())
 	var begin_us := Time.get_ticks_usec() - t0
 	await _tree().process_frame
 	var first_frame_us := Time.get_ticks_usec() - t0
@@ -466,10 +487,10 @@ func test_report_draw_proxy() -> void:
 	var over_visible := MapChunks.visible_problems(visible, limits.get("visible", {}))
 	map.free()
 	await _tree().process_frame
-	var setup: Array = await perf._full_match(MAP)
+	var setup: Array = await perf._full_match(sim_map())
 	var match_scene: MatchRoot = setup[0]
 	var splits: int = setup[1]
-	assert_eq(match_scene.map_path, MAP, "the proxy match loaded alesia_1km")
+	assert_eq(match_scene.map_path, sim_map(), "the proxy match loaded " + sim_map_id())
 	var total: Vector3i = cull._match_count(match_scene, splits, Vector3i.ZERO)
 	var builder := match_scene.map.get_node("ArtBuilder")
 	var looks: Vector3i = cull._match_count(builder.get_node("Chunks"), splits, Vector3i.ZERO)
@@ -497,7 +518,7 @@ func test_report_draw_proxy() -> void:
 func test_report_cover_time() -> void:
 	var h = preload("res://tests/test_cover_index.gd").new()
 	var Old = preload("res://tests/test_cover_index.gd").OldProbe
-	var map: Node3D = await h._build(MAP)
+	var map: Node3D = await h._build(sim_map())
 	var pawn: Pawn = h._pawn(map)
 	var probe := CoverProbe.new()
 	var old = Old.new()
@@ -533,8 +554,8 @@ func test_report_cover_time() -> void:
 	news.sort()
 	valids.sort()
 	var statics := map.find_children("*", "StaticBody3D", true, false).size()
-	print("COVER_TIME map=alesia_1km.json walls=%d static_bodies=%d samples=%d old_us=%.1f index_us=%.1f full_validation_us=%.1f once per frame (median of 7, whole CoverProbe.sample on a hit)" % [
-			index.size(), statics, set_.size(), olds[3], news[3], valids[3]])
+	print("COVER_TIME map=%s.json walls=%d static_bodies=%d samples=%d old_us=%.1f index_us=%.1f full_validation_us=%.1f once per frame (median of 7, whole CoverProbe.sample on a hit)" % [
+			sim_map_id(), index.size(), statics, set_.size(), olds[3], news[3], valids[3]])
 	assert_true(set_.size() > 100, "nonvacuous time set")
 	failures.append_array(h.failures)
 	pawn.free()

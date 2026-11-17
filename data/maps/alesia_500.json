@@ -1836,7 +1836,7 @@
 		"br": {
 			"drop": {
 				"_placeholder": true,
-				"_todo": "OQ-ALESIA-500 / OQ-BR-DROP placeholder: the carrier flies through the centre; path_length_m 480 = twice the play radius 240; carrier_s 20; map_half_m 248 = the 250 m ground half less 2 m; altitude_m 180; max_fall_mps 10; glide_speed_mps 14: side reach 180 / 10 x 14 = 252 m >= 240.",
+				"_todo": "OQ-ALESIA-500 / OQ-BR-DROP: guesses for Shibi, the rules of alesia_1km's drop note sized to this map. The carrier flies through the zone start centre (0, 0); path_length_m 480 = twice the play radius 240, so it enters and leaves the play circle on every bearing; carrier_s 20 = 24 m/s along the line (as on the 1 km map). map_half_m 248 = the 250 m ground half less 2 m. altitude_m 180 (at most 200; clears the 16 m Arx hill and every tower). max_fall_mps 10, glide_speed_mps 14: the side reach is altitude / max_fall x glide = 180 / 10 x 14 = 252 m >= the 240 m play radius (the real fall is a little longer: 18 + 10 / 40 = 18.25 s, 255 m). Reach proof: any point of the play circle lies at most 240 m from the centre, so at most 240 m from the carrier line (which passes through the centre) and its foot on the line lies within 240 m of the centre, on the 480 m path; a soldier who jumps there glides 240 m <= 252 m sideways: every part of the map is reachable from every carrier bearing. The last forced drop leaves at 20 s and lands at about 20 + 18 = 38 s, well before the first zone wait (118 s) ends. bot_jump_window and enabled stay br.json's.",
 				"altitude_m": 180.0,
 				"carrier_s": 20.0,
 				"glide_speed_mps": 14.0,
@@ -1894,7 +1894,7 @@
 		},
 		"loot": {
 			"_placeholder": true,
-			"_todo": "OQ-ALESIA-500 / OQ-BR-LOOT placeholder: area_half_m 240 covers the zone start circle; count 450 = the floor 25 x 18 players (540 x the walkable-area ratio to the 1 km map is lower); clusters of 8 items at every landmark (old and new). Stage 3 finalises them.",
+			"_todo": "OQ-ALESIA-500 / OQ-BR-LOOT: guesses for Shibi. Rule: count = max(540 x (walkable area of alesia_500 / walkable area of alesia_1km), 25 per player x 18 players). Walkable area = the saved navmesh (data/maps/nav/<map>.res) polygon area projected on the ground, triangles whose centroid lies inside the play radius (stacked floors count): alesia_500 163,133 m2 (play radius 240; 90% of the disc), alesia_1km 691,348 m2 (play radius 480; 96% of the disc), ratio 0.236, so 540 x 0.236 = 127 < the floor 450: count 450 (25 per player, against 30 on the 1 km map, on a quarter of its walkable area: about 2.8 items per 1,000 m2 against 0.8). area_half_m 240 covers the zone start circle (items stay inside it less zone_edge_margin_m, which stays loot.json's). Clusters: 8 items at each of the 18 landmarks (the 13 of the 1 km map and the five town districts forum, templum, thermae, fabricae, horreum): 144 of 450, about a third. count may not pass 900 (Lanista's cap).",
 			"area_half_m": 240.0,
 			"clusters": [
 				{
@@ -2288,7 +2288,7 @@
 	},
 	"zone_gen": {
 		"_placeholder": true,
-		"_todo": "OQ-ALESIA-500 / OQ-BR-ZONE placeholder: alesia_1km's radius fractions, damage and edge rules; the waits scaled (x 1.31) so the nominal last close (the sum of waits and shrinks) is about the 1 km map's 570 s. tools/gen_zone.gd -- --map=res://data/maps/alesia_500.json writes overrides.br.zone.phases. Stage 3 finalises them.",
+		"_todo": "OQ-ALESIA-500 / OQ-BR-ZONE: every number here is a guess for Shibi. alesia_1km's radius fractions (0.65 0.42 0.25 0.13 0.05 0), damage, run speed, min shrink and edge cap (4 m/s; see alesia_1km.json zone_gen for the rules); on the 240 m play radius the shrinks are shorter (42 28 21 20 20 20 = 151 s against 250 s), so the waits are the 1 km map's x 1.31 (118 98 79 59 39 26 = 419 s) to keep the nominal last close (the sum of every wait and shrink) at the 1 km map's 570 s. It must stay at most 720 s so every data/br.json match_length preset applies (factor = minutes x 60 / 570: 12 min 1.263, 15 min 1.579, 20 min 2.105; MatchDirector.apply_match_length rejects a factor below 1). The reach rule holds with no lengthening: the last forced drop lands at 20 + 180 / 10 = 38 s, runs 2 x (240 - 156) = 168 m at 4.47 m/s in 37.6 s, so it reaches the first circle at 75.6 s, before the first shrink ends at 160 s and long before the first wait ends (118 s). tools/gen_zone.gd -- --map=res://data/maps/alesia_500.json writes overrides.br.zone.phases (then re-bake the nav).",
 		"edge_speed_cap_mps": 4.0,
 		"min_shrink_s": 20.0,
 		"phases": [

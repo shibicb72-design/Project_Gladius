@@ -585,7 +585,7 @@ func _shots(map_path: String, dir: String) -> bool:
 
 # --- M2 H1b commit 3: the HUD minimap picture (no text, no markers; OQ-MINIMAP) ---
 
-const MINIMAP_MAPS: Array[String] = ["alesia_1km", "test_300", "alesia_section"]
+const MINIMAP_MAPS: Array[String] = ["alesia_1km", "test_300", "alesia_section", "alesia_500"]
 const MINIMAP_DIR := "res://assets/generated/ui"
 const _AstraMap := preload("res://scripts/visual/astra_map.gd")
 
