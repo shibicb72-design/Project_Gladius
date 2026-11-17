@@ -168,6 +168,16 @@ func test_every_listed_type_has_near_and_far_meshes_with_the_shader_data() -> vo
 	var order: Array = WorldSurface.config()["surface_order"]
 	assert_true(bool(_cfg()["_placeholder"]) and String(_cfg()["_todo"]).contains("OQ-ART-WORLD"), "placeholder data with its OQ id")
 	assert_true(_types().size() >= 2, "nonvacuous: types listed")
+	# Review blocker (Lanista): EVERY world kit type must have a look entry, so a type dropped from
+	# art_world_kit.json cannot silently fall back to the old kit look.
+	var kit: Array = []
+	for type: String in _kit_types():
+		if not type.begins_with("_"):
+			kit.append(type)
+	kit.sort()
+	var listed := _types().duplicate()
+	listed.sort()
+	assert_eq(listed, kit, "every world kit type (alesia_structures.json) has an entry in art_world_kit.json, and no extra")
 	for type: String in _types():
 		assert_true(_kit_types().has(type), type + ": a world kit type")
 		for level: int in _levels(type):
