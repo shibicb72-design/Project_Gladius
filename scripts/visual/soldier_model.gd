@@ -44,6 +44,8 @@ static var _blade: ArrayMesh
 ## M2 AN1 commit 4: library gait (data/anim.json "gait").
 var gait: SoldierGait
 var crawl: SoldierCrawl
+var neck: SoldierNeck
+var _blend_shown := Vector2.ZERO  # M2 AN3: the locomotion blend as shown (rate-limited)
 var gait_rate := 1.0  # gait cycles per second shown (ground speed / cycle_m)
 var airborne := false
 var hit_count := 0  # flinches requested so far (tests, captures)
@@ -152,7 +154,15 @@ func _ready() -> void:
 	crawl.name = "Crawl"
 	skeleton.add_child(crawl)
 	crawl.setup()
-	_keyed = SoldierRig.config().get("keyed", {})
+	# M2 AN3: the neck follows the chest (about the head hitbox centre): the last body modifier (only the hand sync and
+	# the left-arm IK, which never touch the neck or head, come after it: tests/test_anim_layers.gd).
+	neck = SoldierNeck.new()
+	neck.name = "Neck"
+	neck.gait = gait
+	neck.pose = pose
+	skeleton.add_child(neck)
+	neck.setup()
+	_keyed =SoldierRig.config().get("keyed", {})
 	for slot: String in ["ladder_up", "ladder_down", "ladder_top"] + ACTIONS:
 		var clip := SoldierAnimation.shared(slot, skeleton)
 		if clip != null:
@@ -300,6 +310,16 @@ func _process(delta: float) -> void:
 		velocity = _replica_velocity
 	var local := _pawn.global_transform.basis.inverse() * velocity
 	var blend := Vector2(local.x, local.z) / pawn.get_move_speed()
+	var head := SoldierRig.head_cfg()
+	if not head.is_empty():
+		# M2 AN3: no run cycle under the fall pose (the glide stick threw the torso off the helmet in one frame), and
+		# the blend moves at most blend_max_rate per second (start, stop and landing steps), short enough that the
+		# feet still match the ground speed.
+		if pawn.drop_state == Pawn.Drop.FALLING:
+			blend = Vector2.ZERO
+		var rate := float(head["blend_max_rate"])
+		_blend_shown = _blend_shown.move_toward(blend, rate * delta) if rate > 0.0 else blend
+		blend = _blend_shown
 	animation_tree.set("parameters/locomotion/blend_position", blend)
 	_drive_gait(blend, velocity.length())
 	crawl.move_local = local

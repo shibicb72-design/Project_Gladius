@@ -21,6 +21,11 @@ var _side := 1
 var _sided_nodes: Array = []  # [AnimationNodeAnimation, base animation name]
 var _rest_keyed := false
 var _rise := false
+## M2 AN3 tools only (tools/head_motion_measure.gd): true keeps the keyed clips' own Neck tracks instead of the hitbox
+## pin, to measure the pin's share. False (the shipped default) changes nothing.
+static var measure_clip_neck := false
+var _mix_shown := 0.0  # M2 AN3: cover_mix as shown (faded)
+var _rest_shown := 0.0  # M2 AN3: cover_rest_mix as shown (faded)
 
 static func state_clip(state: CoverController.State, side: int) -> String:
 	match state:
@@ -218,10 +223,13 @@ func _keyed_clip(slot: String, state: String, crouched: bool) -> Animation:
 	for i in range(clip.get_track_count() - 1, -1, -1):
 		var bone := String(clip.track_get_path(i).get_concatenated_subnames())
 		if bone == "Neck":
-			clip.remove_track(i)
+			if not measure_clip_neck:
+				clip.remove_track(i)
 		elif bone == "Hips" and clip.track_get_type(i) == Animation.TYPE_POSITION_3D and lift != 0.0:
 			for k in clip.track_get_key_count(i):
 				clip.track_set_key_value(i, k, (clip.track_get_key_value(i, k) as Vector3) + Vector3(0.0, lift, 0.0))
+	if measure_clip_neck:
+		return clip
 	var track := clip.add_track(Animation.TYPE_POSITION_3D)
 	clip.track_set_path(track, NodePath("Skeleton3D:Neck"))
 	clip.position_track_insert_key(track, 0.0, neck_at)
@@ -304,6 +312,21 @@ func _clip(name: String, crouched: bool = false, side: int = 1) -> Animation:
 func _process(delta: float) -> void:
 	sync_pose(delta)
 
+## M2 AN3: the cover layer and the hug's rest layer move toward their targets over head.cover_mix_fade_s /
+## cover_rest_fade_s (one-frame snaps under SoldierRig.head_legacy, as before).
+func _fade_mixes(head: Dictionary, mix: float, rest: float, delta: float) -> void:
+	if head.is_empty():
+		_mix_shown = mix
+		_rest_shown = rest
+	else:
+		var mix_s := float(head["cover_mix_fade_s"])
+		var rest_s := float(head["cover_rest_fade_s"])
+		_mix_shown = move_toward(_mix_shown, mix, delta / mix_s) if mix_s > 0.0 else mix
+		_rest_shown = move_toward(_rest_shown, rest, delta / rest_s) if rest_s > 0.0 else rest
+	tree.set("parameters/cover_mix/blend_amount", _mix_shown)
+	tree.set("parameters/cover_rest_mix/blend_amount", _rest_shown)
+
+
 func sync_pose(delta: float) -> void:
 	if tree == null:
 		return
@@ -324,17 +347,21 @@ func sync_pose(delta: float) -> void:
 		for pair: Array in _sided_nodes:
 			(pair[0] as AnimationNodeAnimation).animation = StringName(String(pair[1]) + ("@l" if side < 0 else ""))
 	var name := "" if controller == null else state_clip(controller.state, controller.side)
+	var head := SoldierRig.head_cfg()
 	if name.is_empty():
-		tree.set("parameters/cover_mix/blend_amount", 0.0)
-		tree.set("parameters/cover_rest_mix/blend_amount", 0.0)
+		_fade_mixes(head, 0.0, 0.0, delta)
+		model.gait.cover_crouch = amount * _mix_shown
 		# M2 AN2: on a ladder (and stepping off its top) the model turns itself to face the ladder.
 		if not model.owns_yaw():
 			model.rotation.y = _rest_yaw
 		_last = ""
 		return
-	tree.set("parameters/cover_mix/blend_amount", 1.0)
 	var resting := controller.state == CoverController.State.IN_COVER or controller.state == CoverController.State.ENTERING
-	tree.set("parameters/cover_rest_mix/blend_amount", 1.0 - controller.aim_out_amount if resting else 0.0)
+	# M2 AN3: the hug's rest layer follows 1 - aim_out in the lean states too (it snapped off in one frame there).
+	var leaning := controller.state == CoverController.State.PEEK_LEFT or controller.state == CoverController.State.PEEK_RIGHT
+	var rest := 1.0 - controller.aim_out_amount if resting or (leaning and not head.is_empty()) else 0.0
+	_fade_mixes(head, 1.0, rest, delta)
+	model.gait.cover_crouch = amount * _mix_shown
 	if playback.get_current_node() == &"Start" or String(playback.get_current_node()).is_empty():
 		playback.start(name)
 		_last = name

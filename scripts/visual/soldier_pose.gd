@@ -15,6 +15,10 @@ var cfg: Dictionary = {}
 var weights := {"blade": 0.0, "revive": 0.0, "downed": 0.0, "land": 0.0, "fall": 0.0}
 ## Tools and tests: a state listed here is held at that weight whatever the pawn does.
 var force: Dictionary = {}
+## M2 AN3 tools only (tools/head_motion_measure.gd): contributors switched off to measure their share. Empty (the
+## shipped default) changes nothing. "carry_neck": the kneel does not carry the neck; "body_turn_neck": the whole-body
+## turn moves the Hips root only, the Neck root stays where the layers below put it.
+static var measure_off: Dictionary = {}
 ## How far the arms are taken away from the rifle (the model fades the left hand's IK by it).
 var arms_weight := 0.0
 var swing_left_s := 0.0
@@ -24,6 +28,7 @@ var _lean := Vector2.ZERO
 var _breath := 0.0
 var _bones := {}
 var _pivot := Vector3.ZERO
+var _head_centre := Vector3.ZERO  # M2 AN3: the head hitbox centre (Head rest)
 var _swing_clip: Animation
 var _revive_clip: Animation
 var _tracks := {}
@@ -47,6 +52,7 @@ func setup(new_pawn: Pawn) -> void:
 	for i in skeleton.get_bone_count():
 		_bones[String(skeleton.get_bone_name(i))] = i
 	_pivot = skeleton.get_bone_global_rest(int(_bones["Hips"])).origin
+	_head_centre = skeleton.get_bone_global_rest(int(_bones["Head"])).origin
 	# M2 AN1 commit 4: library clips for the blade swing (UAL Sword_Attack) and the reviver (UAL Fixing_Kneeling),
 	# shared baked clips; null keeps the code-built poses.
 	_swing_clip = SoldierAnimation.shared("blade_swing", skeleton)
@@ -185,6 +191,10 @@ func _process_modification_with_delta(delta: float) -> void:
 		pitch *= 1.0 - clampf(action_weight, 0.0, 1.0)
 		roll *= 1.0 - clampf(action_weight, 0.0, 1.0)
 	var offset := Vector3.ZERO
+	# M2 AN3: the offset the Neck root takes (data head.offset_moves_head; under head_legacy the same as the Hips').
+	var head_offset := Vector3.ZERO
+	var head_cfg := SoldierRig.head_cfg()
+	var moves_head: Dictionary = head_cfg.get("offset_moves_head", {})
 	var kneel := 0.0
 	_revive_s = _revive_s + delta if float(weights["revive"]) > 0.0 else 0.0
 	for state in STATES:
@@ -202,11 +212,13 @@ func _process_modification_with_delta(delta: float) -> void:
 			_blend_clip(skeleton, _revive_clip, at, w, [], true)
 			pitch = lerpf(pitch, 0.0, w)
 			offset = offset.lerp(Vector3.ZERO, w)
+			head_offset = head_offset.lerp(Vector3.ZERO, w)
 			kneel = w
 			continue
 		pitch = lerpf(pitch, deg_to_rad(float(pose.get("body_pitch_deg", 0.0))), w) if pose.has("body_pitch_deg") else pitch
 		if pose.has("body_offset_m"):
 			offset = offset.lerp(LowpolyKit.vec(pose["body_offset_m"]), w)
+			head_offset = head_offset.lerp(LowpolyKit.vec(pose["body_offset_m"]) if head_cfg.is_empty() or bool(moves_head.get(state, true)) else Vector3.ZERO, w)
 		_blend_bones(skeleton, pose["bones"], w)
 	if swing_left_s > 0.0:
 		var swing: Dictionary = cfg["swing"]
@@ -234,16 +246,26 @@ func _process_modification_with_delta(delta: float) -> void:
 	if chest >= 0:
 		var breath := deg_to_rad(float(cfg["breath"]["deg"])) * sin(TAU * _breath)
 		skeleton.set_bone_pose_rotation(chest, skeleton.get_bone_pose_rotation(chest) * Quaternion(Vector3.RIGHT, breath))
+	if measure_off.has("carry_neck"):
+		kneel = 0.0
 	if is_zero_approx(pitch) and is_zero_approx(roll) and offset.is_zero_approx():
 		if kneel > 0.0:
 			_carry_neck(skeleton, kneel)
 		return
 	var turn := Basis(Vector3.RIGHT, pitch) * Basis(Vector3.BACK, roll)
-	var body := Transform3D(turn, _pivot + offset - turn * _pivot)
+	var pivot := _pivot
+	if bool(head_cfg.get("fall_pivot_head", false)):
+		# M2 AN3: the lean, fall and landing turn the body about the head hitbox centre (the helmet stays on it, the
+		# body swings behind and under it); downed and revive keep the pelvis pivot (they lower the head on purpose).
+		pivot = _head_centre.lerp(_pivot, clampf(maxf(float(weights["downed"]), float(weights["revive"])), 0.0, 1.0))
+	var body := Transform3D(turn, pivot + offset - turn * pivot)
+	var body_head := Transform3D(turn, pivot + head_offset - turn * pivot)
 	for root_name in ["Hips", "Neck"]:
+		if root_name == "Neck" and measure_off.has("body_turn_neck"):
+			continue
 		if _bones.has(root_name):
 			var index := int(_bones[root_name])
-			var posed := body * skeleton.get_bone_pose(index)
+			var posed := (body_head if root_name == "Neck" else body) * skeleton.get_bone_pose(index)
 			skeleton.set_bone_pose_position(index, posed.origin)
 			skeleton.set_bone_pose_rotation(index, posed.basis.get_rotation_quaternion())
 	if kneel > 0.0:

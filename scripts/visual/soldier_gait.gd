@@ -32,7 +32,10 @@ var _chest_rest_y := 0.0
 ## 0..1: how far the pelvis is lifted out of the clip's dip (SoldierModel lowers it in cover, whose clips place
 ## the hips at the crouched hitbox height on purpose).
 var lift_weight := 1.0
+## M2 AN3: 0..1, crouched in the cover hug (CoverAnim sets it: crouch_amount x the cover layer's weight).
+var cover_crouch := 0.0
 var _legs: Array = []  # per side [upper, lower, foot, thigh length, shin length]
+var _neck_from_chest := Transform3D.IDENTITY
 
 
 func setup() -> void:
@@ -44,6 +47,7 @@ func setup() -> void:
 	_hips_rest = skeleton.get_bone_global_rest(_hips).origin
 	_neck = skeleton.find_bone("Neck")
 	_chest_rest_y = skeleton.get_bone_global_rest(_chest).origin.y
+	_neck_from_chest = skeleton.get_bone_global_rest(_chest).affine_inverse() * skeleton.get_bone_global_rest(_neck)
 	_foot_floor = skeleton.get_bone_global_rest(skeleton.find_bone("LeftFoot")).origin.y - float(cfg["foot_floor_slack_m"])
 	for side in ["Left", "Right"]:
 		var upper := skeleton.find_bone(side + "UpperLeg")
@@ -94,6 +98,13 @@ func _process_modification_with_delta(delta: float) -> void:
 		# the crouched hitbox) bends the knees more instead of sinking the boots.
 		placed.y = maxf(placed.y, _foot_floor)
 		goals.append([turn * (knee.origin - pivot) + pivot, Transform3D(turn * foot.basis, placed)])
+	var head := SoldierRig.head_cfg()
+	if not head.is_empty():
+		# M2 AN3: the pelvis keeps hips_keep of the clip's swing (pitch and roll; its yaw stays), so the torso is not
+		# thrown ahead of the head on the hitbox. The feet keep the clip's goals above; the legs are re-solved below.
+		var keep := lerpf(1.0, float(head["hips_keep"]), lift_weight)
+		keep = lerpf(keep, float(head["cover_crouch_hips_keep"]), clampf(cover_crouch, 0.0, 1.0))
+		hips.basis = Basis(_scale_swing(hips.basis.get_rotation_quaternion(), keep))
 	var spine_local := skeleton.get_bone_pose(_spine)
 	# M2 AN2: in cover (lift_weight 0) the keyed cover clips own the spine and chest as authored (the hunched low hug,
 	# the lean): the library-follow scale and the upright chest fade out with the lift.
@@ -112,12 +123,27 @@ func _process_modification_with_delta(delta: float) -> void:
 		var joint := turn * (hips.basis * skeleton.get_bone_pose(int(leg[0])).origin)
 		var target: Vector3 = goals[i][1].origin
 		var flat := Vector2(hips.origin.x + joint.x - target.x, hips.origin.z + joint.z - target.z).length()
-		var length := (float(leg[3]) + float(leg[4])) * float(cfg["leg_reach"])
+		var length := (float(leg[3]) + float(leg[4])) * float(head.get("leg_reach", cfg["leg_reach"]))  # M2 AN3: head's unless legacy
 		height = minf(height, target.y - joint.y + sqrt(maxf(length * length - flat * flat, 0.0)))
 	var lifted := Vector3(hips.origin.x, lerpf(hips.origin.y, maxf(height, hips.origin.y), lift_weight), hips.origin.z)
 	chest.origin += lifted - hips.origin
 	var new_hips := Transform3D(turn * hips.basis, lifted)
 	var new_spine := Transform3D(Basis(Vector3.UP, yaw * float(strafe["spine_share"])) * spine.basis, spine.origin + lifted - hips.origin)
+	if not head.is_empty() and _neck >= 0:
+		# M2 AN3: the spine leans (at most torso_reach_max_deg) so the chest top points at the neck on the head hitbox;
+		# the chest keeps its aimed orientation (only its position follows the spine).
+		var neck_at := skeleton.get_bone_pose_position(_neck)
+		var from := (chest * _neck_from_chest).origin - new_spine.origin
+		var to := neck_at - new_spine.origin
+		var axis := from.cross(to)
+		if axis.length() > 0.000001:
+			var reach := Basis(axis.normalized(), minf(from.angle_to(to), deg_to_rad(float(head["torso_reach_max_deg"]))))
+			new_spine.basis = reach * new_spine.basis
+			chest.origin = new_spine.origin + reach * (chest.origin - new_spine.origin)
+		# What the reach cannot close is the chest top hanging below the neck (the pelvis is held down by the legs'
+		# reach): the chest rises along the spine by at most torso_stretch_max_m.
+		var up := new_spine.basis.y.normalized()
+		chest.origin += up * clampf((neck_at - (chest * _neck_from_chest).origin).dot(up), 0.0, float(head.get("torso_stretch_max_m", 0.0)))
 	skeleton.set_bone_pose_position(_hips, new_hips.origin)
 	skeleton.set_bone_pose_rotation(_hips, new_hips.basis.get_rotation_quaternion())
 	var local_spine := new_hips.affine_inverse() * new_spine
@@ -130,10 +156,21 @@ func _process_modification_with_delta(delta: float) -> void:
 		_solve_leg(skeleton, _legs[i], new_hips, goals[i][0], goals[i][1])
 	# The helmet may sink with the chest by up to neck_drop_max_m (the helmet parts' box still encloses the head
 	# hitbox's box: the crest gives that much room), so the head does not float above a dipping torso.
-	var drop := clampf(chest.origin.y - _chest_rest_y, -float(cfg["neck_drop_max_m"]), 0.0) * lift_weight
+	var drop_max := float(head.get("neck_drop_max_m", cfg["neck_drop_max_m"]))  # M2 AN3: head's value unless legacy
+	var drop := clampf(chest.origin.y - _chest_rest_y, -drop_max, 0.0) * lift_weight
 	if _neck >= 0 and drop < 0.0:
 		var neck := skeleton.get_bone_pose_position(_neck)
 		skeleton.set_bone_pose_position(_neck, Vector3(neck.x, neck.y + drop, neck.z))
+
+
+## M2 AN3: q split into its twist about UP (the yaw, kept) and its swing (pitch and roll), the swing scaled by `keep`.
+static func _scale_swing(q: Quaternion, keep: float) -> Quaternion:
+	var twist := Quaternion(0.0, q.y, 0.0, q.w)
+	if twist.length_squared() < 0.000001:
+		return Quaternion.IDENTITY.slerp(q, keep)
+	twist = twist.normalized()
+	var swing := q * twist.inverse()
+	return Quaternion.IDENTITY.slerp(swing, keep) * twist
 
 
 ## Two-bone solve of one leg under the new hips: the foot bone reaches `foot.origin` with the foot's orientation,

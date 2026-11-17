@@ -19,6 +19,8 @@ func _initialize() -> void:
 			MatchLook.variant_override = arg.substr(10)
 		elif arg == "--hud":
 			hud = true
+		elif arg == "--legacy-head":  # M2 AN3: before-captures of the pre-AN3 head and body (SoldierRig.head_legacy)
+			SoldierRig.head_legacy = true
 		elif arg.begins_with("--on=") or arg.begins_with("--off="):
 			for key in arg.get_slice("=", 1).split(","):
 				GraphicsPresets.overrides[key] = arg.begins_with("--on=")

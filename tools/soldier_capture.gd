@@ -11,7 +11,8 @@ extends SceneTree
 ## Saves <out>/<state>/<state>_NNN.jpg every (60 / fps) frames and prints one line per state. Presentation only.
 ## Cover hug / lean / rise: use tools/cover_capture.gd (real cover sequences in a real match).
 ## Options: --out=<dir> --states=<comma list> --fps=<n, default 20> --size=<w>x<h> (default 1440x810);
-## --procedural passes the library over (ClipLibrary.skip_sources) for before-captures of the code-built clips.
+## --procedural passes the library over (ClipLibrary.skip_sources) for before-captures of the code-built clips;
+## --legacy-head records the pre-AN3 head and body (SoldierRig.head_legacy: the bobblehead before its fix).
 ## Contact sheets: tools/contact_sheet.gd -- --dir=<out>/<state>.
 
 ## M2 AN2 items 3/5: ladder_up / ladder_down / ladder_top (a real Ladder prop on a 3.3 m wall, pawn.climbing set the way
@@ -52,6 +53,8 @@ func _initialize() -> void:
 				_states.append(s)
 		elif a == "--procedural":  # before-captures: the code-built clips, library passed over
 			ClipLibrary.skip_sources.assign(["ual"])
+		elif a == "--legacy-head":  # M2 AN3: before-captures of the pre-AN3 head and body (SoldierRig.head_legacy)
+			SoldierRig.head_legacy = true
 	if _states.is_empty():
 		_states = STATES.duplicate()
 	if not _out.is_absolute_path():

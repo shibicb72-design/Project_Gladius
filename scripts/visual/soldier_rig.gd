@@ -17,6 +17,16 @@ static var _by_rests: Dictionary = {}  # rest signature -> [near ArrayMesh, far 
 
 
 static var _config: Dictionary = {}
+## M2 AN3: true restores the pre-AN3 head and body paths exactly (data/anim_third_person.json "head" is ignored). Tools
+## set it (--legacy-head) to record "before" sequences; the game never does.
+static var head_legacy := false
+
+
+## M2 AN3: data/anim_third_person.json "head" (OQ-ANIM-HEAD), or {} under head_legacy (every caller then takes its old path).
+static func head_cfg() -> Dictionary:
+	if head_legacy:
+		return {}
+	return config().get("head", {})
 
 
 ## data/anim.json with data/anim_third_person.json laid over it (M2 AN1 commit 4: a deep merge, the overlay's keys

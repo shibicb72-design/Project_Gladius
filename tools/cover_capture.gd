@@ -53,6 +53,8 @@ func _initialize() -> void:
 			_out = a.substr(6)
 		elif a.begins_with("--seed="):
 			_seed = int(a.substr(7))
+		elif a == "--legacy-head":  # M2 AN3: before-captures of the pre-AN3 head and body (SoldierRig.head_legacy)
+			SoldierRig.head_legacy = true
 		elif a.begins_with("--fps="):
 			_fps = maxi(1, int(a.substr(6)))
 		elif a.begins_with("--states="):
