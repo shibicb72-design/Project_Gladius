@@ -34,6 +34,11 @@ var _chest_rest_y := 0.0
 var lift_weight := 1.0
 ## M2 AN3: 0..1, crouched in the cover hug (CoverAnim sets it: crouch_amount x the cover layer's weight).
 var cover_crouch := 0.0
+## M2 AN3 stage C (SoldierModel sets them): how far the pawn's Head node is below its standing height out of cover
+## (the free crouch), and how far that lowers the pelvis's lift target. The neck pin drops with the head.
+var head_drop := 0.0
+var hips_drop := 0.0
+var free_crouch := 0.0  # the free crouch clip's blend as shown (SoldierNeck lifts its tilt cap by it)
 var _legs: Array = []  # per side [upper, lower, foot, thigh length, shin length]
 var _neck_from_chest := Transform3D.IDENTITY
 
@@ -84,6 +89,9 @@ func _process_modification_with_delta(delta: float) -> void:
 	if skeleton == null or cfg.is_empty() or _hips < 0:
 		return
 	var strafe: Dictionary = cfg["strafe"]
+	if _neck >= 0 and head_drop > 0.0:
+		var pin := skeleton.get_bone_pose_position(_neck)
+		skeleton.set_bone_pose_position(_neck, Vector3(pin.x, pin.y - head_drop, pin.z))
 	yaw = move_toward(yaw, target_yaw, deg_to_rad(float(strafe["turn_deg_s"])) * delta)
 	var hips := skeleton.get_bone_global_pose(_hips)
 	var turn := Basis(Vector3.UP, yaw)
@@ -116,7 +124,8 @@ func _process_modification_with_delta(delta: float) -> void:
 	# so the rifle does not dip with a jog's forward pitch.
 	var aimed := skeleton.get_bone_pose(_chest).basis.get_rotation_quaternion()
 	chest.basis = Basis(chest.basis.get_rotation_quaternion().slerp(aimed, float(cfg["chest_upright"]) * lift_weight))
-	var height := _hips_rest.y + minf((hips.origin.y - _hips_rest.y) * float(cfg["hips_bob_scale"]), 0.0)
+	var rest_y := _hips_rest.y - hips_drop  # M2 AN3 stage C: the free crouch lowers the pelvis's target
+	var height := rest_y + minf((hips.origin.y - rest_y) * float(cfg["hips_bob_scale"]), 0.0)
 	# No higher than both feet can still be reached with the knees a little bent (leg_reach of the full leg).
 	for i in _legs.size():
 		var leg: Array = _legs[i]
@@ -126,6 +135,10 @@ func _process_modification_with_delta(delta: float) -> void:
 		var length := (float(leg[3]) + float(leg[4])) * float(head.get("leg_reach", cfg["leg_reach"]))  # M2 AN3: head's unless legacy
 		height = minf(height, target.y - joint.y + sqrt(maxf(length * length - flat * flat, 0.0)))
 	var lifted := Vector3(hips.origin.x, lerpf(hips.origin.y, maxf(height, hips.origin.y), lift_weight), hips.origin.z)
+	if free_crouch > 0.0 and hips_drop > 0.0:
+		# M2 AN3 stage C: in the free crouch the pelvis goes down to its head-driven target even below the clip's own
+		# (the knees bend more; the feet keep the clip's goals), so the torso can reach the lowered head.
+		lifted.y = lerpf(lifted.y, minf(lifted.y, rest_y), clampf(free_crouch, 0.0, 1.0))
 	chest.origin += lifted - hips.origin
 	var new_hips := Transform3D(turn * hips.basis, lifted)
 	var new_spine := Transform3D(Basis(Vector3.UP, yaw * float(strafe["spine_share"])) * spine.basis, spine.origin + lifted - hips.origin)
@@ -137,7 +150,8 @@ func _process_modification_with_delta(delta: float) -> void:
 		var to := neck_at - new_spine.origin
 		var axis := from.cross(to)
 		if axis.length() > 0.000001:
-			var reach := Basis(axis.normalized(), minf(from.angle_to(to), deg_to_rad(float(head["torso_reach_max_deg"]))))
+			var reach_max := lerpf(float(head["torso_reach_max_deg"]), float((head.get("free_crouch", {}) as Dictionary).get("reach_max_deg", head["torso_reach_max_deg"])), clampf(free_crouch, 0.0, 1.0))
+			var reach := Basis(axis.normalized(), minf(from.angle_to(to), deg_to_rad(reach_max)))
 			new_spine.basis = reach * new_spine.basis
 			chest.origin = new_spine.origin + reach * (chest.origin - new_spine.origin)
 		# What the reach cannot close is the chest top hanging below the neck (the pelvis is held down by the legs'

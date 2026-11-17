@@ -39,7 +39,7 @@ static func _clamp(q: Quaternion, limits: Vector3) -> Quaternion:
 
 func _limits(cfg: Dictionary, key: String) -> Vector3:
 	var base := LowpolyKit.vec(cfg[key])
-	var crouch := clampf(gait.cover_crouch, 0.0, 1.0) if gait != null else 0.0
+	var crouch := clampf(maxf(gait.cover_crouch, gait.free_crouch), 0.0, 1.0) if gait != null else 0.0  # stage C: the free crouch too
 	var exceptions: Dictionary = cfg.get("exceptions", {})
 	if crouch > 0.0 and exceptions.has("cover_crouch") and (exceptions["cover_crouch"] as Dictionary).has(key):
 		base = base.lerp(LowpolyKit.vec(exceptions["cover_crouch"][key]), crouch)
@@ -75,7 +75,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	target = (chest_q * _clamp(chest_q.inverse() * target, neck_limits)).normalized()
 	# The neck's own tilt from upright stays within neck_tilt_max_deg (the neck and neck guard keep their clearance
 	# under the head hitbox), except where the whole body turns or folds: the fall and landing poses, the crouched hug.
-	var free := clampf(gait.cover_crouch, 0.0, 1.0) if gait != null else 0.0
+	var free := clampf(maxf(gait.cover_crouch, gait.free_crouch), 0.0, 1.0) if gait != null else 0.0
 	if pose != null:
 		free = maxf(free, maxf(float(pose.weights["fall"]), float(pose.weights["land"])))
 	var tilt_max := lerpf(deg_to_rad(float(cfg["neck_tilt_max_deg"])), PI, free)

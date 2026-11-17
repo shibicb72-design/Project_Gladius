@@ -23,7 +23,8 @@ const SETTLE_FRAMES := 10
 const DEFAULT_OUT := "C:/Users/shibi/OpenBot/Agents/agent-afa1d96b-b33b-4ce0-8b3e-07b60fbebb5d/gladius/runs/M2AN3/measure_before"
 const STATES: Array[String] = ["idle", "walk", "jog", "sprint", "strafe_left", "strafe_right", "backpedal",
 	"turn_stand", "turn_jog", "aim_down", "aim_level", "aim_up", "aim_sweep", "fire", "reload", "hit_chest", "hit_head",
-	"fall_land", "cover_stand", "cover_crouch", "cover_peek", "cover_rise", "downed_crawl", "revive"]
+	"fall_land", "cover_stand", "cover_crouch", "cover_peek", "cover_rise", "downed_crawl", "revive",
+	"crouch_idle", "crouch_walk", "crouch_unmoved"]
 const ALL := ["*"]
 ## source id -> [label, states it is run on (ALL = every state)]
 const SOURCES := {
@@ -204,6 +205,9 @@ func _measure(state: String, source: String) -> Dictionary:
 		_apply_source(source)
 	var cover := state.begins_with("cover_")
 	_pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	if state.begins_with("crouch"):
+		# M2 AN3 stage C: the free crouch through the H1c stand-in (tests/crouch_stub_pawn.gd: Pawn.crouch_amount()).
+		_pawn.set_script(load("res://tests/crouch_stub_pawn.gd"))
 	root.add_child(_pawn)
 	_pawn.set_physics_process(false)
 	_model = _pawn.get_node("SoldierModel") as SoldierModel
@@ -391,6 +395,33 @@ func _script(state: String) -> void:
 		"revive":
 			_model.pose.force["revive"] = 1.0
 			await _hold(3.0)
+		"crouch_idle", "crouch_walk", "crouch_unmoved":
+			# M2 AN3 stage C: the free crouch (stub crouch_amount() 0 -> 1 over 0.3 s). The Head node lowers with it
+			# the way H1c will (standing -> standing - free_crouch.nominal_head_drop_m), except in crouch_unmoved (a
+			# pawn whose head hitbox does not lower). crouch_walk then moves at 0.4 x the move speed [a guess: H1c's
+			# crouch speed is not known here]; crouch_unmoved idles 1 s, then walks too.
+			var head_node := _pawn.get_node("Head") as Node3D
+			var standing := head_node.position.y
+			var low := standing - float(SoldierRig.config()["head"]["free_crouch"]["nominal_head_drop_m"])
+			var moves_head := state != "crouch_unmoved"
+			var walk := Vector3.FORWARD * speed * 0.4
+			await _hold(0.3, Vector3.ZERO, func(t: float) -> void:
+				var amount := clampf(t / 0.3, 0.0, 1.0)
+				_pawn.set("crouch_value", amount)
+				if moves_head:
+					head_node.position.y = lerpf(standing, low, amount))
+			_pawn.set("crouch_value", 1.0)
+			if moves_head:
+				head_node.position.y = low
+			_log("  %s: crouch_amount=%.2f shown=%.2f crouch_cycle_m=%.3f head_node_y=%.3f has_method=%s" % [state, _model.crouch_amount(),
+				_model.crouch_shown, float(_model.animation_tree.get_meta(&"crouch_cycle_m", 0.0)), head_node.position.y, _pawn.has_method(&"crouch_amount")])
+			if state == "crouch_idle":
+				await _hold(2.0)
+			elif state == "crouch_walk":
+				await _hold(2.0, walk)
+			else:
+				await _hold(1.0)
+				await _hold(1.0, walk)
 		_:
 			push_error("head_motion: unknown state " + state)
 

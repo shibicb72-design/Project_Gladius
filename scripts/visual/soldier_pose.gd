@@ -29,6 +29,7 @@ var _breath := 0.0
 var _bones := {}
 var _pivot := Vector3.ZERO
 var _head_centre := Vector3.ZERO  # M2 AN3: the head hitbox centre (Head rest)
+var head_drop := 0.0  # M2 AN3 stage C: the free crouch's head drop (SoldierModel): the head pivot drops with it
 var _swing_clip: Animation
 var _revive_clip: Animation
 var _tracks := {}
@@ -257,7 +258,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	if bool(head_cfg.get("fall_pivot_head", false)):
 		# M2 AN3: the lean, fall and landing turn the body about the head hitbox centre (the helmet stays on it, the
 		# body swings behind and under it); downed and revive keep the pelvis pivot (they lower the head on purpose).
-		pivot = _head_centre.lerp(_pivot, clampf(maxf(float(weights["downed"]), float(weights["revive"])), 0.0, 1.0))
+		pivot = (_head_centre - Vector3(0.0, head_drop, 0.0)).lerp(_pivot,clampf(maxf(float(weights["downed"]), float(weights["revive"])), 0.0, 1.0))
 	var body := Transform3D(turn, pivot + offset - turn * pivot)
 	var body_head := Transform3D(turn, pivot + head_offset - turn * pivot)
 	for root_name in ["Hips", "Neck"]:

@@ -84,6 +84,25 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	lower.xfade_time = float(SoldierRig.config()["layers"]["lower_xfade_s"])
 	graph.add_node(&"lower", lower)
 	graph.connect_node(&"lower", 0, &"locomotion")
+	# M2 AN3 stage C: the free crouch (out of cover) blends the locomotion toward the library crouch (the cover
+	# crouch slots, UAL Crouch_Idle / Crouch_Fwd): idle and moving by ground speed, the move cycle normalized like the
+	# gaits so its feet match the ground speed. SoldierModel drives crouch/blend_amount (0 = exactly as before).
+	var crouch_idle := clips.resolve("cover_crouch_idle", null, skeleton)
+	var crouch_move := clips.resolve("cover_crouch_move", null, skeleton)
+	if crouch_idle != null and crouch_move != null:
+		var crouch_gait := SoldierClips.gait(crouch_move, skeleton, false)
+		library.add_animation("crouch_idle", crouch_idle)
+		library.add_animation("crouch_move", crouch_gait["clip"])
+		tree.set_meta(&"crouch_cycle_m", float(crouch_gait["cycle_m"]))  # none (0) = no crouch clips, no crouch nodes
+		graph.add_node(&"crouch_idle", _node("crouch_idle"))
+		graph.add_node(&"crouch_move", _gait_point("crouch_move"))
+		graph.add_node(&"crouch_gait", AnimationNodeBlend2.new())
+		graph.connect_node(&"crouch_gait", 0, &"crouch_idle")
+		graph.connect_node(&"crouch_gait", 1, &"crouch_move")
+		# The crouch blend sits between the aimed layer and the fire kick (connected below), filtered to the bones the
+		# lower layer owns, so the aimed upper body, the graph's stand/upper links and every older path stay as they were.
+		graph.add_node(&"crouch", AnimationNodeBlend2.new())
+		graph.connect_node(&"crouch", 1, &"crouch_gait")
 	if extras.has("jump_air"):
 		lower.set_input_name(1, "air")
 		graph.add_node(&"air", _node("jump_air"))
@@ -123,7 +142,17 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	graph.add_node(&"reload", reload)
 	graph.connect_node(&"upper", 0, &"lower")
 	graph.connect_node(&"upper", 1, &"aim")
-	graph.connect_node(&"fire", 0, &"upper")
+	if graph.has_node(&"crouch"):
+		var crouch_blend := graph.get_node(&"crouch") as AnimationNodeBlend2
+		crouch_blend.filter_enabled = true
+		for i in skeleton.get_bone_count():
+			var bone := String(skeleton.get_bone_name(i))
+			if bone == "Hips" or bone.contains("Leg") or bone.contains("Foot") or bone.contains("Toes") or free_bones.has(bone):
+				crouch_blend.set_filter_path(NodePath("Skeleton3D:" + bone), true)
+		graph.connect_node(&"crouch", 0, &"upper")
+		graph.connect_node(&"fire", 0, &"crouch")
+	else:
+		graph.connect_node(&"fire", 0, &"upper")
 	graph.connect_node(&"fire", 1, &"fire_clip")
 	var before_reload := &"fire"
 	if extras.has("hit_chest"):

@@ -20,7 +20,8 @@ extends SceneTree
 ## and door_open / chest_open / pickup_ground (SoldierModel.play_action next to a stand-in door, chest, item).
 const STATES: Array[String] = ["idle", "walk", "run", "sprint", "strafe", "strafe_left", "backpedal", "back_diag",
 		"aim_fire", "reload", "hit", "jump", "death", "downed_crawl", "revive", "blade",
-		"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground"]
+		"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground",
+		"fall", "fall_side", "turn", "crouch", "crouch_walk"]  # M2 AN3 stage C
 
 var _out := "build/an1_after/c4_soldier"
 var _fps := 20
@@ -131,8 +132,11 @@ func _build_stage() -> void:
 	_camera.current = true
 
 
-func _spawn() -> void:
+func _spawn(state: String = "") -> void:
 	_pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	if state.begins_with("crouch"):
+		# M2 AN3 stage C: the free crouch through the H1c stand-in (Pawn.crouch_amount(), tests/crouch_stub_pawn.gd).
+		_pawn.set_script(load("res://tests/crouch_stub_pawn.gd"))
 	_stage.add_child(_pawn)
 	_pawn.set_physics_process(false)
 	_pawn.global_position = Vector3.ZERO
@@ -190,7 +194,7 @@ func _hold(seconds: float, velocity: Vector3 = Vector3.ZERO) -> void:
 
 func _capture(state: String) -> void:
 	_build_stage()
-	_spawn()
+	_spawn(state)
 	_state = state
 	_dir = _out.path_join(state)
 	DirAccess.make_dir_recursive_absolute(_dir)
@@ -279,6 +283,46 @@ func _capture(state: String) -> void:
 			for swing in 2:
 				_pawn.shot.emit(_pawn.get_muzzle_position(), Vector3.FORWARD, _pawn.loadout.get_active().def.id)
 				await _hold(0.8)
+		"fall", "fall_side":
+			# M2 AN3 stage C: the drop as the owner filmed it. 0.8 s free fall, then the glide stick forward, left and
+			# right (Pawn._apply_fall: velocity = pawn basis x stick x drop_glide_mps), then the landing (drop_state NONE
+			# + landed, as Pawn._apply_fall) and 0.5 s standing. "fall": the camera behind and above, like the drop view;
+			# "fall_side": the usual side view.
+			_follow_y = true
+			_cam_offset = Vector3(0.0, 2.4, 4.8) if state == "fall" else Vector3(3.4, 0.4, -0.6)
+			var glide := float(_pawn.drop_glide_mps)
+			_vy = -float(_pawn.drop_max_fall_mps)
+			_pawn.global_position = Vector3(0, -_vy * 2.4 + 1.0, 0)
+			_pawn.drop_state = Pawn.Drop.FALLING
+			await _hold(0.8)
+			for stick: Vector3 in [Vector3.FORWARD, Vector3.LEFT, Vector3.RIGHT]:
+				await _hold(0.5, _pawn.global_transform.basis * stick * glide)
+			_vy = 0.0
+			_pawn.global_position.y = 0.0
+			_pawn.drop_state = Pawn.Drop.NONE
+			_pawn.landed.emit()
+			_follow_y = false
+			await _hold(0.5)
+		"turn":
+			# M2 AN3 stage C: a yaw sweep (+-90 degrees, 1.5 s period) standing, then while jogging straight on.
+			_cam_offset = Vector3(2.6, 1.3, -2.6)
+			for moving in [false, true]:
+				for i in 90:
+					_pawn.rotation.y = deg_to_rad(90.0) * sin(TAU * i / 90.0)
+					await _frame(Vector3.FORWARD * speed if moving else Vector3.ZERO)
+			_pawn.rotation.y = 0.0
+		"crouch", "crouch_walk":
+			# M2 AN3 stage C: the free crouch (the stub's crouch_amount() 0 -> 1 over 0.3 s; the Head node lowered with
+			# it by head.free_crouch.nominal_head_drop_m, as H1c will), then 1.5 s held or walked at 0.4 x move speed.
+			_cam_offset = Vector3(2.6, 1.0, -2.6)
+			var head_node := _pawn.get_node("Head") as Node3D
+			var standing := head_node.position.y
+			var drop := float(SoldierRig.config()["head"]["free_crouch"]["nominal_head_drop_m"])
+			for i in 18:
+				_pawn.set("crouch_value", (i + 1) / 18.0)
+				head_node.position.y = standing - drop * (i + 1) / 18.0
+				await _frame(Vector3.ZERO)
+			await _hold(1.5, Vector3.FORWARD * speed * 0.4 if state == "crouch_walk" else Vector3.ZERO)
 		"ladder_up", "ladder_down", "ladder_top":
 			var ladder := _ladder_stage()
 			var climb := float(ladder.cfg.get("climb_speed_mps", 2.0))
