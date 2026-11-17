@@ -274,12 +274,21 @@ func test_other_controls_keep_the_aim_latch() -> void:
 		assert_true(pawn.aiming, "%s: jump keeps ADS" % ctx["tag"])
 		await _tap(ctx, "swap_shoulder")
 		assert_true(pawn.aiming, "%s: shoulder swap keeps ADS" % ctx["tag"])
+		# M2 H1c (OQ-SPRINT-LOCK): was one tap on the always-shown button. Now a tap where the hidden button sits (a move
+		# touch there) and, once locked, the tap on the shown button that releases: both keep ADS.
 		var lock: Vector2 = touch.get_lock_button_rect().get_center()
 		_touch(BUTTON_TOUCH, lock, true)
 		await _frames(2)
 		_touch(BUTTON_TOUCH, lock, false)
 		await _frames(2)
-		assert_true(pawn.aiming, "%s: sprint-lock tap keeps ADS" % ctx["tag"])
+		assert_true(pawn.aiming and not touch.provider.sprint_locked, "%s: a tap at the hidden sprint lock keeps ADS" % ctx["tag"])
+		touch.provider.lock_sprint()
+		await _frames(2)
+		_touch(BUTTON_TOUCH, lock, true)
+		await _frames(2)
+		_touch(BUTTON_TOUCH, lock, false)
+		await _frames(2)
+		assert_true(pawn.aiming and not touch.provider.sprint_locked, "%s: sprint-lock release tap keeps ADS" % ctx["tag"])
 		var look: Vector2 = touch._zone_hit_rect("look_zone").get_center()
 		_touch(LOOK_TOUCH, look, true)
 		for k in range(1, 4):

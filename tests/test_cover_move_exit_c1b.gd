@@ -465,6 +465,24 @@ func _tap(point: Vector2) -> void:
 	await frames(1)
 
 
+## M2 H1c (OQ-SPRINT-LOCK): a real move touch at the stick rest, dragged to the Lock target and lifted there.
+func _lock_by_target() -> void:
+	var origin: Vector2 = touch.get_move_rest()
+	_event_at(origin, true)
+	await frames(1)
+	var target: Vector2 = touch.get_lock_target_rect().get_center()
+	var drag := InputEventScreenDrag.new()
+	drag.index = 47
+	drag.position = _tree().root.get_screen_transform() * target
+	drag.relative = _tree().root.get_screen_transform().basis_xform(target - origin)
+	_tree().root.push_input(drag, false)
+	await frames(2)
+	assert_true(touch.provider.lock_target_visible(), "the forward-extreme push shows the Lock target")
+	assert_true(touch.lock_target.visible, "the Lock target is drawn during the push")
+	_event_at(target, false)
+	await frames(2)
+
+
 func _wait_free(max_frames: int = 60) -> void:
 	for i in max_frames:
 		if _pawn.cover.state == CoverController.State.FREE:
@@ -478,7 +496,8 @@ func test_hidden_slots_empty_and_jump_sprint_lock_cover_visible_in_cover() -> vo
 	assert_true(not ui.has("cover_buttons"), "ui.json has no cover_buttons block (no slot hidden in cover)")
 	await _match_setup()
 	assert_true(touch._buttons["jump"].visible, "Jump visible in cover")
-	assert_true(touch.lock_button.visible, "the Sprint lock visible in cover")
+	# M2 H1c (OQ-SPRINT-LOCK): was "the Sprint lock visible in cover"; the button now shows only while sprint is locked.
+	assert_true(not touch.lock_button.visible, "the Sprint lock button hidden in cover while not locked")
 	assert_true(touch._buttons["swap_shoulder"].visible and touch._action_of("swap_shoulder") == "cover", "the Cover button visible in cover")
 	assert_true(touch.cover_slot_engaged, "the Cover button shows its active state")
 	for key in ["jump", "sprint_lock", "swap_shoulder"]:
@@ -508,9 +527,12 @@ func test_hard_forward_push_neither_sprints_nor_exits_and_the_lock_stays_usable(
 	assert_true(not touch.provider.is_sprinting(), "the forward-extreme gesture does not sprint in cover")
 	assert_true(not _pawn._frame.sprint and is_equal_approx(_pawn.sprint_factor, 1.0), "no sprint reaches the pawn")
 	assert_true(absf(_pawn.global_position.x - x) > 0.5, "the forward push slides along the wall instead")
-	assert_true(touch.lock_button.visible and touch.provider.lock_target_visible(), "the Sprint lock button and target stay reachable")
-	await _tap(touch.lock_button.get_global_rect().get_center())
-	assert_true(touch.provider.sprint_locked, "the real Sprint lock button locks in cover")
+	# M2 H1c (OQ-SPRINT-LOCK): was "the Sprint lock button and target stay reachable" and a tap on the button; the button
+	# is hidden until locked, the target stays reachable and the lift on it locks.
+	assert_true(not touch.lock_button.visible and touch.provider.lock_target_visible(), "the Lock target stays reachable, the button hidden")
+	touch.provider.move_value = Vector2.ZERO
+	await _lock_by_target()
+	assert_true(touch.provider.sprint_locked and touch.lock_button.visible, "the lift on the Lock target locks in cover")
 	assert_true(_pawn.cover.state == CoverController.State.EXITING or _pawn.cover.state == CoverController.State.FREE, "and the lock exits")
 	touch.provider.move_value = Vector2.ZERO
 	await _wait_free()
@@ -519,15 +541,22 @@ func test_hard_forward_push_neither_sprints_nor_exits_and_the_lock_stays_usable(
 	await _match_cleanup()
 
 
-func test_sprint_lock_exit_through_the_real_lock_button() -> void:
+## M2 H1c (OQ-SPRINT-LOCK): was test_sprint_lock_exit_through_the_real_lock_button (a tap on the always-shown button
+## while pushing forward). The button is hidden until locked; the exit is the push to the forward extreme and the lift on
+## the Lock target (shown in cover: lock_target_visible ignores cover_suppress_sprint).
+func test_sprint_lock_exit_through_the_lock_target() -> void:
 	await _match_setup()
 	touch.provider.move_value = Vector2(0, -0.5)  # a partial forward push: a slide along the wall, no sprint gesture
 	await frames(3)
 	assert_eq(_pawn.cover.state, CoverController.State.IN_COVER, "the partial push slides")
+	assert_true(not touch.lock_button.visible, "the Sprint lock button is hidden at rest in cover")
 	await _tap(touch.lock_button.get_global_rect().get_center())
-	assert_true(touch.provider.sprint_locked, "the real Sprint lock button locks")
-	assert_true(_pawn.cover.state == CoverController.State.EXITING or _pawn.cover.state == CoverController.State.FREE, "the Sprint lock press exits")
+	assert_true(not touch.provider.sprint_locked, "a tap where the hidden button sits does not lock")
+	assert_true(_pawn.cover.state != CoverController.State.FREE, "nor exits")
 	touch.provider.move_value = Vector2.ZERO
+	await _lock_by_target()
+	assert_true(touch.provider.sprint_locked, "the lift on the Lock target locks")
+	assert_true(_pawn.cover.state == CoverController.State.EXITING or _pawn.cover.state == CoverController.State.FREE, "the Sprint lock exits")
 	await _wait_free()
 	assert_eq(_pawn.cover.state, CoverController.State.FREE, "the exit completes")
 	await frames(20)

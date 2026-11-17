@@ -460,7 +460,7 @@ func _accept_point(p: Vector2) -> bool:
 		return false
 	if is_instance_valid(button) and button.visible and button.get_touch_rect().has_point(p):
 		return false
-	if touch_hud._button_at(p) != "" or touch_hud.get_lock_button_rect().has_point(p):
+	if touch_hud._button_at(p) != "" or touch_hud.lock_button_hit(p):  # M2 H1c: the lock button only while shown
 		return false
 	return true
 

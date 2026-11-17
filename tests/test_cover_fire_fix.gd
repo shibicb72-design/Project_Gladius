@@ -175,10 +175,17 @@ func test_s_hard_push_stays_and_lock_release_exits() -> void:
 
 func test_s_lock_already_on_enters_and_stays_in_cover() -> void:
 	await setup(SCREENS[0], 0.25, false)
-	touch.provider.move_value = Vector2(0, -0.3)
+	# M2 H1c (OQ-SPRINT-LOCK): was a tap on the Sprint lock button while moving forward (move_value -0.3); the button now
+	# shows only while locked, so the real lock is the push to the Lock target and the lift there.
+	var origin: Vector2 = touch.get_move_rest()
+	event_at(origin, true)
 	await frames(1)
-	await tap(touch.lock_button.get_global_rect().get_center())
-	assert_true(touch.provider.sprint_locked, "real free Sprint lock button locks")
+	var target: Vector2 = touch.get_lock_target_rect().get_center()
+	drag_to(target, target - origin)
+	await frames(2)
+	event_at(target, false)
+	await frames(1)
+	assert_true(touch.provider.sprint_locked and touch.lock_button.visible, "real free lift on the Lock target locks")
 	await frames(60)
 	# M2 C1b stage 1: no auto-snap while sprinting; the Cover button enters and the held lock is not a new Sprint press.
 	assert_eq(pawn.cover.state, CoverController.State.FREE, "a forward sprint lock never auto-snaps")

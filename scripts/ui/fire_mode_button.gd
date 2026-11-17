@@ -124,7 +124,7 @@ func _input(event: InputEvent) -> void:
 		for key in touch_hud.get_button_actions():
 			if touch_hud.get_element_rect(key).has_point(point):
 				return
-		if touch_hud.get_lock_button_rect().has_point(point):
+		if touch_hud.lock_button_hit(point):  # M2 H1c: only while shown (OQ-SPRINT-LOCK)
 			return
 	var modes: Array = _weapons[weapon.def.id]["modes"]
 	var current := modes.find(weapon.fire_mode)

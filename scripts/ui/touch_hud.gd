@@ -45,7 +45,28 @@ var show_move_stick_for_editing: bool = false:
 	set(v):
 		show_move_stick_for_editing = v
 		_apply_move_stick_drawn()
+## M2 H1c (OQ-SPRINT-LOCK): the layout editor sets this on its preview so the Sprint lock button (normally shown only
+## while sprint is locked) can be selected and dragged there.
+var show_sprint_lock_for_editing: bool = false:
+	set(v):
+		show_sprint_lock_for_editing = v
+		_refresh_button_visibility()
 const LOCK_KEY := "sprint_lock"
+
+## M2 H1c (OQ-SPRINT-LOCK): the ONE rule for the Sprint lock button. It does something only while sprint is locked
+## (TouchProvider.sprint_locked, the single source of truth: a tap releases it), so only then is it drawn and only then
+## does it catch a tap. Every path that clears the lock (a tap, a new move touch, the in-match menu) hides it on the next
+## frame (_place_sprint_elements, every _process) and at once for hit-testing (lock_button_hit reads the provider).
+func sprint_lock_button_active() -> bool:
+	return provider != null and provider.sprint_locked
+
+func lock_button_shown() -> bool:
+	return show_sprint_lock_for_editing or sprint_lock_button_active()
+
+## A press at p (viewport space) belongs to the Sprint lock button. A hidden button catches nothing: the touch then does
+## what a touch at that point would otherwise do (a move-stick touch in the move zone).
+func lock_button_hit(p: Vector2) -> bool:
+	return sprint_lock_button_active() and get_lock_button_rect().has_point(p)
 
 ## M2 C1b stage 4 (decision 3, fix 4): no slot is hidden in cover any more (the old cover FIRE / Crouch slot swaps and
 ## data/ui.json cover_buttons are gone); only C1a's first-person Shoulder rule hides a button.
@@ -53,7 +74,7 @@ func _refresh_button_visibility() -> void:
 	for key in _buttons:
 		_buttons[key].visible = not is_first_person_slot_hidden(key)
 	if lock_button != null:
-		lock_button.visible = true
+		lock_button.visible = lock_button_shown()
 
 ## M2 C1a stage 4 (spec item 5, fix 2): true while the local pawn's CameraRig wants first person
 ## (CameraRig.is_first_person). The Shoulder button is then hidden (data/ui.json first_person_touch.shoulder_visible,
@@ -429,6 +450,7 @@ func _make_sprint_elements() -> void:
 	lock_button.name = "sprint_lock_button"
 	lock_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lock_button.focus_mode = Control.FOCUS_NONE
+	lock_button.visible = lock_button_shown()  # M2 H1c (OQ-SPRINT-LOCK): hidden at rest
 	add_child(lock_button)
 	lock_target = Button.new()
 	lock_target.name = "sprint_lock_target"
@@ -493,6 +515,7 @@ func _place_sprint_elements() -> void:
 	lock_button.add_theme_font_size_override("font_size", int(r.size.x * float(_layout.get("button_font_frac_of_size", 0.24))))
 	_style_round(lock_button, r.size.x, 0.6 if provider.sprint_locked else float(_layout["button_idle_alpha"]))
 	lock_button.modulate.a = _alpha(LOCK_KEY)
+	lock_button.visible = lock_button_shown()  # M2 H1c (OQ-SPRINT-LOCK): the one rule, every frame
 	var t := get_lock_target_rect()
 	lock_target.position = t.position - global_position
 	lock_target.size = t.size
@@ -991,9 +1014,11 @@ func _on_down(idx: int, pos: Vector2) -> void:
 	_refresh_first_person()
 	_refresh_cover_slot()
 	var action := _button_at(pos)
-	if get_lock_button_rect().has_point(pos):
+	if lock_button_hit(pos):
+		# M2 H1c (OQ-SPRINT-LOCK): the button exists only while locked and a tap releases the lock (was a toggle that also
+		# locked while moving forward; locking is now only the lift on the Lock target, _on_up).
 		_lock_btn_touch = idx
-		provider.toggle_sprint_lock()
+		provider.cancel_sprint_lock()
 	elif action != "":
 		_button_touch[idx] = action  # the element key; _action_of(key) is the InputMap action it presses
 		if _action_of(action) == "fire":

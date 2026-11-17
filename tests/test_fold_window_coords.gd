@@ -247,19 +247,24 @@ func _offset_lock(size: Vector2i) -> void:
 	_touch(0, start, false)
 	await _frames(2)
 	assert_true(not touch.provider.sprint_locked, "%s: new move touch cancels the lock" % tag)
-	# Lock button: while pushed forward, a touch at its HUD-space centre plus the offset toggles the lock.
+	# Lock button: M2 H1c (OQ-SPRINT-LOCK) was "while pushed forward, a touch at its centre locks"; now the button exists
+	# only while locked, so lock on the target again and a touch at its HUD-space centre plus the offset releases.
 	var button_pt: Vector2 = offset + touch._lock_button_center()
 	assert_true(canvas.has_point(button_pt), "%s: lock button centre %s is on screen" % [tag, button_pt])
 	_touch(0, start, true)
 	await _frames(1)
 	_drag(0, start + Vector2(0.0, -rad), Vector2(0.0, -rad))
 	await _frames(3)
+	_drag(0, target_pt, target_pt - start - Vector2(0.0, -rad))
+	await _frames(3)
+	_touch(0, target_pt, false)
+	await _frames(2)
+	assert_true(touch.provider.sprint_locked and touch.lock_button.visible, "%s: locked again, the button shown" % tag)
 	_touch(1, button_pt, true)
 	await _frames(2)
 	assert_eq(touch._lock_btn_touch, 1, "%s: touch at the shifted lock button centre reaches it (offset %s)" % [tag, offset])
-	assert_true(touch.provider.sprint_locked, "%s: lock button press locks sprint" % tag)
+	assert_true(not touch.provider.sprint_locked, "%s: lock button press releases sprint" % tag)
 	_touch(1, button_pt, false)
-	_touch(0, start + Vector2(0.0, -rad), false)
 	await _frames(2)
 	_TouchHud.move_stick_override = ""
 	await _teardown(ctx)
