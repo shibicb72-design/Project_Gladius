@@ -13,6 +13,7 @@ const DEFAULT_MAPS: Array[String] = [
 	"res://data/maps/alesia_section.json",
 	"res://data/maps/test_300.json",
 	"res://data/maps/alesia_1km.json",
+	"res://data/maps/alesia_500.json",
 ]
 
 

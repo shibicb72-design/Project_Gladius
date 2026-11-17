@@ -99,7 +99,29 @@ static func contact_report(map: Node, def: Dictionary) -> Dictionary:
 	floating.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) > float(b[0]))
 	far_floating.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) > float(b[0]))
 	return {"families": families, "floating": floating, "backdrop": _backdrop_seam(builder, terrain),
-		"far_families": far_families, "far_floating": far_floating, "far_step_m": far_step}
+		"far_families": far_families, "far_floating": far_floating, "far_step_m": far_step, "terrain_tris": terrain_tris(builder)}
+
+
+## M2 L2b: the terrain's triangles as built (ArtBuilder/Terrain/Chunk_*/Mesh and Far): {chunks, near, far}.
+static func terrain_tris(builder: Node) -> Dictionary:
+	var out := {"chunks": 0, "near": 0, "far": 0}
+	var root := builder.get_node_or_null("Terrain")
+	if root == null:
+		return out
+	for chunk: Node in root.get_children():
+		out["chunks"] = int(out["chunks"]) + 1
+		for kind: String in ["Mesh", "Far"]:
+			var node := chunk.get_node_or_null(kind) as MeshInstance3D
+			if node == null or node.mesh == null:
+				continue
+			var n := 0
+			for s in node.mesh.get_surface_count():
+				var arrays := node.mesh.surface_get_arrays(s)
+				var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+				n += (idx.size() if idx.size() > 0 else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()) / 3
+			var key := "near" if kind == "Mesh" else "far"
+			out[key] = int(out[key]) + n
+	return out
 
 
 ## The far ground's height at (x, z): the terrain samples every `step_m` triangulated as MapTerrain._plane does
@@ -207,6 +229,9 @@ static func report_lines(map_id: String, report: Dictionary) -> PackedStringArra
 	var far_floating: Array = report["far_floating"]
 	for i in mini(WORST, far_floating.size()):
 		lines.append("GROUND_CONTACT_FAR_WORST map=%s rank=%d float_m=%.3f family=%s piece=%s" % [map_id, i + 1, float(far_floating[i][0]), far_floating[i][1], far_floating[i][2]])
+	var tris: Dictionary = report.get("terrain_tris", {})
+	if not tris.is_empty():
+		lines.append("GROUND_CONTACT_TERRAIN_TRIS map=%s chunks=%d near_tris=%d far_tris=%d far_step_m=%s" % [map_id, int(tris["chunks"]), int(tris["near"]), int(tris["far"]), str(report["far_step_m"])])
 	return lines
 
 

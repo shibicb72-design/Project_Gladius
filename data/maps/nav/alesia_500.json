@@ -1,0 +1,22 @@
+{
+	"godot": "4.7.2",
+	"inputs": {
+		"res://data/art_astra.json": "4ad5a9bc3218128deb08f3491e2924ad41a4101aa7d5bbfd780133accafed498",
+		"res://data/maps/alesia_500.json": "5388c0a28fc2c6f1707d1852a83b42723c569898d9e8f549dfcc86c6a1861a17",
+		"res://data/maps/alesia_500_cover.json": "91d1331aa148f30bd5c22dfba03fdc13a2379bf81144963bb71710a84a24e908",
+		"res://data/maps/alesia_500_structures.json": "85555fe979c94f38c72359d8e342970b489ff8bb62c823eb934859fd3201a3f3",
+		"res://data/maps/alesia_cover.json": "54ac19f80114344e7f7b37811fb6605f685fe863b2e30ec6b5928dcbc95f8221",
+		"res://data/maps/alesia_structures.json": "a185a5544dd777eb91887766790a7522aec95fe5e99d280d491c3da4fc2da0d6"
+	},
+	"map": "res://data/maps/alesia_500.json",
+	"mesh_bytes": 575591,
+	"mesh_sha256": "24e32fff3f38a1d2634da03f63c7f725de78ba88b9da31434a45f4d3bdddd164",
+	"polygons": 18303,
+	"tool_inputs": {
+		"res://data/maps/alesia_500_heights.res": "f73b7b2e590bb743a6634b919e972ab3131705dc4127331087dd7a13b7c4c88c",
+		"res://data/maps/alesia_500_paint.res": "d42937c0154324faf27ae963bd37158efefc5cce1fdcb1c338e9d3308dfbe530",
+		"res://scenes/maps/alesia_500.tscn": "d002b61072586d909a9e3acbbc9d0780694531f3d5354ec3c27f775824685f0e"
+	},
+	"version": 1,
+	"vertices": 17389
+}

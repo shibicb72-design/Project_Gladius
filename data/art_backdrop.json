@@ -123,8 +123,49 @@
 			"trees": {"seed": 41, "clumps": 30, "sectors": [[270, 70, 0.75], [340, 40, 0.12], [110, 40, 0.13]], "per_clump": [3, 6], "clump_spread_m": 18, "radius_m": [620, 1000], "wall_radius_m": 330, "min_from_wall_m": 150, "clear_of_square_m": 120,
 				"cone": {"height_m": 13, "radius_m": 1.7, "segments": 5}, "color": [0.16, 0.2, 0.12, 1]},
 			"budgets": {"draws": 8, "tris": 15000}
+		},
+		"alesia_500": {
+			"ground_half_m": 250,
+			"skirt": {"edge_step_m": 25, "outer_steps_m": [30, 50, 80, 120, 170, 230, 300, 400, 500, 620], "seed": 7, "roll_m": 22, "roll_noise_m": 700, "roll_from_m": 40, "roll_full_m": 700, "rise_per_m": 0.012, "sink_m": 0.05},
+			"hills": {
+				"seed": 23,
+				"surface": "rock",
+				"rings": [
+					{"radius_m": 1050, "depth_m": 380, "height_m": [30, 135], "segments": 96, "radius_noise": 0.14, "color": [0.27, 0.25, 0.19, 1], "ridge_color": [0.31, 0.29, 0.22, 1],
+						"tint": [[0, 0.8], [45, 0.7], [90, 0.85], [140, 1.0], [220, 1.0], [270, 0.8], [320, 0.85]],
+						"profile": [[0, 30, 1.0, 0.9], [40, 28, 1.0, 0.7], [70, 35, 1.05, 0.3], [110, 35, 1.05, 0.3], [140, 18, 1.0, 0.5], [165, 4, 1.1, 0.4], [200, 3, 1.15, 0.3], [235, 30, 1.0, 0.6], [270, 66, 0.95, 0.4], [305, 58, 0.95, 0.5], [330, 35, 1.0, 0.8]]},
+					{"radius_m": 1750, "depth_m": 500, "height_m": [60, 200], "segments": 120, "radius_noise": 0.1, "color": [0.36, 0.37, 0.37, 1], "ridge_color": [0.4, 0.42, 0.44, 1],
+						"tint": [[0, 0.6], [45, 0.55], [90, 0.6], [140, 1.0], [220, 1.0], [270, 0.85], [320, 0.7]],
+						"cliff": {"bearings": [58, 120], "fade_deg": 4, "shoulder_h": 0.8, "shoulder_depth": 0.4, "rim_t": 0.86, "face": [0.2, 0.19, 0.18, 1], "rim": [0.8, 0.76, 0.66, 1]},
+						"profile": [[0, 165, 0.8, 0.6], [35, 120, 0.85, 0.5], [55, 235, 0.72, 0.03], [89, 235, 0.72, 0.03], [94, 150, 0.72, 0.03], [99, 235, 0.72, 0.03], [120, 235, 0.72, 0.03], [134, 40, 0.95, 0.3], [150, 25, 1.0, 0.3], [166, 10, 1.05, 0.2], [173, 72, 1.05, 0.12], [180, 10, 1.1, 0.2], [200, 10, 1.1, 0.2], [207, 52, 1.05, 0.12], [214, 12, 1.1, 0.2], [245, 80, 1.0, 0.4], [285, 115, 0.95, 0.35], [320, 105, 0.9, 0.4], [345, 150, 0.82, 0.6]]},
+					{"radius_m": 2650, "depth_m": 420, "height_m": [150, 290], "segments": 90, "radius_noise": 0.08, "color": [0.42, 0.46, 0.52, 1], "ridge_color": [0.5, 0.55, 0.62, 1],
+						"tint": [[0, 0.75], [45, 0.72], [90, 0.85], [140, 1.0], [220, 1.0], [270, 0.9], [320, 0.85]],
+						"cap": {"color": [0.86, 0.85, 0.82, 1], "from_m": 360, "full_m": 440, "t": 0.66},
+						"profile": [[5, 230, 1.0, 0.3], [16, 500, 1.0, 0.4], [30, 240, 1.0, 0.5], [60, 150, 1.0, 0.1], [125, 150, 1.0, 0.1], [150, 80, 1.0, 0.4], [168, 25, 1.05, 0.2], [176, 95, 1.0, 0.15], [184, 22, 1.05, 0.2], [200, 20, 1.05, 0.2], [208, 70, 1.0, 0.15], [216, 22, 1.05, 0.2], [250, 140, 1.0, 0.4], [300, 150, 1.0, 0.4], [325, 210, 1.0, 0.5], [340, 300, 1.0, 0.5], [353, 560, 1.0, 0.4]]}
+				],
+				"bands": [
+					{"bearings_deg": [150, 215], "radius_m": [780, 840], "segments": 14, "lift_m": 0.4, "color": [0.62, 0.66, 0.68, 1]},
+					{"bearings_deg": [142, 224], "radius_m": [1250, 2350], "segments": 16, "lift_m": 0.8, "color": [0.88, 0.88, 0.82, 1]}
+				],
+				"spires": [
+					{"bearing_deg": 256, "radius_m": 1180, "height_m": 150, "base_m": 75, "top_m": 11, "sides": 7, "lean": [18, -10], "color": [0.24, 0.23, 0.21, 1]}
+				]
+			},
+			"aqueduct": {"type": "aqueduct_span", "from": [-110, -430], "to": [190, -830], "scale": 3.0, "sink_m": 1.0},
+			"beacons": {
+				"bearings_deg": [40, 165, 290],
+				"parts": [
+					{"shape": "taper", "top": [0.6, 0.6], "bevel": 0, "size": [6, 22, 6], "at": [0, 11, 0], "color": "travertine_shade"},
+					{"shape": "block", "size": [7, 1, 7], "at": [0, 22.5, 0], "color": "bronze"},
+					{"shape": "block", "size": [2.4, 2.4, 2.4], "at": [0, 24.2, 0], "color": "lit_accent"}
+				]
+			},
+			"trees": {"seed": 41, "clumps": 30, "sectors": [[270, 70, 0.75], [340, 40, 0.12], [110, 40, 0.13]], "per_clump": [3, 6], "clump_spread_m": 18, "radius_m": [400, 780], "wall_radius_m": 222, "min_from_wall_m": 150, "clear_of_square_m": 120,
+				"cone": {"height_m": 13, "radius_m": 1.7, "segments": 5}, "color": [0.16, 0.2, 0.12, 1]},
+			"budgets": {"draws": 8, "tris": 15000}
 		}
 	},
+	"_alesia_500_note": "M2 L2b (OQ-ART-WORLD / OQ-ALESIA-500 placeholders): maps.alesia_500 is alesia_1km's far backdrop over a 250 m half ground: the same skirt steps (from the 250 m edge), hill rings, bands, spire and beacons (all far beyond the 500 m ground: the nearest hill foot at about 860 m), the far aqueduct moved in by 250 m (from 430 m out), the cypress clumps 400 to 780 m out (beyond the square by clear_of_square_m and 150 m beyond the outer wall at 222 m).",
 	"hills": {
 		"seed": 17,
 		"surface": "rock",

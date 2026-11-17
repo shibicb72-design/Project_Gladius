@@ -14,6 +14,7 @@
 		"cables": [],
 		"shafts_at": []
 	},
+	"_alesia_500_note": "M2 L2b (OQ-ART-WORLD / OQ-ALESIA-500 placeholders): alesia_1km's dressing moved to the 500 m map's rings: four flags and four braziers at Porta Aquilae (outer wall r 222, bearing 0: 7 m outside and inside, as the 1 km map's r 330 gate), two flags and two braziers outside the Arx's north gate (fortress ring apothem 26), two braziers 8.5 m inside Porta Vulcani (inner wall r 84, bearing 135, as the 1 km map's inner gate pair). Eight braziers, as alesia_1km: no more lights.",
 	"maps": {
 		"alesia_1km": {
 			"flags": {"positions": [[-9, 0, -337], [9, 0, -337], [56, 0, -247], [68, 0, -247], [-9, 0, -323], [9, 0, -323]]},
@@ -23,6 +24,17 @@
 			"dust": {"positions": []},
 			"_foliage_note": "M2W1 item 5: count 0: the field scatter of data/art_clutter.json (grass clumps over the whole map by the paint) replaces the 2400 tufts in one ring here, so the two never double up.",
 			"foliage": {"centre": [-112, -395], "radius_min_m": 3, "radius_max_m": 60, "count": 0},
+			"props": [],
+			"cables": [],
+			"shafts_at": []
+		},
+		"alesia_500": {
+			"flags": {"positions": [[-9, 0, -229], [9, 0, -229], [-9, 0, -215], [9, 0, -215], [-6, 0, -33], [6, 0, -33]]},
+			"tents": {"positions": []},
+			"braziers": {"positions": [[-8, 0, -227.5], [8, 0, -227.5], [-6, 0, -213], [6, 0, -213], [-8.5, 0, -31.5], [8.5, 0, -31.5], [55.9, 0, 50.9], [50.9, 0, 55.9]]},
+			"beacons": {"positions": []},
+			"dust": {"positions": []},
+			"foliage": {"centre": [0, 0], "radius_min_m": 3, "radius_max_m": 60, "count": 0},
 			"props": [],
 			"cables": [],
 			"shafts_at": []
