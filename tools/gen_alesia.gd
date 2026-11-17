@@ -8,9 +8,13 @@ extends SceneTree
 ##   compressed Image .res with its inputs hash, GroundPaint.save_baked);
 ## - the map json's derived keys: spawns, reserved_spots, generator.heights_sha256, generator.paint_sha256 (the
 ##   rest of the map json is kept; keys come out sorted).
-## godot --headless --path . --script res://tools/gen_alesia.gd [-- --no-paint]
+## godot --headless --path . --script res://tools/gen_alesia.gd [-- --map=<id>] [--no-paint]
 ## --no-paint keeps the committed paint (painting 1024 px in GDScript takes seconds); the map json then keeps
 ## its old paint_sha256.
+## M2 L2a: --map=<id> picks res://data/maps/<id>.json (default alesia_1km; e.g. --map=alesia_500). The output paths
+## come from that map json as before. The 500 m map's extra passes (Arx wall ring, town grid, farmsteads, field wall
+## runs, the outside strip, door/ladder id filters) run only when its generator block has their keys, so the 1 km
+## map's output stays byte-identical (tests/test_alesia_1km_data.gd and tests/test_alesia_500_data.gd pin it).
 
 const MAP_PATH := "res://data/maps/alesia_1km.json"
 const COVER_TYPES := "res://data/maps/alesia_cover.json"
@@ -24,7 +28,15 @@ const _GenTest := preload("res://tools/gen_test_map.gd")
 func _initialize() -> void:
 	var started := Time.get_ticks_msec()
 	var no_paint := OS.get_cmdline_user_args().has("--no-paint")
-	var map_def := DataRegistry.parse_quiet(MAP_PATH)
+	var map_path := MAP_PATH
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--map="):
+			map_path = map_path_of(arg.substr(6))
+	var map_def := DataRegistry.parse_quiet(map_path)
+	if map_def.is_empty() or not map_def.has("generator"):
+		printerr("GEN_ALESIA problem: %s is missing or has no generator block" % map_path)
+		quit(1)
+		return
 	var gen: Dictionary = map_def["generator"]
 	var out := generate(map_def)
 	var gen_ms := Time.get_ticks_msec() - started
@@ -45,7 +57,7 @@ func _initialize() -> void:
 		paint_err = GroundPaint.save_baked(paint["image"], String(settings["baked"]), paint["hash"])
 		map_def["generator"]["paint_sha256"] = sha256((paint["image"] as Image).get_data())
 		paint_ms = Time.get_ticks_msec() - paint_from
-	_write(MAP_PATH, map_def)
+	_write(map_path, map_def)
 	var problems: PackedStringArray = out["problems"]
 	if heights_err != OK or paint_err != OK:
 		problems.append("save failed: heights %d, paint %d" % [heights_err, paint_err])
@@ -65,11 +77,26 @@ func _initialize() -> void:
 	print("GEN_ALESIA doors: doors=%d gates=%d open=%d closed=%d" % [int(dc["door"]), int(dc["gate"]), int(dc["open"]), int(dc["closed"])])
 	var lc: Dictionary = out["ladders"]
 	print("GEN_ALESIA ladders: ladders=%d blocks=%d first_end=%d other_end=%d none=%d" % [int(lc["ladders"]), int(lc["blocks"]), int(lc["first_end"]), int(lc["other_end"]), int(lc["none"])])
+	for line: String in report_500(out):
+		print(line)
 	for line: String in out["shortfalls"]:
 		print("GEN_ALESIA short: ", line)
 	for p in problems:
 		printerr("GEN_ALESIA problem: ", p)
 	quit(1 if not problems.is_empty() else 0)
+
+
+## M2 L2a: appends `line` to the state's PackedStringArray `key` ("problems" or "shortfalls") in place. Measured on
+## Godot 4.7.2: `(state[key] as PackedStringArray).append(line)` appends to a COPY (the line was lost), while a typed
+## variable shares the array; so every problem and shortfall goes through here.
+static func _note(state: Dictionary, key: String, line: String) -> void:
+	var list: PackedStringArray = state[key]
+	list.append(line)
+
+
+## M2 L2a: the map json path of a --map value: a bare id (alesia_500) or a whole res:// path.
+static func map_path_of(value: String) -> String:
+	return value if value.begins_with("res://") else "res://data/maps/%s.json" % value
 
 
 static func _write(path: String, data: Dictionary) -> void:
@@ -193,12 +220,19 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	var outer := _ring(state, "OuterRing_%03d", gen["outer_wall"], aqueducts, kit_types)
 	structures.append_array(inner["pieces"])
 	structures.append_array(outer["pieces"])
+	var rings: Array = [inner, outer]
+	# M2 L2a: a third ring on the Arx top (only with generator.arx_wall), after the two others.
+	var arx_ring := {}
+	if gen.has("arx_wall"):
+		arx_ring = _ring(state, "ArxRing_%03d", gen["arx_wall"], aqueducts, kit_types)
+		structures.append_array(arx_ring["pieces"])
+		rings.append(arx_ring)
 	var worst := 0.0
-	for ring: Dictionary in [inner, outer]:
+	for ring: Dictionary in rings:
 		for joint: Dictionary in joint_gaps(ring["pieces"], kit_types):
 			worst = maxf(worst, maxf(float(joint["inner"]), float(joint["outer"])))
 	if worst > float(gen["wall"]["max_joint_gap_m"]):
-		(state["problems"] as PackedStringArray).append("a wall joint gap of %.3f m exceeds %s m" % [worst, str(gen["wall"]["max_joint_gap_m"])])
+		_note(state, "problems", "a wall joint gap of %.3f m exceeds %s m" % [worst, str(gen["wall"]["max_joint_gap_m"])])
 	for aq: Dictionary in aqueducts:
 		structures.append_array(_aqueduct(aq))
 	for entry: Dictionary in gen["citadel"]["pieces"]:
@@ -232,10 +266,13 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	for g: Dictionary in inner["gates"] + outer["gates"]:
 		for side: float in [-1.0, 1.0]:
 			(state["keep"] as Array).append([(g["at"] as Vector2) + (g["normal"] as Vector2) * side * 4.0, float(gen["gates"]["clear_m"])])
-	# 3. Random pieces, densest where fights happen (camps), moderate on the citadel, sparse in the fields.
 	var cover: Array = []
 	var ring_pieces: Array = []
 	var decor: Array = []
+	# M2 L2a: the 500 m map's laid-out areas (Arx ring keeps, camp extras, town grid, farmsteads, field wall runs, the
+	# outside strip), placed before every random pass so the random pieces avoid them. Nothing without their keys.
+	var l500 := _layout_500(state, structures, cover, ring_pieces, camp_centres, arx_ring, landmarks, kit_types)
+	# 3. Random pieces, densest where fights happen (camps), moderate on the citadel, sparse in the fields.
 	var cit: Dictionary = gen["citadel"]
 	var hill: Dictionary = gen["hill"]
 	var templates := _decor_templates(cover_cfg)
@@ -264,7 +301,7 @@ static func generate(map_def: Dictionary) -> Dictionary:
 					return mid + along * r.randf_range(-float(gates_cfg["lateral_m"]), float(gates_cfg["lateral_m"])) + (g["normal"] as Vector2) * side * r.randf_range(-4.0, 4.0)
 				_cover(state, cover, "Cover_%03d", camps["cover_types"], int(gates_cfg["cover_per_side"]), sampler, "gate %s cover" % g["name"])
 	var fields: Dictionary = gen["fields"]
-	var field_ring := _annulus(float(fields["from_m"]), float(fields["to_m"]))
+	var field_ring := _field_ring(state, float(fields["from_m"]), float(fields["to_m"]))
 	_stakes(state, structures, "Field_Stakes_%d", int(fields["stake_rows"]), field_ring, kit_types, "field stakes")
 	_cover(state, ring_pieces, "Ring_%03d", fields["cover_types"], int(fields["cover"]), field_ring, "field cover")
 	_decor(state, decor, templates["rock"], int(fields["rocks"]), field_ring, "field rocks")
@@ -274,6 +311,7 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	# 5. M2 L1b: the breakable crates and barrels ("props"), appended after the extra cover. Every breakable is a
 	# cover wall until it breaks.
 	var props := _breakables(state, camp_centres, inner, outer)
+	_breakables_500(state, props, l500)
 	var breakables: Array = props["entries"]
 	var walls := breakables.size()
 	for list: Array in [cover, ring_pieces]:
@@ -281,10 +319,11 @@ static func generate(map_def: Dictionary) -> Dictionary:
 			if bool((cover_cfg["types"][entry["type"]] as Dictionary).get("coverable", false)):
 				walls += 1
 	if walls > int(gen["max_cover_walls"]):
-		(state["problems"] as PackedStringArray).append("%d cover walls exceed max_cover_walls %d" % [walls, int(gen["max_cover_walls"])])
+		_note(state, "problems", "%d cover walls exceed max_cover_walls %d" % [walls, int(gen["max_cover_walls"])])
 	# 6. M2 L1b: the loot chests ("props.chests"), appended after the breakables. Permanent bodies under Nav, never
 	# cover walls (so not counted against max_cover_walls).
 	var chest_pass := _chests(state, camp_centres)
+	_chests_500(state, chest_pass, l500)
 	# 7. M2L1c: a guard beside each aqueduct ramp's foot ("ramp_guard", OQ-MAP-CLEAR), appended after every earlier
 	# pass, so the earlier pieces and their random draws stay exactly as they were.
 	_ramp_guards(state, structures, kit_types)
@@ -294,7 +333,8 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	# 9. M2 L1c commit 5: the ladders ("ladders", OQ-PROPS-LADDER) on the barracks end walls, appended after the door
 	# pass; no random draw, so nothing earlier moves.
 	var ladder_pass := _ladders(state, structures, kit_types)
-	var cover_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
+	var note := String(gen.get("file_note", NOTE))  # M2 L2a: a map's own note (the 1 km map has none: NOTE)
+	var cover_file := {"version": 1, "_placeholder": true, "_note": note, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
 	if gen.has("props"):
 		cover_file["breakables"] = breakables
 		if (gen["props"] as Dictionary).has("chests"):
@@ -303,13 +343,13 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		cover_file["doors"] = door_pass["entries"]
 	if gen.has("ladders"):
 		cover_file["ladders"] = ladder_pass["entries"]
-	var structure_file := {"version": 1, "_placeholder": true, "_note": NOTE, "pieces": structures}
+	var structure_file := {"version": 1, "_placeholder": true, "_note": note, "pieces": structures}
 	var landmark_file := {
 		"version": 1,
 		"_placeholder": true,
-		"_todo": "OQ-ALESIA-LAYOUT: the 1 km map's landmark names and places are proposals for Shibi; generated by tools/gen_alesia.gd, do not edit by hand.",
+		"_todo": String(gen.get("landmarks_todo", "OQ-ALESIA-LAYOUT: the 1 km map's landmark names and places are proposals for Shibi; generated by tools/gen_alesia.gd, do not edit by hand.")),
 		"_format": "As data/maps/alesia_landmarks.json: at = [x, z] centre, radius_m = the area that counts as the place, anchor = [x, y, z] on open ground inside it (y = the terrain height). Loot clusters and the ground paint name landmarks by id.",
-		"_rules_note": "No \"rules\" block: alesia's landmark rules (tall_minimum, max_open_stretch_m 12 m between anchors, ...) are tested on alesia_section only (tests/test_world_ring.gd). On this sparse 1 km map the routes between landmarks run hundreds of metres over open fields and camp ring by design; a per-map rules block is a proposal for when Shibi decides the cover along routes.",
+		"_rules_note": String(gen.get("landmarks_rules_note", "")) if gen.has("landmarks_rules_note") else "No \"rules\" block: alesia's landmark rules (tall_minimum, max_open_stretch_m 12 m between anchors, ...) are tested on alesia_section only (tests/test_world_ring.gd). On this sparse 1 km map the routes between landmarks run hundreds of metres over open fields and camp ring by design; a per-map rules block is a proposal for when Shibi decides the cover along routes.",
 		"landmarks": landmarks,
 	}
 	return {
@@ -329,6 +369,7 @@ static func generate(map_def: Dictionary) -> Dictionary:
 		"doors": door_pass["counts"],
 		"ladders": ladder_pass["counts"],
 		"cover_walls": walls,
+		"l500": l500,
 	}
 
 
@@ -338,7 +379,7 @@ static func paint_of(map_def: Dictionary, out: Dictionary) -> Dictionary:
 	var size := float(map_def["terrain"]["size_m"])
 	var landmarks: Array = JSON.parse_string(text_of(out["landmarks"]))["landmarks"]
 	var trodden := trodden_of(JSON.parse_string(text_of(out["cover"])), JSON.parse_string(text_of(out["structures"])))
-	var key := "gen_alesia:" + MAP_PATH
+	var key := "gen_alesia:" + map_path_of(String(map_def.get("id", "alesia_1km")))  # a cache key only
 	GroundPaint.forget(key)
 	var image := GroundPaint.build(key, size, landmarks, trodden, settings)
 	GroundPaint.forget(key)
@@ -579,7 +620,7 @@ static func _ramp_guards(state: Dictionary, structures: Array, kit_types: Dictio
 			if own.has(other) or guard_rects.has(other):
 				continue
 			if WorldRing.rect_gap(guard_rects[i], other) < min_gap:
-				(state["problems"] as PackedStringArray).append("ramp guard %s is %.2f m from another footprint (minimum_gap_m %s)" % [guards[i]["id"], WorldRing.rect_gap(guard_rects[i], other), str(min_gap)])
+				_note(state, "problems", "ramp guard %s is %.2f m from another footprint (minimum_gap_m %s)" % [guards[i]["id"], WorldRing.rect_gap(guard_rects[i], other), str(min_gap)])
 	structures.append_array(guards)
 	placed.append_array(guard_rects)
 
@@ -614,7 +655,7 @@ static func _doors(state: Dictionary, structures: Array, kit_types: Dictionary) 
 		var type := String(k["type"])
 		var openings: Array = (kit_types[type] as Dictionary).get("open", [])
 		for piece: Dictionary in structures:
-			if String(piece["type"]) != type:
+			if String(piece["type"]) != type or not id_matches(String(piece["id"]), k.get("id_patterns", null)):
 				continue
 			var yaw := float(piece["yaw"])
 			var turn := Basis(Vector3.UP, deg_to_rad(yaw))
@@ -651,6 +692,17 @@ static func _doors(state: Dictionary, structures: Array, kit_types: Dictionary) 
 		entry["start"] = "open" if rng.randf() < share else "closed"
 		counts[entry["start"]] = int(counts[entry["start"]]) + 1
 	return {"entries": entries, "counts": counts}
+
+
+## M2 L2a: true when `patterns` is null (no filter: every piece, as before) or `id` matches one of its globs
+## (String.match: "*" any run, "?" one character), e.g. doors.door.id_patterns ["Castra*", "Villa*"].
+static func id_matches(id: String, patterns: Variant) -> bool:
+	if patterns == null:
+		return true
+	for p: Variant in patterns:
+		if id.match(String(p)):
+			return true
+	return false
 
 
 ## M2L1c: "" when every pocket of a sliding door lies inside the colliders of its piece `definition` (piece frame):
@@ -712,7 +764,7 @@ static func _ladders(state: Dictionary, structures: Array, kit_types: Dictionary
 	var placed: Array[Rect2] = state["placed"]
 	var ends: Array = cfg["ends"]
 	for piece: Dictionary in structures:
-		if String(piece["type"]) != type:
+		if String(piece["type"]) != type or not id_matches(String(piece["id"]), cfg.get("id_patterns", null)):
 			continue
 		counts["blocks"] = int(counts["blocks"]) + 1
 		var origin := LowpolyKit.vec(piece["at"])
@@ -997,7 +1049,7 @@ static func _extra_cover(state: Dictionary, cover: Array, ring_pieces: Array, ca
 	_note_ids(ids["arx"], cover, arx_from)
 	var fields: Dictionary = extra["fields"]
 	var fields_from := ring_pieces.size()
-	_cover(state, ring_pieces, "Ring_%03d", fields["cover_types"], int(fields["cover"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field extra cover")
+	_cover(state, ring_pieces, "Ring_%03d", fields["cover_types"], int(fields["cover"]), _field_ring(state, float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field extra cover")
 	_note_ids(ids["fields"], ring_pieces, fields_from)
 	for area: String in EXTRA_AREAS:
 		counts[area] = (ids[area] as Array).size()
@@ -1074,7 +1126,7 @@ static func _breakables(state: Dictionary, camp_centres: Array[Vector2], inner: 
 	_breakable(state, out, names, sizes, int(cfg["arx"]), _annulus(0.0, float(cfg["arx_radius_m"])), "arx breakables")
 	counts["arx"] = out.size() - arx_first
 	var fields_first := out.size()
-	_breakable(state, out, names, sizes, int(cfg["fields"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field breakables")
+	_breakable(state, out, names, sizes, int(cfg["fields"]), _field_ring(state, float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field breakables")
 	counts["fields"] = out.size() - fields_first
 	return {"entries": out, "counts": counts}
 
@@ -1108,7 +1160,7 @@ static func _chests(state: Dictionary, camp_centres: Array[Vector2]) -> Dictiona
 	_chest(state, out, size_list, clear, int(cfg["arx"]), _annulus(0.0, float(cfg["arx_radius_m"])), "arx chests")
 	counts["arx"] = out.size() - arx_first
 	var fields_first := out.size()
-	_chest(state, out, size_list, clear, int(cfg["fields"]), _annulus(float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field chests")
+	_chest(state, out, size_list, clear, int(cfg["fields"]), _field_ring(state, float(gen["fields"]["from_m"]), float(gen["fields"]["to_m"])), "field chests")
 	counts["fields"] = out.size() - fields_first
 	return {"entries": out, "counts": counts}
 
@@ -1122,7 +1174,7 @@ static func _chest(state: Dictionary, out: Array, size_list: Array, clear: float
 			out.append({"id": "Chest_%03d" % out.size(), "at": [spot[0].x, float(size_list[1]) * 0.5, spot[0].y], "size": size_list.duplicate(), "yaw": spot[1]})
 			placed += 1
 	if placed < count:
-		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+		_note(state, "shortfalls", "%s: %d of %d" % [label, placed, count])
 
 
 ## The ground a chest keeps: its box at `at` turned by `yaw` (a multiple of 90 degrees) grown by `clear` metres on
@@ -1155,7 +1207,7 @@ static func _breakable(state: Dictionary, out: Array, names: Array, sizes: Dicti
 			out.append({"id": "Breakable_%03d" % out.size(), "type": type, "at": [spot[0].x, float(size_list[1]) * 0.5, spot[0].y], "size": size_list.duplicate()})
 			placed += 1
 	if placed < count:
-		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+		_note(state, "shortfalls", "%s: %d of %d" % [label, placed, count])
 
 
 ## Cover pieces ({id, type, at}; no yaw), types round-robin. `gap_m` >= 0 replaces placement.minimum_gap_m (M2 L1b:
@@ -1171,7 +1223,7 @@ static func _cover(state: Dictionary, out: Array, id_format: String, names: Arra
 			out.append({"id": id_format % out.size(), "type": type, "at": [spot[0].x, float(types[type]["size"][1]) * 0.5, spot[0].y]})
 			placed += 1
 	if placed < count:
-		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+		_note(state, "shortfalls", "%s: %d of %d" % [label, placed, count])
 
 
 static func _stakes(state: Dictionary, out: Array, id_format: String, count: int, sampler: Callable, kit_types: Dictionary, label: String, inside := Rect2()) -> void:
@@ -1183,7 +1235,7 @@ static func _stakes(state: Dictionary, out: Array, id_format: String, count: int
 			out.append({"id": id_format % placed, "type": "stake_row", "at": [spot[0].x, 0.0, spot[0].y], "yaw": spot[1]})
 			placed += 1
 	if placed < count:
-		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+		_note(state, "shortfalls", "%s: %d of %d" % [label, placed, count])
 
 
 static func _decor(state: Dictionary, out: Array, template: Dictionary, count: int, sampler: Callable, label: String) -> void:
@@ -1195,7 +1247,7 @@ static func _decor(state: Dictionary, out: Array, template: Dictionary, count: i
 			out.append({"id": "Decor_%03d" % out.size(), "kind": template["kind"], "size": (template["size"] as Array).duplicate(), "at": [spot[0].x, float(template["at"][1]), spot[0].y], "yaw": spot[1]})
 			placed += 1
 	if placed < count:
-		(state["shortfalls"] as PackedStringArray).append("%s: %d of %d" % [label, placed, count])
+		_note(state, "shortfalls", "%s: %d of %d" % [label, placed, count])
 
 
 ## Rejection sampling (gen_test_map.gd's rules on a round map): up to max_attempts snapped candidates from
@@ -1243,3 +1295,554 @@ static func _place(state: Dictionary, sampler: Callable, footprint: Callable, ya
 		placed.append(rect)
 		return [at, yaw]
 	return null
+
+
+# --- M2 L2a: the 500 m map's laid-out areas (OQ-ALESIA-500). Every pass reads its own generator key and does nothing
+# without it, so the 1 km map (none of these keys) keeps every piece and every random draw. ---
+
+## M2 L2a: the fields' sampler: _annulus itself, unless state has "field_avoid" rects (set by _layout_500: the camp
+## and farmstead blocks, which lie inside the 500 m map's field ring), when up to 32 draws are taken until one lies
+## outside them.
+static func _field_ring(state: Dictionary, r0: float, r1: float) -> Callable:
+	var plain := _annulus(r0, r1)
+	var avoid: Array = state.get("field_avoid", [])
+	if avoid.is_empty():
+		return plain
+	return func(rng: RandomNumberGenerator) -> Vector2:
+		var p: Vector2 = plain.call(rng)
+		for i in 32:
+			var inside := false
+			for r: Rect2 in avoid:
+				if r.has_point(p):
+					inside = true
+					break
+			if not inside:
+				return p
+			p = plain.call(rng)
+		return p
+
+
+## M2 L2a (generator.doorway_apron_m): the ground in front of each listed doorway (doors.door.openings) of a barracks
+## piece: the opening's width, apron_m deep from the wall's outer face, as ground rects. Kept free of every other
+## footprint (a template drops a barracks whose apron meets one, or a later template piece standing on one) and
+## recorded in state.placed, so the random passes keep placement.minimum_gap_m from it: nothing stands within apron_m
+## in front of a doorway.
+static func doorway_aprons(piece: Dictionary, kit_types: Dictionary, openings: Array, apron_m: float) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	var opens: Array = (kit_types[piece["type"]] as Dictionary).get("open", [])
+	var origin := LowpolyKit.vec(piece["at"])
+	for index: Variant in openings:
+		var o: Dictionary = opens[int(index)]
+		var at := LowpolyKit.vec(o["at"])
+		var size := LowpolyKit.vec(o["size"])
+		var face := absf(at.z) + size.z * 0.5
+		var s := signf(at.z)
+		var z0 := s * face
+		var z1 := s * (face + apron_m)
+		out.append(_local_rect(origin, float(piece["yaw"]), [at.x - size.x * 0.5, at.x + size.x * 0.5, minf(z0, z1), maxf(z0, z1)]))
+	return out
+
+
+## M2 L2a: a point of a block's frame turned by `quarter` x 90 degrees, Godot's yaw (x' = x cos + z sin, z' = -x sin
+## + z cos): quarter 1 takes local -z (a template's front) to -x.
+static func _quarter(p: Vector2, quarter: int) -> Vector2:
+	match posmod(quarter, 4):
+		1:
+			return Vector2(p.y, -p.x)
+		2:
+			return Vector2(-p.x, -p.y)
+		3:
+			return Vector2(-p.y, p.x)
+	return p
+
+
+## M2 L2a: the quarter turn that points a template's front (local -z) most nearly at the map centre from `centre`.
+static func _quarter_facing_centre(centre: Vector2) -> int:
+	var best := 0
+	var best_dot := -INF
+	var to_centre := -centre.normalized()
+	for q in 4:
+		var d := _quarter(Vector2(0.0, -1.0), q).dot(to_centre)
+		if d > best_dot + 0.000001:
+			best_dot = d
+			best = q
+	return best
+
+
+## M2 L2a: template `tpl` laid out in a block centred on `centre`, turned by `quarter`: [{structure, type, at
+## (Vector2), yaw, rect, aprons}] in template order. A template piece is {type, at [x, z] in the block's frame (front
+## = -z), yaw (structures), every (optional: only in blocks whose index is a multiple of it)}. Kit types are structures
+## and turn with the block; cover types are unturned boxes (the cover file has no yaw), so in a block turned by an odd
+## quarter a cover type listed in ctx.quarter_types becomes that type (a long box along z for one along x).
+static func _template_layout(tpl: Dictionary, centre: Vector2, quarter: int, index: int, ctx: Dictionary) -> Array:
+	var kit_types: Dictionary = ctx["kit"]
+	var cover_types: Dictionary = ctx["cover"]
+	var quarter_types: Dictionary = ctx["quarter_types"]
+	var out: Array = []
+	for entry: Dictionary in tpl["pieces"]:
+		if entry.has("every") and index % int(entry["every"]) != 0:
+			continue
+		var type := String(entry["type"])
+		var p := centre + _quarter(Vector2(float(entry["at"][0]), float(entry["at"][1])), quarter)
+		var at := Vector2(_r3(p.x), _r3(p.y))
+		if kit_types.has(type):
+			var yaw := fposmod(float(entry.get("yaw", 0.0)) + 90.0 * quarter, 360.0)
+			var aprons: Array[Rect2] = []
+			if type == String(ctx["apron_type"]) and float(ctx["apron_m"]) > 0.0:
+				aprons = doorway_aprons({"type": type, "at": [at.x, 0.0, at.y], "yaw": yaw}, kit_types, ctx["openings"], float(ctx["apron_m"]))
+			out.append({"structure": true, "type": type, "at": at, "yaw": yaw, "rect": WorldKit.footprint(kit_types[type], Vector3(at.x, 0.0, at.y), yaw), "aprons": aprons})
+		else:
+			if posmod(quarter, 2) == 1 and quarter_types.has(type):
+				type = String(quarter_types[type])
+			var size := LowpolyKit.vec(cover_types[type]["size"])
+			out.append({"structure": false, "type": type, "at": at, "yaw": 0.0, "rect": _box_rect(at, size, 0.0), "aprons": [] as Array[Rect2]})
+	return out
+
+
+## M2 L2a: why a laid-out piece (ground rect `rect`, origin `at`) cannot stand where it is, or "" when it can: the
+## _place rules without the random draw (inside `inside` when it has area and inside the play circle less the edge
+## margin, clear of every keep circle, `gap` from every rect of `placed`, on fit ground).
+static func _misfit(state: Dictionary, placed: Array[Rect2], at: Vector2, rect: Rect2, inside: Rect2, gap: float) -> String:
+	if inside.has_area() and not inside.encloses(rect):
+		return "leaves its block"
+	var limit := float(state["play_r"]) - float(state["place"]["edge_margin_m"])
+	for corner: Vector2 in [rect.position, Vector2(rect.end.x, rect.position.y), Vector2(rect.position.x, rect.end.y), rect.end]:
+		if corner.length() > limit:
+			return "leaves the play circle"
+	for keep: Array in state["keep"]:
+		if WorldRing.rect_distance(keep[0], rect) < float(keep[1]):
+			return "on the kept spot %s" % str(keep[0])
+	for other in placed:
+		if WorldRing.rect_gap(rect, other) < gap:
+			return "%.2f m from the footprint %s" % [WorldRing.rect_gap(rect, other), str(other)]
+	if not _GenTest.ground_fits(state["terrain"], at, rect):
+		return "unfit ground"
+	return ""
+
+
+## M2 L2a: places a layout's pieces in order; a piece that misfits (placement.minimum_gap_m) or whose doorway apron
+## meets a footprint is DROPPED and noted, never moved. With `commit` false nothing is recorded (a trial). Returns
+## {kept: [layout entries], dropped: [String]}.
+static func _fit_layout(state: Dictionary, layout: Array, inside: Rect2, commit: bool) -> Dictionary:
+	var gap := float(state["place"]["minimum_gap_m"])
+	var placed: Array[Rect2] = state["placed"]
+	var reach := inside.grow(6.0)
+	var near: Array[Rect2] = []
+	for r in placed:
+		if not inside.has_area() or reach.intersects(r, true):
+			near.append(r)
+	var kept: Array = []
+	var dropped: Array = []
+	var aprons: Array[Rect2] = []  # this layout's doorway aprons: no piece of it may stand on one (no gap asked)
+	for e: Dictionary in layout:
+		var why := _misfit(state, near, e["at"], e["rect"], inside, gap)
+		if why == "":
+			for a: Rect2 in aprons:
+				if a.intersects(e["rect"]):
+					why = "on the doorway apron %s" % str(a)
+					break
+		if why == "":
+			for a: Rect2 in e["aprons"]:
+				for other in near:
+					if a.intersects(other):
+						why = "a doorway apron meets the footprint %s" % str(other)
+						break
+				if why != "":
+					break
+		if why != "":
+			dropped.append("%s at (%.1f, %.1f): %s" % [e["type"], (e["at"] as Vector2).x, (e["at"] as Vector2).y, why])
+			continue
+		kept.append(e)
+		near.append(e["rect"])
+		aprons.append_array(e["aprons"])
+		if commit:
+			placed.append(e["rect"])
+			placed.append_array(e["aprons"])
+	return {"kept": kept, "dropped": dropped}
+
+
+## M2 L2a: the kept pieces as file entries: structures "<prefix>_<label>_<n>" (label from `labels` by type, else the
+## type in CamelCase; n counts per label) into `structures`, cover pieces `id_format` % size into `cover_list`.
+static func _emit(kept: Array, prefix: String, labels: Dictionary, structures: Array, cover_list: Array, id_format: String, cover_types: Dictionary) -> void:
+	var n := {}
+	for e: Dictionary in kept:
+		var at: Vector2 = e["at"]
+		var type := String(e["type"])
+		if bool(e["structure"]):
+			var label := String(labels.get(type, type.capitalize().replace(" ", "")))
+			var k := int(n.get(label, 0))
+			n[label] = k + 1
+			structures.append({"id": "%s_%s_%d" % [prefix, label, k], "type": type, "at": [at.x, 0.0, at.y], "yaw": float(e["yaw"])})
+		else:
+			cover_list.append({"id": id_format % cover_list.size(), "type": type, "at": [at.x, float(cover_types[type]["size"][1]) * 0.5, at.y]})
+
+
+## M2 L2a: the 500 m map's laid-out areas, after the keep circles and before every random pass: the Arx ring's keeps
+## (its gates, stair and ramp feet), the doorway aprons of the camp barracks (doorway_apron_m), the camps' fixed
+## pieces (camps.extras), the town street grid (town), the farmsteads (farmsteads), the camp and farmstead blocks kept
+## out of the field passes, the field wall runs (field_walls) and the outside strip's stake rows (outside). Returns {}
+## when the map has none of these keys; else {cells, farms, dropped, ...} for the report and the later passes.
+static func _layout_500(state: Dictionary, structures: Array, cover: Array, ring_pieces: Array, camp_centres: Array[Vector2], arx_ring: Dictionary, landmarks: Array, kit_types: Dictionary) -> Dictionary:
+	var gen: Dictionary = state["gen"]
+	var keys := ["doorway_apron_m", "town", "farmsteads", "field_walls", "outside"]
+	var any := not arx_ring.is_empty() or (gen["camps"] as Dictionary).has("extras")
+	for key: String in keys:
+		any = any or gen.has(key)
+	if not any:
+		return {}
+	var out := {"cells": [], "farms": [], "dropped": [], "arx_pieces": 0, "camp_extras": 0, "field_walls": 0,
+		"field_wall_pieces": 0, "outside_stakes": 0, "districts": 0, "town_cover": 0, "farm_cover": 0}
+	var keep: Array = state["keep"]
+	var placed: Array[Rect2] = state["placed"]
+	var problems: PackedStringArray = state["problems"]
+	# a. The Arx ring: its gates kept on both sides (as the inner gates), its stair and tower-ramp feet kept.
+	if not arx_ring.is_empty():
+		var arx_cfg: Dictionary = gen["arx_wall"]
+		out["arx_pieces"] = (arx_ring["pieces"] as Array).size()
+		for g: Dictionary in arx_ring["gates"]:
+			for side: float in [-1.0, 1.0]:
+				keep.append([(g["at"] as Vector2) + (g["normal"] as Vector2) * side * 4.0, float(gen["gates"]["clear_m"])])
+		for p: Dictionary in arx_ring["pieces"]:
+			if String(p["type"]) == "wall_stair":
+				keep.append([wall_point(p, STAIR_FOOT), float(arx_cfg.get("stair_clear_m", 4.0))])
+			elif String(p["type"]) == "watchtower":
+				keep.append([wall_point(p, TOWER_FOOT), float(arx_cfg.get("tower_clear_m", 6.0))])
+	# b. Doorway aprons of the barracks placed so far (the camps).
+	var apron := float(gen.get("doorway_apron_m", 0.0))
+	var openings: Array = gen["doors"]["door"]["openings"] if gen.has("doors") else [0, 1]
+	var apron_type := String(gen["doors"]["door"]["type"]) if gen.has("doors") else "barracks"
+	if apron > 0.0:
+		for piece: Dictionary in structures.duplicate():
+			if String(piece["type"]) != apron_type:
+				continue
+			var own := WorldKit.footprint(kit_types[apron_type], LowpolyKit.vec(piece["at"]), float(piece["yaw"]))
+			for a: Rect2 in doorway_aprons(piece, kit_types, openings, apron):
+				for other in placed:
+					if other != own and a.intersects(other):
+						problems.append("%s: a doorway apron meets the footprint %s" % [piece["id"], str(other)])
+						break
+				placed.append(a)
+	var town: Dictionary = gen.get("town", {})
+	var ctx := {"kit": kit_types, "cover": state["cover_types"], "apron_m": apron, "apron_type": apron_type, "openings": openings,
+		"quarter_types": town.get("quarter_types", {})}
+	var labels: Dictionary = town.get("labels", {})
+	var camps: Dictionary = gen["camps"]
+	var half := float(camps["half_size_m"])
+	var avoid: Array[Rect2] = []
+	for c in camp_centres.size():
+		avoid.append(Rect2(camp_centres[c] - Vector2(half, half), Vector2(half, half) * 2.0))
+	# c. Each camp's fixed pieces (supply corner), unturned, inside its block.
+	if camps.has("extras"):
+		for c in camp_centres.size():
+			var fit := _fit_layout(state, _template_layout({"pieces": camps["extras"]}, camp_centres[c], 0, c, ctx), avoid[c], true)
+			for line: String in fit["dropped"]:
+				(out["dropped"] as Array).append("Castra%d extras: %s" % [c + 1, line])
+			var before := cover.size()
+			_emit(fit["kept"], "Castra%d" % (c + 1), labels, structures, cover, "Cover_%03d", state["cover_types"])
+			out["camp_extras"] = int(out["camp_extras"]) + (fit["kept"] as Array).size()
+			if cover.size() - before != (fit["kept"] as Array).size():
+				problems.append("Castra%d extras: only cover types may be listed" % (c + 1))
+	# d. The town street grid.
+	if not town.is_empty():
+		_town(state, structures, cover, landmarks, ctx, avoid, out)
+	# e. The farmsteads.
+	if gen.has("farmsteads"):
+		_farmsteads(state, structures, cover, ctx, out)
+	# f. The field passes keep out of the camp and farmstead blocks from here on.
+	for farm: Dictionary in out["farms"]:
+		avoid.append(farm["rect"])
+	state["field_avoid"] = avoid
+	# g. The field wall runs.
+	if gen.has("field_walls"):
+		_field_walls(state, ring_pieces, out)
+	# h. The outside strip's stake rows.
+	if gen.has("outside"):
+		var strip: Dictionary = gen["outside"]
+		var first := structures.size()
+		_stakes(state, structures, "Outside_Stakes_%d", int(strip["stake_rows"]), _annulus(float(strip["from_m"]), float(strip["to_m"])), kit_types, "outside stakes")
+		out["outside_stakes"] = structures.size() - first
+	return out
+
+
+## M2 L2a: the town (generator.town): cells on a square grid (centres at cell_offset_m + pitch_m k on both axes, a
+## block_m square each, streets between), built when the centre lies band_from_m..band_to_m from the map centre, the
+## block keeps inner_clear_m from the centre (the inner wall) and camp_clear_m from every camp block. Cells are taken
+## in bearing order; town.cells assigns a template to the free cell nearest each listed bearing, the rest get
+## default_template. A template with face "centre" turns its front to the map centre; any other turns by the cell's
+## index (quarter index % 4) unless another quarter drops fewer pieces (tried in order index, index + 1, ...).
+## Template pieces are fixed (dropped, never moved, when they misfit); then each template with a landmark {id, name}
+## names its first cell (kind "district", anchor = the template's anchor turned with the cell), and every cell gets
+## its template's "cover" random pieces (town.cover_types, turned by the cell index) inside the block.
+static func _town(state: Dictionary, structures: Array, cover: Array, landmarks: Array, ctx: Dictionary, camp_blocks: Array[Rect2], out: Dictionary) -> void:
+	var gen: Dictionary = state["gen"]
+	var town: Dictionary = gen["town"]
+	var pitch := float(town["pitch_m"])
+	var block := float(town["block_m"])
+	var offset := float(town["cell_offset_m"])
+	var from := float(town["band_from_m"])
+	var to := float(town["band_to_m"])
+	var reach := ceili(to / pitch) + 1
+	var cells: Array = []
+	for j in range(-reach, reach + 1):
+		for i in range(-reach, reach + 1):
+			var c := Vector2(offset + pitch * i, offset + pitch * j)
+			if c.length() < from or c.length() > to:
+				continue
+			var rect := Rect2(c - Vector2(block, block) * 0.5, Vector2(block, block))
+			if WorldRing.rect_distance(Vector2.ZERO, rect) < float(town["inner_clear_m"]):
+				continue
+			var clear := true
+			for camp in camp_blocks:
+				clear = clear and WorldRing.rect_gap(rect, camp) >= float(town["camp_clear_m"])
+			if clear:
+				cells.append({"centre": c, "rect": rect, "bearing": fposmod(rad_to_deg(atan2(c.x, -c.y)), 360.0)})
+	cells.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["bearing"]) < float(b["bearing"]))
+	var templates: Dictionary = town["templates"]
+	for k in cells.size():
+		cells[k]["template"] = String(town["default_template"])
+	var taken := {}
+	for a: Dictionary in town["cells"]:
+		var best := -1
+		var best_d := INF
+		for k in cells.size():
+			if taken.has(k):
+				continue
+			var d := absf(angle_difference(deg_to_rad(float(a["bearing_deg"])), deg_to_rad(float(cells[k]["bearing"]))))
+			if d < best_d - 0.000001:
+				best_d = d
+				best = k
+		if best >= 0:
+			taken[best] = true
+			cells[best]["template"] = String(a["template"])
+	var counts := {}
+	for k in cells.size():
+		var cell: Dictionary = cells[k]
+		var tpl: Dictionary = templates[cell["template"]]
+		var centre: Vector2 = cell["centre"]
+		var quarter := _quarter_facing_centre(centre) if String(tpl.get("face", "")) == "centre" else k % 4
+		if String(tpl.get("face", "")) != "centre":
+			var fewest := INF
+			for t in 4:
+				var q := (k + t) % 4
+				var trial := _fit_layout(state, _template_layout(tpl, centre, q, k, ctx), cell["rect"], false)
+				if (trial["dropped"] as Array).size() < fewest:
+					fewest = (trial["dropped"] as Array).size()
+					quarter = q
+		var fit := _fit_layout(state, _template_layout(tpl, centre, quarter, k, ctx), cell["rect"], true)
+		var prefix := "Oppidum%02d" % k
+		for line: String in fit["dropped"]:
+			(out["dropped"] as Array).append("%s %s q%d: %s" % [prefix, cell["template"], quarter, line])
+		_emit(fit["kept"], prefix, ctx.get("labels", town.get("labels", {})), structures, cover, "Cover_%03d", state["cover_types"])
+		cell["quarter"] = quarter
+		cell["prefix"] = prefix
+		cell["kept"] = (fit["kept"] as Array).size()
+		cell["dropped"] = (fit["dropped"] as Array).size()
+		cell["kept_rects"] = (fit["kept"] as Array).map(func(e: Dictionary) -> Rect2: return e["rect"])
+		counts[cell["template"]] = int(counts.get(cell["template"], 0)) + 1
+	# District landmarks: the first cell of each template that names one.
+	var place: Dictionary = gen["placement"]
+	var named := {}
+	for cell: Dictionary in cells:
+		var tpl: Dictionary = templates[cell["template"]]
+		if not tpl.has("landmark") or named.has(cell["template"]):
+			continue
+		named[cell["template"]] = true
+		var lm: Dictionary = tpl["landmark"]
+		var local: Array = tpl.get("anchor", [0.0, 0.0])
+		var anchor: Vector2 = (cell["centre"] as Vector2) + _quarter(Vector2(float(local[0]), float(local[1])), int(cell["quarter"]))
+		landmarks.append(_landmark(String(lm["id"]), String(lm["name"]), "district", cell["centre"], float(gen["landmark_radius_m"]["district"]), anchor, state["terrain"]))
+		cell["landmark"] = String(lm["id"])
+		for r: Rect2 in cell["kept_rects"]:
+			if WorldRing.rect_distance(anchor, r) < float(place["anchor_clear_m"]):
+				_note(state, "problems", "district %s: its anchor %s is %.2f m from a piece (anchor_clear_m %s)" % [lm["id"], str(anchor), WorldRing.rect_distance(anchor, r), str(place["anchor_clear_m"])])
+		(state["keep"] as Array).append([anchor, float(place["anchor_clear_m"])])
+		out["districts"] = int(out["districts"]) + 1
+	# Random small cover inside every cell.
+	var types: Array = town["cover_types"]
+	var lane := _town_lane(gen)
+	var first := cover.size()
+	for k in cells.size():
+		var cell: Dictionary = cells[k]
+		var shift := k % types.size()
+		var turned: Array = types.slice(shift) + types.slice(0, shift)
+		_cover(state, cover, "Cover_%03d", turned, int(templates[cell["template"]].get("cover", 0)), _rect_sampler(cell["rect"]), "town %s cover" % cell["prefix"], cell["rect"], lane)
+	out["town_cover"] = cover.size() - first
+	out["cells"] = cells
+	out["town_counts"] = counts
+
+
+## M2 L2a: the farmsteads (generator.farmsteads): one block of half_size_m per name at bearings first_bearing_deg +
+## 360 / count k, radius_m out, laid out from town.templates[template] with its front to the map centre; pieces
+## "Villa<k>_<label>_<n>" (1-based k). Then `cover` random pieces (cover_types) inside each block.
+static func _farmsteads(state: Dictionary, structures: Array, cover: Array, ctx: Dictionary, out: Dictionary) -> void:
+	var gen: Dictionary = state["gen"]
+	var cfg: Dictionary = gen["farmsteads"]
+	var tpl: Dictionary = gen["town"]["templates"][cfg["template"]]
+	var names: Array = cfg["names"]
+	var half := float(cfg["half_size_m"])
+	var labels: Dictionary = gen["town"].get("labels", {})
+	var lane := float(gen["extra_cover"]["lane_gap_m"]) if gen.has("extra_cover") else -1.0
+	for f in names.size():
+		var p := dir_of(float(cfg["first_bearing_deg"]) + 360.0 / names.size() * f) * float(cfg["radius_m"])
+		var centre := Vector2(snappedf(p.x, 0.5), snappedf(p.y, 0.5))
+		var rect := Rect2(centre - Vector2(half, half), Vector2(half, half) * 2.0)
+		var quarter := _quarter_facing_centre(centre)
+		var fit := _fit_layout(state, _template_layout(tpl, centre, quarter, f, ctx), rect, true)
+		var prefix := "Villa%d" % (f + 1)
+		for line: String in fit["dropped"]:
+			(out["dropped"] as Array).append("%s (%s) q%d: %s" % [prefix, names[f], quarter, line])
+		_emit(fit["kept"], prefix, labels, structures, cover, "Cover_%03d", state["cover_types"])
+		(out["farms"] as Array).append({"name": String(names[f]), "prefix": prefix, "centre": centre, "rect": rect, "quarter": quarter,
+			"kept": (fit["kept"] as Array).size(), "dropped": (fit["dropped"] as Array).size()})
+	var first := cover.size()
+	for farm: Dictionary in out["farms"]:
+		_cover(state, cover, "Cover_%03d", cfg["cover_types"], int(cfg["cover"]), _rect_sampler(farm["rect"]), "%s cover" % farm["prefix"], farm["rect"], lane)
+	out["farm_cover"] = cover.size() - first
+
+
+## M2 L2a: the field wall runs (generator.field_walls): `runs` runs, each of pieces_min..pieces_max unturned cover
+## boxes in a straight line with gap_min_m..gap_max_m between them (never end to end), centred on a seeded point of
+## the field ring (outside the camp and farmstead blocks), along the ring's tangent there (tangent_share of the runs)
+## or along its radius, snapped to the nearer axis: x_types along x, z_types along z (the cover file has no yaw). A run
+## is placed whole or retried (placement.max_attempts); pieces "Ring_%03d" in ring_pieces.
+static func _field_walls(state: Dictionary, ring_pieces: Array, out: Dictionary) -> void:
+	var gen: Dictionary = state["gen"]
+	var cfg: Dictionary = gen["field_walls"]
+	var rng: RandomNumberGenerator = state["rng"]
+	var types: Dictionary = state["cover_types"]
+	var place: Dictionary = gen["placement"]
+	var placed: Array[Rect2] = state["placed"]
+	var sampler := _field_ring(state, float(cfg["from_m"]), float(cfg["to_m"]))
+	var gap := float(place["minimum_gap_m"])
+	var runs := 0
+	var pieces := 0
+	for run in int(cfg["runs"]):
+		for attempt in int(place["max_attempts"]):
+			var raw: Vector2 = sampler.call(rng)
+			var centre := Vector2(snappedf(raw.x, float(place["snap_m"])), snappedf(raw.y, float(place["snap_m"])))
+			var radial := centre.normalized()
+			var d := Vector2(-radial.y, radial.x) if rng.randf() < float(cfg["tangent_share"]) else radial
+			var along_x := absf(d.x) >= absf(d.y)
+			var axis := Vector2(1.0, 0.0) if along_x else Vector2(0.0, 1.0)
+			var names: Array = cfg["x_types"] if along_x else cfg["z_types"]
+			var n := rng.randi_range(int(cfg["pieces_min"]), int(cfg["pieces_max"]))
+			var spacing := snappedf(rng.randf_range(float(cfg["gap_min_m"]), float(cfg["gap_max_m"])), 0.1)
+			var first_type := rng.randi_range(0, names.size() - 1)
+			var run_types: Array[String] = []
+			var lengths: Array[float] = []
+			var total := spacing * (n - 1)
+			for i in n:
+				var t := String(names[(first_type + i) % names.size()])
+				var size := LowpolyKit.vec(types[t]["size"])
+				run_types.append(t)
+				lengths.append(size.x if along_x else size.z)
+				total += lengths[i]
+			var u := -total * 0.5
+			var entries: Array = []
+			var rects: Array[Rect2] = []
+			for i in n:
+				var at := centre + axis * (u + lengths[i] * 0.5)
+				at = Vector2(_r3(at.x), _r3(at.y))
+				var rect := _box_rect(at, LowpolyKit.vec(types[run_types[i]]["size"]), 0.0)
+				if _misfit(state, placed, at, rect, Rect2(), gap) != "":
+					entries.clear()
+					break
+				entries.append({"type": run_types[i], "at": [at.x, float(types[run_types[i]]["size"][1]) * 0.5, at.y]})
+				rects.append(rect)
+				u += lengths[i] + spacing
+			if entries.size() != n:
+				continue
+			for i in n:
+				entries[i]["id"] = "Ring_%03d" % ring_pieces.size()
+				ring_pieces.append(entries[i])
+			placed.append_array(rects)
+			runs += 1
+			pieces += n
+			break
+	out["field_walls"] = runs
+	out["field_wall_pieces"] = pieces
+	if runs < int(cfg["runs"]):
+		_note(state, "shortfalls", "field wall runs: %d of %d" % [runs, int(cfg["runs"])])
+
+
+## M2 L2a: the gap the town's random pieces (cover, breakables, district chests) keep inside a cell: town.lane_gap_m,
+## else extra_cover.lane_gap_m, else placement.minimum_gap_m (-1).
+static func _town_lane(gen: Dictionary) -> float:
+	if (gen.get("town", {}) as Dictionary).has("lane_gap_m"):
+		return float(gen["town"]["lane_gap_m"])
+	return float(gen["extra_cover"]["lane_gap_m"]) if gen.has("extra_cover") else -1.0
+
+
+## M2 L2a: breakables in every town cell (generator.town.breakables_per_cell, cycled over the cells in order), inside
+## the block with extra_cover.lane_gap_m, continuing the "Breakable_%03d" entries; counts["town"]. Nothing without it.
+static func _breakables_500(state: Dictionary, props: Dictionary, l500: Dictionary) -> void:
+	var gen: Dictionary = state["gen"]
+	if l500.is_empty() or not gen.has("props") or (l500["cells"] as Array).is_empty():
+		return
+	var per_cell: Array = gen["town"].get("breakables_per_cell", [])
+	if per_cell.is_empty():
+		return
+	var cfg: Dictionary = gen["props"]["breakables"]
+	var entries: Array = props["entries"]
+	var first := entries.size()
+	var lane := _town_lane(gen)
+	for k in (l500["cells"] as Array).size():
+		var cell: Dictionary = l500["cells"][k]
+		_breakable(state, entries, cfg["types"], gen["props"]["types"], int(per_cell[k % per_cell.size()]), _rect_sampler(cell["rect"]), "town %s breakables" % cell["prefix"], cell["rect"], lane)
+	props["counts"]["town"] = entries.size() - first
+
+
+## M2 L2a: chests in each district cell (props.chests.districts per named town landmark) and each farmstead
+## (props.chests.farmsteads), inside the block with extra_cover.lane_gap_m, continuing the "Chest_%03d" entries;
+## counts["districts"], counts["farmsteads"]. Nothing without those keys.
+static func _chests_500(state: Dictionary, chest_pass: Dictionary, l500: Dictionary) -> void:
+	var gen: Dictionary = state["gen"]
+	if l500.is_empty() or not gen.has("props") or not (gen["props"] as Dictionary).has("chests"):
+		return
+	var cfg: Dictionary = gen["props"]["chests"]
+	var entries: Array = chest_pass["entries"]
+	var lane := float(gen["extra_cover"]["lane_gap_m"]) if gen.has("extra_cover") else -1.0
+	var areas := {"districts": [], "farmsteads": []}
+	for cell: Dictionary in l500["cells"]:
+		if cell.has("landmark"):
+			(areas["districts"] as Array).append(cell)
+	areas["farmsteads"] = l500["farms"]
+	for area: String in areas:
+		if not cfg.has(area):
+			continue
+		var first := entries.size()
+		var gap := _town_lane(gen) if area == "districts" else lane
+		for block: Dictionary in areas[area]:
+			_chest(state, entries, cfg["size"], float(cfg["front_clear_m"]), int(cfg[area]), _rect_sampler(block["rect"]), "%s chests" % block["prefix"], block["rect"], gap)
+		chest_pass["counts"][area] = entries.size() - first
+
+
+## M2 L2a: the report lines of the 500 m passes (none for a map without them): the laid-out counts, structures by
+## type, the town's cells per template and every dropped template piece.
+static func report_500(out: Dictionary) -> PackedStringArray:
+	var lines := PackedStringArray()
+	var l500: Dictionary = out.get("l500", {})
+	if l500.is_empty():
+		return lines
+	var by_type := {}
+	for entry: Dictionary in out["structures"]["pieces"]:
+		by_type[entry["type"]] = int(by_type.get(entry["type"], 0)) + 1
+	var cover_file: Dictionary = out["cover"]
+	lines.append("GEN_ALESIA 500: arx_ring=%d camp_extras=%d town_cells=%d district_landmarks=%d town_cover=%d farmsteads=%d farm_cover=%d field_walls=%d runs (%d pieces) outside_stakes=%d dropped=%d" % [
+		int(l500["arx_pieces"]), int(l500["camp_extras"]), (l500["cells"] as Array).size(), int(l500["districts"]), int(l500["town_cover"]),
+		(l500["farms"] as Array).size(), int(l500["farm_cover"]), int(l500["field_walls"]), int(l500["field_wall_pieces"]), int(l500["outside_stakes"]),
+		(l500["dropped"] as Array).size()])
+	lines.append("GEN_ALESIA 500 town per template: %s" % str(l500.get("town_counts", {})))
+	lines.append("GEN_ALESIA 500 structures by type: %s" % str(by_type))
+	lines.append("GEN_ALESIA 500 files: cover=%d ring=%d decor=%d breakables=%d chests=%d doors=%d ladders=%d cover_walls=%d breakable_counts=%s chest_counts=%s" % [
+		(cover_file["pieces"] as Array).size(), (cover_file["ring_pieces"] as Array).size(), (cover_file["decor"] as Array).size(),
+		(cover_file.get("breakables", []) as Array).size(), (cover_file.get("chests", []) as Array).size(), (cover_file.get("doors", []) as Array).size(),
+		(cover_file.get("ladders", []) as Array).size(), int(out["cover_walls"]), str(out["breakables"]), str(out["chests"])])
+	for cell: Dictionary in l500["cells"]:
+		lines.append("GEN_ALESIA 500 cell %s %s at (%d, %d) bearing %.1f q%d kept=%d dropped=%d" % [cell["prefix"], cell["template"],
+			int((cell["centre"] as Vector2).x), int((cell["centre"] as Vector2).y), float(cell["bearing"]), int(cell["quarter"]), int(cell["kept"]), int(cell["dropped"])])
+	for farm: Dictionary in l500["farms"]:
+		lines.append("GEN_ALESIA 500 farm %s (%s) at %s q%d kept=%d dropped=%d" % [farm["prefix"], farm["name"], str(farm["centre"]), int(farm["quarter"]), int(farm["kept"]), int(farm["dropped"])])
+	for line: String in l500["dropped"]:
+		lines.append("GEN_ALESIA 500 dropped: " + line)
+	return lines
