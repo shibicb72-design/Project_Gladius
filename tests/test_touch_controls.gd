@@ -355,7 +355,7 @@ func test_move_touch_never_fires_or_aims() -> void:
 
 
 const BUTTON_LABELS := {"aim": "Aim", "reload": "Reload", "swap_weapon": "Swap", "jump": "Jump",
-	"swap_shoulder": "Shoulder", "fire_right": "Fire"}
+	"swap_shoulder": "Shoulder", "fire_right": "Fire", "crouch": "Crouch"}  # M2 H1c item 4: + Crouch
 
 
 func test_each_button_presses_and_releases_its_action() -> void:
@@ -392,7 +392,8 @@ func test_fire_button_works_with_move_finger_held() -> void:
 func test_hud_has_six_labelled_buttons_and_no_sprint() -> void:
 	var hud := _new_hud()
 	assert_true(hud.visible, "HUD visible with force_touch_hud")
-	assert_eq(hud.get_button_actions().size(), 6, "six buttons: the five after F1 plus the right Fire button (step 3, Shibi Nov 9 2026)")
+	# M2 H1c item 4: was 6; the Crouch button (OQ-CROUCH) is the seventh.
+	assert_eq(hud.get_button_actions().size(), 7, "seven buttons: the five after F1, the right Fire button (step 3, Shibi Nov 9 2026) and Crouch (M2 H1c)")
 	for action in BUTTON_LABELS:
 		assert_true(hud.get_button_actions().has(action), "button %s" % action)
 		assert_eq(hud.get_button_label(action), BUTTON_LABELS[action], "label of %s" % action)

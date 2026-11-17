@@ -360,6 +360,10 @@ func _offline_match() -> MatchRoot:
 
 func test_offline_ground_slot_is_the_cover_button_and_shoulder_elsewhere() -> void:
 	var m := await _offline_match()
+	# M2 H1c: two more process frames (was none): under machine load the helper's physics waits can fall in one catch-up,
+	# so the HUD's per-frame slot refresh had not run yet (load-sensitive, not a behaviour change).
+	await _tree().process_frame
+	await _tree().process_frame
 	var touch: Control = m.get_node("Hud/TouchHud")
 	var pawn := m.local_player
 	assert_true(not m.networked_match and pawn.cover != null, "offline local player has cover")

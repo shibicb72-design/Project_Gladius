@@ -24,9 +24,12 @@ turns the view, and the buttons sit at the edges. Every number is a placeholder 
 - **Primary (right thumb, bottom-right corner):** Fire (Advanced only) at the right edge in the corner, Aim directly above
   it, Reload left of Fire on the bottom edge. In Simple there is no Fire button and nothing else moves.
 - **Outer ring** (`ring: true`, `ring_size_ratio` 0.85 of a primary side, never below 48 dp, so on 420 dpi small screens
-  they are as big as the primary ones): along the bottom edge, Jump left of Reload, the Cover / Shoulder slot just right of
-  the screen centre, Swap just left of it; Interact (contextual) above Swap; the fire-mode button on the bottom edge,
-  left of Swap; the pause gear top-right (unchanged, below the HUD top row). With the gear 56 dp down, the right edge of
+  they are as big as the primary ones): along the bottom edge, Jump left of Reload, Crouch left of Jump (M2 H1c,
+  OQ-CROUCH; see Crouch), the Cover / Shoulder slot just left of the screen centre, Swap left of it; Interact
+  (contextual) above the Cover / Shoulder slot; the fire-mode button on the bottom edge left of Swap (where that meets
+  the move stick, as on 1152x959: left of the stick if it fits on screen, else above Swap). (Before M2 H1c: Cover / Shoulder
+  just right of the centre [0.65, -0.6], Swap just left of it [-0.65, -0.6], the fire-mode button on the bottom edge
+  left of Swap [-1.75, -0.6]; `layout_version` 2 -> 3.) The pause gear top-right (unchanged, below the HUD top row). With the gear 56 dp down, the right edge of
   1512x648 at 420 dpi holds only Aim and Fire, so the ring is on the bottom edge on every size.
 - **Left:** move stick bottom-left (not drawn by default, see Move-stick modes); the Sprint lock button above it, up and to the right of its lock target, drawn only while sprint is locked (M2 H1c, OQ-SPRINT-LOCK)
   (`touch_layout.sprint_lock_offset` in lock button sides from the target's rest centre); Left Fire (optional) as before.
@@ -61,7 +64,7 @@ Shibi (Nov 15): "there needs to be a lot of improvement in gameplay and button l
   - **A drag turns the view** (or moves the stick in the left half) from the press point, as if the prompt were not there. The prompt never consumes a touch.
   - The Interact button stays as the fallback. The prompt and the button never both press. On a LAN client there is no prompt, because Interact is hidden there.
 - **Minimap.** A top-down picture of the map, baked once per map. Small view: 100 m around you (`small_radius_m`), turning with your heading by default; Settings > "Minimap: Rotates / North up" (profile key `minimap_rotate`, default true) keeps north up. Tap the tap target to expand to the whole map (north up, landmark names drawn, the match keeps running); the same square, drawn as a gold X, closes it. It shows your arrow, squad mates (a dot in the squad colour with a ring), the current circle, the next circle (dashed) and a line to the next circle while you are outside it. It never shows enemies. A map with no texture shows a plain panel with the circles and arrows.
-- **Radar.** A round 25 m sweep (`radar.range_m`), always heading up (ahead is up), whatever the minimap setting. Rule (DESIGN.md: crouched or prone players are off it): a living player within 25 m shows; an enemy in the cover crouch does not; squad mates show in the squad colour as a ringed dot and enemies as a diamond. You, dead players and players still aboard the carrier never show. A downed enemy shows. Free crouch, prone, the radar jammer and smoke do not exist yet, so they do nothing here. Passive: no touch target.
+- **Radar.** A round 25 m sweep (`radar.range_m`), always heading up (ahead is up), whatever the minimap setting. Rule (DESIGN.md: crouched or prone players are off it): a living player within 25 m shows; a crouched enemy does not (M2 H1c: `Pawn.crouch_amount()` at least `radar.cover_crouch_min` 0.5, the cover crouch or the free crouch; was the cover crouch only); squad mates show in the squad colour as a ringed dot and enemies as a diamond. You, dead players and players still aboard the carrier never show. A downed enemy shows. Prone, the radar jammer and smoke do not exist yet, so they do nothing here. Passive: no touch target.
 - **First-play coach.** On the first real match from the menu or lobby (profile key `coach_done` not true), seven one-line hints show one at a time, 2 s after landing, each with a gold ring and a pointer at its control: move, look, aim, fire (Advanced: the Fire button; Simple: the sight fires by itself), cover, pick up, the map (and the radar). A step moves on when you do the thing or after its timeout (10 to 12 s). Steps that do not apply (no Cover button, no pickup in reach, a LAN client) are skipped. "Skip tips" under the chip ends the whole sequence. Finishing or skipping saves `coach_done`; Settings > "Replay the coach" clears it for the next real match. The coach never blocks input and never pauses the match; only Skip takes a touch. It shows only while the touch HUD is shown, so there is none with mouse and keyboard. Hidden, with timers frozen, while aboard or falling, downed, dead, spectating, with the pause menu open or the expanded map open.
 - **Layout editor.** Shows the fixed pieces under the live buttons (weapon block, objective line, chip, radar and map panel as dim passive boxes; map tap, gear and coach Skip as solid gold outlines). None can be moved. A button dropped on Skip warns and does not block Save.
 - **Not built:** enemy distance tags (OQ-ENEMY-TAGS; Shibi has not decided).
@@ -187,6 +190,41 @@ Research quotes (staging `pubg_mobile_movement_research.md`; PUBG publishes no n
 - **Drag onto the "Sprint Lock" icon above the stick locks sprint** (OFFICIAL Google Play editorial plus COMMUNITY-REPORTED). Gladius: release on the lock target, `scripts/ui/touch_hud.gd:628-633`, target size in `data/input.json:70`.
 - **Tapping the movement joystick again cancels the lock** (COMMUNITY-REPORTED). Gladius: `scripts/ui/touch_hud.gd:579-580`. Tests: `tests/test_sprint.gd:346-393` (new touch cancels) and `test_tap_on_stick_cancels_lock_and_stops` (whole tap, then stopped).
 
+## Crouch (M2 H1c, Nov 17 2026, OQ-CROUCH)
+
+Shibi on the Fold 7: "if you're crouched, you're not able to be seen on that scanner, but there isn't even a Crouch
+button". Every number is a placeholder (`data/stats.json` `movement.crouch`, `data/input.json`
+`touch_layout.buttons.crouch`; docs/OPEN_QUESTIONS.md OQ-CROUCH).
+
+- **Button:** "Crouch", an outer-ring button (`ring`, at least 48 dp) on the bottom edge directly left of Jump, in the
+  right thumb's cluster (`offset` [-3.9, -0.6] from `button_anchor`; its centre is right of the screen centre on all six
+  check sizes). Room was made by moving outer-ring defaults only (Fire, Aim, Reload and Jump stay): the Cover / Shoulder
+  slot [0.65, -0.6] -> [-0.45, -0.6] and Swap [-0.65, -0.6] -> [-1.7, -0.6] (`bottom_centre_anchor`), the fire-mode
+  button `ui.json` [-1.75, -0.6] -> [-2.8, -0.6] (still left of Swap; where that slot meets the move stick it goes left of
+  the stick if that fits on screen, else `crowded_offset_buttons` [-1.7, -1.8] above Swap: on 1152x959 the bottom row
+  holds only six of the seven), and the same order in the `split_row` arrangement. `layout_version` 2 -> 3: a layout saved before is reset once to
+  these defaults and the one-time "layout reset" notice shows if it held edits (see Layout editor, Migration).
+- **Toggle:** one tap crouches, the next stands (the touch button through `TouchProvider.trigger_action("crouch")`,
+  keyboard C, gamepad B; all reach `Pawn.handle_action_press`). The InputFrame crouch bit never toggles anything.
+- **Crouched:** the body capsule and head hitbox lower to `cover.json` `crouch_height_m` 1.0 / `crouch_head_y_m` 0.85
+  (the cover crouch's sizes); the first-person eye and the muzzle lower by the same ratio as the head (eye 1.65 to
+  about 0.80 m, muzzle 1.3 to about 0.63 m), so you cannot shoot over a wall your head is below; move speed x
+  `speed_multiplier` 0.6; shot spread x `spread_multiplier` 1.0 (no effect yet). It eases down and up over `blend_s`
+  0.2 s.
+- **Standing up:** a second tap, a sprint (the stick's forward extreme or the Sprint lock) or a jump. A jump press while
+  crouched only stands up (no jump on that press). Under an overhang the standing body does not fit
+  (`CoverProbe.standing_clear`): you stay crouched, with no sprint and no jump. A Crouch tap while sprinting is ignored.
+- **Where it works:** offline only, exactly where cover works (not in a LAN session with another human). Not on the
+  carrier, falling, downed, dead or on a ladder (the crouch is cleared there and a tap does nothing). In cover the cover
+  rules own the crouch (automatic, low vs high cover): entering cover clears the free crouch, a tap does nothing, and
+  leaving cover stands you up through cover's own standing check. A respawn or a new match starts standing. Bots never
+  crouch.
+- **Looks:** normal; held (the pressed fill) while crouched; dimmed (`ui.json` `cover_fire_dim`) where a tap does nothing
+  (cover, carrier, falling, downed, ladder); hidden in a LAN session and with `movement.crouch.enabled` false. A hidden
+  button catches no tap. The layout editor always shows it.
+- **Radar:** a crouched enemy (free or cover crouch, `crouch_amount()` >= `radar.cover_crouch_min`) is off the radar.
+- **Tests:** `tests/test_h1c_crouch.gd`.
+
 ## In-match menu (gear)
 
 Shibi (via EL, Oct 22 2026): the menu opens ONLY from a small gear icon in the top-right corner. Android Back, `ui_cancel` and Escape do not open it, and no Back handling was added (Godot's default for Back is unchanged).
@@ -220,7 +258,8 @@ Settings > "HUD layout" opens the editor (main menu and in-match menu). It shows
 - **Off-screen warning:** every edited slot is checked at 2520x1080, 2176x1812, 1512x648, 1152x959, 2340x1080 and 3120x1440 (`layout_editor.check_sizes`; landscape only, OQ-PORTRAIT) against the platform safe area (`PlatformServices.get_safe_insets()`, none = whole viewport). A partly-outside element is named in a red warning and outlined, and Save is blocked until it is fixed or the slot is reset.
 - **Overlap policy (chosen: warn only):** overlap with the gear (top-right, not editable), the HUD bars or (M2 H1a) the main look area ("Jump is in the look area at 2520x1080", issue kind `look_area`) is named in the warning but does not block Save; the match HUD puts the element where it was saved. Only leaving the safe viewport blocks.
 - **Fixed pieces (M2 H1b):** a `FixedElements` layer under the live buttons draws the pieces that cannot move, at the rects the match uses (`LayoutEditor.fixed_elements`). The weapon block, objective line, alive / zone chip and radar and map panel are passive (dim fill, faint outline); the map tap target, the gear and the coach Skip are touch targets (solid gold outline, label). The overlap check also warns, and never blocks Save, for the whole weapon block, the map tap target and the coach Skip.
-- **Migration (M2 H1a):** `hud_layouts` carries `version` (`layout_editor.layout_version`, 2). On load, `SaveService` resets a stored layout with no or a lower version (the G2e format, made for the old placement) to the defaults, slot 1 active, and clears the legacy profile `sprint_lock_pos` with it (also a pre-G2e file holding only `sprint_lock_pos`), then writes the profile back at once, so it happens once. If the old layout held any edit (or a lock position), the profile key `layout_notice_pending` is set and the first live touch HUD (not the editor preview) shows `data/ui.json` `layout_reset_notice.text` for `duration_s` (6 s) and clears the flag in the file. Tests: `tests/test_h1a_layout.gd` with the hand-written old-format fixture `tests/fixtures/h1a_old_layout_profile.json`.
+- **Migration (M2 H1a):** `hud_layouts` carries `version` (`layout_editor.layout_version`, 3 since M2 H1c's Crouch
+  button; it was 2, so layouts saved at 2 are reset once in the same way). On load, `SaveService` resets a stored layout with no or a lower version (the G2e format, made for the old placement) to the defaults, slot 1 active, and clears the legacy profile `sprint_lock_pos` with it (also a pre-G2e file holding only `sprint_lock_pos`), then writes the profile back at once, so it happens once. If the old layout held any edit (or a lock position), the profile key `layout_notice_pending` is set and the first live touch HUD (not the editor preview) shows `data/ui.json` `layout_reset_notice.text` for `duration_s` (6 s) and clears the flag in the file. Tests: `tests/test_h1a_layout.gd` with the hand-written old-format fixture `tests/fixtures/h1a_old_layout_profile.json`.
 - **Shots:** `tools/layout_editor_capture.tscn` writes `build/shots/layout_editor_{cover,inner}_landscape.png` and `layout_editor_{cover,inner}_small_landscape.png` (1512x648, 1152x959); the cover_small shot shows the off-screen warning.
 - **Tests:** `tests/test_layout_editor.gd` (temp `user://` profile, restores `AppFlow.profile`).
 

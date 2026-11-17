@@ -199,9 +199,11 @@
 	},
 	"fire_mode_button": {
 		"_placeholder": true,
-		"_todo": "OQ-FIRE-MODE, OQ-H1A-LAYOUT: every layout/font value in this block is a placeholder, not a design value. target touch_dp >= 48 dp. M2 H1a: touch_anchor names a screen point of input.json touch_layout and offset_buttons moves the centre in primary touch button sides from it (like interact_button): the bottom edge, left of the Swap button, out of the look area (it was anchor [0.8, 0.04] with margin_dp [8, 20], top right in the look area).",
+		"_todo": "OQ-FIRE-MODE, OQ-H1A-LAYOUT: every layout/font value in this block is a placeholder, not a design value. target touch_dp >= 48 dp. M2 H1a: touch_anchor names a screen point of input.json touch_layout and offset_buttons moves the centre in primary touch button sides from it (like interact_button): the bottom edge, left of the Swap button, out of the look area (it was anchor [0.8, 0.04] with margin_dp [8, 20], top right in the look area). M2 H1c item 4 (OQ-CROUCH): still the bottom edge left of Swap, now [-2.8, -0.6] (was [-1.75, -0.6]; Swap moved to [-1.7, -0.6] when the Crouch button took a bottom-row slot left of Jump). Where that slot meets the move stick's default rect (1152x959; split_row on 1512x648), it sits left of the stick on the same row if that is on screen (gap crowded_gap_buttons), else at crowded_offset_buttons [-1.7, -1.8] (above Swap; on 1152x959). Above Interact was tried and meets the centre feedback labels on 1512x648; above Swap meets Left Fire on 1512x648.",
 		"touch_anchor": "bottom_centre_anchor",
-		"offset_buttons": [-1.75, -0.6],
+		"offset_buttons": [-2.8, -0.6],
+		"crowded_offset_buttons": [-1.7, -1.8],
+		"crowded_gap_buttons": 0.06,
 		"touch_dp": 48.0,
 		"font_dp": 12.0
 	},
@@ -402,7 +404,7 @@
 		"size_frac_of_minimap": 0.9,
 		"gap_units": 0.3,
 		"range_m": 25.0,
-		"_rule_note": "OQ-RADAR, the rule as coded (DESIGN.md:26 only): every other living pawn the local peer has (not DEAD, not hidden by the LAN snapshot, not ABOARD the carrier) within range_m (inclusive) is a blip: an enemy (another squad) as a solid diamond, a squad mate as a ringed dot in the squad colour. An ENEMY whose cover crouch_amount is at least cover_crouch_min while in cover (pawn.in_cover()) is hidden; standing behind high cover or risen over low cover shows. A DOWNED enemy shows (the plain rule). Falling pawns follow the distance rule. Proposals NOT built: only moving or firing enemies show; downed enemies hidden.",
+		"_rule_note": "OQ-RADAR, the rule as coded (DESIGN.md:26 only): every other living pawn the local peer has (not DEAD, not hidden by the LAN snapshot, not ABOARD the carrier) within range_m (inclusive) is a blip: an enemy (another squad) as a solid diamond, a squad mate as a ringed dot in the squad colour. An ENEMY whose Pawn.crouch_amount() is at least cover_crouch_min is hidden (M2 H1c item 4, OQ-CROUCH: crouch_amount() is the larger of the cover crouch and the free crouch outside cover; was: the cover crouch_amount while in cover only); standing behind high cover, risen over low cover or standing in the open shows. A DOWNED enemy shows (the plain rule). Falling pawns follow the distance rule. Proposals NOT built: only moving or firing enemies show; downed enemies hidden.",
 		"distance": "flat",
 		"_distance_note": "OQ-RADAR: 'flat' = horizontal (x, z) distance, the default: the radar is a flat disc and shows ground bearing and range, so a soldier one floor up or down at 20 m reads as 20 m (as the reference genre's radar, minus its height hint). '3d' = straight-line distance.",
 		"cover_crouch_min": 0.5,

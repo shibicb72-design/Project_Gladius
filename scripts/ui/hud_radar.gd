@@ -3,7 +3,8 @@ extends Control
 ## M2 H1b commit 4 (OQ-RADAR): the round radar in HudArrangement.radar_rect (left of the minimap, inside its panel plate).
 ## Data: data/ui.json "radar" (every number a placeholder). The rule is DESIGN.md:26 only (see should_show):
 ## - every other pawn the local peer has within range_m (horizontal by default, radar.distance) is a blip;
-## - an ENEMY in the cover crouch (pawn.in_cover() and its crouch_amount >= cover_crouch_min) does not show;
+## - an ENEMY crouched (Pawn.crouch_amount() >= cover_crouch_min: in the cover crouch or, M2 H1c, the free crouch)
+##   does not show;
 ## - squad mates show in the squad colour, as a ringed dot; enemies as a solid diamond in a hostile colour (shape AND
 ##   colour differ, since a squad colour can itself be red);
 ## - dead pawns, pawns the LAN snapshot hides, pawns aboard the carrier and the local player are never blips.
@@ -131,10 +132,11 @@ static func distance_m(me: Vector3, other: Vector3) -> float:
 	return ground_offset(me, other).length()
 
 
-## In the cover crouch: in cover (any cover state but FREE) and crouched at least cover_crouch_min. Standing behind high
-## cover, or risen over low cover to shoot, is not the crouch and shows.
+## Crouched: Pawn.crouch_amount() (the cover crouch or the free crouch, M2 H1c item 4) at least cover_crouch_min.
+## Standing behind high cover, risen over low cover to shoot, or standing in the open is not the crouch and shows.
+## (Name kept from H1b; it now covers the free crouch too.)
 static func in_cover_crouch(p: Pawn) -> bool:
-	return p.in_cover() and p.cover.crouch_amount >= float(cfg().get("cover_crouch_min", 0.5))
+	return p.crouch_amount() >= float(cfg().get("cover_crouch_min", 0.5))
 
 
 static func _pos(p: Node3D) -> Vector3:
@@ -168,7 +170,7 @@ static func classify_with(me: Pawn, p: Pawn, rng: float, flat: bool, crouch_min:
 		return ""
 	if p.squad_id == me.squad_id:
 		return MATE
-	if p.in_cover() and p.cover.crouch_amount >= crouch_min:  # in_cover_crouch, with the threshold read once
+	if p.crouch_amount() >= crouch_min:  # in_cover_crouch, with the threshold read once (M2 H1c: any crouch)
 		return ""
 	return ENEMY
 

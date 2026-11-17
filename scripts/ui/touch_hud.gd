@@ -72,7 +72,7 @@ func lock_button_hit(p: Vector2) -> bool:
 ## data/ui.json cover_buttons are gone); only C1a's first-person Shoulder rule hides a button.
 func _refresh_button_visibility() -> void:
 	for key in _buttons:
-		_buttons[key].visible = not is_first_person_slot_hidden(key)
+		_buttons[key].visible = not is_first_person_slot_hidden(key) and (key != CROUCH_ACTION or _crouch_shown)
 	if lock_button != null:
 		lock_button.visible = lock_button_shown()
 
@@ -213,6 +213,66 @@ func _style_cover_button(b: Button, held: bool) -> void:
 	sb.set_corner_radius_all(int(ceil(maxf(b.size.x, 1.0) * 0.5)))
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		b.add_theme_stylebox_override(state, sb)
+
+# --- M2 H1c item 4: the Crouch button (OQ-CROUCH) ------------------------------------------------------------------
+## data/input.json touch_layout.buttons.crouch. A press holds the InputMap action "crouch" (like every button) AND calls
+## provider.trigger_action("crouch"), which the router re-emits and MatchRoot forwards to Pawn.handle_action_press (the
+## free crouch toggle; the UI never writes pawn state). Looks, read from the bound pawn every frame: "held" while free
+## crouched (Pawn.free_crouch), "dimmed" where a press does nothing (Pawn.free_crouch_possible false: cover, carrier,
+## falling, downed, ladder; data/ui.json cover_fire_dim), else "normal". Shown per crouch_button_shown.
+const CROUCH_ACTION := "crouch"
+## The layout editor sets this on its preview so the button shows whatever the pawn (not with the data switch off).
+var show_crouch_for_editing: bool = false:
+	set(v):
+		show_crouch_for_editing = v
+		_refresh_crouch_button()
+var crouch_look := "normal"
+var _crouch_shown := true
+var _crouch_data_on: Variant = null  # stats.json movement.crouch.enabled, read once
+
+## The ONE rule: shown when the data switch is on and the bound pawn has a Crouch button (Pawn.crouch_button_available:
+## hidden in a LAN session, for bots and replicas). No bound pawn (menus, previews, bare fixtures): shown.
+## A hidden button catches nothing (_button_at): the touch does what a touch there would otherwise do.
+func crouch_button_shown() -> bool:
+	if _crouch_data_on == null:
+		var mv: Dictionary = _DataRegistry.new().get_movement_cfg()
+		_crouch_data_on = bool((mv.get("crouch", {}) as Dictionary).get("enabled", false))
+	if not bool(_crouch_data_on):
+		return false
+	if show_crouch_for_editing:
+		return true
+	var pawn := _hud_pawn()
+	return pawn == null or pawn.crouch_button_available()
+
+func _refresh_crouch_button() -> void:
+	if not _buttons.has(CROUCH_ACTION):
+		return
+	var shown := crouch_button_shown()
+	var pawn := _hud_pawn()
+	var look := "normal"
+	if shown and pawn != null and not show_crouch_for_editing:
+		if pawn.free_crouch:
+			look = "held"
+		elif not pawn.free_crouch_possible():
+			look = "dimmed"
+	set_crouch_button(shown, look)
+
+## Callable directly where there is no GameHud sibling (tests). A touch held on the button when it hides is released.
+func set_crouch_button(shown: bool, look: String) -> void:
+	if not _buttons.has(CROUCH_ACTION):
+		return
+	if shown != _crouch_shown:
+		_crouch_shown = shown
+		if not shown:
+			for idx in _button_touch.keys():
+				if _button_touch[idx] == CROUCH_ACTION:
+					_button_touch.erase(idx)
+					Input.action_release(CROUCH_ACTION)
+		_refresh_button_visibility()
+	if look != crouch_look:
+		crouch_look = look
+		_style_button(_buttons[CROUCH_ACTION], _button_touch.values().has(CROUCH_ACTION))
+# --- M2 H1c item 4 end ---
 ## G3e: element key of the optional left Fire button (not an InputMap action: it presses "fire").
 const LEFT_FIRE_KEY := "fire_left"
 ## Step 3 (Shibi, Nov 9 2026): the right-side Fire button (data/input.json touch_layout.buttons.fire_right). It holds
@@ -255,6 +315,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(relayout)
 	relayout()
 	refresh_visibility()
+	_refresh_crouch_button()  # M2 H1c item 4
 
 
 func _add_button(key: String, label: String) -> void:
@@ -684,6 +745,7 @@ func _process(delta: float) -> void:
 	_update_layout_notice(delta)
 	_refresh_first_person()
 	_refresh_cover_slot()
+	_refresh_crouch_button()  # M2 H1c item 4
 	if move_mode == "virtual":
 		provider.move_value = Input.get_vector(_VJOY_ACTIONS[0], _VJOY_ACTIONS[1], _VJOY_ACTIONS[2], _VJOY_ACTIONS[3], 0.0)
 	_place_sprint_elements()
@@ -925,11 +987,14 @@ func _style_button(b: Button, held: bool) -> void:
 		_style_cover_button(b, held)
 		return
 	var is_fire: bool = _buttons.get(RIGHT_FIRE_KEY) == b or _buttons.get(LEFT_FIRE_KEY) == b
-	if is_fire and fire_dimmed:
+	var is_crouch: bool = _buttons.get(CROUCH_ACTION) == b  # M2 H1c item 4: dimmed / held looks (crouch_look)
+	if (is_fire and fire_dimmed) or (is_crouch and crouch_look == "dimmed"):
 		_style_dimmed_fire(b)
 		return
-	if is_fire:
+	if is_fire or is_crouch:
 		b.remove_theme_color_override("font_color")
+	if is_crouch and crouch_look == "held":
+		held = true
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(1, 1, 1, float(_layout["button_held_alpha"]) if held else float(_layout["button_idle_alpha"]))
 	sb.border_color = Color(1, 1, 1, 0.6)
@@ -941,6 +1006,8 @@ func _style_button(b: Button, held: bool) -> void:
 
 func _button_at(pos: Vector2) -> String:
 	for action in _buttons:
+		if action == CROUCH_ACTION and not _crouch_shown:
+			continue  # M2 H1c item 4: a hidden Crouch button catches nothing
 		if get_button_rect(action).has_point(pos):
 			return action
 	return ""
@@ -1013,6 +1080,7 @@ func _on_down(idx: int, pos: Vector2) -> void:
 	# visible Cover button instead (no swallowing); C1a's swallowing remains only where no Cover button is offered (LAN).
 	_refresh_first_person()
 	_refresh_cover_slot()
+	_refresh_crouch_button()  # M2 H1c item 4: a hidden Crouch button catches nothing
 	var action := _button_at(pos)
 	if lock_button_hit(pos):
 		# M2 H1c (OQ-SPRINT-LOCK): the button exists only while locked and a tap releases the lock (was a toggle that also
@@ -1027,6 +1095,8 @@ func _on_down(idx: int, pos: Vector2) -> void:
 			Input.action_press(_action_of(action))
 		if _action_of(action) == COVER_ACTION:
 			provider.trigger_action(COVER_ACTION)
+		elif _action_of(action) == CROUCH_ACTION:
+			provider.trigger_action(CROUCH_ACTION)  # M2 H1c item 4: the press-time toggle (Pawn.handle_action_press)
 		_style_button(_buttons[action], true)
 		if _action_of(action) == "swap_shoulder" and not is_first_person_slot_hidden(action):
 			_shoulder_pulse_left_s = maxf(0.0, float(_layout["shoulder_pulse_release_s"]["value"]))

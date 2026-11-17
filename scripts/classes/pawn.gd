@@ -43,7 +43,9 @@ var life: Life = Life.ALIVE:
 			_leave_cover()
 		if value != Life.ALIVE:
 			ladder_release()  # M2 L1c ladder: downed or dead lets go
-		_apply_life_shapes()
+		if value != Life.ALIVE:
+			_clear_free_crouch()  # M2 H1c item 4: downed or dead drops the free crouch at once
+		_apply_body_shapes()
 ## Step 3 G5 (Shibi, Nov 9 2026: "downed lowers the hitbox"): body capsule height and head-hitbox height while
 ## DOWNED (br.json downed.downed_body_height_m / downed_head_y_m, set by MatchDirector.start). Negative = unset:
 ## the standing shapes stay.
@@ -131,13 +133,16 @@ func set_frame(frame: InputFrame) -> void:
 ## D1: press-time action from the input layer (InputRouter.action_triggered via MatchRoot).
 ## One press is one toggle: the frame's crouch_just_pressed bit is transport only until the host-side cover slice, so the
 ## physics tick never toggles from it. Reads cover at call time (tests enable it after begin()).
-## M2 C1b stage 2 (decision 7, fix 4): "crouch" is ignored. In cover the crouch is automatic (low vs high cover, see
-## CoverController._update_crouch); outside cover the press never did anything (the old toggle only acted in cover).
-## The InputFrame bit, the router entry and this entry point stay.
+## M2 C1b stage 2 (decision 7, fix 4): in cover "crouch" is ignored: the crouch there is automatic (low vs high cover,
+## see CoverController._update_crouch). M2 H1c item 4 (OQ-CROUCH): outside cover the press toggles the free crouch
+## (press_free_crouch below; offline only, as cover). This is its ONLY toggle: the InputFrame bit stays transport only.
 ## M2 C1b stage 4 (fix 4): "cover_fire" is a no-op (Fire in cover is the frame's fire bit, see _apply_weapon); its
 ## router entry stays.
 func handle_action_press(action: String) -> void:
-	if action == "crouch" or action == "cover_fire":
+	if action == "crouch":
+		press_free_crouch()  # M2 H1c item 4
+		return
+	if action == "cover_fire":
 		return
 	elif action == "cover" and cover_button_available():
 		if climbing:
@@ -184,7 +189,7 @@ func set_squad(new_squad_id: int) -> void:
 
 func _leave_cover() -> void:
 	cover.reset()
-	_apply_cover_shapes()
+	_apply_body_shapes()
 	_cover_probe.reset()
 
 
@@ -204,8 +209,9 @@ func set_active(active: bool) -> void:
 func respawn_at(xform: Transform3D) -> void:
 	if cover != null:
 		cover.reset()
-		_apply_cover_shapes()
 		_cover_probe.reset()
+	_clear_free_crouch()  # M2 H1c item 4: a new life (respawn, new match) starts standing
+	_apply_body_shapes()
 	bridge = PawnRulesBridge.new(class_def, squad_id, registry.get_combat_cfg())
 	life = Life.ALIVE
 	loadout = Loadout.from_class(class_id, registry)
@@ -274,8 +280,10 @@ func get_aim_direction() -> Vector3:
 	return (global_transform.basis * Vector3(0.0, sin(pitch), -cos(pitch))).normalized()
 
 
+## M2 H1c item 4 (OQ-CROUCH): the muzzle lowers with the FREE crouch only (free_crouch_height_scale), never in cover,
+## so the cover lean / rise firing is exactly as before.
 func get_muzzle_position() -> Vector3:
-	return global_position + Vector3(0.0, float(_movement.get("muzzle_height_m", 1.3)), 0.0)
+	return global_position + Vector3(0.0, float(_movement.get("muzzle_height_m", 1.3)) * free_crouch_height_scale(), 0.0)
 
 
 ## Fires the active weapon once (one hitscan ray, or one melee swing). Returns the Hitscan result,
@@ -303,8 +311,10 @@ func fire_shot() -> Dictionary:
 
 
 ## Spread multiplier for the next shot: stats.json aim.aim_spread_mult while aiming, else 1.
+## M2 H1c item 4 (OQ-CROUCH): times stats.json movement.crouch.spread_multiplier at full free crouch (ships 1.0: none).
 func get_spread_mult() -> float:
-	return float(_aim["aim_spread_mult"]) if aiming else 1.0
+	var mult := float(_aim["aim_spread_mult"]) if aiming else 1.0
+	return mult * lerpf(1.0, float(_crouch_cfg().get("spread_multiplier", 1.0)), free_crouch_amount)
 
 
 ## Muzzle flash and tracer; also called for shots replicated from other peers.
@@ -416,6 +426,7 @@ func _physics_process(delta: float) -> void:
 	bridge.tick(delta)
 	if net_mode == NetMode.HOST_REMOTE:
 		return
+	_tick_free_crouch(delta)  # M2 H1c item 4
 	if climbing and drop_state != Drop.NONE:
 		ladder_release()  # M2 L1c ladder: the drop state lets go
 	if drop_state == Drop.ABOARD:
@@ -641,7 +652,7 @@ func get_max_move_speed() -> float:
 ## The sprint request comes from InputFrame.sprint (threshold / lock live in the input layer).
 func _update_sprint_factor(delta: float) -> void:
 	var mult: float = _movement["sprint_speed_multiplier"]["value"]
-	var target := mult if _frame.sprint and _frame.move.y < 0.0 and is_alive() else 1.0
+	var target := mult if _frame.sprint and _frame.move.y < 0.0 and is_alive() and not free_crouch else 1.0  # H1c: no crouched sprint
 	var ramp_s: float = _movement["sprint_ramp_s"]["value"]
 	sprint_factor = target if ramp_s <= 0.0 else move_toward(sprint_factor, target, (mult - 1.0) / ramp_s * delta)
 
@@ -653,16 +664,17 @@ func _apply_movement(delta: float) -> void:
 	# probe (auto-snap) and the cover tick below are all skipped, so cover stays FREE for the whole climb.
 	if _ladder_tick(delta):
 		return
+	var crouch_ate_jump := _free_crouch_stand_requests()  # M2 H1c item 4: sprint / jump while crouched stand up first
 	# Full analog speed: the wish speed scales continuously with the stick length (no walk/run step).
 	# Sideways and backward are a ratio of forward speed (stats.json movement.strafe_back_ratio).
 	_update_sprint_factor(delta)
 	var ratio: float = _movement["strafe_back_ratio"]["value"]
 	var local := Vector3(_frame.move.x * ratio, 0.0, _frame.move.y * (ratio if _frame.move.y > 0.0 else 1.0))
-	var wish := global_transform.basis * local * get_move_speed() * sprint_factor * _life_speed_mult()
+	var wish := global_transform.basis * local * get_move_speed() * sprint_factor * _life_speed_mult() * _free_crouch_speed_mult()
 	velocity.x = _ramp_axis(velocity.x, wish.x, delta)
 	velocity.z = _ramp_axis(velocity.z, wish.z, delta)
 	if is_on_floor():
-		if _frame.jump_just_pressed and is_alive() and bool(_movement.get("jump_enabled", false)):
+		if _frame.jump_just_pressed and is_alive() and bool(_movement.get("jump_enabled", false)) and not crouch_ate_jump:
 			velocity.y = float(_movement.get("jump_velocity", 0.0))
 	else:
 		velocity.y -= float(_movement.get("gravity", 20.0)) * delta
@@ -679,7 +691,7 @@ func _apply_movement(delta: float) -> void:
 			if sprint_pressed or jumped:
 				cover.request_exit()
 			cover.tick(delta, _frame.move, _frame.fire_pressed, probe, aiming, _frame.sprint)
-			_apply_cover_shapes()
+			_apply_body_shapes()
 			if cover.state != CoverController.State.FREE:
 				var cover_velocity := cover.movement_velocity(global_position, wish, get_max_move_speed(), delta)
 				velocity.x = cover_velocity.x
@@ -870,8 +882,8 @@ func enable_cover(cfg: Dictionary) -> void:
 func disable_cover() -> void:
 	if cover != null:
 		cover.reset()
-		_apply_cover_shapes()
 	cover = null
+	_apply_body_shapes()
 	_cover_probe.reset()
 	_cover_auto_disabled = true
 
@@ -1057,23 +1069,157 @@ func _init_cover_shapes() -> void:
 	var head_shape := get_node("Head/CollisionShape3D") as CollisionShape3D
 	head_shape.shape = head_shape.shape.duplicate()
 
-## DOWNED: the low body and head from downed_body_height_m / downed_head_y_m. Back to ALIVE: the standing shapes
-## (cover, when on, re-applies its crouch on its next tick). Shares the standing sizes kept by _init_cover_shapes.
-func _apply_life_shapes() -> void:
+# M2 H1c item 4 (OQ-CROUCH): ONE writer of the body capsule and the head hitbox (was _apply_life_shapes and
+# _apply_cover_shapes, which both wrote them). Order: DOWNED first (downed_body_height_m / downed_head_y_m, each only
+# when set), then the crouch, crouch_amount() (the larger of the cover crouch and the free crouch), else the
+# standing shapes. The crouch sizes are data/cover.json crouch_height_m and crouch_head_y_m (_crouch_shape_cfg).
+# Shares the standing sizes kept by _init_cover_shapes.
+func _apply_body_shapes() -> void:
 	if not is_inside_tree() or not has_node("CollisionShape3D") or not has_node("Head"):
 		return
 	_init_cover_shapes()
 	var capsule := _cover_body.shape as CapsuleShape3D
-	var down := life == Life.DOWNED and downed_body_height_m > 0.0
-	capsule.height = maxf(downed_body_height_m, capsule.radius * 2.0) if down else _cover_height
+	var downed := life == Life.DOWNED
+	var a := crouch_amount()
+	var shape_cfg := _crouch_shape_cfg()
+	if downed and downed_body_height_m > 0.0:
+		capsule.height = maxf(downed_body_height_m, capsule.radius * 2.0)
+	elif not downed and a > 0.0:
+		capsule.height = lerpf(_cover_height, maxf(float(shape_cfg["crouch_height_m"]), capsule.radius * 2.0), a)
+	else:
+		capsule.height = _cover_height
 	_cover_body.position.y = capsule.height * 0.5
-	_cover_head.position.y = downed_head_y_m if life == Life.DOWNED and downed_head_y_m > 0.0 else _cover_head_y
+	if downed and downed_head_y_m > 0.0:
+		_cover_head.position.y = downed_head_y_m
+	elif not downed and a > 0.0:
+		_cover_head.position.y = lerpf(_cover_head_y, float(shape_cfg["crouch_head_y_m"]), a)
+	else:
+		_cover_head.position.y = _cover_head_y
 
 
-func _apply_cover_shapes() -> void:
-	if _cover_body == null or cover == null:
+# ---- M2 H1c item 4: the free crouch (OQ-CROUCH; data/stats.json movement.crouch) ----------------------------------
+## Plain state on the pawn, for M3 to replicate (no protocol change now): free_crouch is the toggle, free_crouch_amount
+## its 0..1 ease (movement.crouch.blend_s). Toggled ONLY by press_free_crouch (Pawn.handle_action_press("crouch"): the
+## touch Crouch button, the keyboard / gamepad "crouch" action), never from the InputFrame crouch bit. Offline only,
+## as cover (not in_lan_session), a LOCAL human pawn (no Brain: bots never crouch), movement.crouch.enabled on.
+## A press does nothing in cover (cover owns its crouch), on the carrier, falling, downed, dead, on a ladder, or while
+## sprinting (a crouch press during a sprint, the Sprint lock included, is ignored). Standing up (a second press, a
+## sprint, a jump) needs CoverProbe.standing_clear; blocked = stay crouched, no sprint, no jump. A jump press while
+## crouched only stands up (no jump on that press). Cleared at once when downed or dead and at respawn / a new match;
+## cleared on the carrier, falling, on a ladder and in cover by _tick_free_crouch (in cover it eases out under the
+## cover crouch, so leaving cover stands up through cover's own standing check).
+var free_crouch := false
+var free_crouch_amount := 0.0
+
+
+func _crouch_cfg() -> Dictionary:
+	var c: Variant = _movement.get("crouch", {})
+	return c if c is Dictionary else {}
+
+
+## The crouched shape sizes: the cover controller's config when there is one, else data/cover.json (same keys).
+func _crouch_shape_cfg() -> Dictionary:
+	return cover.config if cover != null else registry.load_file("res://data/cover.json")
+
+
+## Read-only (HUD radar, CameraRig, presentation): how far down the soldier is, 0 standing .. 1 fully crouched, the
+## larger of the cover crouch (CoverController.crouch_amount) and the free crouch (free_crouch_amount).
+func crouch_amount() -> float:
+	var c := cover.crouch_amount if cover != null else 0.0
+	return clampf(maxf(c, free_crouch_amount), 0.0, 1.0)
+
+
+## Read-only for the HUD: the Crouch button exists for this pawn (switch on, a LOCAL human pawn, not a LAN session).
+func crouch_button_available() -> bool:
+	return bool(_crouch_cfg().get("enabled", false)) and net_mode == NetMode.LOCAL and not has_node("Brain") \
+			and not in_lan_session()
+
+
+## Read-only for the HUD: a Crouch press would act now (the button's dimmed look when false).
+func free_crouch_possible() -> bool:
+	return crouch_button_available() and is_alive() and drop_state == Drop.NONE and not climbing and not in_cover()
+
+
+## The one toggle (see handle_action_press).
+func press_free_crouch() -> void:
+	if not free_crouch_possible():
 		return
-	var capsule := _cover_body.shape as CapsuleShape3D
-	capsule.height = lerpf(_cover_height, maxf(float(cover.config["crouch_height_m"]), capsule.radius * 2.0), cover.crouch_amount)
-	_cover_body.position.y = capsule.height * 0.5
-	_cover_head.position.y = lerpf(_cover_head_y, float(cover.config["crouch_head_y_m"]), cover.crouch_amount)
+	if free_crouch:
+		if _free_crouch_stand_clear():
+			free_crouch = false
+	elif not _sprint_wanted():
+		free_crouch = true
+
+
+func _sprint_wanted() -> bool:
+	return _frame.sprint and _frame.move.y < 0.0
+
+
+func _free_crouch_stand_clear() -> bool:
+	if not is_inside_tree() or not has_node("CollisionShape3D") or not has_node("Head"):
+		return true
+	return _cover_probe.standing_clear(self)
+
+
+func _clear_free_crouch() -> void:
+	free_crouch = false
+	free_crouch_amount = 0.0
+
+
+## From _apply_movement (on the ground, not on a ladder): a sprint or a jump press while crouched stands up when the
+## standing shapes fit. True when this tick's jump press was used by the crouch (stood up, or refused): no jump.
+func _free_crouch_stand_requests() -> bool:
+	if not free_crouch:
+		return false
+	var jump := _frame.jump_just_pressed
+	if not jump and not _sprint_wanted():
+		return false
+	if _free_crouch_stand_clear():
+		free_crouch = false
+	return jump
+
+
+func _free_crouch_speed_mult() -> float:
+	return lerpf(1.0, float(_crouch_cfg().get("speed_multiplier", 1.0)), free_crouch_amount)
+
+
+## Every physics tick of a LOCAL / host-side pawn, before the carrier return.
+func _tick_free_crouch(delta: float) -> void:
+	if (free_crouch or free_crouch_amount > 0.0) and not free_crouch_possible():
+		if in_cover() and is_alive():
+			free_crouch = false  # cover owns the crouch now: ease out under the cover crouch
+		else:
+			_clear_free_crouch()
+			_apply_body_shapes()
+			return
+	var target := 1.0 if free_crouch else 0.0
+	if free_crouch_amount == target:
+		return
+	var blend := float(_crouch_cfg().get("blend_s", 0.0))
+	free_crouch_amount = target if blend <= 0.0 else move_toward(free_crouch_amount, target, delta / blend)
+	_apply_body_shapes()
+
+
+## Standing head height over the crouched one's ratio (data/cover.json crouch_head_y_m / the standing head y), 1 with
+## no head. The head, the first-person eye and the muzzle all scale by lerp(1, ratio, amount), so they move together.
+func _crouch_head_ratio() -> float:
+	if not has_node("Head"):
+		return 1.0
+	var stand := cover_standing_head_y()
+	if stand <= 0.0:
+		return 1.0
+	return clampf(float(_crouch_shape_cfg().get("crouch_head_y_m", stand)) / stand, 0.0, 1.0)
+
+
+## Read-only (CameraRig's first-person eye): 1 standing, the head ratio at crouch_amount() 1.
+func crouch_height_scale() -> float:
+	var a := crouch_amount()
+	return 1.0 if a <= 0.0 else lerpf(1.0, _crouch_head_ratio(), a)
+
+
+## The muzzle's scale: the FREE crouch only, and 1 in cover (cover's lean / rise firing stays as it was).
+func free_crouch_height_scale() -> float:
+	if free_crouch_amount <= 0.0 or in_cover():
+		return 1.0
+	return lerpf(1.0, _crouch_head_ratio(), free_crouch_amount)
+# ---- M2 H1c item 4 end ----

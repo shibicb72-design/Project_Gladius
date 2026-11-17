@@ -326,7 +326,16 @@ func _set_fp_weight(weight: float) -> void:
 ## Rig pivot height: today's height_m in third person (the cover pose's height in cover), the eye in first person.
 func _rig_height() -> float:
 	var third := lerpf(float(_cfg.get("height_m", 1.6)), _cover_height(), _cover_w)
-	return lerpf(third, _fp_value("eye_height_m", third), _fp_weight)
+	return lerpf(third, _fp_value("eye_height_m", third) * _crouch_eye_scale(), _fp_weight)
+
+# M2 H1c item 4 (OQ-CROUCH): the first-person eye lowers with Pawn.crouch_amount() by the same scale as the head hitbox
+# (Pawn.crouch_height_scale), so eye, head and muzzle move together. The third-person end keeps its own numbers (the
+# cover pose's crouch height above); outside cover the free crouch only happens in first person (is_first_person).
+# _tick_cover_follow re-places the pivot every physics frame outside cover, so the eye follows the ease.
+func _crouch_eye_scale() -> float:
+	var pawn := get_parent() as Pawn
+	return pawn.crouch_height_scale() if pawn != null else 1.0
+# M2 H1c item 4 end
 
 ## Presentation-only translation damping while in cover. Outside cover the rig follows the parent exactly.
 ## M2 C1b stage 2 (fixes 19, 25): when the follow stops (EXITING, or FREE for an exit that skipped EXITING, such as a

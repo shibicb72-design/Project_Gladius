@@ -54,7 +54,8 @@ func test_buttons_smaller_than_before_and_data_driven() -> void:
 	var frac: float = touch.cfg["touch_layout"]["button_size_frac_of_height"]
 	assert_true(frac < OLD_BUTTON_SIZE_FRAC, "button size frac %s < old %s" % [frac, OLD_BUTTON_SIZE_FRAC])
 	assert_true(touch.cfg["touch_layout"]["_placeholder"], "touch_layout is marked placeholder")
-	assert_eq(touch.get_button_actions().size(), 6, "six buttons: the five after F1 plus the right Fire button (step 3, Shibi Nov 9 2026)")
+	# M2 H1c item 4: was 6; the Crouch button (OQ-CROUCH) is the seventh.
+	assert_eq(touch.get_button_actions().size(), 7, "seven buttons: the five after F1, the right Fire button (step 3, Shibi Nov 9 2026) and Crouch (M2 H1c)")
 	touch.free()
 
 

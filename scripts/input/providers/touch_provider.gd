@@ -5,8 +5,8 @@ extends InputProvider
 ## Crouch, D1) call trigger_action instead: the router acts on it at press time and latches the frame edge.
 ## The held cover FIRE (D2) uses trigger_action / release_action / set_action_look on "cover_fire", which the
 ## router re-emits without touching the frame.
-## TODO(D2): keyboard/gamepad crouch must reach the same router action_triggered signal (one press, one toggle)
-## without also toggling from the polled crouch_just_pressed bit.
+## M2 H1c item 4: keyboard/gamepad crouch reaches the same router action_triggered signal (one press, one toggle)
+## through KeyboardMouseProvider.PRESS_ACTIONS, never from the polled crouch_just_pressed bit (was a TODO(D2)).
 ## Look is radians per physics tick (see look_math.gd), in "stick" or "drag" mode.
 
 const _LookMath := preload("res://scripts/input/look_math.gd")
