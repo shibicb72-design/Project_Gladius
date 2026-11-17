@@ -444,6 +444,8 @@ func test_lan_host_has_no_cover_button_and_no_auto_snap() -> void:
 	_tree().root.add_child(s)
 	s.host_game()
 	s.lobby.host_open(2, 3, "Host")
+	# M2 H1c item 1: a LAN session needs another human (a host alone is offline for cover; test_h1c_cover_button.gd).
+	assert_true(s.lobby.state.add_human(2, "Client"), "a second human joins the lobby")
 	assert_true(s.lobby.start_match(), "host lobby starts")
 	var m: MatchRoot = _MatchScene.instantiate()
 	m.auto_start = false

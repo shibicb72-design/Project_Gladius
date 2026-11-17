@@ -894,13 +894,30 @@ var _local_body: LocalBodyLayer
 ## NetMode.LOCAL (MatchRoster.build sets net_mode only on the other pawns), so net_mode alone does not tell; the
 ## signal is MatchRoot.networked_match (read-only, set in MatchRoot.begin before the CameraRig is attached) of the
 ## MatchRoot this pawn lives under. No MatchRoot ancestor (unit fixtures) = offline.
+# M2 H1c item 1 (cover button bug): the main menu's only way to play is Host, so Shibi's "offline" match is a hosted
+# session with no client: networked_match is true there and cover, ladders and Simple fire were all switched off.
+# A LAN session now also needs another human in the match: on a client always (the host); on the host, a remote
+# human's pawn (MatchRoster.build gives it NetMode.HOST_REMOTE; it keeps that after the peer leaves, and the lobby
+# takes no joins after the start, so the answer is fixed for the whole match). networked_match itself is unchanged.
 func in_lan_session() -> bool:
 	var node := get_parent()
 	while node != null:
 		if node is MatchRoot:
-			return (node as MatchRoot).networked_match
+			var m := node as MatchRoot
+			return m.networked_match and _match_has_remote_human(m)
 		node = node.get_parent()
 	return false
+
+
+static func _match_has_remote_human(m: MatchRoot) -> bool:
+	if m.director == null or not m.director.authoritative:
+		return true  # a LAN client: the host is a remote human
+	for id in m.director.all_players():
+		var p: Pawn = m.director.player(id)
+		if is_instance_valid(p) and p.net_mode == NetMode.HOST_REMOTE:
+			return true
+	return false
+# M2 H1c item 1 end
 
 
 ## M2 C1b stage 1, read-only for the HUD: the Shoulder slot shows the Cover button (on the ground, FREE or in cover).
