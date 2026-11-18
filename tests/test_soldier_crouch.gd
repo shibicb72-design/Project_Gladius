@@ -1,17 +1,16 @@
 extends "res://tests/test_case.gd"
-## M2 AN3 stage C: the free crouch of the third-person soldier. The model reads Pawn.crouch_amount() only when the pawn
-## has it (the parallel slice H1c adds it; here tests/crouch_stub_pawn.gd stands in), else the cover crouch in cover.
-## - With the method at crouch 1 and the Head node lowered (as H1c will lower the head hitbox), the helmet centre sits
-##   on the Head node within head.limits.helmet_tolerance_m and the stage-B neck rules hold (gap, neck-chest angle),
-##   crouched idle and crouch walking; the crouch walk's foot slide is measured.
-## - With the method but a Head node that does not lower, only head.free_crouch.unmoved_head_share of the crouch shows
-##   and the neck still holds.
-## - Without the method (the fallback): the amount is the cover crouch in cover, 0 out of it, and the free crouch stays
-##   off in cover (CoverAnim keeps showing the cover crouch exactly as before).
+## M2 AN3 stage C, M2 FIX1: the free crouch (H1c) of the third-person soldier on the REAL pawn. The Crouch press
+## (Pawn.handle_action_press("crouch")) sets Pawn.free_crouch; Pawn._tick_free_crouch, stepped every frame here (the
+## pawn's physics is off), eases free_crouch_amount and lowers the head hitbox with it. SoldierModel shows only the free
+## crouch's own share (free_crouch_amount, faded out by the cover layer); CoverAnim shows the cover crouch.
+## - Crouched (idle and crouch walking at the real crouch speed) the helmet centre sits on the Head node within
+##   head.limits.helmet_tolerance_m and the stage-B neck rules hold (gap, neck-chest angle); the crouch walk's foot
+##   slide is measured.
+## - The free crouch never leaks into the cover crouch: in the settled cover crouch the pose matches a reference whose
+##   free-crouch outputs are forced to 0, also with free_crouch_amount forced to 1; forcing the outputs on must differ.
 ## Stepped at a fixed 1/60 s like tests/test_soldier_head_motion.gd.
 
 const DT := 1.0 / 60.0
-const STUB := "res://tests/crouch_stub_pawn.gd"
 
 var _pawn: Pawn
 var _model: SoldierModel
@@ -22,11 +21,9 @@ func _cfg() -> Dictionary:
 	return SoldierRig.config()["head"]
 
 
-func _spawn(stub: bool) -> void:
+func _spawn() -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	_pawn = load("res://scenes/player/pawn.tscn").instantiate()
-	if stub:
-		_pawn.set_script(load(STUB))
 	tree.root.add_child(_pawn)
 	_pawn.set_physics_process(false)
 	_model = _pawn.get_node("SoldierModel") as SoldierModel
@@ -43,6 +40,7 @@ func _free() -> void:
 
 
 func _step(velocity: Vector3) -> void:
+	_pawn._tick_free_crouch(DT)
 	_pawn.velocity = velocity
 	_pawn.global_position += velocity * DT
 	_model._process(DT)
@@ -55,15 +53,13 @@ func _bone(name: String) -> Transform3D:
 	return _model.pose_cache[_model.skeleton.find_bone(name)]
 
 
-## Crouches the stub over 0.3 s (lowering the Head node by `drop` with it), then runs `frames` frames at `velocity`;
-## returns the worst {gap, angle, helmet} over those frames and the world sole points per frame.
-func _crouch(drop: float, frames: int, velocity: Vector3) -> Dictionary:
+## Presses Crouch and lets the real pawn ease all the way down (stats.json movement.crouch.blend_s), then runs `frames`
+## frames at `velocity`; returns the worst {gap, angle, helmet} over those frames and the world sole points per frame.
+func _crouch(frames: int, velocity: Vector3) -> Dictionary:
 	var head := _pawn.get_node("Head") as Node3D
-	var standing := head.position.y
-	for i in 18:
-		var amount := (i + 1) / 18.0
-		_pawn.set("crouch_value", amount)
-		head.position.y = standing - drop * amount
+	_pawn.handle_action_press("crouch")
+	assert_true(_pawn.free_crouch, "fixture: the Crouch press crouches the real pawn")
+	for i in ceili(float(_pawn._crouch_cfg()["blend_s"]) / DT) + 1:
 		await _step(Vector3.ZERO)
 	var worst := {"gap": 0.0, "angle": 0.0, "helmet": 0.0, "soles": []}
 	var soles := SoldierClips.sole_points(_model.skeleton)
@@ -120,16 +116,17 @@ func _check(label: String, worst: Dictionary) -> void:
 
 func test_free_crouch_follows_the_lowered_head_node() -> void:
 	SoldierRig.head_legacy = false
-	var drop := float(_cfg()["free_crouch"]["nominal_head_drop_m"])
-	await _spawn(true)
-	assert_true(_model.crouch_amount() == 0.0, "standing: the stub's crouch_amount() is 0")
-	var idle: Dictionary = await _crouch(drop, 40, Vector3.ZERO)
-	assert_true(_model.crouch_amount() == 1.0 and absf(_model.crouch_shown - 1.0) < 0.001, "the method's amount drives the crouch clip fully once the head is down (%.3f)" % _model.crouch_shown)
+	await _spawn()
+	assert_true(_model.crouch_amount() == 0.0, "standing: Pawn.crouch_amount() is 0")
+	var idle: Dictionary = await _crouch(40, Vector3.ZERO)
+	var crouch_y := float(DataRegistry.new().load_file("res://data/cover.json")["crouch_head_y_m"])
+	assert_true(absf((_pawn.get_node("Head") as Node3D).position.y - crouch_y) < 0.0001, "nonvacuous: the real pawn lowered its head hitbox to crouch_head_y_m")
+	assert_true(_model.crouch_amount() == 1.0 and absf(_model.crouch_shown - 1.0) < 0.001, "free_crouch_amount drives the crouch clip fully once down (%.3f)" % _model.crouch_shown)
 	_check("idle", idle)
 	await _free()
-	await _spawn(true)
-	var speed := _pawn.get_move_speed() * 0.4  # a crouch walk speed (H1c's is not known here)
-	var walk: Dictionary = await _crouch(drop, 100, Vector3.FORWARD * speed)
+	await _spawn()
+	var speed := _pawn.get_move_speed() * float(_pawn._crouch_cfg()["speed_multiplier"])  # the real crouch walk speed
+	var walk: Dictionary = await _crouch(100, Vector3.FORWARD * speed)
 	_check("walk", walk)
 	var slide := _slide((walk["soles"] as Array).slice(30))
 	var limit := float(SoldierRig.config()["gait"]["foot_slide_max_m"])
@@ -138,41 +135,32 @@ func test_free_crouch_follows_the_lowered_head_node() -> void:
 	await _free()
 
 
-func test_unmoved_head_shows_part_of_the_crouch_and_no_stretch() -> void:
-	SoldierRig.head_legacy = false
-	await _spawn(true)
-	var worst: Dictionary = await _crouch(0.0, 40, Vector3.ZERO)
-	var share := float(_cfg()["free_crouch"]["unmoved_head_share"])
-	assert_true(absf(_model.crouch_shown - share) < 0.001, "an unmoved head shows unmoved_head_share of the crouch (%.3f vs %.3f)" % [_model.crouch_shown, share])
-	_check("unmoved", worst)
-	await _free()
-
-
 const POSE_BONES: Array[String] = ["Hips", "Spine", "Chest", "Neck", "Head", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]
 
 
 ## The settled cover crouch (IN_COVER, crouch_amount 1, the head hitbox lowered as the pawn's tick does): the model-frame
-## poses of POSE_BONES after 20 frames, plus the free crouch's outputs. force < 0: the model as it is; force >= 0: every
-## frame, after SoldierModel._process, the free crouch's outputs (the crouch clip blend, SoldierGait.free_crouch,
-## head_drop, hips_drop, SoldierPose.head_drop) are overwritten with what _drive_crouch would set with the free crouch
-## open at `force` (0: none of it, the reference; 1: all of it, a deliberate leak).
-func _cover_crouch_pose(stub: bool, force: float) -> Dictionary:
-	await _spawn(stub)
+## poses of POSE_BONES after 20 frames, plus the free crouch's outputs. `free`: Pawn.free_crouch_amount held there every
+## frame (1: a free crouch left over in cover, which the visuals must not show). force < 0: the model as it is;
+## force >= 0: every frame, after SoldierModel._process, the free crouch's outputs (the crouch clip blend,
+## SoldierGait.free_crouch, head_drop, hips_drop, SoldierPose.head_drop) are overwritten with what _drive_crouch would
+## set with the free crouch fully in at `force` (0: none of it, the reference; 1: all of it, a deliberate leak).
+func _cover_crouch_pose(free: float, force: float) -> Dictionary:
+	await _spawn()
 	_pawn.enable_cover(DataRegistry.new().load_file("res://data/cover.json"))
 	var anim := _pawn.get_node("CoverAnim") as CoverAnim
 	anim.set_process(false)
 	_pawn.cover.state = CoverController.State.IN_COVER
 	_pawn.cover.crouch_amount = 1.0
 	_pawn.cover.crouched = true
-	if stub:
-		_pawn.set("crouch_value", 1.0)
-	_pawn._apply_cover_shapes()  # the head hitbox lowers to the cover crouch, as the pawn's tick does
+	_pawn.free_crouch_amount = free
+	_pawn._apply_body_shapes()  # the head hitbox lowers to the crouch, as the pawn's tick does
 	var head := _pawn.get_node("Head") as Node3D
 	var raw := _model.skeleton.get_bone_global_rest(_model.skeleton.find_bone("Head")).origin.y - head.position.y
 	var most := 0.0
 	for i in 20:
 		anim.sync_pose(DT)
 		_pawn.velocity = Vector3.ZERO
+		_pawn.free_crouch_amount = free
 		_model._process(DT)
 		if force >= 0.0:
 			_model.animation_tree.set("parameters/crouch/blend_amount", force)
@@ -208,34 +196,32 @@ static func _pose_diff(a: Dictionary, b: Dictionary) -> Array:
 	return worst
 
 
-## The fallback (no Pawn.crouch_amount()) in the settled cover crouch shows CoverAnim's cover crouch alone. Compared
-## with a reference run whose free-crouch outputs are forced to 0 every frame, the pose (Hips, Spine, Chest, Neck, Head,
-## legs) must match; a run that forces the free crouch fully on must differ (so the compared bones see a leak). This
-## fails if any path lets the free crouch into the cover crouch: the has_method gate or the 1 - cover_mix "open" in
-## SoldierModel._drive_crouch dropped, a non-zero crouch clip blend, head_drop or hips_drop reaching SoldierGait or
-## SoldierPose. The stub pawn (with the method, at crouch 1) in the same cover crouch must match too (open is 0 there).
-func test_without_the_method_the_cover_crouch_is_unchanged() -> void:
+## M2 FIX1 (was test_without_the_method_the_cover_crouch_is_unchanged, a pawn without crouch_amount(), gone with H1c):
+## the real pawn in the settled cover crouch shows CoverAnim's cover crouch alone. Compared with a reference run whose
+## free-crouch outputs are forced to 0 every frame, the pose (Hips, Spine, Chest, Neck, Head, legs) must match, also with
+## Pawn.free_crouch_amount held at 1 in cover; a run that forces the free crouch's outputs fully on must differ (so the
+## compared bones see a leak). This fails if any path lets the free crouch into the cover crouch: the 1 - cover_mix
+## "open" in SoldierModel._drive_crouch dropped, the cover crouch read into the free share (Pawn.crouch_amount() or the
+## Head node's drop), a non-zero crouch clip blend, head_drop or hips_drop reaching SoldierGait or SoldierPose.
+func test_the_free_crouch_never_leaks_into_the_cover_crouch() -> void:
 	SoldierRig.head_legacy = false
-	await _spawn(false)
-	assert_true(not _pawn.has_method(&"crouch_amount"), "fixture: a pawn without crouch_amount() (H1c not merged)")
-	assert_eq(_model.crouch_amount(), 0.0, "no cover: no crouch")
+	await _spawn()
+	assert_eq(_model.crouch_amount(), 0.0, "no cover, no free crouch: no crouch")
 	_pawn.enable_cover(DataRegistry.new().load_file("res://data/cover.json"))
 	_pawn.cover.state = CoverController.State.IN_COVER
 	_pawn.cover.crouch_amount = 1.0
-	assert_eq(_model.crouch_amount(), 1.0, "the fallback reads the cover crouch in cover")
-	_pawn.cover.state = CoverController.State.FREE
-	_pawn.cover.crouch_amount = 0.0
-	assert_eq(_model.crouch_amount(), 0.0, "out of cover the fallback is 0")
+	assert_eq(_model.crouch_amount(), 1.0, "in cover the amount is the cover crouch (Pawn.crouch_amount())")
 	await _free()
-	var model: Dictionary = await _cover_crouch_pose(false, -1.0)
-	var reference: Dictionary = await _cover_crouch_pose(false, 0.0)
-	var leaked: Dictionary = await _cover_crouch_pose(false, 1.0)
-	var stub: Dictionary = await _cover_crouch_pose(true, -1.0)
+	var model: Dictionary = await _cover_crouch_pose(0.0, -1.0)
+	var reference: Dictionary = await _cover_crouch_pose(0.0, 0.0)
+	var leaked: Dictionary = await _cover_crouch_pose(0.0, 1.0)
+	var held: Dictionary = await _cover_crouch_pose(1.0, -1.0)
 	var same := _pose_diff(model["poses"], reference["poses"])
 	var leak := _pose_diff(model["poses"], leaked["poses"])
-	var with_method := _pose_diff(model["poses"], stub["poses"])
-	print("CROUCH_FALLBACK vs reference %s, vs a leaked free crouch %s, vs the stub %s; free crouch outputs %.4f" % [same, leak, with_method, model["most"]])
+	var with_free := _pose_diff(model["poses"], held["poses"])
+	print("CROUCH_COVER vs reference %s, vs a leaked free crouch %s, vs free_crouch_amount 1 %s; free crouch outputs %.4f / %.4f" % [same, leak, with_free, model["most"], held["most"]])
 	assert_true(float(model["most"]) == 0.0, "in cover the free crouch's outputs stay 0 (%.4f)" % model["most"])
-	assert_true(float(same[0]) <= 0.1 and float(same[1]) <= 0.0001, "the fallback's cover crouch pose is the reference's (%s)" % [same])
-	assert_true(float(with_method[0]) <= 0.1 and float(with_method[1]) <= 0.0001, "with the method at crouch 1 the settled cover crouch is the same (%s)" % [with_method])
+	assert_true(float(held["most"]) == 0.0, "in cover a held free_crouch_amount 1 shows nothing either (%.4f)" % held["most"])
+	assert_true(float(same[0]) <= 0.1 and float(same[1]) <= 0.0001, "the cover crouch pose is the reference's (%s)" % [same])
+	assert_true(float(with_free[0]) <= 0.1 and float(with_free[1]) <= 0.0001, "with free_crouch_amount 1 the settled cover crouch is the same (%s)" % [with_free])
 	assert_true(float(leak[0]) > 1.0 or float(leak[1]) > 0.01, "nonvacuous: a leaked free crouch moves the compared bones (%s)" % [leak])
