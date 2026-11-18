@@ -333,12 +333,11 @@ func _fade_mixes(head: Dictionary, mix: float, rest: float, delta: float) -> voi
 ## 1) and the shown crouch is crouch_amount itself, not their product: with the product the helmet lagged the lowering
 ## hitbox by up to 0.088 m and the hunch turned up to 841 deg/s against the neck in a ramped low-cover entry
 ## (tests/test_soldier_head_motion.gd). Once the layer is in (and always under SoldierRig.head_legacy) it is amount.
-## A pawn with Pawn.crouch_amount() (H1c) keeps the product: there SoldierModel._drive_crouch already fills the part
-## the layer does not own yet (1 - cover_mix) with the free crouch and the Head node's drop, so dividing would lower
-## the helmet twice.
+## M2 FIX1: this is the cover crouch's share alone; SoldierModel._drive_crouch shows only the free crouch's own share
+## (Pawn.free_crouch_amount), never the cover crouch, so the helmet is lowered once.
 func _show_crouch(head: Dictionary, amount: float) -> void:
 	var blend := amount
-	if not head.is_empty() and _mix_shown < 1.0 and not pawn.has_method(&"crouch_amount"):
+	if not head.is_empty() and _mix_shown < 1.0:
 		blend = clampf(amount / maxf(_mix_shown, 0.001), 0.0, 1.0)
 	for state in NAMES:
 		tree.set("parameters/cover/" + state + "/crouch/blend_amount", blend)

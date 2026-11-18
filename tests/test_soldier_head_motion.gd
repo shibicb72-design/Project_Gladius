@@ -169,7 +169,7 @@ func test_neck_stays_connected_and_the_helmet_on_the_hitbox() -> void:
 ## M2 AN3 review fix: the crouched (LOW cover) hug, entered and left the way the game does it. The REAL CoverController
 ## is ticked every frame with a hand-built probe (a low wall: height_m under muzzle_height_m, the same wall_key, clear
 ## to stand), so its own _update_crouch ramps crouch_amount 0 -> 1 over cover.json crouch_blend_s while ENTERING, and
-## Pawn._apply_cover_shapes lowers the head hitbox with it, as Pawn's physics tick does. Sampled from the first
+## Pawn._apply_body_shapes lowers the head hitbox with it, as Pawn's physics tick does. Sampled from the first
 ## ENTERING frame through the settled hug, the rise over the wall (Aim held: crouch 1 -> 0 over aim_out_s) and back
 ## down (aim_return_s). Asserts exceptions.cover_crouch's neck limit (the hunched low hug), the gap, the rate and the
 ## helmet on the lowered hitbox, and that the low-pass never passes its target and the neck settles monotonically.
@@ -193,7 +193,7 @@ func test_crouched_cover_hug_ramped() -> void:
 	var each := func(_f: int) -> Vector3:
 		probe["position"] = _pawn.global_position
 		controller.tick(DT, Vector2.ZERO, false, probe, aiming[0])
-		_pawn._apply_cover_shapes()
+		_pawn._apply_body_shapes()
 		amounts.append(controller.crouch_amount)
 		return Vector3.ZERO
 	var ramp_frames := ceili(float(cover_cfg["crouch_blend_s"]) / DT)
@@ -232,9 +232,124 @@ func test_crouched_cover_hug_ramped() -> void:
 	await _free()
 
 
+## M2 FIX1: the largest per-frame helmet move and the largest per-frame head hitbox move, [helmet m, hitbox m], over
+## the [helmet y, hitbox y] samples of _run_watched; `fall` true: downward moves only.
+static func _steps(heights: Array, fall: bool) -> Array:
+	var most := [0.0, 0.0]
+	for i in range(1, heights.size()):
+		for k in 2:
+			var step := float(heights[i - 1][k]) - float(heights[i][k])
+			most[k] = maxf(float(most[k]), step if fall else absf(step))
+	return most
+
+
+## M2 FIX1 (H1c): the free crouch of the REAL pawn. The Crouch press (Pawn.handle_action_press("crouch")) sets
+## Pawn.free_crouch; Pawn._tick_free_crouch, stepped every frame (the pawn's physics is off here), eases
+## free_crouch_amount over stats.json movement.crouch.blend_s and lowers the head hitbox with it. The crouch clip shows
+## fully once down, and head.limits (not the cover exception) hold every frame through the crouch down and the stand up,
+## with the helmet on the lowering hitbox and never moving faster than it.
+func test_free_crouch_real_pawn_down_and_up() -> void:
+	SoldierRig.head_legacy = false
+	await _spawn()
+	assert_true(_pawn.free_crouch_possible(), "fixture: the free crouch is possible (switch on, LOCAL, no Brain, not LAN, Drop.NONE)")
+	var head_node := _pawn.get_node("Head") as Node3D
+	var standing_y := head_node.position.y
+	_pawn.handle_action_press("crouch")
+	assert_true(_pawn.free_crouch, "the Crouch press crouches the real pawn")
+	var each := func(_f: int) -> Vector3:
+		_pawn._tick_free_crouch(DT)
+		return Vector3.ZERO
+	var frames := ceili(float(_pawn._crouch_cfg()["blend_s"]) / DT) + 30
+	var overshoot := [0.0]
+	var heights := []
+	var down: Dictionary = await _run_watched(frames, each, overshoot, [], heights)
+	var crouch_y := float(DataRegistry.new().load_file("res://data/cover.json")["crouch_head_y_m"])
+	assert_true(_pawn.free_crouch_amount == 1.0 and absf(head_node.position.y - crouch_y) < 0.0001, "nonvacuous: crouched, the head hitbox at crouch_head_y_m (%.3f)" % head_node.position.y)
+	assert_true(absf(_model.crouch_shown - 1.0) < 0.001, "the crouch pose shows fully (%.3f)" % _model.crouch_shown)
+	_check("free_crouch_down", down)
+	_pawn.handle_action_press("crouch")
+	assert_true(not _pawn.free_crouch, "the second press stands up")
+	var up: Dictionary = await _run_watched(frames, each, overshoot, [], heights)
+	assert_true(_pawn.free_crouch_amount == 0.0 and absf(head_node.position.y - standing_y) < 0.0001, "nonvacuous: standing again")
+	assert_true(_model.crouch_shown == 0.0 and _model.gait.head_drop == 0.0, "standing: no free crouch left in the pose")
+	_check("free_crouch_up", up)
+	var steps := _steps(heights, false)
+	print("HEAD_MOTION free_crouch steps helmet_max_m=%.4f hitbox_max_m=%.4f overshoot_deg=%.4f" % [steps[0], steps[1], rad_to_deg(overshoot[0])])
+	assert_true(float(steps[0]) <= float(steps[1]) + float(_limits()["helmet_tolerance_m"]), "the helmet never moves faster than the head hitbox (%.4f vs %.4f m per frame)" % [steps[0], steps[1]])
+	assert_true(overshoot[0] <= deg_to_rad(float(_limits()["monotonic_eps_deg"])), "the neck low-pass never passes its target (%.4f deg)" % rad_to_deg(overshoot[0]))
+	await _free()
+
+
+## M2 FIX1: the hand-off. Free-crouched, the pawn enters LOW cover (the real CoverController ticked as in
+## test_crouched_cover_hug_ramped): Pawn._tick_free_crouch eases the free crouch out under the cover crouch ramping in,
+## both live at once, while the cover layer fades in. Then it leaves (EXITING, the cover crouch ramps out) and stands.
+## Asserted: before cover and after leaving head.limits; in cover and its transitions the Neck per axis within
+## exceptions.cover_crouch; the helmet never drops further in one frame than the hitbox (no one-frame head drop, never
+## lowered twice). NOT asserted, only printed (HEAD_MOTION handoff_cover / handoff_leave), M2 FIX1 open finding
+## (docs/OPEN_QUESTIONS.md OQ-ANIM-HEAD): in those two phases the rate, the gap and the helmet tolerance are over the
+## limits for frozen reasons: the hitbox follows max(cover crouch, free crouch) (pawn.gd) while the cover layer fades in
+## over head.cover_mix_fade_s, and CoverController.reset() zeroes crouch_amount when EXITING (cover.json exit_s 0.15)
+## ends before crouch_blend_s (0.2), so the hitbox jumps up in one frame.
+func test_free_crouch_hands_off_to_cover_and_back() -> void:
+	SoldierRig.head_legacy = false
+	await _spawn(true)
+	var controller := _pawn.cover
+	var cover_cfg := controller.config
+	var limits := _limits()
+	var exception: Dictionary = SoldierRig.head_cfg()["exceptions"]["cover_crouch"]
+	_pawn.handle_action_press("crouch")
+	assert_true(_pawn.free_crouch, "fixture: free-crouched before cover")
+	var overshoot := [0.0]
+	var heights := []
+	var free_each := func(_f: int) -> Vector3:
+		_pawn._tick_free_crouch(DT)
+		return Vector3.ZERO
+	var free: Dictionary = await _run_watched(ceili(float(_pawn._crouch_cfg()["blend_s"]) / DT) + 20, free_each, overshoot, [], heights)
+	assert_true(_pawn.free_crouch_amount == 1.0, "nonvacuous: fully free-crouched before cover")
+	controller.side = 1
+	controller.tangent = Vector3.RIGHT
+	controller.normal = Vector3.BACK
+	controller.wall_key = "test_wall"
+	controller.state = CoverController.State.ENTERING
+	var probe := {"hit": true, "wall_key": "test_wall", "height_m": 1.0, "muzzle_height_m": 1.3, "stand_clear": true,
+		"weapon_ready": true, "shot_clear": true, "left_m": 5.0, "right_m": 5.0, "slide_speed_mps": 0.0, "basis": Basis.IDENTITY}
+	var both := [false]
+	var cover_each := func(_f: int) -> Vector3:
+		probe["position"] = _pawn.global_position
+		controller.tick(DT, Vector2.ZERO, false, probe)
+		_pawn._tick_free_crouch(DT)
+		_pawn._apply_body_shapes()
+		if controller.crouch_amount > 0.0 and _pawn.free_crouch_amount > 0.0:
+			both[0] = true
+		return Vector3.ZERO
+	var ramp := ceili(maxf(float(cover_cfg["crouch_blend_s"]), float(_pawn._crouch_cfg()["blend_s"])) / DT)
+	var cover: Dictionary = await _run_watched(ramp + 30, cover_each, overshoot, [], heights)
+	assert_true(both[0], "nonvacuous: the free crouch and the cover crouch were live at once (the hand-off)")
+	assert_true(controller.state == CoverController.State.IN_COVER and controller.crouch_amount == 1.0 and _pawn.free_crouch_amount == 0.0,
+		"nonvacuous: settled in the low hug, the free crouch handed off (cover %.2f, free %.2f)" % [controller.crouch_amount, _pawn.free_crouch_amount])
+	controller._begin_exit()
+	var exit_frames := ceili(maxf(controller.exit_duration(), float(cover_cfg["crouch_blend_s"])) / DT) + ceili(float(SoldierRig.head_cfg()["cover_mix_fade_s"]) / DT) + 2
+	var leave: Dictionary = await _run_watched(exit_frames, cover_each, overshoot, [], heights)
+	assert_true(not _pawn.in_cover() and not _pawn.free_crouch, "nonvacuous: out of cover, standing (cover's exit stands up)")
+	var after: Dictionary = await _run_watched(30, cover_each, overshoot, [], heights)
+	_check("handoff_free", free)
+	_check("handoff_after", after)
+	for phase: Array in [["handoff_cover", cover], ["handoff_leave", leave]]:
+		var worst: Dictionary = phase[1]
+		print("HEAD_MOTION %s neck_chest_max_deg=%.2f rate_max_dps=%.1f gap_max_m=%.4f helmet_off_m=%.4f neck_axes=%s" % [phase[0], worst["angle"], worst["rate"], worst["gap"], worst["helmet"], worst["Neck"]])
+		var allowed := LowpolyKit.vec(exception["neck_max_deg"]) + Vector3.ONE * NOISE_DEG
+		var axes: Vector3 = worst["Neck"]
+		assert_true(axes.x <= allowed.x and axes.y <= allowed.y and axes.z <= allowed.z, "%s: Neck vs Chest %s deg within exceptions.cover_crouch" % [phase[0], axes])
+	var falls := _steps(heights, true)
+	print("HEAD_MOTION handoff steps helmet_fall_max_m=%.4f hitbox_fall_max_m=%.4f overshoot_deg=%.4f" % [falls[0], falls[1], rad_to_deg(overshoot[0])])
+	assert_true(float(falls[0]) <= float(falls[1]) + float(limits["helmet_tolerance_m"]), "no one-frame head drop: the helmet never falls faster than the hitbox (%.4f vs %.4f m per frame)" % [falls[0], falls[1]])
+	assert_true(overshoot[0] <= deg_to_rad(float(limits["monotonic_eps_deg"])), "the neck low-pass never passes its target (%.4f deg)" % rad_to_deg(overshoot[0]))
+	await _free()
+
+
 ## _run with the low-pass overshoot (shown vs target, as test_step_inputs_have_no_overshoot) kept in overshoot[0] and
-## each frame's neck rotation appended to `poses`.
-func _run_watched(frames: int, each: Callable, overshoot: Array, poses: Array) -> Dictionary:
+## each frame's neck rotation appended to `poses`, and [helmet y, head hitbox y] (model space) to `heights`.
+func _run_watched(frames: int, each: Callable, overshoot: Array, poses: Array, heights: Array = []) -> Dictionary:
 	var worst := {"angle": 0.0, "rate": 0.0, "gap": 0.0, "helmet": 0.0}
 	var previous: Variant = null
 	for f in frames:
@@ -256,11 +371,27 @@ func _run_watched(frames: int, each: Callable, overshoot: Array, poses: Array) -
 			var axes: Vector3 = worst.get(key, Vector3.ZERO)
 			worst[key] = Vector3(maxf(axes.x, absf(rad_to_deg(e.x))), maxf(axes.y, absf(rad_to_deg(e.y))), maxf(axes.z, absf(rad_to_deg(e.z))))
 		poses.append(now[3])
+		var hitbox := _model.skeleton.global_transform.affine_inverse() * (_pawn.get_node("Head") as Node3D).global_position
+		heights.append([_bone("Head").origin.y, hitbox.y])
 		if OS.get_cmdline_user_args().has("--head-trace"):
-			print("HEAD_TRACE f=%d crouch=%.3f mix=%.2f angle=%.2f rate=%.0f gap=%.4f helmet=%.4f chest=%s neck=%s" % [f, _pawn.cover.crouch_amount, _cover._mix_shown, rad_to_deg((now[0] as Quaternion).get_angle()),
-				rate, now[1], now[2],
-				(_bone("Chest").basis.get_euler() * 57.2958).round(), (_bone("Neck").basis.get_euler() * 57.2958).round()])
+			_trace(f, now, rate)
 	return worst
+
+
+## One frame of the --head-trace (silent without it): the crouch owners' inputs and outputs. cover_mix is the cover
+## layer's shown weight, cover the cover crouch, free Pawn.free_crouch_amount, amount SoldierModel.crouch_amount(),
+## blend CoverAnim's crouch blend (gait.cover_crouch / cover_mix), raw the Head node's drop under the standing Head
+## rest, drop gait.head_drop, shown the free crouch clip blend; helmet_y the Head bone's model-space height.
+func _trace(f: int, now: Array, rate: float) -> void:
+	var shown_mix: Variant = _model.animation_tree.get("parameters/cover_mix/blend_amount")
+	var mix := float(shown_mix) if shown_mix != null else 0.0
+	var standing := _model.skeleton.get_bone_global_rest(_model.skeleton.find_bone("Head")).origin.y
+	var raw := standing - (_pawn.get_node("Head") as Node3D).position.y
+	var free: Variant = _pawn.get("free_crouch_amount")
+	print("HEAD_TRACE f=%d cover_mix=%.3f cover=%.3f free=%s amount=%.3f open=%.3f blend=%.3f raw=%.4f drop=%.4f shown=%.3f angle=%.2f rate=%.1f gap=%.4f helmet=%.4f helmet_y=%.4f" % [
+		f, mix, _pawn.cover.crouch_amount if _pawn.cover != null else 0.0, "%.3f" % float(free) if free != null else "-", _model.crouch_amount(), 1.0 - mix,
+		_model.gait.cover_crouch / maxf(mix, 0.001), raw, _model.gait.head_drop, _model.gait.free_crouch,
+		rad_to_deg((now[0] as Quaternion).get_angle()), rate, now[1], now[2], _bone("Head").origin.y])
 
 
 ## The largest step back away from the last pose, once a pose sequence has come closer to it (0: monotonic).

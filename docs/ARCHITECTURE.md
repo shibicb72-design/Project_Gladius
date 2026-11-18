@@ -1353,13 +1353,19 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `soldier_capture.gd`, `cover_capture.gd`, `drop_capture.gd`, `anim_cost.gd`), `SoldierPose.measure_off` and `CoverAnim.measure_clip_neck` (per-source attribution in
   `tools/head_motion_measure.gd` only), `SoldierModel.code_built_reload` (the code-built reload; capture
   `--code-reload`).
-- **Free crouch (M2 AN3).** `SoldierModel.crouch_amount()` reads `pawn.crouch_amount()` only if the pawn has the
-  method (H1c), else the cover crouch behind `in_cover()`; without the method nothing changes. Out of cover the
-  lower body blends to the existing `cover_crouch_idle` / `cover_crouch_move` clips (idle to moving by ground
-  speed, cycle matched to speed; nothing new keyed), and the helmet follows the pawn's Head node height every
-  frame. `head.free_crouch` keys (`unmoved_head_share` 0.2, `nominal_head_drop_m` 0.55, `hips_drop_per_head`,
-  `move_full_mps`, `reach_max_deg`) are tuned for a 0.55 m head drop, an assumption until H1c merges. Test:
-  `tests/test_soldier_crouch.gd` with the stub `tests/crouch_stub_pawn.gd`.
+- **Free crouch (M2 AN3, M2 FIX1).** One owner per crouch: `SoldierModel._drive_crouch` shows only the H1c free
+  crouch's own share, `pawn.free_crouch_amount` x (1 - the cover layer's weight), never `pawn.crouch_amount()` (which
+  holds the cover crouch too) nor the Head node's drop; `CoverAnim._show_crouch` shows the cover crouch, divided by
+  the layer's weight while it fades in (`head.cover_mix_fade_s`), so the helmet is lowered once. (The AN3
+  `has_method(&"crouch_amount")` fallback is gone: every Pawn has it since H1c.) `SoldierModel.crouch_amount()` is
+  `pawn.crouch_amount()`, read-only. Out of cover the lower body blends to the existing `cover_crouch_idle` /
+  `cover_crouch_move` clips (idle to moving by ground speed, cycle matched to speed; nothing new keyed).
+  `head.free_crouch` keys: `nominal_head_drop_m` 0.9 (measured: standing Head rest 1.75 - cover.json
+  `crouch_head_y_m` 0.85), `hips_drop_per_head`, `move_full_mps`, `reach_max_deg`. Tests (real pawn):
+  `tests/test_soldier_crouch.gd`, and in `tests/test_soldier_head_motion.gd` the free crouch down / up and the
+  free-crouch-to-low-cover hand-off (open finding, OQ-ANIM-HEAD). `tests/crouch_stub_pawn.gd` (a `crouch_amount()`
+  override) is now read by `tools/head_motion_measure.gd` and `tools/soldier_capture.gd` only; it no longer drives the
+  free crouch (that reads `free_crouch_amount`).
 - **Keyed rifle reload (M2 AN3; OQ-ANIM-RELOAD).** `build_soldier_rifle.py` writes `soldier_rifle.glb`: one staged
   reload per gun (`reload_pilum_br`, `reload_sagittarii_rifle`), 50 frames at 30 fps, starting and ending on the
   aimed pose (a port of `SoldierRig.arm_rotations`) with the left hand on that gun's foregrip; stage times, cant
