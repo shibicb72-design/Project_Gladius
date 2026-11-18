@@ -232,14 +232,25 @@ func test_crouched_cover_hug_ramped() -> void:
 	await _free()
 
 
-## M2 FIX1: the largest per-frame helmet move and the largest per-frame head hitbox move, [helmet m, hitbox m], over
-## the [helmet y, hitbox y] samples of _run_watched; `fall` true: downward moves only.
+## M2 FIX1: over the [helmet y, hitbox y] samples of _run_watched, [largest helmet move, largest hitbox move, largest
+## per-frame excess of the helmet move over the hitbox move in the SAME frame, the same excess counted only in frames
+## where the helmet ends below the hitbox], in m; `fall` true: downward moves only. The excess is the frame-by-frame
+## check (a helmet drop while the hitbox stands still shows here, whatever the hitbox does in other frames). Lanista,
+## M2 FIX1 review: in the low-cover hand-off entry the helmet sits above the hitbox for a few frames (the frozen pawn.gd
+## max() dip, OQ-ANIM-HEAD) and then falls 0.075 m back ONTO it in one frame [measured]; that closes the offset and is
+## not a double lowering, so the asserted value [3] counts only drops that leave the helmet below the hitbox.
 static func _steps(heights: Array, fall: bool) -> Array:
-	var most := [0.0, 0.0]
+	var most := [0.0, 0.0, 0.0, 0.0]
 	for i in range(1, heights.size()):
+		var moves := [0.0, 0.0]
 		for k in 2:
 			var step := float(heights[i - 1][k]) - float(heights[i][k])
-			most[k] = maxf(float(most[k]), step if fall else absf(step))
+			moves[k] = step if fall else absf(step)
+			most[k] = maxf(float(most[k]), float(moves[k]))
+		var excess := float(moves[0]) - maxf(float(moves[1]), 0.0)
+		most[2] = maxf(float(most[2]), excess)
+		if float(heights[i][0]) < float(heights[i][1]) - 0.001:
+			most[3] = maxf(float(most[3]), excess)
 	return most
 
 
@@ -274,8 +285,8 @@ func test_free_crouch_real_pawn_down_and_up() -> void:
 	assert_true(_model.crouch_shown == 0.0 and _model.gait.head_drop == 0.0, "standing: no free crouch left in the pose")
 	_check("free_crouch_up", up)
 	var steps := _steps(heights, false)
-	print("HEAD_MOTION free_crouch steps helmet_max_m=%.4f hitbox_max_m=%.4f overshoot_deg=%.4f" % [steps[0], steps[1], rad_to_deg(overshoot[0])])
-	assert_true(float(steps[0]) <= float(steps[1]) + float(_limits()["helmet_tolerance_m"]), "the helmet never moves faster than the head hitbox (%.4f vs %.4f m per frame)" % [steps[0], steps[1]])
+	print("HEAD_MOTION free_crouch steps helmet_max_m=%.4f hitbox_max_m=%.4f excess_max_m=%.4f overshoot_deg=%.4f" % [steps[0], steps[1], steps[2], rad_to_deg(overshoot[0])])
+	assert_true(float(steps[2]) <= float(_limits()["helmet_tolerance_m"]), "the helmet never moves faster than the head hitbox in any frame (worst excess %.4f m)" % steps[2])
 	assert_true(overshoot[0] <= deg_to_rad(float(_limits()["monotonic_eps_deg"])), "the neck low-pass never passes its target (%.4f deg)" % rad_to_deg(overshoot[0]))
 	await _free()
 
@@ -341,8 +352,8 @@ func test_free_crouch_hands_off_to_cover_and_back() -> void:
 		var axes: Vector3 = worst["Neck"]
 		assert_true(axes.x <= allowed.x and axes.y <= allowed.y and axes.z <= allowed.z, "%s: Neck vs Chest %s deg within exceptions.cover_crouch" % [phase[0], axes])
 	var falls := _steps(heights, true)
-	print("HEAD_MOTION handoff steps helmet_fall_max_m=%.4f hitbox_fall_max_m=%.4f overshoot_deg=%.4f" % [falls[0], falls[1], rad_to_deg(overshoot[0])])
-	assert_true(float(falls[0]) <= float(falls[1]) + float(limits["helmet_tolerance_m"]), "no one-frame head drop: the helmet never falls faster than the hitbox (%.4f vs %.4f m per frame)" % [falls[0], falls[1]])
+	print("HEAD_MOTION handoff steps helmet_fall_max_m=%.4f hitbox_fall_max_m=%.4f excess_max_m=%.4f excess_below_m=%.4f overshoot_deg=%.4f" % [falls[0], falls[1], falls[2], falls[3], rad_to_deg(overshoot[0])])
+	assert_true(float(falls[3]) <= float(limits["helmet_tolerance_m"]), "no one-frame head drop: in no frame does the helmet fall further than the hitbox and end below it (worst excess %.4f m)" % falls[3])
 	assert_true(overshoot[0] <= deg_to_rad(float(limits["monotonic_eps_deg"])), "the neck low-pass never passes its target (%.4f deg)" % rad_to_deg(overshoot[0]))
 	await _free()
 
