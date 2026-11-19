@@ -488,10 +488,14 @@ def ladder_clips(c):
         row["head"] = [14 + 3 * math.cos(4 * math.pi * p), 6 * reach, 0]
         keys.append(row)
     up = {"name": "ladder_up", "loop": True, "length": L, "carry_neck": True, "ladder": True, "no_gun": True, "keys": keys}
-    # The top step (the pawn's feet were just set on the ledge: the clip starts in the climbing pose where the body was,
-    # top_catchup_m behind and below, and steps forward over the edge onto the ledge, hands pushing on the rails).
+    # Start on the nominal ladder's exit phase. The live handoff covers the variation from
+    # different climb speeds and the last rendered frame falling between baked samples.
+    props = gbl.read_json("data/props.json")["ladder"]
+    exit_height = float(props["look_size"][1]) - float(props["rail_above_m"]) + float(props["top_rise_m"])
+    exit_key = round((exit_height / D % 1.0) * n)
     cu = V(lad["top_catchup_m"])
-    k0 = json.loads(json.dumps(keys[0]))
+    k0 = json.loads(json.dumps(keys[exit_key]))
+    k0["t"] = 0.0
     for side in ("Right", "Left"):
         k0["hand"][side]["at"] = list(V(k0["hand"][side]["at"]) + cu)
         k0["foot"][side]["at"] = list(V(k0["foot"][side]["at"]) + cu)

@@ -73,6 +73,8 @@ var _keyed: Dictionary = {}
 var _action_clips: Dictionary = {}  # slot -> Animation (only the slots that resolved)
 var _climb_up := true
 var _was_climbing := false
+var _climb_pose_drawn := false
+var _climb_skeleton_world := Transform3D.IDENTITY
 var _climb_last_pos := Vector3.ZERO
 var _ladder_foot_y := 0.0
 var _ladder_yaw := 0.0  # world yaw that faces into the ladder
@@ -193,6 +195,9 @@ func posed_bounds(out: Array[AABB]) -> void:
 func _cache_pose() -> void:
 	for i in pose_cache.size():
 		pose_cache[i] = skeleton.get_bone_global_pose(i)
+	if _was_climbing and climb_weight > 0.0:
+		_climb_skeleton_world = skeleton.global_transform
+		_climb_pose_drawn = true
 	if foregrip != null:
 		var hand := skeleton.global_transform * pose_cache[skeleton.find_bone("LeftHand")]
 		hand_error_m = hand.origin.distance_to(foregrip.global_position)
@@ -595,16 +600,20 @@ func drive_actions(delta: float) -> void:
 	var acts: Dictionary = _keyed.get("actions", {})
 	var ladder := pawn.current_ladder()
 	var climbing := pawn.climbing and pawn.is_alive() and not pawn.is_downed() and _action_clips.has("ladder_up")
+	var starting_top := false
 	# The top step: the climb ended this frame with the feet set forward onto the ledge (Pawn._ladder_tick).
 	if _was_climbing and not pawn.climbing and pawn.is_alive() and _action_clips.has("ladder_top"):
 		var moved := _pawn.global_position - _climb_last_pos
 		if Vector2(moved.x, moved.z).length() > 0.3:
 			var back := Basis(Vector3.UP, _ladder_yaw).inverse() * (-moved)  # old feet minus new, model frame
 			_top_offset = back - LowpolyKit.vec(lad.get("top_catchup_m", [0, 0, 0]))
+			starting_top = true
 			action_name = "ladder_top"
 			action_s = 0.0
 			action_count += 1
 			climb_weight = 0.0  # ladder_top starts in the climbing pose where the body was: it takes over at once
+	if pawn.climbing and not _was_climbing:
+		_climb_pose_drawn = false
 	_was_climbing = pawn.climbing
 	_climb_last_pos = _pawn.global_position
 	if climbing:
@@ -621,7 +630,7 @@ func drive_actions(delta: float) -> void:
 			_climb_up = false
 	var blend_s := float(lad.get("blend_s", 0.15))
 	climb_weight = move_toward(climb_weight, 1.0 if climbing else 0.0, delta / blend_s if blend_s > 0.0 else 1.0)
-	if not action_name.is_empty():
+	if not action_name.is_empty() and not starting_top:
 		action_s += delta
 		if not _action_clips.has(action_name) or action_s >= (_action_clips[action_name] as Animation).length:
 			action_name = ""
@@ -647,6 +656,10 @@ func drive_actions(delta: float) -> void:
 		climb_clip = ""
 		pose.action_weight = 0.0
 		pose.action_clip = null
+	var handoff := float(lad.get("top_handoff_s", 0.15))
+	pose.top_step_weight = 1.0 - smoothstep(0.0, handoff, action_s) if action_name == "ladder_top" and handoff > 0.0 else 0.0
+	if pose.top_step_weight == 0.0 and not pose.top_step_source.is_empty():
+		pose.top_step_source.clear()
 	# The climber faces the ladder (the pawn keeps the look yaw); back to the pawn's facing afterwards.
 	var face := climb_weight > 0.0 or action_name == "ladder_top"
 	var turn := deg_to_rad(float(lad.get("turn_deg_s", 720.0))) * delta
@@ -658,6 +671,8 @@ func drive_actions(delta: float) -> void:
 		if absf(angle_difference(rotation.y, 0.0)) < 0.0001:
 			rotation.y = 0.0
 			_yaw_owned = false
+	if starting_top and _climb_pose_drawn:
+		pose.cache_top_step(pose_cache, skeleton.global_transform.affine_inverse() * _climb_skeleton_world)
 
 
 ## Explicit collider-free copy: avoids duplicating scripts or hitboxes and never re-runs _ready.

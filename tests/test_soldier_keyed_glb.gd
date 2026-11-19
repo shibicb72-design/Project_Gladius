@@ -211,6 +211,44 @@ func test_the_top_step_plays_ladder_top_once() -> void:
 	(rig["root"] as Node).free()
 
 
+func test_top_step_preserves_the_last_drawn_hand_and_foot_positions() -> void:
+	var rig := _ladder_rig()
+	var pawn: Pawn = rig["pawn"]
+	var model: SoldierModel = rig["model"]
+	var ladder: Ladder = rig["ladder"]
+	model.animation_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	model.skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL
+	pawn.climbing = true
+	pawn._ladder = ladder
+	pawn.global_position = ladder.climb_point(ladder.top_y() + float(ladder.cfg["top_rise_m"]))
+	pawn.velocity = Vector3.UP * float(ladder.cfg["climb_speed_mps"])
+	for i in 14:
+		model._process(DT)
+		model.animation_tree.advance(DT)
+		model.skeleton.advance(DT)
+		await _tree().process_frame
+	var endpoints: Dictionary = {}
+	for name in ["LeftHand", "RightHand", "LeftFoot", "RightFoot"]:
+		var bone := model.skeleton.find_bone(name)
+		endpoints[bone] = model.skeleton.to_global(model.pose_cache[bone].origin)
+	pawn.climbing = false
+	pawn._ladder = null
+	pawn.global_position = ladder.top_point()
+	pawn.velocity = Vector3.ZERO
+	pawn.rotation.y += 0.2
+	model._process(DT)
+	model.animation_tree.advance(DT)
+	model.skeleton.advance(DT)
+	await _tree().process_frame
+	assert_eq(model.action_name, "ladder_top", "the ledge handoff ran")
+	var jump := 0.0
+	for bone: int in endpoints:
+		jump = maxf(jump, model.skeleton.to_global(model.pose_cache[bone].origin).distance_to(endpoints[bone]))
+	print("LADDER_TOP_HANDOFF maximum_endpoint_jump_m=%.6f" % jump)
+	assert_true(jump <= 0.001, "the last world-space climb endpoints survive the top-step teleport")
+	(rig["root"] as Node).free()
+
+
 func test_play_action_plays_and_returns_and_is_ignored_while_climbing_or_downed() -> void:
 	var pawn := _pawn()
 	var model := pawn.get_node("SoldierModel") as SoldierModel

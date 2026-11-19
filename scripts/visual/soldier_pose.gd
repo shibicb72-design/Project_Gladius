@@ -44,6 +44,8 @@ var action_time := 0.0
 var action_weight := 0.0
 var action_bones: Array = []
 var action_offset := Vector3.ZERO
+var top_step_source: Array[Transform3D] = []
+var top_step_weight := 0.0
 
 
 func setup(new_pawn: Pawn) -> void:
@@ -110,6 +112,28 @@ func _apply_action(skeleton: Skeleton3D) -> void:
 			var index := int(_bones[root_name])
 			skeleton.set_bone_pose_position(index, skeleton.get_bone_pose_position(index) + action_offset * w)
 	arms_weight = maxf(arms_weight, w)
+
+
+## The pawn has already moved to the ledge. Rebase the last drawn climb pose so its roots
+## stay at their previous world positions while the authored top step takes over.
+func cache_top_step(globals: Array[Transform3D], old_model_in_new: Transform3D) -> void:
+	var skeleton := get_skeleton()
+	top_step_source.clear()
+	for i in globals.size():
+		var parent := skeleton.get_bone_parent(i)
+		var local := globals[i]
+		if parent >= 0:
+			local = globals[parent].affine_inverse() * local
+		else:
+			local = old_model_in_new * local
+		top_step_source.append(local)
+
+
+func _blend_top_step(skeleton: Skeleton3D) -> void:
+	for index in top_step_source.size():
+		var from := top_step_source[index]
+		skeleton.set_bone_pose_position(index, skeleton.get_bone_pose_position(index).lerp(from.origin, top_step_weight))
+		skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(from.basis.get_rotation_quaternion(), top_step_weight))
 
 
 func _on_shot(_origin: Vector3, _direction: Vector3, weapon_id: String) -> void:
@@ -252,6 +276,8 @@ func _process_modification_with_delta(delta: float) -> void:
 	if is_zero_approx(pitch) and is_zero_approx(roll) and offset.is_zero_approx():
 		if kneel > 0.0:
 			_carry_neck(skeleton, kneel)
+		if top_step_weight > 0.0:
+			_blend_top_step(skeleton)
 		return
 	var turn := Basis(Vector3.RIGHT, pitch) * Basis(Vector3.BACK, roll)
 	var pivot := _pivot
@@ -271,3 +297,5 @@ func _process_modification_with_delta(delta: float) -> void:
 			skeleton.set_bone_pose_rotation(index, posed.basis.get_rotation_quaternion())
 	if kneel > 0.0:
 		_carry_neck(skeleton, kneel)
+	if top_step_weight > 0.0:
+		_blend_top_step(skeleton)
