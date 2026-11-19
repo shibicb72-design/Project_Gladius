@@ -6,7 +6,7 @@
 		"res://data/maps/alesia_1km_cover.json": "1693ed3f655e9f44b34c911dcb383bf93a4afc4f9895ada3e9448dbd3fffb2f2",
 		"res://data/maps/alesia_1km_structures.json": "77ef3d82dbe6b1a1183707dc270cebd1b8406656ef5fca1c32fae6a472871fa3",
 		"res://data/maps/alesia_cover.json": "54ac19f80114344e7f7b37811fb6605f685fe863b2e30ec6b5928dcbc95f8221",
-		"res://data/maps/alesia_structures.json": "a185a5544dd777eb91887766790a7522aec95fe5e99d280d491c3da4fc2da0d6"
+		"res://data/maps/alesia_structures.json": "6551a29cf01981513967ed86a9081ca1bb77c27e36a4d70f9c82a7321fb4eac1"
 	},
 	"map": "res://data/maps/alesia_1km.json",
 	"mesh_bytes": 345567,

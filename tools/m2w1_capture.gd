@@ -12,7 +12,7 @@ extends SceneTree
 ##   --only=<text>                only shots whose name contains this text
 ##   --tag=<prefix>               file name prefix (default m2w1)
 ##   --map=<res path>             the map json (default res://data/maps/alesia_1km.json)
-##   --shots=<res path>           the shot list (default res://data/m2w1_capture.json)
+##   --shots=<name or path>       the shot list (default res://data/m2w1_capture.json)
 ##   --settle=<frames>            frames to wait after each camera move (default 45)
 ##   --size=<W>x<H>               the picture size wanted (pass the same as --resolution, which the engine consumes and
 ##                                a script cannot read back); when the window did not get it, an offscreen SubViewport
@@ -37,6 +37,7 @@ var _variant := ""
 var _only := ""
 var _map_path := MAP_PATH
 var _shots_path := SHOTS_PATH
+var _shot_list_key := "shots"
 var _settle := 45
 var _asked := Vector2i.ZERO
 var _view: Viewport
@@ -61,6 +62,9 @@ func _initialize() -> void:
 			_map_path = a.substr(6)
 		elif a.begins_with("--shots="):
 			_shots_path = a.substr(8)
+			if _shots_path.is_valid_identifier():
+				_shot_list_key = _shots_path
+				_shots_path = SHOTS_PATH
 		elif a.begins_with("--settle="):
 			_settle = maxi(1, int(a.substr(9)))
 		elif a.begins_with("--size="):
@@ -80,7 +84,7 @@ func _run() -> bool:
 		printerr("m2w1_capture needs a window (run without --headless)")
 		return false
 	var def := DataRegistry.parse_quiet(_map_path)
-	var shot_list: Array = DataRegistry.parse_quiet(_shots_path).get("shots", [])
+	var shot_list: Array = DataRegistry.parse_quiet(_shots_path).get(_shot_list_key, [])
 	if def.is_empty() or shot_list.is_empty():
 		printerr("m2w1_capture: cannot read %s or %s" % [_map_path, _shots_path])
 		return false

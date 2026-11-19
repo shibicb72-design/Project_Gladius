@@ -240,24 +240,26 @@ func test_nav_paths_through_every_gate() -> void:
 	print("ALESIA_500_NAV_GATES ", " | ".join(lines))
 
 
-## Every barracks doorway (doors.door.openings of each barracks piece: camps, farmsteads and every town house): a
-## path from 2 m in front of it to the middle of the room behind it, passing through the opening; and every barracks
-## room reaches the Arx top (no island).
+## Every barracks and town room doorway has a saved-nav path from 2 m in front to the room
+## behind it. Every room also reaches the Arx top.
 func test_nav_paths_through_every_barracks_doorway() -> void:
 	var nav_map: RID = await _nav_map()
 	var map := _map()
 	var builder := map.get_node("ArtBuilder")
 	var terrain: MapTerrain = builder.terrain
 	var def := _def()
-	var opens: Array = (WorldKit.config()["types"]["barracks"] as Dictionary)["open"]
-	var openings: Array = def["generator"]["doors"]["door"]["openings"]
+	var kit: Dictionary = WorldKit.config()["types"]
+	var barracks_openings: Array = def["generator"]["doors"]["door"]["openings"]
 	var arx := LowpolyKit.vec((DataRegistry.parse_quiet(String(def["landmarks"]))["landmarks"] as Array)[0]["anchor"])
 	var doorways := 0
 	var rooms := 0
 	var failed: Array[String] = []
 	for body: StaticBody3D in builder.structure_bodies:
-		if String(body.get_meta(&"structure_type", "")) != "barracks":
+		var type := String(body.get_meta(&"structure_type", ""))
+		var openings: Array = barracks_openings if type == "barracks" else kit[type].get("doorway_indices", [])
+		if openings.is_empty():
 			continue
+		var opens: Array = kit[type]["open"]
 		rooms += 1
 		var t := body.global_transform
 		var inside_any := Vector3.INF
@@ -281,10 +283,10 @@ func test_nav_paths_through_every_barracks_doorway() -> void:
 		var path := NavigationServer3D.map_get_path(nav_map, inside_any, arx, true)
 		if path.size() < 2 or path[path.size() - 1].distance_to(arx) > 1.0:
 			failed.append("%s: the room does not reach the Arx top (ends at %s)" % [body.name, str(path[path.size() - 1]) if path.size() > 0 else "nothing"])
-	assert_eq(rooms, (DataRegistry.parse_quiet(String(def["structure_data"]))["pieces"] as Array).filter(func(e: Dictionary) -> bool: return e["type"] == "barracks").size(), "every barracks checked")
-	assert_true(rooms > 100, "nonvacuous: %d barracks" % rooms)
+	assert_eq(rooms, (DataRegistry.parse_quiet(String(def["structure_data"]))["pieces"] as Array).filter(func(e: Dictionary) -> bool: return e["type"] == "barracks" or kit[e["type"]].has("doorway_indices")).size(), "every room checked")
+	assert_true(rooms > 100, "nonvacuous: %d rooms" % rooms)
 	assert_true(failed.is_empty(), "%d doorway/room problems (first 15): %s" % [failed.size(), "; ".join(failed.slice(0, 15))])
-	print("ALESIA_500_NAV_DOORWAYS barracks=%d doorways=%d problems=%d %s" % [rooms, doorways, failed.size(), "; ".join(failed.slice(0, 30))])
+	print("ALESIA_500_NAV_DOORWAYS rooms=%d doorways=%d problems=%d %s" % [rooms, doorways, failed.size(), "; ".join(failed.slice(0, 30))])
 
 
 func test_nav_paths_from_every_spawn_to_the_arx_top() -> void:

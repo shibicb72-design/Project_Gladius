@@ -49,6 +49,18 @@
                                                                               "made_by":  "tools/blender/build_weapons.py",
                                                                               "derived_from":  ""
                                                                           },
+                  "res://assets/generated/world/m2cx2_town.glb": {
+                      "made_by": "tools/blender/m2cx2_town.py",
+                      "derived_from": ""
+                  },
+                  "res://assets/generated/world/m2cx2_landmarks.glb": {
+                      "made_by": "tools/blender/m2cx2_landmarks.py",
+                      "derived_from": ""
+                  },
+                  "res://assets/generated/world/m2cx2_dressing.glb": {
+                      "made_by": "tools/blender/m2cx2_dressing.py",
+                      "derived_from": ""
+                  },
                   "res://assets/generated/world/m2w1_world_kit.glb":  {
                                                                           "made_by":  "tools/blender/m2w1_world_kit.py",
                                                                           "derived_from":  ""

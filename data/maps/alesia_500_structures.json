@@ -3139,7 +3139,7 @@
 				-84.0
 			],
 			"id": "AquaeductusMagnus_Span_00",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3149,7 +3149,7 @@
 				-94.0
 			],
 			"id": "AquaeductusMagnus_Span_01",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3159,7 +3159,7 @@
 				-104.0
 			],
 			"id": "AquaeductusMagnus_Span_02",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3169,7 +3169,7 @@
 				-114.0
 			],
 			"id": "AquaeductusMagnus_Span_03",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3179,7 +3179,7 @@
 				-124.0
 			],
 			"id": "AquaeductusMagnus_Span_04",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3189,7 +3189,7 @@
 				-134.0
 			],
 			"id": "AquaeductusMagnus_Span_05",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3199,7 +3199,7 @@
 				-144.0
 			],
 			"id": "AquaeductusMagnus_Span_06",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3209,7 +3209,7 @@
 				-154.0
 			],
 			"id": "AquaeductusMagnus_Span_07",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3219,7 +3219,7 @@
 				-164.0
 			],
 			"id": "AquaeductusMagnus_Span_08",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3229,7 +3229,7 @@
 				-174.0
 			],
 			"id": "AquaeductusMagnus_Span_09",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3239,7 +3239,7 @@
 				-184.0
 			],
 			"id": "AquaeductusMagnus_Span_10",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3249,7 +3249,7 @@
 				-194.0
 			],
 			"id": "AquaeductusMagnus_Span_11",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 90.0
 		},
 		{
@@ -3279,7 +3279,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_00",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3289,7 +3289,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_01",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3299,7 +3299,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_02",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3309,7 +3309,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_03",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3319,7 +3319,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_04",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3329,7 +3329,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_05",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3339,7 +3339,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_06",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3349,7 +3349,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_07",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3359,7 +3359,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_08",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3369,7 +3369,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_09",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3379,7 +3379,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_10",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3389,7 +3389,7 @@
 				12.0
 			],
 			"id": "AquaMarcia_Span_11",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 0.0
 		},
 		{
@@ -3419,7 +3419,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_00",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3429,7 +3429,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_01",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3439,7 +3439,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_02",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3449,7 +3449,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_03",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3459,7 +3459,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_04",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3469,7 +3469,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_05",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3479,7 +3479,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_06",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3489,7 +3489,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_07",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3499,7 +3499,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_08",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3509,7 +3509,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_09",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3519,7 +3519,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_10",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3529,7 +3529,7 @@
 				-12.0
 			],
 			"id": "AquaClaudia_Span_11",
-			"type": "aqueduct_span",
+			"type": "aqua_keystone",
 			"yaw": 180.0
 		},
 		{
@@ -3589,7 +3589,7 @@
 				0.0
 			],
 			"id": "Arx_Eagle",
-			"type": "eagle_standard",
+			"type": "arx_signal_eagle",
 			"yaw": 0.0
 		},
 		{
@@ -4369,7 +4369,7 @@
 				-120.199996948242
 			],
 			"id": "Oppidum00_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 90.0
 		},
 		{
@@ -4386,10 +4386,10 @@
 			"at": [
 				45.0,
 				0.0,
-				-119.0
+				-119.400001525879
 			],
 			"id": "Oppidum01_Domus_1",
-			"type": "barracks",
+			"type": "taberna_awning",
 			"yaw": 180.0
 		},
 		{
@@ -4489,7 +4489,7 @@
 				-93.5
 			],
 			"id": "Oppidum02_Tent_0",
-			"type": "tent",
+			"type": "forum_stall",
 			"yaw": 270.0
 		},
 		{
@@ -4499,7 +4499,7 @@
 				-98.5
 			],
 			"id": "Oppidum02_Tent_1",
-			"type": "tent",
+			"type": "forum_stall",
 			"yaw": 270.0
 		},
 		{
@@ -4509,7 +4509,7 @@
 				-103.5
 			],
 			"id": "Oppidum02_Tent_2",
-			"type": "tent",
+			"type": "forum_stall",
 			"yaw": 270.0
 		},
 		{
@@ -4519,7 +4519,7 @@
 				-93.5
 			],
 			"id": "Oppidum02_Tent_3",
-			"type": "tent",
+			"type": "forum_stall",
 			"yaw": 270.0
 		},
 		{
@@ -4529,7 +4529,7 @@
 				-98.5
 			],
 			"id": "Oppidum02_Tent_4",
-			"type": "tent",
+			"type": "forum_stall",
 			"yaw": 270.0
 		},
 		{
@@ -4539,7 +4539,7 @@
 				-103.5
 			],
 			"id": "Oppidum02_Tent_5",
-			"type": "tent",
+			"type": "forum_stall",
 			"yaw": 270.0
 		},
 		{
@@ -4569,7 +4569,7 @@
 				-105.0
 			],
 			"id": "Oppidum03_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -4579,7 +4579,7 @@
 				-91.0
 			],
 			"id": "Oppidum03_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 180.0
 		},
 		{
@@ -4599,7 +4599,7 @@
 				-67.0
 			],
 			"id": "Oppidum04_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 90.0
 		},
 		{
@@ -4629,7 +4629,7 @@
 				-35.0
 			],
 			"id": "Oppidum05_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 180.0
 		},
 		{
@@ -4659,7 +4659,7 @@
 				-45.0
 			],
 			"id": "Oppidum06_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 270.0
 		},
 		{
@@ -4669,7 +4669,7 @@
 				-45.0
 			],
 			"id": "Oppidum06_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 90.0
 		},
 		{
@@ -4689,7 +4689,7 @@
 				-21.0
 			],
 			"id": "Oppidum07_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -4719,7 +4719,7 @@
 				20.5
 			],
 			"id": "Oppidum08_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -4739,7 +4739,7 @@
 				49.0
 			],
 			"id": "Oppidum09_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 180.0
 		},
 		{
@@ -4749,7 +4749,7 @@
 				35.0
 			],
 			"id": "Oppidum09_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 0.0
 		},
 		{
@@ -4759,7 +4759,7 @@
 				42.0
 			],
 			"id": "Oppidum10_PedimentFront_0",
-			"type": "pediment_front",
+			"type": "templum_roofed",
 			"yaw": 90.0
 		},
 		{
@@ -4824,26 +4824,6 @@
 		},
 		{
 			"at": [
-				89.0999984741211,
-				0.0,
-				45.0
-			],
-			"id": "Oppidum10_TerraceBlock_0",
-			"type": "terrace_block",
-			"yaw": 90.0
-		},
-		{
-			"at": [
-				89.0999984741211,
-				0.0,
-				39.0
-			],
-			"id": "Oppidum10_TerraceBlock_1",
-			"type": "terrace_block",
-			"yaw": 90.0
-		},
-		{
-			"at": [
 				105.0,
 				0.0,
 				70.0
@@ -4859,7 +4839,7 @@
 				63.0
 			],
 			"id": "Oppidum11_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -4889,7 +4869,7 @@
 				101.0
 			],
 			"id": "Oppidum12_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 90.0
 		},
 		{
@@ -4899,7 +4879,7 @@
 				101.0
 			],
 			"id": "Oppidum12_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 270.0
 		},
 		{
@@ -4919,7 +4899,7 @@
 				93.0
 			],
 			"id": "Oppidum13_Domus_1",
-			"type": "barracks",
+			"type": "fabrica_stack",
 			"yaw": 90.0
 		},
 		{
@@ -4939,7 +4919,7 @@
 				119.0
 			],
 			"id": "Oppidum14_Domus_1",
-			"type": "barracks",
+			"type": "fabrica_stack",
 			"yaw": 180.0
 		},
 		{
@@ -4959,7 +4939,7 @@
 				119.0
 			],
 			"id": "Oppidum15_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -4969,7 +4949,7 @@
 				133.0
 			],
 			"id": "Oppidum15_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 180.0
 		},
 		{
@@ -4989,7 +4969,7 @@
 				129.0
 			],
 			"id": "Oppidum16_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 90.0
 		},
 		{
@@ -5019,7 +4999,7 @@
 				133.0
 			],
 			"id": "Oppidum17_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 180.0
 		},
 		{
@@ -5079,7 +5059,7 @@
 				105.599998474121
 			],
 			"id": "Oppidum18_Domus_0",
-			"type": "barracks",
+			"type": "thermae_rotunda",
 			"yaw": 0.0
 		},
 		{
@@ -5099,7 +5079,7 @@
 				91.0
 			],
 			"id": "Oppidum19_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -5129,7 +5109,7 @@
 				73.0
 			],
 			"id": "Oppidum20_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 90.0
 		},
 		{
@@ -5159,7 +5139,7 @@
 				49.0
 			],
 			"id": "Oppidum21_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 180.0
 		},
 		{
@@ -5169,7 +5149,7 @@
 				35.0
 			],
 			"id": "Oppidum21_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 0.0
 		},
 		{
@@ -5189,7 +5169,7 @@
 				39.0
 			],
 			"id": "Oppidum22_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 270.0
 		},
 		{
@@ -5219,7 +5199,7 @@
 				7.0
 			],
 			"id": "Oppidum23_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -5249,7 +5229,7 @@
 				-20.5
 			],
 			"id": "Oppidum24_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 180.0
 		},
 		{
@@ -5309,7 +5289,7 @@
 				-77.0
 			],
 			"id": "Oppidum27_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -5319,7 +5299,7 @@
 				-63.0
 			],
 			"id": "Oppidum27_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 180.0
 		},
 		{
@@ -5339,7 +5319,7 @@
 				-95.0
 			],
 			"id": "Oppidum28_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 90.0
 		},
 		{
@@ -5369,7 +5349,7 @@
 				-91.0
 			],
 			"id": "Oppidum29_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 180.0
 		},
 		{
@@ -5399,7 +5379,7 @@
 				-129.0
 			],
 			"id": "Oppidum30_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 270.0
 		},
 		{
@@ -5409,7 +5389,7 @@
 				-129.0
 			],
 			"id": "Oppidum30_Domus_2",
-			"type": "barracks",
+			"type": "insula_triple",
 			"yaw": 90.0
 		},
 		{
@@ -5429,7 +5409,7 @@
 				-133.0
 			],
 			"id": "Oppidum31_Domus_1",
-			"type": "barracks",
+			"type": "insula_duplex",
 			"yaw": 0.0
 		},
 		{
@@ -8750,6 +8730,496 @@
 			],
 			"id": "AquaClaudia_Ramp_Out_Guard_R0",
 			"type": "stake_row",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				27.5,
+				0.0,
+				-71.5
+			],
+			"id": "CX2_cypress_group_00_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				49.5,
+				0.0,
+				-49.5
+			],
+			"id": "CX2_cypress_group_01_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				69.5,
+				0.0,
+				-28.0
+			],
+			"id": "CX2_cypress_group_02_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				69.0,
+				0.0,
+				25.0
+			],
+			"id": "CX2_cypress_group_03_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				47.5,
+				0.0,
+				53.0
+			],
+			"id": "CX2_cypress_group_04_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				19.5,
+				0.0,
+				67.5
+			],
+			"id": "CX2_cypress_group_05_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-15.0,
+				0.0,
+				76.0
+			],
+			"id": "CX2_cypress_group_06_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-50.0,
+				0.0,
+				52.0
+			],
+			"id": "CX2_cypress_group_07_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-66.5,
+				0.0,
+				28.5
+			],
+			"id": "CX2_cypress_group_08_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				-49.0,
+				0.0,
+				-52.5
+			],
+			"id": "CX2_cypress_group_10_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				113.0,
+				0.0,
+				-155.5
+			],
+			"id": "CX2_cypress_group_12_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				172.0,
+				0.0,
+				-87.5
+			],
+			"id": "CX2_cypress_group_13_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				173.5,
+				0.0,
+				73.5
+			],
+			"id": "CX2_cypress_group_14_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				29.5,
+				0.0,
+				187.5
+			],
+			"id": "CX2_cypress_group_15_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-151.0,
+				0.0,
+				113.5
+			],
+			"id": "CX2_cypress_group_16_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				-176.0,
+				0.0,
+				-60.5
+			],
+			"id": "CX2_cypress_group_17_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				-103.5,
+				0.0,
+				-159.5
+			],
+			"id": "CX2_cypress_group_18_CypressGroup_0",
+			"type": "cypress_group",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				80.0,
+				0.0,
+				-171.5
+			],
+			"id": "CX2_farm_boundary_00_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				156.5,
+				0.0,
+				-87.0
+			],
+			"id": "CX2_farm_boundary_01_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				190.5,
+				0.0,
+				23.5
+			],
+			"id": "CX2_farm_boundary_02_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				159.0,
+				0.0,
+				107.0
+			],
+			"id": "CX2_farm_boundary_03_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				32.0,
+				0.0,
+				182.0
+			],
+			"id": "CX2_farm_boundary_04_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-108.5,
+				0.0,
+				149.5
+			],
+			"id": "CX2_farm_boundary_05_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-177.0,
+				0.0,
+				61.0
+			],
+			"id": "CX2_farm_boundary_06_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				-187.0,
+				0.0,
+				-68.0
+			],
+			"id": "CX2_farm_boundary_07_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				-93.0,
+				0.0,
+				-161.0
+			],
+			"id": "CX2_farm_boundary_08_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				-27.0,
+				0.0,
+				-192.0
+			],
+			"id": "CX2_farm_boundary_09_FarmBoundary_0",
+			"type": "farm_boundary",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				46.5,
+				0.0,
+				-142.5
+			],
+			"id": "CX2_waystation_00_Waystation_0",
+			"type": "waystation",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				140.0,
+				0.0,
+				-41.5
+			],
+			"id": "CX2_waystation_01_Waystation_0",
+			"type": "waystation",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				99.0,
+				0.0,
+				110.0
+			],
+			"id": "CX2_waystation_02_Waystation_0",
+			"type": "waystation",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-26.5,
+				0.0,
+				143.5
+			],
+			"id": "CX2_waystation_03_Waystation_0",
+			"type": "waystation",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-143.0,
+				0.0,
+				38.5
+			],
+			"id": "CX2_waystation_04_Waystation_0",
+			"type": "waystation",
+			"yaw": 270.0
+		},
+		{
+			"at": [
+				-111.5,
+				0.0,
+				-111.5
+			],
+			"id": "CX2_waystation_05_Waystation_0",
+			"type": "waystation",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				29.0,
+				0.0,
+				-95.5
+			],
+			"id": "CX2_waystation_06_Waystation_0",
+			"type": "waystation",
+			"yaw": 180.0
+		},
+		{
+			"at": [
+				86.0,
+				0.0,
+				-132.5
+			],
+			"id": "CX2_farm_cart_00_FarmCart_0",
+			"type": "farm_cart",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				83.0,
+				0.0,
+				156.5
+			],
+			"id": "CX2_farm_cart_01_FarmCart_0",
+			"type": "farm_cart",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-178.5,
+				0.0,
+				15.5
+			],
+			"id": "CX2_farm_cart_02_FarmCart_0",
+			"type": "farm_cart",
+			"yaw": 90.0
+		},
+		{
+			"at": [
+				86.0383911132813,
+				0.0,
+				-202.487869262695
+			],
+			"id": "CX2_Beacon_OuterRing_016",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				204.018600463867,
+				0.0,
+				-82.3428726196289
+			],
+			"id": "CX2_Beacon_OuterRing_041",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				202.487869262695,
+				0.0,
+				86.0383911132813
+			],
+			"id": "CX2_Beacon_OuterRing_067",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				82.3428726196289,
+				0.0,
+				204.018600463867
+			],
+			"id": "CX2_Beacon_OuterRing_092",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-86.0383911132813,
+				0.0,
+				202.487869262695
+			],
+			"id": "CX2_Beacon_OuterRing_118",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-204.018600463867,
+				0.0,
+				82.3428726196289
+			],
+			"id": "CX2_Beacon_OuterRing_143",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-202.487869262695,
+				0.0,
+				-86.0383911132813
+			],
+			"id": "CX2_Beacon_OuterRing_169",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-82.3428726196289,
+				0.0,
+				-204.018600463867
+			],
+			"id": "CX2_Beacon_OuterRing_194",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				18.3850002288818,
+				0.0,
+				-15.5565729141235
+			],
+			"id": "CX2_Beacon_ArxRing_004",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				15.5565729141235,
+				0.0,
+				18.3850002288818
+			],
+			"id": "CX2_Beacon_ArxRing_011",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-18.3850002288818,
+				0.0,
+				15.5565729141235
+			],
+			"id": "CX2_Beacon_ArxRing_018",
+			"type": "specula_beacon",
+			"yaw": 0.0
+		},
+		{
+			"at": [
+				-15.5565729141235,
+				0.0,
+				-18.3850002288818
+			],
+			"id": "CX2_Beacon_ArxRing_025",
+			"type": "specula_beacon",
 			"yaw": 0.0
 		}
 	],

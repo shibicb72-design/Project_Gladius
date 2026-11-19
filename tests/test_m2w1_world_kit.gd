@@ -208,31 +208,36 @@ func test_every_listed_type_has_near_and_far_meshes_with_the_shader_data() -> vo
 
 func test_glb_holds_exactly_the_listed_nodes() -> void:
 	_reset()
-	var glb := String(_cfg()["glb"])
-	var scene: PackedScene = load(glb)
-	assert_true(scene != null, "the glb imports: " + glb)
-	if scene == null:
-		return
-	var root := scene.instantiate()
-	var names := {}
-	for node: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
-		names[String(node.name)] = node.mesh.get_surface_count()
-	root.free()
-	var wanted := {}
+	var default_glb := String(_cfg()["glb"])
+	var expected := {default_glb: {}}
 	for type: String in _types():
-		wanted[String(_cfg()["types"][type]["node"])] = true
+		var row: Dictionary = _cfg()["types"][type]
+		var path := String(row.get("glb", default_glb))
+		if not expected.has(path):
+			expected[path] = {}
+		expected[path][String(row["node"])] = true
 		if WorldKitMeshes.has_lod1(type):
-			wanted[String(_cfg()["types"][type]["lod1_node"])] = true
-	# M2W1 r2a: the glb cover looks (cover.<type>.node)
+			expected[path][String(row["lod1_node"])] = true
 	for type: String in _cover_types():
-		if (_cfg()["cover"][type] as Dictionary).has("node"):
-			wanted[String(_cfg()["cover"][type]["node"])] = true
-	for node_name: String in wanted:
-		assert_true(names.has(node_name), "glb has node " + node_name)
-		assert_eq(int(names.get(node_name, 0)), 1, node_name + ": one surface")
-	for node_name: String in names:
-		assert_true(wanted.has(node_name), "glb node %s is listed in art_world_kit.json" % node_name)
-	print("M2W1_KIT glb=%s nodes=%s" % [glb, str(names.keys())])
+		var row: Dictionary = _cfg()["cover"][type]
+		if row.has("node"):
+			expected[default_glb][String(row["node"])] = true
+	for glb: String in expected:
+		var scene := load(glb) as PackedScene
+		assert_true(scene != null, "the glb imports: " + glb)
+		if scene == null:
+			continue
+		var root := scene.instantiate()
+		var names := {}
+		for node: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+			names[String(node.name)] = node.mesh.get_surface_count()
+		root.free()
+		for node_name: String in expected[glb]:
+			assert_true(names.has(node_name), "%s has node %s" % [glb, node_name])
+			assert_eq(int(names.get(node_name, 0)), 1, node_name + ": one surface")
+		for node_name: String in names:
+			assert_true(expected[glb].has(node_name), "%s node %s is listed in art_world_kit.json" % [glb, node_name])
+		print("M2W1_KIT glb=%s nodes=%s" % [glb, str(names.keys())])
 
 
 ## The glb stores the paint as sRGB (see world_kit_meshes.gd): every vertex colour is a palette colour of
@@ -385,7 +390,7 @@ func test_missing_entry_glb_or_node_falls_back_to_the_kit_with_one_error() -> vo
 	assert_true(WorldKitMeshes.mesh("column", 0) == null, "a type without an entry: no glb mesh")
 	assert_true(WorldKitMeshes.mesh("column", 0) == null and lines.size() == 1, "reported once: %s" % str(lines))
 	var cfg := _cfg().duplicate(true)
-	var type: String = _types()[0]
+	var type := "wall_walk"
 	cfg["types"][type]["node"] = "no_such_node"
 	cfg["types"][type]["lod1_node"] = "no_such_node_lod1"
 	WorldKitMeshes.config_override = cfg
@@ -603,7 +608,7 @@ func test_shade_bake_off_keeps_the_old_values_and_on_separates_values() -> void:
 	for type: String in _types():
 		for level: int in _levels(type):
 			var e: Dictionary = _cfg()["types"][type]
-			var source := WorldKitMeshes._source_mesh(glb, String(e["node"] if level == 0 else e["lod1_node"]))
+			var source := WorldKitMeshes._source_mesh(String(e.get("glb", glb)), String(e["node"] if level == 0 else e["lod1_node"]))
 			var arrays := WorldKitMeshes.mesh(type, level).surface_get_arrays(0)
 			assert_eq(arrays[Mesh.ARRAY_TEX_UV2], source.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2], "%s %d: off = the glb's UV2" % [type, level])
 			var custom: PackedFloat32Array = arrays[Mesh.ARRAY_CUSTOM0] if arrays[Mesh.ARRAY_CUSTOM0] != null else PackedFloat32Array([0, 0, 0, 0])
@@ -622,7 +627,9 @@ func test_shade_bake_off_keeps_the_old_values_and_on_separates_values() -> void:
 			weights.append(custom[0])
 			if level != 0:
 				continue
-			var src: PackedVector2Array = WorldKitMeshes._source_mesh(glb, String(_cfg()["types"][type]["node"])).surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]
+			var entry: Dictionary = _cfg()["types"][type]
+			var source_path := String(entry.get("glb", glb))
+			var src: PackedVector2Array = WorldKitMeshes._source_mesh(source_path, String(entry["node"])).surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]
 			var sum := 0.0
 			for i in (arrays[Mesh.ARRAY_TEX_UV2] as PackedVector2Array).size():
 				var m: float = 1.0 + (arrays[Mesh.ARRAY_TEX_UV2][i].y - 0.5) * 2.0 * range_m

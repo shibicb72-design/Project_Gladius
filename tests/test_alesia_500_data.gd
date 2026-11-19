@@ -112,9 +112,8 @@ func test_laid_out_pieces_keep_gaps_and_doorways() -> void:
 	var openings: Array = gen["doors"]["door"]["openings"]
 	var aprons := 0
 	for entry: Dictionary in out["structures"]["pieces"]:
-		if entry["type"] != "barracks":
-			continue
-		for apron: Rect2 in _Gen.doorway_aprons(entry, kit, openings, float(gen["doorway_apron_m"])):
+		var indices: Array = openings if entry["type"] == "barracks" else kit[entry["type"]].get("doorway_indices", [])
+		for apron: Rect2 in _Gen.doorway_aprons(entry, kit, indices, float(gen["doorway_apron_m"])):
 			aprons += 1
 			for other: Array in rects:
 				if other[0] != entry["id"]:

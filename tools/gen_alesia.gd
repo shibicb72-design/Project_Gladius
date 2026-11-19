@@ -335,6 +335,8 @@ static func generate(map_def: Dictionary) -> Dictionary:
 	# 9. M2 L1c commit 5: the ladders ("ladders", OQ-PROPS-LADDER) on the barracks end walls, appended after the door
 	# pass; no random draw, so nothing earlier moves.
 	var ladder_pass := _ladders(state, structures, kit_types)
+	if gen.has("cx2_world"):
+		_cx2_landmarks_and_dressing(state, structures, kit_types, l500)
 	var note := String(gen.get("file_note", NOTE))  # M2 L2a: a map's own note (the 1 km map has none: NOTE)
 	var cover_file := {"version": 1, "_placeholder": true, "_note": note, "pieces": cover, "ring_pieces": ring_pieces, "decor": decor}
 	if gen.has("props"):
@@ -1424,8 +1426,9 @@ static func _template_layout(tpl: Dictionary, centre: Vector2, quarter: int, ind
 		if kit_types.has(type):
 			var yaw := fposmod(float(entry.get("yaw", 0.0)) + 90.0 * quarter, 360.0)
 			var aprons: Array[Rect2] = []
-			if type == String(ctx["apron_type"]) and float(ctx["apron_m"]) > 0.0:
-				aprons = doorway_aprons({"type": type, "at": [at.x, 0.0, at.y], "yaw": yaw}, kit_types, ctx["openings"], float(ctx["apron_m"]))
+			var openings: Array = ctx["openings"] if type == String(ctx["apron_type"]) else kit_types[type].get("doorway_indices", [])
+			if not openings.is_empty() and float(ctx["apron_m"]) > 0.0:
+				aprons = doorway_aprons({"type": type, "at": [at.x, 0.0, at.y], "yaw": yaw}, kit_types, openings, float(ctx["apron_m"]))
 			out.append({"structure": true, "type": type, "at": at, "yaw": yaw, "rect": WorldKit.footprint(kit_types[type], Vector3(at.x, 0.0, at.y), yaw), "aprons": aprons})
 		else:
 			if posmod(quarter, 2) == 1 and quarter_types.has(type):
@@ -1677,9 +1680,10 @@ static func _town(state: Dictionary, structures: Array, cover: Array, landmarks:
 			taken[best] = true
 			cells[best]["template"] = String(a["template"])
 	var counts := {}
+	var style_rules: Dictionary = (gen.get("cx2_world", {}) as Dictionary).get("town", {})
 	for k in cells.size():
 		var cell: Dictionary = cells[k]
-		var tpl: Dictionary = templates[cell["template"]]
+		var tpl := _cx2_town_template(templates[cell["template"]], style_rules.get(cell["template"], {}), k)
 		var centre: Vector2 = cell["centre"]
 		var quarter := _quarter_facing_centre(centre) if String(tpl.get("face", "")) == "centre" else k % 4
 		if String(tpl.get("face", "")) != "centre":
@@ -1731,6 +1735,65 @@ static func _town(state: Dictionary, structures: Array, cover: Array, landmarks:
 	out["town_cover"] = cover.size() - first
 	out["cells"] = cells
 	out["town_counts"] = counts
+
+
+## Replace selected pieces on the 500 m templates before placing them, so the checks see
+## the real footprints and door aprons. Leave some original low roofs between the taller blocks.
+static func _cx2_town_template(tpl: Dictionary, rules: Dictionary, cell: int) -> Dictionary:
+	if rules.is_empty():
+		return tpl
+	var result := tpl.duplicate(true)
+	var seen := {}
+	for piece: Dictionary in result["pieces"]:
+		var base := String(piece["type"])
+		var entries: Array = rules.get(base, [])
+		var index := int(seen.get(base, 0))
+		seen[base] = index + 1
+		if index >= entries.size() or String(entries[index]).is_empty():
+			continue
+		var replacement := String(entries[index])
+		if replacement == "insula_triple" and cell % 3 != 0:
+			continue
+		piece["type"] = replacement
+	return result
+
+
+## District dress after the original deterministic draws, clear of existing footprints,
+## doors and kept spots. Tower and span variants carry the original collision shapes.
+static func _cx2_landmarks_and_dressing(state: Dictionary, structures: Array, kit: Dictionary, report: Dictionary) -> void:
+	var cfg: Dictionary = state["gen"]["cx2_world"]
+	var crowns: Array[Dictionary] = []
+	for piece: Dictionary in structures:
+		var base := String(piece["type"])
+		var id := String(piece["id"])
+		if id == "Arx_Eagle":
+			piece["type"] = "arx_signal_eagle"
+		elif base == "watchtower":
+			var turn := Basis(Vector3.UP, deg_to_rad(float(piece["yaw"])))
+			var mast := LowpolyKit.vec(piece["at"]) + turn * Vector3(-2.0, 0.0, -2.0)
+			crowns.append({"id": "CX2_Beacon_" + id, "type": "specula_beacon", "at": [mast.x, 0.0, mast.z], "yaw": 0.0})
+		elif base == "aqueduct_span":
+			piece["type"] = "aqua_keystone"
+	var ctx := {"kit": kit, "cover": state["cover_types"], "quarter_types": {},
+		"apron_type": "", "apron_m": 0.0, "openings": []}
+	var counts := {}
+	for group: Dictionary in cfg["dressing"]:
+		var type := String(group["type"])
+		for i in (group["sites"] as Array).size():
+			var site: Array = group["sites"][i]
+			var bearing := float(site[0])
+			var radius := float(site[1])
+			var yaw := float(site[2])
+			var make := func(at: Vector2) -> Array:
+				return _template_layout({"pieces": [{"type": type, "at": [0.0, 0.0], "yaw": yaw}]}, at, 0, 0, ctx)
+			var found := _search_spot(state, bearing, radius, group["search"], Vector2.ZERO, make, -1.0)
+			if int(found["dropped"]) != 0:
+				continue
+			var fit := _fit_layout(state, found["layout"], Rect2(), true)
+			_emit(fit["kept"], "CX2_%s_%02d" % [type, i], {}, structures, [], "", state["cover_types"])
+			counts[type] = int(counts.get(type, 0)) + 1
+	structures.append_array(crowns)
+	report["cx2_dressing"] = counts
 
 
 ## M2 L2a: the farmsteads (generator.farmsteads): one block of half_size_m per name at bearings first_bearing_deg +

@@ -834,6 +834,24 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
     builds the scene once (validation, landmarks, gates and every barracks doorway on the saved
     navmesh, spawns to the Arx, proxies and sight lines report-only, the real-match entry),
     `tests/test_alesia_500_data.gd` the data and the generator.
+  - **M2 CX2 world pass.** Alesia 500's generator selects civic building types before testing block
+    footprints and doorway aprons. Insula upper storeys are solid. The tower beacons mount on
+    existing corner aerials, and the aqueduct variant reuses the span's collision geometry. The
+    final placement pass fits compound cypress stands, farm walls, carts and well stations around
+    the existing layout. These pieces and the Forum stalls are structures under Nav with one
+    body per placed piece. The 844 cover walls still fit the cap of 850.
+  - Three original Blender families (`tools/blender/m2cx2_town.py`, `m2cx2_landmarks.py`,
+    `m2cx2_dressing.py`) share the W1 vertex exporter. Each type points to its own family's GLB
+    in `art_world_kit.json`. MapChunks swaps the larger looks to hand-built far meshes. Small
+    dressing and cypress batches retain the 250 m collider sight floor. The new beacons, carts,
+    wells, stalls and short farm walls skip real-time shadow casting.
+  - The 500 m backdrop uses closer ridges and a painted-edge blend into the terrain skirt.
+    The central terrain cell uses its full-resolution surface at all distances to keep the
+    Arx ring in contact. The other terrain cells retain their 4 m far meshes. The contact
+    test samples the render step at each point of a piece's footprint.
+  - Saved-nav doorway coverage includes the new housing and civic rooms. Re-baked meshes for
+    `alesia_1km`, `alesia_section` and `test_300` retain their pinned hashes in
+    `tests/test_m2w1_backdrop.gd`. Their manifests carry the updated shared input hash.
   - Sims take the map: `--sim-map=<id>` (default alesia_1km) in `tests/sim/test_sim_alesia_1km.gd`
     and `test_sim_match_length.gd`; every `map=` field prints that id.
 - **Props: breakables and loot chests (M2 L1b).** All numbers are placeholders (OQ-PROPS-BREAK, OQ-PROPS-CHEST).

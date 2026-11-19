@@ -1461,8 +1461,8 @@
 			"path": "res://assets/generated/ui/minimap_alesia_500.png",
 			"made_by": "tools/render_layout.gd",
 			"licence": "generated in this project (no source material)",
-			"bytes": 84826,
-			"sha256": "6893ad2514088ed40af910da3474254efcef2d75b9e50654c0dca52597663fc0"
+			"bytes": 87618,
+			"sha256": "b413f5418e7f2dca2569fab0bbbf76e93f2f33d18f62c2e46eee6d7c182c3ed2"
 		},
 		{
 			"path": "res://assets/generated/ui/minimap_alesia_section.png",
@@ -1498,6 +1498,27 @@
 			"licence": "generated in this project (no source material)",
 			"bytes": 173236,
 			"sha256": "31e03efd416595c5c345005cbe7440ec7dd5824548b168f5188ea21eecbc008c"
+		},
+		{
+			"path": "res://assets/generated/world/m2cx2_dressing.glb",
+			"made_by": "tools/blender/m2cx2_dressing.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 300988,
+			"sha256": "1e195ff8f0eecb9406e829cb0ab1f313900cec12168ff7c1285c3ab157433f80"
+		},
+		{
+			"path": "res://assets/generated/world/m2cx2_landmarks.glb",
+			"made_by": "tools/blender/m2cx2_landmarks.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 264572,
+			"sha256": "4f59ae0a93a792fadb0c0f89539fc5fa070ec31d4d638ef7cca81ff6d06bc2a5"
+		},
+		{
+			"path": "res://assets/generated/world/m2cx2_town.glb",
+			"made_by": "tools/blender/m2cx2_town.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 393736,
+			"sha256": "3645a37e5de2ae5cfbd8c18d4833885e2178d44a46462cc1e7cee7037fd0c5d3"
 		},
 		{
 			"path": "res://assets/generated/world/m2w1_clutter.glb",
