@@ -17,6 +17,7 @@ const _Builder := preload("res://scripts/visual/astra_map.gd")
 const _Contact := preload("res://tests/test_ground_contact.gd")
 const _Snap := preload("res://tools/m2w1_collider_snapshot.gd")
 const _Sight := preload("res://tools/sight_lines.gd")
+const PlaceMap := preload("res://scripts/visual/place_map.gd")
 
 static var _built: Node3D
 static var _build_ms := 0
@@ -411,6 +412,44 @@ func test_real_match_entry_plays_the_500_map() -> void:
 	print("ALESIA_500_REAL_MATCH begin_ms=", begin_ms, " loot=", m.loot.items.size())
 	m.queue_free()
 	await tree.process_frame
+
+
+## M2 CX2 rank 6: the BUILT map stamps every gate's authored approach (place_map.maps.alesia_500.gate_approaches) at
+## the real gate body, through astra_map.gd's add_gate_approaches: each strip's centre holds at least its value in the
+## live place map. Nonvacuous: a rebuild without the approaches (PlaceMap.build alone) is lower at some strip centres.
+func test_gate_approaches_are_stamped_at_the_built_gates() -> void:
+	var map := _map()
+	var builder := map.get_node("ArtBuilder")
+	var live: PlaceMap = builder.get("place_map")
+	assert_true(live != null, "the 500 map builds a place map")
+	if live == null:
+		return
+	var before: PlaceMap = PlaceMap.build(builder, float(builder.ground_size_m))
+	var profiles: Dictionary = PlaceMap.config("alesia_500")["gate_approaches"]
+	var bodies := {}
+	for body: Node in builder.get("structure_bodies"):
+		bodies[String(body.name)] = body
+	var checked := 0
+	var raised := 0
+	for id: String in profiles:
+		assert_true(bodies.has(id), id + " is a built gate body")
+		if not bodies.has(id):
+			continue
+		var frame := WorldClutter.xform_to(bodies[id], map)
+		var centre := Vector2(frame.origin.x, frame.origin.z)
+		var across := Vector2(frame.basis.x.x, frame.basis.x.z).normalized()
+		var inward := Vector2(-across.y, across.x)
+		for strip: Array in profiles[id]:
+			var ch := int(strip[0])
+			var c := centre + across * float(strip[1]) + inward * float(strip[2])
+			var want := float(strip[6])
+			var got: float = live.sample(c)[ch]
+			assert_true(got >= want - 0.01, "%s strip %s: channel %d at its centre %.3f >= %.3f" % [id, str(strip), ch, got, want])
+			checked += 1
+			if before.sample(c)[ch] < want - 0.05:
+				raised += 1
+	print("ALESIA_500_GATE_APPROACHES strips=", checked, " raised_over_build=", raised)
+	assert_true(checked == 33 and raised >= 10, "nonvacuous: 33 strips checked (%d), %d raised over the map without them" % [checked, raised])
 
 
 ## Last in this file: frees the shared 500 m map so later suite files start clean.
