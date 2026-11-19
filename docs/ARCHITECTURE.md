@@ -202,6 +202,28 @@ android/              debug.keystore (shared debug key only)
   bots get movement, weapons and rules for free, and work identically on host and dedicated server.
   Target selection and aim error are pure helpers (`bot_targeting.gd`).
 - Think rate (M2 P1c): a bot far from every alive human decides only every 4th tick; see 4.20.
+- Difficulty (M2 B4, OQ-BOT-DIFFICULTY; numbers in `bots.json` `difficulty`, placeholders):
+  - Data: levels `easy`, `normal`, `hard`, `very_hard` (cycle `order`, `default` normal), each
+    with an English `label`, the DESIGN Roman name as a `note` only, and four values: `accuracy`,
+    `reaction_time_s`, `settle_s`, `settle_floor_frac`. Normal equals profile `tiro` plus
+    `brain.fight`'s settle values exactly (a test asserts it). `profiles`, `match_fill` and
+    `brain` are unchanged; `damage_mult`, `health_mult`, `aim_smartness` and `grenade_freq` are
+    still not applied.
+  - Code: the table helpers and `apply_bot_difficulty(bots, id)` are statics on `MatchRoot`. Apply
+    gives each bot brain a deep copy of its `profile` with the level's accuracy and reaction time
+    and a deep copy of its `cfg` with the level's `fight.settle_s` / `settle_floor_frac`; shared
+    data is never written. `BotBrain` and `BotSpawner` are unchanged.
+  - Flow: the host cycles the lobby button "Bots: Normal" (`lobby.gd`, next to Length; interim
+    until the host's Advanced options panel exists) -> saved in the profile as `bot_difficulty`
+    (`SaveService`, validated: anything unknown is normal) -> `LobbyState.bot_difficulty`, one
+    more key of the lobby dictionary (no new RPC; a missing or bad value reads as normal; refused
+    after start) -> `MatchRoot.begin` applies it in the lobby branch right after the roster is
+    built. Only the host runs brains; clients just show the level in the status line.
+  - Without a lobby (tests, sims, the offline branch) nothing is applied and bots play
+    `match_fill.profile` (tiro) as before. Sims opt in with `--sim-difficulty=<level>`
+    (`sim_metrics.gd` bind, same apply function; the SIM line then prints `profile=<level>`).
+  - The settle values only act on big maps (4.11 big maps, `route.big_map_radius_m`): on
+    alesia_section a level changes accuracy and reaction time only.
 - Big maps (M2 B1; numbers in `bots.json` `brain.route` and `brain.fight`, OQ-BOT-ROUTE / -FIGHT):
   - Switch: at seeding the zone's start radius is above `route.big_map_radius_m` (250). Only then
     do the rules below run; on a small map every goal and result is the pre-B1 one apart from the
