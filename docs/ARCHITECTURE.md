@@ -1429,6 +1429,10 @@ fallback when a `mesh_source` is empty or a clip is missing.
   in opposition to the knee cycle. The arm motion eases out when the pawn stops. During revive, SoldierModel
   hides the held weapon mesh at half pose weight so both hands can work clear of the weapon. Visibility
   returns as the revive pose blends out. The active loadout stays available throughout.
+- **Stationary pivot (M2 CX1).** SoldierGait keeps the support boot in world space while the pawn turns. The
+  other boot lifts, moves toward the new heading after clearing the ground, and settles before taking load.
+  The existing leg solve reaches both targets. The contact and upright head limits are checked on steady turns
+  and fast reversals in `test_soldier_turn_in_place.gd`.
 - **Keyed rifle reload (M2 AN3; OQ-ANIM-RELOAD).** `build_soldier_rifle.py` writes `soldier_rifle.glb`: one staged
   reload per gun (`reload_pilum_br`, `reload_sagittarii_rifle`), 50 frames at 30 fps, starting and ending on the
   aimed pose (a port of `SoldierRig.arm_rotations`) with the left hand on that gun's foregrip; stage times, cant

@@ -65,6 +65,8 @@
 		"measure_samples": 120,
 		"walk_slow_blend": 0.32,
 		"strafe": {"hip_yaw_max_deg": 90.0, "spine_share": 0.45, "back_hysteresis_deg": 12.0, "turn_deg_s": 600.0, "fade_speed": 0.2},
+		"_pivot_note": "A stationary turn locks the stance boot in world space. One foot at a time steps toward the pawn's heading.",
+		"pivot": {"step_deg": 14.0, "swing_s": 0.14, "lift_m": 0.095, "lead_max_deg": 22.0, "idle_speed_mps": 0.1},
 		"spine_follow": 0.7,
 		"chest_upright": 0.85,
 		"hips_bob_scale": 0.2,

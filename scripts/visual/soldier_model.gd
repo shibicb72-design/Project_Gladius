@@ -334,6 +334,12 @@ func _process(delta: float) -> void:
 	animation_tree.set("parameters/locomotion/blend_position", blend)
 	_drive_gait(blend, velocity.length())
 	_drive_crouch(head, velocity.length())
+	var idle_speed := float((_gait_cfg["pivot"] as Dictionary)["idle_speed_mps"])
+	gait.pivot_allowed = not head.is_empty() and velocity.length_squared() < idle_speed * idle_speed \
+		and blend.length_squared() < 0.0004 and absf(pawn.velocity.y) < idle_speed \
+		and pawn.drop_state == Pawn.Drop.NONE and not airborne and pawn.is_alive() and not pawn.is_downed() \
+		and not pawn.in_cover() and not pawn.climbing and not _yaw_owned and action_name.is_empty() \
+		and crouch_shown <= 0.0 and float(pose.weights["land"]) <= 0.0 and float(pose.weights["revive"]) <= 0.0
 	crawl.move_local = local
 	crawl.weight = float(pose.weights["downed"])
 	_drive_air(delta)
