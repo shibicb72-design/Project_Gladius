@@ -141,6 +141,7 @@ func _ready() -> void:
 	clutter_report = WorldClutter.populate(self, chunks, map_def)
 	if place_map != null:
 		var contact_started := Time.get_ticks_usec()
+		place_map.add_gate_approaches(structure_bodies, get_parent())
 		place_map.add_contact(clutter_report.get("contact", []))
 		ground_material.set_shader_parameter("place_map", place_map.texture())
 		ground_material.set_shader_parameter("place_enabled", 1.0)
