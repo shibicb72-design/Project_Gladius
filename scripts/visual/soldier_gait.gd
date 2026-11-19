@@ -54,6 +54,9 @@ var _swing_foot := -1
 var _swing_time := 0.0
 var _swing_heading := 0.0
 var _swing_target := Transform3D.IDENTITY
+## 1 while a stationary turn holds the feet; fades to 0 over pivot.release_s once the pawn moves off.
+var _pivot_weight := 0.0
+var _release_goals: Array = []
 
 
 func setup(head_hitbox: Node3D) -> void:
@@ -133,10 +136,19 @@ func _process_modification_with_delta(delta: float) -> void:
 		goals.append([turn * (knee.origin - pivot) + pivot, Transform3D(turn * foot.basis, placed)])
 	if pivot_allowed:
 		_turn_feet(skeleton.global_transform, goals, pivot, delta)
+		_pivot_weight = 1.0 if _pivot_turning else 0.0
+		_release_goals = goals.duplicate(true)
 	else:
 		_pivot_initialized = false
 		_pivot_turning = false
 		_swing_foot = -1
+		if _pivot_weight > 0.0:
+			# Hand the planted feet (and the hip clamp below) back to the clip over release_s, not in one frame.
+			_pivot_weight = move_toward(_pivot_weight, 0.0, delta / float((cfg["pivot"] as Dictionary)["release_s"]))
+			var held_share := smoothstep(0.0, 1.0, _pivot_weight)
+			for i in goals.size():
+				var held: Array = _release_goals[i]
+				goals[i] = [(goals[i][0] as Vector3).lerp(held[0], held_share), (goals[i][1] as Transform3D).interpolate_with(held[1], held_share)]
 	if not head.is_empty():
 		# M2 AN3: the pelvis keeps hips_keep of the clip's swing (pitch and roll; its yaw stays), so the torso is not
 		# thrown ahead of the head on the hitbox. The feet keep the clip's goals above; the legs are re-solved below.
@@ -165,8 +177,8 @@ func _process_modification_with_delta(delta: float) -> void:
 		var length := (float(leg[3]) + float(leg[4])) * float(head.get("leg_reach", cfg["leg_reach"]))  # M2 AN3: head's unless legacy
 		height = minf(height, target.y - joint.y + sqrt(maxf(length * length - flat * flat, 0.0)))
 	var lifted := Vector3(hips.origin.x, lerpf(hips.origin.y, maxf(height, hips.origin.y), lift_weight), hips.origin.z)
-	if _pivot_turning:
-		lifted.y = minf(lifted.y, height)
+	if _pivot_weight > 0.0:
+		lifted.y = lerpf(lifted.y, minf(lifted.y, height), smoothstep(0.0, 1.0, _pivot_weight))
 	if free_crouch > 0.0 and hips_drop > 0.0:
 		# M2 AN3 stage C: in the free crouch the pelvis goes down to its head-driven target even below the clip's own
 		# (the knees bend more; the feet keep the clip's goals), so the torso can reach the lowered head.

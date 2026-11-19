@@ -4,6 +4,8 @@ extends "res://tests/test_case.gd"
 
 const DT := 1.0 / 60.0
 const SETTLE_FRAMES := 20
+## Just over the pivot's idle_speed_mps: the release happens while the locomotion blend is still near idle.
+const WALK_OFF_MPS := 0.2
 
 
 func test_stationary_turn_plants_the_feet_and_holds_the_head() -> void:
@@ -77,6 +79,49 @@ func _measure_turn(reversing: bool) -> void:
 	assert_true(rate <= float(limits["neck_chest_rate_max_dps"]), "%s: neck rate remains within the upright limit" % label)
 	assert_true(helmet_off <= float(limits["helmet_tolerance_m"]), "%s: helmet stays on the hitbox" % label)
 	pawn.free()
+
+
+## Walking off a planted turn hands the feet back to the clip without a one-frame pop. The control walks off from
+## a still stance (no turn), so it holds only the clip's own walk-start motion.
+func test_walking_off_a_turn_hands_the_feet_back_without_a_pop() -> void:
+	var control := await _walk_off_step(false)
+	var turned := await _walk_off_step(true)
+	print("PIVOT walk_off max_foot_step_m turned=%.4f control=%.4f" % [turned, control])
+	assert_true(turned <= control + 0.015, "walking off a turn moves each foot no more per frame than a still start, plus 1.5 cm")
+
+
+func _walk_off_step(turn_first: bool) -> float:
+	var tree := Engine.get_main_loop() as SceneTree
+	var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	tree.root.add_child(pawn)
+	pawn.set_physics_process(false)
+	var model := pawn.get_node("SoldierModel") as SoldierModel
+	model.set_process(false)
+	var skeleton := model.skeleton
+	model.animation_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL
+	var feet := [skeleton.find_bone("LeftFoot"), skeleton.find_bone("RightFoot")]
+	var start := SETTLE_FRAMES + 50  # the turn stops mid-stride and the walk starts on the same frame
+	var previous: Array = []
+	var worst := 0.0
+	for frame in start + 15:
+		if frame >= start:
+			var forward := -pawn.global_transform.basis.z
+			pawn.velocity = forward * WALK_OFF_MPS
+			pawn.global_position += pawn.velocity * DT
+		elif turn_first:
+			pawn.rotation.y = deg_to_rad(120.0 * clampf((frame - SETTLE_FRAMES) * DT, 0.0, 2.5))
+		model._process(DT)
+		model.animation_tree.advance(DT)
+		skeleton.advance(DT)
+		await tree.process_frame
+		var at: Array = [model.pose_cache[feet[0]].origin, model.pose_cache[feet[1]].origin]
+		if frame >= start and not previous.is_empty():
+			for side in 2:
+				worst = maxf(worst, (at[side] as Vector3).distance_to(previous[side]))
+		previous = at
+	pawn.free()
+	return worst
 
 
 static func _measure_contacts(samples: Array[PackedVector3Array], contact_y: float) -> Vector2:
