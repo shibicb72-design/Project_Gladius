@@ -1342,7 +1342,9 @@ fallback when a `mesh_source` is empty or a clip is missing.
   Cover: `cover_anim.gd` asks for the keyed clip per state and falls back to the old procedural pose.
   Actions: `SoldierPose` has an action layer; `SoldierModel.drive_actions` plays the ladder clips from
   `pawn.climbing` (clip time from the feet's height on the ladder, the gun slung) and `ladder_top` after the
-  top step; `SoldierModel.play_action(&"door_open" | &"chest_open" | &"pickup_ground")` is the entry point for
+  top step. The Blender opening key matches the nominal ladder's exit phase. The top step starts from the last
+  drawn climb pose in world space and blends into the keyed motion over `keyed.ladder.top_handoff_s`.
+  `SoldierModel.play_action(&"door_open" | &"chest_open" | &"pickup_ground")` is the entry point for
   the rest, but no gameplay signal calls it yet (OQ-ANIM-ACTIONS). `soldier_gait.gd` limits the pelvis bob and
   re-solves the legs around the same foot targets, with hip steering for the fallback jog variants.
 - **Head and body (M2 AN3, the bobblehead fix; OQ-ANIM-HEAD).** Cause [measured, `tools/head_motion_measure.gd`]:

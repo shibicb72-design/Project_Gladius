@@ -1406,7 +1406,7 @@
 			"made_by": "tools/blender/build_soldier_keyed.py",
 			"licence": "generated in this project (no source material)",
 			"bytes": 778436,
-			"sha256": "c6548fb40c698301133475f042157f64026fd156491b6c47708036007125334f"
+			"sha256": "a4909710b1819a8d8d5695946f909f2a752d8d3725ed07fe4599f06554474ef6"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_rifle.glb",
