@@ -1,7 +1,8 @@
 extends RefCounted
 ## M2B1: metrics shared by the on-demand sims (tests/sim/test_sim_alesia_1km.gd, tests/sim/test_sim_bot_match.gd).
 ## Not a test file (the runner loads only test_*.gd). Read-only: it connects to signals and reads state, it
-## never changes a decision, except the optional --sim-profile override of the bots' profile (see bind).
+## never changes a decision, except the optional --sim-profile / --sim-difficulty / --sim-brain overrides of the
+## bots' profile and brain numbers (see bind).
 ##   Shots: one Pawn.fired is one round (a burst fires one per round); a swing is a fired whose active weapon is
 ##     melee (Pawn.shot follows fired with the same weapon, pawn.gd fire_shot); hits are hitscan rays that hit a
 ##     pawn (shot_resolved is hitscan only). gun_hit_rate = hits / (shots - swings).
@@ -51,6 +52,15 @@ static func cli_profile() -> String:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--sim-profile="):
 			return a.substr(14)
+	return ""
+
+
+## M2 B4: the --sim-difficulty=<level> user argument (after `--`), a data/bots.json "difficulty" level id; "" when
+## absent. The level is applied after --sim-profile and before --sim-brain (see bind).
+static func cli_difficulty() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--sim-difficulty="):
+			return a.substr(17)
 	return ""
 
 
@@ -119,11 +129,18 @@ func _shot_band(p: Pawn) -> String:
 ## Call right after m.begin() (before the first physics tick). Applies --sim-profile to every bot Brain (the
 ## bots.json profile dictionary, as BotSpawner.attach_brain would hand it; the brain reads `profile` only while
 ## it thinks) and connects the shot counters. Returns the profile name in use, "" for an unknown --sim-profile.
+## M2 B4: --sim-difficulty=<level> then applies that bots.json difficulty level (MatchRoot.apply_bot_difficulty: the
+## level's accuracy, reaction_time_s and fight.settle_*) on top of the profile and names the run after the level
+## (profile=<level>); --sim-brain overrides still come last and win. "" for an unknown level. Without the argument
+## nothing changes.
 func bind(match_root: MatchRoot) -> String:
 	m = match_root
 	var cfg := DataRegistry.new().load_file(BOTS_PATH)
 	var profiles: Dictionary = cfg.get("profiles", {})
 	var want := cli_profile()
+	var level := cli_difficulty()
+	if level != "" and MatchRoot.bot_difficulty_level(level).is_empty():
+		return ""
 	if want == "":
 		profile_name = String(cfg.get("match_fill", {}).get("profile", "tiro"))
 	elif not profiles.has(want):
@@ -134,6 +151,9 @@ func bind(match_root: MatchRoot) -> String:
 			var brain := b.get_node_or_null("Brain") as BotBrain
 			if brain != null:
 				brain.profile = (profiles[want] as Dictionary).duplicate(true)
+	if level != "":
+		MatchRoot.apply_bot_difficulty(m.bots, level)
+		profile_name = level
 	var overrides := cli_brain_overrides()
 	if not overrides.is_empty():
 		var shown: Array[String] = []

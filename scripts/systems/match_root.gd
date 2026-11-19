@@ -444,6 +444,85 @@ static func wire_bot_shots(host_bridge: NetMatchBridge, bot_pawns: Array) -> voi
 				host_bridge.announce_pawn_shot(b, o, e))
 
 
+## ---- Bot difficulty (M2 B4, OQ-BOT-DIFFICULTY placeholders in data/bots.json "difficulty") ----
+## A level overrides every bot's profile accuracy / reaction_time_s and brain.fight settle_s / settle_floor_frac.
+## Only a real (lobby) match applies one; tests, sims and offline matches keep match_fill.profile.
+
+## The data/bots.json "difficulty" block; {} when missing or malformed.
+static func bot_difficulty_cfg() -> Dictionary:
+	var d: Variant = DataRegistry.new().load_file(BotSpawner.BOTS_PATH).get("difficulty", {})
+	return d if d is Dictionary else {}
+
+
+## The level ids in cycle order ("order"), keeping only ids that exist in "levels".
+static func bot_difficulty_ids() -> Array[String]:
+	var cfg := bot_difficulty_cfg()
+	var levels: Variant = cfg.get("levels", {})
+	var order: Variant = cfg.get("order", [])
+	var out: Array[String] = []
+	if levels is Dictionary and order is Array:
+		for id in order:
+			if id is String and (levels as Dictionary).get(id) is Dictionary and not out.has(id):
+				out.append(id)
+	return out
+
+
+## The data default level id ("default"), "" when the table has none.
+static func bot_difficulty_default() -> String:
+	var id: Variant = bot_difficulty_cfg().get("default", "")
+	return id if id is String else ""
+
+
+## The level dictionary of `id`; {} for an unknown id.
+static func bot_difficulty_level(id: String) -> Dictionary:
+	var levels: Variant = bot_difficulty_cfg().get("levels", {})
+	var level: Variant = (levels as Dictionary).get(id) if levels is Dictionary else null
+	return level if level is Dictionary else {}
+
+
+## The English label of `id`; "" for an unknown id.
+static func bot_difficulty_label(id: String) -> String:
+	return str(bot_difficulty_level(id).get("label", ""))
+
+
+## `value` when it is a String naming a level, else the default (unknown, missing / null and non-strings).
+static func validated_bot_difficulty(value: Variant) -> String:
+	if value is String and not bot_difficulty_level(value).is_empty():
+		return value
+	return bot_difficulty_default()
+
+
+## Applies level `id` to every pawn's "Brain" (BotBrain): a deep copy of its profile with the level's accuracy and
+## reaction_time_s, and a deep copy of its cfg with the level's fight.settle_s / settle_floor_frac. The dictionaries
+## the brain was handed are never written. Pawns without a Brain (clients) are skipped. Unknown id: nothing changes.
+## Returns the number of brains changed.
+static func apply_bot_difficulty(bot_pawns: Array, id: String) -> int:
+	var level := bot_difficulty_level(id)
+	if level.is_empty():
+		return 0
+	var changed := 0
+	for pawn in bot_pawns:
+		if not is_instance_valid(pawn) or not pawn is Node:
+			continue
+		var brain := (pawn as Node).get_node_or_null("Brain") as BotBrain
+		if brain == null:
+			continue
+		var profile := brain.profile.duplicate(true)
+		for key in ["accuracy", "reaction_time_s"]:
+			if level.has(key):
+				profile[key] = float(level[key])
+		var cfg := brain.cfg.duplicate(true)
+		var fight: Dictionary = cfg["fight"] if cfg.get("fight") is Dictionary else {}
+		for key in ["settle_s", "settle_floor_frac"]:
+			if level.has(key):
+				fight[key] = float(level[key])
+		cfg["fight"] = fight
+		brain.profile = profile
+		brain.cfg = cfg
+		changed += 1
+	return changed
+
+
 ## Client: draws another player's shot from the host's report (the local pawn drew its own at once).
 func _on_remote_shot(player_id: int, origin: Vector3, end: Vector3) -> void:
 	var p: Pawn = director.player(player_id)
