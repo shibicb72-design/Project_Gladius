@@ -11,11 +11,13 @@ static var _held: Dictionary = {}
 static var skip_sources: Array[String] = []
 var sources: Dictionary
 var resolved_sources: Dictionary = {}
+var resolved_candidates: Dictionary = {}
 
 func _init(table: Variant = null) -> void:
 	sources = DataRegistry.new().load_file("res://data/anim_sources.json") if table == null else table
 
 func resolve(logical: String, procedural: Animation = null, target: Skeleton3D = null) -> Animation:
+	resolved_candidates.erase(logical)
 	var slots: Dictionary = sources.get("clips", {})
 	var slot: Dictionary = slots.get(logical, {})
 	for source in ORDER:
@@ -49,6 +51,7 @@ func resolve(logical: String, procedural: Animation = null, target: Skeleton3D =
 			var clip: Animation = _clips[key]
 			if clip != null:
 				resolved_sources[logical] = source
+				resolved_candidates[logical] = candidate
 				return clip
 			_report_once("unsupported candidate " + source + " " + logical + " " + path)
 	resolved_sources[logical] = "procedural" if procedural != null else "none"

@@ -10,7 +10,7 @@ const GLB := "res://assets/generated/characters/soldier_clips.glb"
 const CLIPS := {"Idle": true, "Walk": true, "Jog_Fwd": true, "Sprint": true, "Jump": true, "Crouch_Idle": true,
 	"Crouch_Fwd": true, "Hit_Chest": false, "Hit_Head": false, "Death01": false, "Fixing_Kneeling": false, "Sword_Attack": false}
 ## Slots that resolve to the Blender clips.
-const SLOTS: Array[String] = ["idle", "walk_slow", "walk_fwd", "walk_back", "strafe_l", "strafe_r", "run_fwd", "jump_air",
+const SLOTS: Array[String] = ["idle", "walk_slow", "walk_fwd", "run_fwd", "jump_air",
 	"hit_chest", "hit_head", "death", "revive", "blade_swing", "cover_crouch_idle", "cover_crouch_move"]
 ## Seam limits of a looping clip (first against last sample): every bone's local rotation and the pelvis position.
 const SEAM_DEG := 0.5

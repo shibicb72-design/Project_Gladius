@@ -102,10 +102,12 @@ static func measure(clip: Animation, skeleton: Skeleton3D) -> Dictionary:
 
 ## A gait cycle ready for the graph: {clip, cycle_m, speed_mps}. `reverse` plays it backwards (a back-pedal from a
 ## forward clip). Shared: one Animation per (source clip, reverse) for every soldier.
-static func gait(clip: Animation, skeleton: Skeleton3D, reverse: bool) -> Dictionary:
+static func gait(clip: Animation, skeleton: Skeleton3D, reverse: bool, authored_cycle_m: float = 0.0) -> Dictionary:
 	var key := str(clip.get_instance_id()) + ("r" if reverse else "f")
 	if not _gaits.has(key):
-		var m := measure(clip, skeleton)
+		var m := measure(clip, skeleton) if authored_cycle_m <= 0.0 else {
+			"left_forward_s": 0.0, "cycle_m": authored_cycle_m,
+			"speed_mps": authored_cycle_m / clip.length, "contact": 1.0}
 		var normalized := retime(clip, float(m["left_forward_s"]), reverse, CYCLE_S)
 		_gaits[key] = {"clip": normalized, "cycle_m": float(m["cycle_m"]), "speed_mps": float(m["speed_mps"]), "contact": float(m["contact"])}
 	return _gaits[key]

@@ -1,6 +1,6 @@
 {
 	"version": 2,
-	"_todo": "OQ-LIBS-SOURCES (M2 AN1 commit 4): the Quaternius Universal Animation Library Standard (CC0, assets/third_party/quaternius_ual, catalogued in data/asset_catalog.json) is the only acquired library. Candidates follow actionforge, ual, mixamo_local, procedural order; a slot with no usable candidate keeps its code-built clip. 'clip' is the clip name in the imported scene (Godot's importer drops the _Loop suffix and loops the clip). 'rig' names the source bone map below. Local lists stay empty in the committed table. Which UAL clip serves which slot is a presentation choice (OQ-ANIM), not a design value. M2 AN2 item 2: 'blender' (first in ClipLibrary.ORDER) = the same UAL clips retargeted, cleaned and baked onto the soldier's own rig in Blender (assets/generated/characters/soldier_clips.glb); the ual candidates stay listed as the fallback. walk_back and strafe_l/_r play the Blender jog the way they played the UAL jog (reversed, hips turned): no back-pedal or strafe clip is baked yet.",
+	"_todo": "OQ-LIBS-SOURCES (M2 AN1 commit 4): the Quaternius Universal Animation Library Standard (CC0, assets/third_party/quaternius_ual, catalogued in data/asset_catalog.json) is the only acquired library. Candidates follow actionforge, ual, mixamo_local, procedural order; a slot with no usable candidate keeps its code-built clip. 'clip' is the clip name in the imported scene (Godot's importer drops the _Loop suffix and loops the clip). 'rig' names the source bone map below. Local lists stay empty in the committed table. Which UAL clip serves which slot is a presentation choice (OQ-ANIM), not a design value. M2 AN2 item 2: 'blender' (first in ClipLibrary.ORDER) = the same UAL clips retargeted, cleaned and baked onto the soldier's own rig in Blender (assets/generated/characters/soldier_clips.glb); the ual candidates stay listed as the fallback. walk_back and strafe_l/_r use the dedicated Blender cycles and fall back to the earlier jog variants.",
 	"rigs": {
 		"soldier": {
 			"_note": "M2 AN2 item 2: clips baked in Blender onto the soldier's own 22-bone rig (assets/generated/characters/soldier_clips.glb, tools/blender/build_soldier_clips.py). same_rig: when the source skeleton has every soldier bone with the same rests, ClipLibrary copies its clips as authored (AnimRetarget.same_rig_clip, no re-retarget, toes included); otherwise they are retargeted through this map (humanoid profile name -> soldier bone).",
@@ -49,23 +49,24 @@
 			"procedural": true
 		},
 		"walk_back": {
-			"_note": "M2 AN1: the UAL has no backward clip; SoldierAnimation plays this one reversed.",
-			"blender": [{"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Jog_Fwd", "rig": "soldier"}],
+			"_note": "Authored back-pedal, with reversed jog as fallback. directional_cycle_m is the foot travel per cycle used by the Blender bake and Godot playback.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_directional.glb", "clip": "backpedal", "rig": "soldier", "directional_cycle_m": 1.44}, {"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Jog_Fwd", "rig": "soldier"}],
 			"actionforge": [],
 			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jog_Fwd", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"strafe_l": {
-			"_note": "M2 AN1: the UAL has no strafe clip; the legs jog and SoldierGait turns the hips toward the motion.",
-			"blender": [{"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Jog_Fwd", "rig": "soldier"}],
+			"_note": "Authored left sidestep, with turned jog as fallback.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_directional.glb", "clip": "strafe_left", "rig": "soldier", "directional_cycle_m": 1.44}, {"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Jog_Fwd", "rig": "soldier"}],
 			"actionforge": [],
 			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jog_Fwd", "rig": "ual"}],
 			"mixamo_local": [],
 			"procedural": true
 		},
 		"strafe_r": {
-			"blender": [{"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Jog_Fwd", "rig": "soldier"}],
+			"_note": "Authored right sidestep, with turned jog as fallback.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_directional.glb", "clip": "strafe_right", "rig": "soldier", "directional_cycle_m": 1.44}, {"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Jog_Fwd", "rig": "soldier"}],
 			"actionforge": [],
 			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Jog_Fwd", "rig": "ual"}],
 			"mixamo_local": [],

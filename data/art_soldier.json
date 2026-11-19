@@ -16,7 +16,7 @@
 		"mesh_source": "res://assets/generated/characters/soldier.glb",
 		"lod_aabb_grow_m": 0.6,
 		"_cape_downed_note": "M2 AN2 item 1 round 2: the cape's sway value (shader cape_lift) while downed, blended in with the downed pose: negative moves the hem down and toward the body, so it lies along the back in the knee-crawl instead of standing up.",
-		"cape_downed_lift": -1.6,
+		"cape_downed_lift": -0.55,
 		"part_overrides": {
 			"_note": "Proportions toward a trained legionary with the head hitbox (0.22 m sphere at 1.75 m, which the helmet must enclose) and the capsule unchanged: the hips stand 5 cm higher and the thighs and shins are longer (hip pivot 0.91 -> 0.96, knee 0.475 -> 0.49, leg 0.81 -> 0.87 of a 1.99 m top of helmet); the belt, tassets and strips move up with the hips; a broader, deeper chest so the helmet no longer reads as wide as the torso; the shoulder domes become smaller, flatter plates over two lorica bands (pauldron_rim and the added pauldron_band). Pivot parts (pelvis, thighs, shins) set the rig: changing their at or height changes the skeleton (data/art_astra.json _parts_note).",
 			"pelvis": {"at": [0, 0.96, 0]},

@@ -1252,6 +1252,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
   outputs: `build_pipeline_proof.py` -> `characters/pipeline_proof.glb` (the pipeline test asset);
   `build_soldier.py` (+ `soldier_geom.py`, `soldier_data.py`, `soldier_design.json`) -> `characters/soldier.glb`;
   `build_soldier_clips.py` (+ `soldier_clips_design.json`) -> `characters/soldier_clips.glb`;
+  `build_soldier_directional.py` -> `characters/soldier_directional.glb`;
   `build_soldier_keyed.py` -> `characters/soldier_keyed.glb`; `build_soldier_rifle.py` (M2 AN3) ->
   `characters/soldier_rifle.glb`; `build_view_arms.py` (+ `view_geom.py`,
   `view_bl.py`) -> `characters/view_arms.glb`; `build_weapons.py` (+ `weapon_geom.py`) ->
@@ -1290,6 +1291,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   only, the world-fixed tracer that starts at the muzzle, and the spent cell; `view_probe.gd` measures posed
   vertices for the tests. Pickup is told apart from switch inside the view code by comparing the loadout's slot
   objects on `weapon_switched`; `pawn.gd` has no hook for it.
+  CX1 keys a lower support elbow and keeps the rifle canted during the charging stage. Sprint settles back
+  to ready over 0.28 s, and the landing dip carries a small counter-pitch on recovery.
 - **Soldier mesh.** `art_soldier.json` `soldier.mesh_source` -> `soldier.glb`: one armature of 22 bones (the 17
   of `anim.json` plus LeftToes, RightToes, LeftFingers, RightFingers and Prop from
   `anim_third_person.json` `bones_add`; identity rest bases) and two skinned LODs, `SoldierNear` (2,536
@@ -1299,7 +1302,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   and `armor_far` ("ArmorFar", begins there) share one skin and one custom AABB. The part boxes (`part_bones`,
   meta "parts") stay computed from the part data and are the tested proxy: `test_soldier_glb.gd` ties the mesh to
   them (helmet round the head sphere, rests and bind poses within 1 mm). An empty `mesh_source` builds the old
-  merged-parts mesh (one LOD). The corpse keeps the near mesh.
+  merged-parts mesh (one LOD). The corpse keeps the near mesh. CX1 opens the lower spaulder lames and weights
+  them nearer the cuirass. The cape's hem sits higher and farther behind the hips, with less inward sway while downed.
 - **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json` in the
   order `blender`, `actionforge`, `ual`, `mixamo_local`. `blender` = `soldier_clips.glb` (the CC0 Quaternius
   UAL clips retargeted in Blender onto the soldier rig, feet and loops cleaned, shipped baked: idle, walk, jog,
@@ -1312,13 +1316,17 @@ fallback when a `mesh_source` is empty or a clip is missing.
   plays ground speed / stride and the feet stay planted; every soldier shares the clips. Still code-built:
   third-person aim and fire (hands on the gun through the upper layer and the left-hand IK; the code-built
   reload is now the fallback behind the keyed one, below), the downed
-  knee-crawl (`soldier_crawl.gd`), landing; strafes play the turned jog, the back-pedal the reversed jog.
+  knee-crawl (`soldier_crawl.gd`) and landing. CX1 adds hand-authored sidesteps and back-pedal on the same rig.
+  The clips start at the same foot contact and use the authored cycle distance in `anim_sources.json`.
+  The lateral and backward blend points use the existing movement ratio, so full-speed cardinal motion shows
+  the complete cycle. The turned and reversed jog serve as fallbacks. `test_soldier_directional.gd` checks the
+  resolved clips, live stance drift and head motion in all three directions.
   Cover: `cover_anim.gd` asks for the keyed clip per state and falls back to the old procedural pose.
   Actions: `SoldierPose` has an action layer; `SoldierModel.drive_actions` plays the ladder clips from
   `pawn.climbing` (clip time from the feet's height on the ladder, the gun slung) and `ladder_top` after the
   top step; `SoldierModel.play_action(&"door_open" | &"chest_open" | &"pickup_ground")` is the entry point for
-  the rest, but no gameplay signal calls it yet (OQ-ANIM-ACTIONS). `soldier_gait.gd` turns the hips toward a
-  strafe while the chest and rifle keep the aim, and limits the pelvis bob (the helmet stays on the head hitbox).
+  the rest, but no gameplay signal calls it yet (OQ-ANIM-ACTIONS). `soldier_gait.gd` limits the pelvis bob and
+  re-solves the legs around the same foot targets, with hip steering for the fallback jog variants.
 - **Head and body (M2 AN3, the bobblehead fix; OQ-ANIM-HEAD).** Cause [measured, `tools/head_motion_measure.gd`]:
   the gait clips pitch the pelvis forward (jog 22, sprint 41 degrees) under a helmet pinned to the head hitbox, so
   the chest top swung ahead of the neck; in the drop the run cycle started under the fall pose in one frame. Fix,
@@ -1363,9 +1371,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `head.free_crouch` keys: `nominal_head_drop_m` 0.9 (measured: standing Head rest 1.75 - cover.json
   `crouch_head_y_m` 0.85), `hips_drop_per_head`, `move_full_mps`, `reach_max_deg`. Tests (real pawn):
   `tests/test_soldier_crouch.gd`, and in `tests/test_soldier_head_motion.gd` the free crouch down / up and the
-  free-crouch-to-low-cover hand-off (open finding, OQ-ANIM-HEAD). `tests/crouch_stub_pawn.gd` (a `crouch_amount()`
-  override) is now read by `tools/head_motion_measure.gd` and `tools/soldier_capture.gd` only; it no longer drives the
-  free crouch (that reads `free_crouch_amount`).
+  free-crouch-to-low-cover hand-off (open finding, OQ-ANIM-HEAD). `tools/head_motion_measure.gd` and
+  `tools/soldier_capture.gd` drive the real pawn's free crouch amount and update its body shapes.
 - **Keyed rifle reload (M2 AN3; OQ-ANIM-RELOAD).** `build_soldier_rifle.py` writes `soldier_rifle.glb`: one staged
   reload per gun (`reload_pilum_br`, `reload_sagittarii_rifle`), 50 frames at 30 fps, starting and ending on the
   aimed pose (a port of `SoldierRig.arm_rotations`) with the left hand on that gun's foregrip; stage times, cant

@@ -35,10 +35,10 @@ extends SceneTree
 const STATES: Array[String] = ["standing", "walk", "fire", "reload", "switch", "blade", "blade_swing", "wall", "look_down",
 		"ads_mid", "ads", "ads_fire", "ads_walk", "cover_in", "cover_out", "shadow", "inspect", "breath", "sprint", "reload_seq",
 		"land", "pickup", "dense_reload", "dense_switch", "dense_pickup", "dense_swing", "dense_ads", "dense_sprint",
-		"dense_walk", "dense_idle", "dense_fire"]
+		"dense_walk", "dense_idle", "dense_fire", "dense_land"]
 ## M2 AN2 item 4b: the dense_* states save a still every --every physics frames (default 2) across a whole motion:
 ## <tag>_<motion>_seq_NNN.png (reload, switch, pickup, swing, ads_raise / ads_lower, sprint (in, a stride, out), walk
-## (one stride), idle (one breath, every 8th frame), fire), for judging clips as sequences (tools/contact_sheet.gd).
+## (one stride), idle (one breath), fire and landing, for judging clips as sequences (tools/contact_sheet.gd).
 const SEQ_FRAMES := 6
 const _MatchScene := preload("res://scenes/match/match.tscn")
 
@@ -327,10 +327,14 @@ func _state_switch() -> void:
 
 
 func _blade_out() -> void:
-	var w := _pawn.loadout.get_active()
-	if w == null or not w.def.is_melee():
+	for attempt in _pawn.loadout.slots.size():
+		var w := _pawn.loadout.get_active()
+		if w != null and w.def.is_melee():
+			return
 		_press("swap_weapon")
 		await _step(40)
+	_failed += 1
+	_log("No blade reachable by swapping")
 
 
 func _state_blade() -> void:
@@ -497,7 +501,7 @@ func _state_pickup() -> void:
 
 ## Landing: the pawn lifted 2.5 m and dropped on its own physics (first person stays on: not the carrier fall);
 ## land_0..3 from touchdown through the dip.
-func _state_land() -> void:
+func _state_land(dense: bool = false) -> void:
 	await _gun_out()
 	_pawn.global_position += Vector3.UP * 2.5
 	_pawn.velocity = Vector3.ZERO
@@ -506,10 +510,13 @@ func _state_land() -> void:
 		await _step()
 		if _pawn.is_on_floor() and i > 3:
 			break
-	for i in 4:
-		_log("LAND %d motions=%s" % [i, vm.get_motion_names()])
-		await _save_still("land_%d" % i)
-		await _step(4)
+	if dense:
+		await _seq("land", roundi(float(_fp_anim()["land"]["s"]) * 60.0) + 4)
+	else:
+		for i in 4:
+			_log("LAND %d motions=%s" % [i, vm.get_motion_names()])
+			await _save_still("land_%d" % i)
+			await _step(4)
 	await _step(30)
 
 
@@ -934,10 +941,10 @@ func _dense(motion: String) -> void:
 			await _step(10)
 			_frame.move = Vector2(0, -1)
 			_frame.sprint = true
-			var k := await _seq("sprint", 60, 3)
+			var k := await _seq("sprint", 60)
 			_frame.sprint = false
 			_frame.move = Vector2.ZERO
-			await _seq("sprint", 36, 3, k)
+			await _seq("sprint", 36, -1, k)
 			await _step(30)
 		"walk":
 			await _gun_out()
@@ -950,7 +957,9 @@ func _dense(motion: String) -> void:
 		"idle":
 			await _gun_out()
 			await _step(20)
-			await _seq("idle", roundi(60.0 / float(_fp_anim()["breath"]["hz"])), 8)
+			await _seq("idle", roundi(60.0 / float(_fp_anim()["breath"]["hz"])))
+		"land":
+			await _state_land(true)
 		"fire":
 			await _gun_out()
 			await _step(20)

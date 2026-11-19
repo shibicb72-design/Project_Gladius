@@ -9,13 +9,13 @@ extends SceneTree
 ## (60 / fps) physics frames from ~0.3 s before the first input to ~0.5 s after the motion ends:
 ##   <out>/<state>/<state>_NNN.jpg
 ## and prints one line per state with the cover states seen in order and the frame count. Presentation only: nothing
-## here feeds back into the game code. Options: --out=<dir> --seed=<n> --states=<comma list> --fps=<n, default 30>.
+## here feeds back into the game code. Options: --out=<dir> --seed=<n> --states=<comma list> --fps=<n, default 30>
+## and --size=WxH (default 2520x1080).
 ## --fixed-fps 60 makes one rendered frame exactly one physics tick, so saving a frame never changes game time.
 
 const STATES: Array[String] = ["enter_button", "enter_auto", "slide", "lean_fire", "rise_fire", "aim_hold", "exit_stick",
 		"exit_cover", "exit_sprint", "fire_dim"]
 const _MatchScene := preload("res://scenes/match/match.tscn")
-const SIZE := Vector2i(2520, 1080)
 const PRE := 18   # frames before the first input (0.3 s)
 const POST := 30  # frames after the motion ends (0.5 s)
 const HIGH_H := 2.2
@@ -28,6 +28,7 @@ const X_LONG := 960.0    # 16 m wide HIGH wall (the middle is 8 m from either ed
 var _out := "build/cover_shots"
 var _seed := 0
 var _fps := 30
+var _size := Vector2i(2520, 1080)
 var _states: Array[String] = []
 var _svp: SubViewport
 var _match: MatchRoot
@@ -57,6 +58,9 @@ func _initialize() -> void:
 			SoldierRig.head_legacy = true
 		elif a.begins_with("--fps="):
 			_fps = maxi(1, int(a.substr(6)))
+		elif a.begins_with("--size="):
+			var wh := a.substr(7).split("x")
+			_size = Vector2i(int(wh[0]), int(wh[1]))
 		elif a.begins_with("--states="):
 			for s in a.substr(9).split(",", false):
 				_states.append(s)
@@ -217,7 +221,7 @@ func _boot(x: float, z: float) -> bool:
 	PlatformServices.dpi_override = 420.0
 	load("res://scripts/ui/touch_hud.gd").move_stick_override = "custom"
 	_svp = SubViewport.new()
-	_svp.size = SIZE
+	_svp.size = _size
 	_svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(_svp)
 	_match = _MatchScene.instantiate()

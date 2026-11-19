@@ -51,6 +51,7 @@ var neck: SoldierNeck
 var _blend_shown := Vector2.ZERO  # M2 AN3: the locomotion blend as shown (rate-limited)
 var crouch_shown := 0.0  # M2 AN3 stage C: the free crouch clip's blend as shown (tests, captures)
 var gait_rate := 1.0  # gait cycles per second shown (ground speed / cycle_m)
+var _directional_gait := false
 var airborne := false
 var hit_count := 0  # flinches requested so far (tests, captures)
 var _gait_cfg: Dictionary
@@ -134,6 +135,7 @@ func _ready() -> void:
 	add_child(animation_tree)
 	_gait_cfg = SoldierRig.config()["gait"]
 	_cycles = animation_tree.get_meta(&"gait_cycles", {})
+	_directional_gait = animation_tree.get_meta(&"directional_gait", false)
 	# M2 AN1: the gait modifier runs first after the tree (hip turn for strafes, library spine and neck carry).
 	gait = SoldierGait.new()
 	gait.name = "Gait"
@@ -417,8 +419,8 @@ func _on_visibility_changed() -> void:
 	if not _pawn.visible:
 		_on_weapon_switched(0)
 
-## M2 AN1: the cycle distance the blend shows: forward motion blends the slow walk, the jog and the sprint by
-## speed; sideways and backward motion use the jog's cycle (the strafe and back slots play the jog).
+## Forward speed blends walk, jog and sprint distances. Lateral and backward motion use the authored stride
+## when the directional clips are available, or the jog distance in the fallback graph.
 func cycle_m(blend: Vector2) -> float:
 	var jog := float(_cycles.get("walk_fwd", 0.0))
 	var speed := blend.length()
@@ -434,11 +436,17 @@ func cycle_m(blend: Vector2) -> float:
 		ahead = lerpf(slow, jog, (speed - slow_at) / (1.0 - slow_at))
 	else:
 		ahead = lerpf(jog, sprint, clampf((speed - 1.0) / maxf(_sprint - 1.0, 0.0001), 0.0, 1.0))
+	if _directional_gait:
+		var side := float(_cycles["strafe_r" if blend.x >= 0.0 else "strafe_l"])
+		var fore_aft := float(_cycles["walk_back"]) if blend.y >= 0.0 else ahead
+		# In a diagonal blend each cardinal cycle contributes only its share of the stance travel.
+		var travel := blend.abs() * Vector2(side, fore_aft)
+		return travel.length() / (absf(blend.x) + absf(blend.y))
 	return lerpf(jog, ahead, clampf(-blend.y / speed, 0.0, 1.0))
 
 
-## Every gait slot plays at ground speed / cycle_m, so the stance foot moves with the ground; the strafe slots
-## swap to the reversed cycle in the back half while SoldierGait turns the hips toward the motion.
+## Every gait slot plays at ground speed / cycle_m. In the fallback graph SoldierGait turns the hips toward
+## the motion and the strafe slots switch to the reversed jog in the back half.
 func _drive_gait(blend: Vector2, ground_speed: float) -> void:
 	if _cycles.is_empty():
 		return
@@ -448,6 +456,8 @@ func _drive_gait(blend: Vector2, ground_speed: float) -> void:
 		animation_tree.set("parameters/locomotion/" + slot + "/speed/scale", gait_rate * SoldierClips.CYCLE_S)
 	var cover_mix: Variant = animation_tree.get("parameters/cover_mix/blend_amount")
 	gait.lift_weight = 1.0 - (float(cover_mix) if cover_mix != null else 0.0)
+	if _directional_gait:
+		return  # The authored goals already travel in the local direction of the blend point.
 	var moving := blend
 	if (_pawn as Pawn).drop_state != Pawn.Drop.NONE or not (_pawn as Pawn).is_alive():
 		moving = Vector2.ZERO
