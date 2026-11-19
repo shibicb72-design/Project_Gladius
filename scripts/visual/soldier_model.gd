@@ -368,8 +368,11 @@ func _show_weapon() -> void:
 	# M2 AN1 commit 6: a downed soldier crawls on both hands; the gun is slung (hidden) instead of dragging on the
 	# ground from the right hand (data/art_soldier.json soldier.gun.hide_downed_weight).
 	var downed := pose != null and float(pose.weights["downed"]) >= float(SoldierLook.config()["gun"]["hide_downed_weight"])
-	rifle.visible = not melee and not downed and not gun_slung()
-	blade.visible = melee
+	# The revive clip works with both hands. Stow the held mesh once the hands have left its grip.
+	var revive_weight := float(pose.weights["revive"]) if pose != null else 0.0
+	var reviving := revive_weight > 0.0 and revive_weight >= float(pose.cfg["revive"].get("hide_weapon_weight", 0.5))
+	rifle.visible = not melee and not downed and not reviving and not gun_slung()
+	blade.visible = melee and not reviving
 	if left_ik != null and pose != null:
 		# M2 AN2: the climb and the one-shots take the left arm too (SoldierPose also counts them, a frame later).
 		left_ik.influence = 1.0 - maxf(pose.arms_weight, maxf(climb_weight, action_weight()))

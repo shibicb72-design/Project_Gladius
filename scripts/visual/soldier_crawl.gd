@@ -1,8 +1,8 @@
 class_name SoldierCrawl
 extends SkeletonModifier3D
-## M2 AN1 commit 4: the downed knee-crawl, code-built (the UAL has no crawl). Runs after SoldierPose (which keeps the
-## downed upper body: data/anim.json poses.downed bones) and takes over the hips, the legs and the neck by the
-## downed weight. Both knees kneel on the ground with the shins laid back and the toes pointed; the knees step in
+## M2 AN1 commit 4: the downed knee-crawl, code-built (the UAL has no crawl). Runs after SoldierPose and takes
+## over the hips, legs and neck by the downed weight. CX1 adds an alternating reach to the existing downed
+## upper-body pose. Both knees kneel on the ground with the shins laid back and the toes pointed; the knees step in
 ## turn: a planted knee stays where it touched while the body moves over it (its offset from the hip joint runs from
 ## +step/2 to -step/2 along the motion during the stance half of the cycle), then lifts and swings ahead. The cycle
 ## advances by ground distance / (2 x step_m), so a planted knee moves with the ground (no slide) at any speed; the
@@ -24,12 +24,14 @@ var _thigh_dir := Vector3.DOWN
 var _shin_dir := Vector3.DOWN
 var _neck_from_chest := Transform3D.IDENTITY
 var _dir := Vector3.FORWARD
+var _arm_motion := 0.0
 
 
 func setup() -> void:
 	cfg = SoldierRig.config()["crawl"]
 	var skeleton := get_skeleton()
-	for name in ["Hips", "Spine", "Chest", "Neck", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"]:
+	for name in ["Hips", "Spine", "Chest", "Neck", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot",
+			"LeftUpperArm", "LeftForeArm", "RightUpperArm", "RightForeArm"]:
 		_bones[name] = skeleton.find_bone(name)
 	var hips := skeleton.get_bone_global_rest(_bones["Hips"])
 	for side in ["Left", "Right"]:
@@ -65,6 +67,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		var goal := 0.5 if phase > 0.25 and phase <= 0.75 else (1.0 if phase > 0.75 else 0.0)
 		phase = fposmod(move_toward(phase, goal, float(cfg["settle_cycles_s"]) * delta), 1.0)
 	if weight <= 0.0:
+		_arm_motion = 0.0
 		return
 	var w := smoothstep(0.0, 1.0, weight)
 	var lean := deg_to_rad(float(cfg["pelvis_pitch_deg"]))
@@ -97,6 +100,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		_blend(skeleton, side + "UpperLeg", hips_basis.get_rotation_quaternion().inverse() * thigh, w)
 		_blend(skeleton, side + "LowerLeg", thigh.inverse() * shin, w)
 		_blend(skeleton, side + "Foot", Quaternion(Vector3.RIGHT, deg_to_rad(float(cfg["foot_point_deg"]))), w)
+	_move_arms(skeleton, speed, delta, w)
 	# The neck rides on the chest top (the head hitbox note: downed head about poses.downed.head_height_m).
 	var chest := new_hips * skeleton.get_bone_pose(_bones["Spine"]) * skeleton.get_bone_pose(_bones["Chest"])
 	var carried := chest * _neck_from_chest
@@ -108,3 +112,24 @@ func _process_modification_with_delta(delta: float) -> void:
 func _blend(skeleton: Skeleton3D, bone: String, rotation: Quaternion, w: float) -> void:
 	var index := int(_bones[bone])
 	skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(rotation.normalized(), w))
+
+
+func _move_arms(skeleton: Skeleton3D, speed: float, delta: float, weight_shown: float) -> void:
+	var arms: Dictionary = cfg["arms"]
+	var target := clampf(speed / float(arms["full_mps"]), 0.0, 1.0)
+	_arm_motion = move_toward(_arm_motion, target, delta / float(arms["ease_s"]))
+	var amount := _arm_motion * weight_shown
+	if amount <= 0.0:
+		return
+	var cycle := phase * TAU
+	for side in ["Left", "Right"]:
+		var sign_of_side := -1.0 if side == "Left" else 1.0
+		var reach := -sin(cycle) * sign_of_side
+		var elbow := sin(cycle - PI / 6.0) * sign_of_side
+		var shoulder := int(_bones[side + "UpperArm"])
+		var forearm := int(_bones[side + "ForeArm"])
+		var shoulder_offset := Quaternion.from_euler(Vector3(reach * float(arms["reach_deg"]), 0.0,
+			sign_of_side * float(arms["clearance_deg"])) * deg_to_rad(amount))
+		var elbow_offset := Quaternion(Vector3.RIGHT, deg_to_rad(elbow * float(arms["elbow_deg"]) * amount))
+		skeleton.set_bone_pose_rotation(shoulder, (skeleton.get_bone_pose_rotation(shoulder) * shoulder_offset).normalized())
+		skeleton.set_bone_pose_rotation(forearm, (skeleton.get_bone_pose_rotation(forearm) * elbow_offset).normalized())
