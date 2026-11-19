@@ -1419,6 +1419,10 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `tests/test_soldier_crouch.gd`, and in `tests/test_soldier_head_motion.gd` the free crouch down / up and the
   free-crouch-to-low-cover hand-off (open finding, OQ-ANIM-HEAD). `tools/head_motion_measure.gd` and
   `tools/soldier_capture.gd` drive the real pawn's free crouch amount and update its body shapes.
+- **Downed crawl and revive (M2 CX1).** The existing SoldierCrawl modifier offsets the shoulders and elbows
+  in opposition to the knee cycle. The arm motion eases out when the pawn stops. During revive, SoldierModel
+  hides the held weapon mesh at half pose weight so both hands can work clear of the weapon. Visibility
+  returns as the revive pose blends out. The active loadout stays available throughout.
 - **Keyed rifle reload (M2 AN3; OQ-ANIM-RELOAD).** `build_soldier_rifle.py` writes `soldier_rifle.glb`: one staged
   reload per gun (`reload_pilum_br`, `reload_sagittarii_rifle`), 50 frames at 30 fps, starting and ending on the
   aimed pose (a port of `SoldierRig.arm_rotations`) with the left hand on that gun's foregrip; stage times, cant

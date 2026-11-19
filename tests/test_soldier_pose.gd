@@ -27,6 +27,23 @@ func _wait(seconds: float) -> void:
 		await _tree().process_frame
 
 
+func test_working_revive_pose_clears_and_restores_the_held_weapon() -> void:
+	var pawn := _pawn()
+	var model := pawn.get_node("SoldierModel") as SoldierModel
+	var active := pawn.loadout.get_active()
+	await _frames(3)
+	assert_true(model.rifle.visible, "the rifle is visible before reviving")
+	model.pose.force["revive"] = 1.0
+	await _wait(0.5)
+	assert_true(float(model.pose.weights["revive"]) > 0.99, "the working pose is fully blended in")
+	assert_true(not model.rifle.visible and not model.blade.visible, "the working hands have no weapon mesh")
+	assert_eq(pawn.loadout.get_active(), active, "stowing the mesh preserves the active weapon")
+	model.pose.force.erase("revive")
+	await _wait(0.5)
+	assert_true(model.rifle.visible, "the rifle comes back as the soldier stands")
+	pawn.free()
+
+
 func test_pose_data_is_placeholder_and_names_real_bones() -> void:
 	var cfg: Dictionary = SoldierRig.config()["poses"]
 	assert_true(bool(cfg["_placeholder"]) and String(cfg["_todo"]).contains("OQ-ANIM"), "pose numbers are placeholders with an OQ id")

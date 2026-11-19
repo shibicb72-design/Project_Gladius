@@ -53,7 +53,8 @@
 		},
 		"revive": {
 			"_clip_note": "M2 AN1 commit 4: with the library reviver clip (anim_sources revive, UAL Fixing_Kneeling) the whole body plays it: the kneel-down once, then clip_loop_from_s..clip_loop_to_s (kneeling, both hands working low) loops; the head rides the chest. body_pitch_deg, body_offset_m and bones stay the fallback. M2 AN2 item 2: 1.4..3.3 s (was 0.9..4.1: its two ends differed by 79 degrees at the right hand, 35 here) and tools/blender/build_soldier_clips.py bakes the clip with this loop closed (the frames before clip_loop_to_s blend into clip_loop_from_s).",
-			"clip_loop_from_s": 1.4, "clip_loop_to_s": 3.3
+			"clip_loop_from_s": 1.4, "clip_loop_to_s": 3.3,
+			"hide_weapon_weight": 0.5
 		}
 	},
 	"gait": {
@@ -108,7 +109,9 @@
 		"_placeholder": true,
 		"_todo": "OQ-ANIM (M2 AN1 commit 4): the code-built downed knee-crawl (scripts/visual/soldier_crawl.gd; the UAL has no crawl). step_m: how far a planted knee travels under the body per stance (a cycle covers 2 x step_m of ground); lift_m: swing knee lift; knee_height_m: the knee joint's height when it rests on the ground; pelvis_pitch_deg: forward lean of the pelvis (its roll is derived: the swing side hikes until its knee clears the ground); body_back_m: hips offset along +Z; shin_rise_deg: shins laid back on the ground; foot_point_deg: toes pointed (about the foot's X); settle_cycles_s: how fast the cycle settles to both knees down when the pawn stops. Presentation trials, not design values.",
 		"step_m": 0.16, "lift_m": 0.05, "knee_height_m": 0.06, "pelvis_pitch_deg": 40.0,
-		"body_back_m": 0.05, "shin_rise_deg": 6.0, "foot_point_deg": -80.0, "settle_cycles_s": 1.5
+		"body_back_m": 0.05, "shin_rise_deg": 6.0, "foot_point_deg": -80.0, "settle_cycles_s": 1.5,
+		"_arms_note": "The arm opposite the advancing knee reaches forward, with its elbow following the shoulder. The upper-body motion fades out at rest. Presentation trial.",
+		"arms": {"reach_deg": 16.0, "elbow_deg": 10.0, "clearance_deg": 5.0, "full_mps": 0.85, "ease_s": 0.1}
 	},
 	"cover": {
 		"_placeholder": true,
