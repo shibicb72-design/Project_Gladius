@@ -138,10 +138,13 @@ func _ready() -> void:
 	place_map = null
 	if ground_material != null and bool(ground_material.get_shader_parameter("detail_enabled")):
 		place_map = PlaceMap.build(self, ground_size_m)
+		place_map.add_gate_approaches(structure_bodies, map)
+		var soil: Array = PlaceMap.config(map_json.get_file().get_basename()).get("compacted_soil", [])
+		if not soil.is_empty():
+			ground_material.set_shader_parameter("compacted_soil", Color(soil[0], soil[1], soil[2], 1.0))
 	clutter_report = WorldClutter.populate(self, chunks, map_def)
 	if place_map != null:
 		var contact_started := Time.get_ticks_usec()
-		place_map.add_gate_approaches(structure_bodies, get_parent())
 		place_map.add_contact(clutter_report.get("contact", []))
 		ground_material.set_shader_parameter("place_map", place_map.texture())
 		ground_material.set_shader_parameter("place_enabled", 1.0)

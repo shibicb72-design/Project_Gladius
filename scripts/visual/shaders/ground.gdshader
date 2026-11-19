@@ -71,6 +71,7 @@ uniform float fade_amount = 0.75;
 uniform sampler2D place_map : filter_linear, repeat_disable;
 uniform float place_enabled = 0.0;
 uniform vec3 trodden_color : source_color = vec3(0.62, 0.55, 0.45);
+uniform vec4 compacted_soil : source_color = vec4(0.0);  // alpha enables the map-local soil palette
 uniform float trodden_amount = 0.0;
 uniform float trodden_contrast = 0.35;
 uniform float trodden_smooth = 0.7;
@@ -194,7 +195,8 @@ void fragment() {
 		float joint = 1.0 - smoothstep(0.18, 0.32, tp.r);
 		stone = mix(stone, green_col * 0.7, joint * grass_paint * paving_joint_grass);
 		// Compacted aprons and tracks: paler, smoother earth; sheltered edges: darker, damp and greener.
-		earth = mix(earth, trodden_color * (1.0 + (er - 0.5) * trodden_contrast), trod * trodden_amount);
+		vec3 compacted = mix(trodden_color, compacted_soil.rgb, compacted_soil.a);
+		earth = mix(earth, compacted * (1.0 + (er - 0.5) * trodden_contrast), trod * trodden_amount);
 		vec3 albedo_d = mix(earth, creep_col, creep * smoothstep(0.45, 0.6, gr));
 		albedo_d = mix(albedo_d, shelter_color * (1.0 + (gr - 0.5) * grass_contrast * 0.5), shel * shelter_amount);
 		albedo_d = mix(albedo_d, green, grass);

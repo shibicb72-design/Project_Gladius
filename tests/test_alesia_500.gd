@@ -452,6 +452,21 @@ func test_gate_approaches_are_stamped_at_the_built_gates() -> void:
 	assert_true(checked == 33 and raised >= 10, "nonvacuous: 33 strips checked (%d), %d raised over the map without them" % [checked, raised])
 
 
+## M2 CX2 pass 3: the BUILT 500 m map's ground material carries the map-local compacted soil colour
+## (place_map.maps.alesia_500.compacted_soil, alpha 1 switches it on in ground.gdshader); the shader default is off.
+func test_built_map_uses_the_compacted_soil_colour() -> void:
+	var builder := _map().get_node("ArtBuilder")
+	var mat: ShaderMaterial = builder.get("ground_material")
+	assert_true(mat != null, "the 500 map has a ground material")
+	if mat == null:
+		return
+	var want: Array = PlaceMap.config("alesia_500")["compacted_soil"]
+	var got: Color = mat.get_shader_parameter("compacted_soil")
+	assert_eq(got.a, 1.0, "compacted_soil is switched on for alesia_500")
+	assert_true(absf(got.r - float(want[0])) < 0.002 and absf(got.g - float(want[1])) < 0.002 and absf(got.b - float(want[2])) < 0.002, "compacted_soil is the data colour (%s)" % str(got))
+	assert_true(not PlaceMap.config("alesia_1km").has("compacted_soil"), "alesia_1km keeps the shared trodden colour")
+
+
 ## Last in this file: frees the shared 500 m map so later suite files start clean.
 func test_zz_free_the_map() -> void:
 	if is_instance_valid(_built):
