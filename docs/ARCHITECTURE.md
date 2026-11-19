@@ -1321,7 +1321,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
   (the third-person gun) and the empties `Muzzle`, `SightAnchor`, `Dot` (copies of the data anchors, which stay
   the source of truth; `test_view_glb.gd` compares them). `view_mesh.gd` (`glb_nodes`, `from_glb`) puts the
   game's shader on each pass; `view_weapons.gd` takes `Mesh` / `Cell` / `Charge` from the .glb. The arms:
-  `hands.mesh_source` -> `view_arms.glb` (an armoured gauntlet over a glove, 17 bones, four blended weights),
+  `hands.mesh_source` -> `view_arms.glb` (an armoured gauntlet over a glove, 18 bones, up to four weights),
   remapped by bone name onto the arm skeleton `view_rig.gd` still builds from data; the left arm is the right
   one mirrored; finger poses stay data (grip, trigger, foregrip, open, reach, blade). An empty `mesh_source`
   builds the old part lists (chamfered boxes, lathes, faceted fingers). Motion: `view_motion.gd` (4.16) plays
@@ -1336,7 +1336,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   vertices for the tests. Pickup is told apart from switch inside the view code by comparing the loadout's slot
   objects on `weapon_switched`; `pawn.gd` has no hook for it.
   CX1 keys a lower support elbow and keeps the rifle canted during the charging stage. Sprint settles back
-  to ready over 0.28 s, and the landing dip carries a small counter-pitch on recovery.
+  to ready over 0.28 s, and the landing dip carries a small counter-pitch on recovery. The interior wrist cuff
+  rings follow a bone that takes half the forearm bend. The hand and forearm retain their original aim transforms.
 - **Soldier mesh.** `art_soldier.json` `soldier.mesh_source` -> `soldier.glb`: one armature of 22 bones (the 17
   of `anim.json` plus LeftToes, RightToes, LeftFingers, RightFingers and Prop from
   `anim_third_person.json` `bones_add`; identity rest bases) and two skinned LODs, `SoldierNear` (2,536
@@ -1348,6 +1349,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
   them (helmet round the head sphere, rests and bind poses within 1 mm). An empty `mesh_source` builds the old
   merged-parts mesh (one LOD). The corpse keeps the near mesh. CX1 opens the lower spaulder lames and weights
   them nearer the cuirass. The cape's hem sits higher and farther behind the hips, with less inward sway while downed.
+  The glove-side cuff ring follows the hand and the sleeve-side ring follows the forearm, preserving their cross-sections.
 - **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json` in the
   order `blender`, `actionforge`, `ual`, `mixamo_local`. `blender` = `soldier_clips.glb` (the CC0 Quaternius
   UAL clips retargeted in Blender onto the soldier rig, feet and loops cleaned, shipped baked: idle, walk, jog,

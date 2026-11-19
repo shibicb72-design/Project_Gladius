@@ -1384,7 +1384,7 @@
 			"made_by": "tools/blender/build_soldier.py",
 			"licence": "generated in this project (no source material)",
 			"bytes": 383208,
-			"sha256": "6c6570e4880f23392506da2c40e1fae70854c4e3ac446fc75c5f638ac55bcd28"
+			"sha256": "90bf11207ca4689484cc8c221250b47a669c7fda7b65bd3ab6375cd5419466d4"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_clips.glb",
@@ -1419,8 +1419,8 @@
 			"path": "res://assets/generated/characters/view_arms.glb",
 			"made_by": "tools/blender/build_view_arms.py",
 			"licence": "generated in this project (no source material)",
-			"bytes": 95976,
-			"sha256": "82e0aad58a4592021231411659a49b8e6502dd2a686d027ec931ad43cb88ac36"
+			"bytes": 96060,
+			"sha256": "e56284a2d6656d1646b803a0d0d94907c42d102f466cef9a8a41bfedb38f2e64"
 		},
 		{
 			"path": "res://assets/generated/characters/view_clips_gladius_lux.glb",

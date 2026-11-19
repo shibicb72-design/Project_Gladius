@@ -240,9 +240,7 @@ class Rig:
                 hand = self.hold * self.place[side]
                 out.append((pre + "hand", "Weapon", hand))
             glob = {}
-            for n in arms.bone_names():
-                if n in ("hand", "forearm"):
-                    continue
+            for n in arms.finger_bone_names():
                 par = arms.parent_of(n)
                 loc = self.finger_local[n]
                 if side == "l":

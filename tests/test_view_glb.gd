@@ -44,7 +44,7 @@ func test_arm_glb_rig_equals_the_runtime_arm_skeleton() -> void:
 	var theirs := skeletons[0] as Skeleton3D
 	var runtime := ViewHands.build_arm("r")
 	var ours := runtime.get_node("Skeleton") as Skeleton3D
-	assert_eq(ours.get_bone_count(), 17, "the runtime arm keeps its 17 bones")
+	assert_eq(ours.get_bone_count(), 18, "the runtime arm includes the cuff bone")
 	assert_eq(theirs.get_bone_count(), ours.get_bone_count(), "the .glb carries the same bones (no superset)")
 	var worst_origin := 0.0
 	var worst_basis := 0.0
@@ -68,28 +68,43 @@ func test_arm_glb_rig_equals_the_runtime_arm_skeleton() -> void:
 	var arrays := arm_mi.mesh.surface_get_arrays(0)
 	assert_eq(arm_mi.mesh.get_surface_count(), 1, "one primitive: one draw call")
 	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
-	var n := (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-	var per := weights.size() / maxi(n, 1)
-	assert_eq(per, 4, "4 influences per vertex")
-	var worst_sum := 0.0
-	var blended := 0
-	for v in n:
-		var s := 0.0
-		var used := 0
-		for k in per:
-			s += weights[v * per + k]
-			if weights[v * per + k] > 0.001:
-				used += 1
-		worst_sum = maxf(worst_sum, absf(s - 1.0))
-		if used > 1:
-			blended += 1
-	assert_true(worst_sum < 0.002, "weights sum to 1 (worst %.5f)" % worst_sum)
-	assert_true(blended > n / 10, "blended weights at the knuckles and wrist (%d of %d vertices)" % [blended, n])
+	var joints: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var wrist_bind := -1
 	for k in arm_mi.skin.get_bind_count():
 		var bname := String(arm_mi.skin.get_bind_name(k))
 		if bname == "":
 			bname = theirs.get_bone_name(arm_mi.skin.get_bind_bone(k))
 		assert_true(ViewHands.bone_names().has(bname), "bind %d is an arm bone (%s)" % [k, bname])
+		if bname == "wrist":
+			wrist_bind = k
+	var n := (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var per := weights.size() / maxi(n, 1)
+	assert_eq(per, 4, "4 influences per vertex")
+	var worst_sum := 0.0
+	var blended := 0
+	var cuff := 0
+	var mixed_cuff := 0
+	for v in n:
+		var s := 0.0
+		var used := 0
+		var has_wrist := false
+		for k in per:
+			s += weights[v * per + k]
+			if weights[v * per + k] > 0.001:
+				used += 1
+				has_wrist = has_wrist or joints[v * per + k] == wrist_bind
+		worst_sum = maxf(worst_sum, absf(s - 1.0))
+		if used > 1:
+			blended += 1
+		if has_wrist:
+			cuff += 1
+			mixed_cuff += int(used > 1)
+	assert_true(worst_sum < 0.002, "weights sum to 1 (worst %.5f)" % worst_sum)
+	assert_true(blended > n / 10, "blended weights at the knuckles (%d of %d vertices)" % [blended, n])
+	assert_true(cuff > 0 and mixed_cuff == 0, "the cuff rings follow the wrist bone rigidly")
+	ViewHands.aim_forearm(runtime, Vector3.RIGHT)
+	var cuff_turn := ours.get_bone_pose_rotation(ours.find_bone("wrist")).get_angle()
+	assert_true(is_equal_approx(cuff_turn, PI / 4.0), "the wrist cuff takes half the forearm's 90 degree turn")
 	var tris := _triangles(arm_mi.mesh)
 	assert_true(tris > 0 and tris <= _cap("arm_max_triangles"), "arm: %d triangles <= %d" % [tris, _cap("arm_max_triangles")])
 	scene.free()

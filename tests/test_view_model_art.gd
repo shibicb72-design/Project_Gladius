@@ -111,11 +111,11 @@ func test_budget_per_weapon_from_art_soldier() -> void:
 		await _cleanup()
 
 
-## Each arm is one skinned mesh with one surface (one draw call) on a code-built skeleton: hand, forearm, four fingers
-## of three segments and a thumb of three; the finger poses named in the brief are data and blendable.
+## Each arm is one skinned mesh with one surface (one draw call) on a code-built skeleton with a wrist cuff
+## and five fingers of three segments. The finger poses named in the brief are data and blendable.
 func test_arms_are_one_skinned_mesh_with_finger_poses() -> void:
 	var names := ViewHands.bone_names()
-	assert_eq(names.size(), 17, "hand, forearm, 5 x 3 finger segments")
+	assert_eq(names.size(), 18, "hand, forearm, wrist cuff, 5 x 3 finger segments")
 	for p in REQUIRED_POSES:
 		assert_true(ViewHands.pose_names().has(p), "pose %s in art_soldier.json hands.poses" % p)
 	await _fixture()

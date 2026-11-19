@@ -143,8 +143,8 @@ static func apply_clip(weapon: Node3D, bones: Dictionary, cs: ViewMotion.ClipSet
 			xf = weapon.transform.affine_inverse() * xf  # a camera-frame hand (the blade's free hand) stays in the view
 		arm.transform = xf
 		var skel := arm.get_node("Skeleton") as Skeleton3D
-		for n in ViewHands.bone_names():
-			if n != "hand" and n != "forearm" and bones.has(pre + n):
+		for n in ViewHands.finger_bone_names():
+			if bones.has(pre + n):
 				skel.set_bone_pose_rotation(skel.find_bone(n), (bones[pre + n] as Transform3D).basis.get_rotation_quaternion())
 		if bones.has(pre + "elbow"):
 			var elbow: Vector3 = (bones[pre + "elbow"] as Transform3D).origin

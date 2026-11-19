@@ -1,10 +1,10 @@
 """M2 AN2 item 4a: the first-person right arm (armoured gauntlet over a dark glove, forearm under a vambrace), built
-from nothing by code and skinned with blended weights to the game's 17-bone arm skeleton.
+from nothing by code and skinned to the game's 18-bone arm skeleton.
 
     blender.cmd -b --factory-startup --python tools/blender/build_view_arms.py -- [--out=<repo-relative .glb>]
         [--preview=<dir>]
 
-Writes assets/generated/characters/view_arms.glb: the armature "Armature" (hand, forearm, index/middle/ring/pinky/thumb
+Writes assets/generated/characters/view_arms.glb: the armature "Armature" (hand, forearm, wrist, index/middle/ring/pinky/thumb
 _0.._2 with EXACTLY the rests scripts/visual/view_hands.gd builds from data/art_soldier.json hands: right_rests() below
 reads the same data the same way) and one mesh "Arm" skinned to it (one primitive, the first-person vertex stream of
 view_bl.py). The left arm is this mesh mirrored in x at load (ViewHands). Hand frame: origin at the wrist, fingers
@@ -67,17 +67,18 @@ def hands_cfg() -> dict:
     return gbl.read_json("data/art_soldier.json")["hands"]
 
 
+def finger_bone_names() -> list:
+    return ["%s_%d" % (f, s) for f in FINGERS for s in range(SEGMENTS)]
+
+
 def bone_names() -> list:
-    out = ["hand", "forearm"]
-    for f in FINGERS:
-        out += ["%s_%d" % (f, s) for s in range(SEGMENTS)]
-    return out
+    return ["hand", "forearm"] + finger_bone_names() + ["wrist"]
 
 
 def parent_of(bone: str) -> str:
     if bone == "hand":
         return ""
-    if bone == "forearm":
+    if bone in ("forearm", "wrist"):
         return "hand"
     f, s = bone.split("_")
     return "hand" if int(s) == 0 else "%s_%d" % (f, int(s) - 1)
@@ -93,7 +94,7 @@ def finger_basis(fd: dict) -> Xf:
 
 
 def right_rests(c: dict) -> dict:
-    rests = {"hand": Xf(), "forearm": Xf()}
+    rests = {"hand": Xf(), "forearm": Xf(), "wrist": Xf()}
     for f in FINGERS:
         fd = c["fingers"][f]
         lengths = fd["lengths"]
@@ -133,6 +134,7 @@ def posed_globals(c: dict, pose: dict, to_elbow=None) -> dict:
         ang = math.degrees(math.acos(max(-1.0, min(1.0, d[2]))))
         if vg.length(axis) > 1e-9:
             posed["forearm"] = Xf.axis_angle(axis, ang)
+            posed["wrist"] = Xf.axis_angle(axis, ang * 0.5)
     return globals_of(posed)
 
 
@@ -226,12 +228,12 @@ def build_arm(c: dict) -> vg.ViewGeo:
                               ((0.72, 0.74), (0.0, 1.04), (-0.72, 0.74), (0.0, 0.84))])
         vg.tube(g, plate_pts, [{bone: 1.0}] * 2, "plate", "poly", "poly")
 
-    # Cuff: the flexible dark band over the wrist (hand -> forearm blend).
+    # The two interior rings share an intermediate rotation at the wrist. Each
+    # ring stays round, including when the forearm folds hard toward the hand.
     rings, ws = [], []
-    for z, rx, ry in ARM["cuff"]:
+    for (z, rx, ry), bone in zip(ARM["cuff"], ("hand", "wrist", "wrist", "forearm")):
         rings.append(vg.ring_z(vg.sect(ARM["forearm_sides"], rx, ry, power=2.2, cx=-0.001), z))
-        t = vg.smoothstep(-0.006, 0.02, z)
-        ws.append({"hand": 1.0 - t, "forearm": t} if 0.0 < t < 1.0 else (hand if t <= 0.0 else fore))
+        ws.append({bone: 1.0})
     vg.tube(g, rings, ws, "undersuit")
 
     # Forearm (undersuit), elliptical, wider toward the elbow, closed at the elbow end.
