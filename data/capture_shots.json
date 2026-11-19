@@ -49,7 +49,9 @@
 		"rows": [
 			["wall_stair", "wall_walk", "gate", "watchtower"],
 			["aqueduct_ramp", "aqueduct_span", "colonnade", "pediment_front", "column"],
-			["barracks", "tent", "stake_row", "eagle_standard", "ramp_block", "terrace_block"]
+			["barracks", "tent", "stake_row", "eagle_standard", "ramp_block", "terrace_block"],
+			["insula_duplex", "insula_triple", "taberna_awning", "thermae_rotunda", "fabrica_stack", "templum_roofed"],
+			["arx_signal_eagle", "specula_beacon", "aqua_keystone", "waystation", "forum_stall", "farm_cart", "farm_boundary", "cypress_group"]
 		],
 		"views": [{"name": "front", "yaw_deg": 25}, {"name": "back", "yaw_deg": 205}],
 		"gap_m": 3.0,
