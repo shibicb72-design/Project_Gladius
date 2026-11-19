@@ -1402,14 +1402,18 @@ fallback when a `mesh_source` is empty or a clip is missing.
   sweeps about 82 deg of hunch in `aim_out_s` (0.12 s, gameplay), 681 deg/s on average, the legacy path too (726), so
   `exceptions.cover_crouch.neck_chest_rate_max_dps` is 750 (`head._exceptions_note`). The tool's old `cover_crouch` /
   `cover_rise` states snap the crouch (0.136 m, 1357 deg/s); `cover_crouch_ramped` / `cover_rise_ramped` do not.
+- **Low-cover squat (M2 CX1).** `build_soldier_keyed.py` bakes a staggered, wall-side squat and its mirror
+  into `soldier_keyed.glb`. The hip moves into the wall and the torso stays over the boots. The rifle sits
+  diagonally across the front with clearance from the chest and wall. During the free-crouch handoff, SoldierGait
+  pins the neck to the live Head height and keeps the shoulders under it while preserving the solved foot goals.
+  The cover layer, controller timings and head limits keep their existing values.
 - **Tool and debug switches, default off, not gameplay** (static vars; nothing in the game sets them):
   `SoldierRig.head_legacy` (the pre-AN3 head and body; `--legacy-head` in `head_motion_measure.gd`,
   `soldier_capture.gd`, `cover_capture.gd`, `drop_capture.gd`, `anim_cost.gd`), `SoldierPose.measure_off` and `CoverAnim.measure_clip_neck` (per-source attribution in
   `tools/head_motion_measure.gd` only), `SoldierModel.code_built_reload` (the code-built reload; capture
   `--code-reload`).
-- **Free crouch (M2 AN3, M2 FIX1).** One owner per crouch: `SoldierModel._drive_crouch` shows only the H1c free
-  crouch's own share, `pawn.free_crouch_amount` x (1 - the cover layer's weight), never `pawn.crouch_amount()` (which
-  holds the cover crouch too) nor the Head node's drop; `CoverAnim._show_crouch` shows the cover crouch, divided by
+- **Free crouch (M2 AN3, M2 FIX1, M2 CX1).** `SoldierModel._drive_crouch` shows the free crouch beyond the cover
+  crouch amount, capped by the remaining weight outside the cover layer. `CoverAnim._show_crouch` shows the cover crouch, divided by
   the layer's weight while it fades in (`head.cover_mix_fade_s`), so the helmet is lowered once. (The AN3
   `has_method(&"crouch_amount")` fallback is gone: every Pawn has it since H1c.) `SoldierModel.crouch_amount()` is
   `pawn.crouch_amount()`, read-only. Out of cover the lower body blends to the existing `cover_crouch_idle` /
@@ -1417,7 +1421,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `head.free_crouch` keys: `nominal_head_drop_m` 0.9 (measured: standing Head rest 1.75 - cover.json
   `crouch_head_y_m` 0.85), `hips_drop_per_head`, `move_full_mps`, `reach_max_deg`. Tests (real pawn):
   `tests/test_soldier_crouch.gd`, and in `tests/test_soldier_head_motion.gd` the free crouch down / up and the
-  free-crouch-to-low-cover hand-off (open finding, OQ-ANIM-HEAD). `tools/head_motion_measure.gd` and
+  free-crouch-to-low-cover hand-off. `tools/head_motion_measure.gd` and
   `tools/soldier_capture.gd` drive the real pawn's free crouch amount and update its body shapes.
 - **Downed crawl and revive (M2 CX1).** The existing SoldierCrawl modifier offsets the shoulders and elbows
   in opposition to the knee cycle. The arm motion eases out when the pawn stops. During revive, SoldierModel

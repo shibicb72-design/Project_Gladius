@@ -142,7 +142,7 @@ func _ready() -> void:
 	gait = SoldierGait.new()
 	gait.name = "Gait"
 	skeleton.add_child(gait)
-	gait.setup()
+	gait.setup(_pawn.get_node("Head") as Node3D)
 	_previous_position = _pawn.global_position
 	_upper_cfg = SoldierRig.config()["upper_body"]
 	var shot_cfg: Dictionary = registry.load_file("res://data/ui.json")["shot_fx"]
@@ -487,10 +487,9 @@ func crouch_amount() -> float:
 
 
 ## M2 AN3 stage C, M2 FIX1: the free crouch (data head.free_crouch). One owner per crouch: this shows only the free
-## crouch's own share, Pawn.free_crouch_amount (never Pawn.crouch_amount(), which holds the cover crouch too, nor the
-## Head node's drop, which the cover crouch also lowers); CoverAnim shows the cover crouch. The share fades out with
-## the cover layer (1 - cover_mix), so the helmet is lowered once. SoldierGait drops the neck pin and the pelvis's lift
-## target, SoldierPose its pivot, by share x nominal_head_drop_m (the Head node's drop at free crouch 1).
+## crouch beyond the controller's crouch amount, capped by the remaining weight outside the cover layer.
+## SoldierGait drops the pin and pelvis lift target, and SoldierPose its pivot, by this share times the nominal
+## drop. During the cover handoff SoldierGait keeps the pin on the live hitbox while the two layers crossfade.
 func _drive_crouch(head: Dictionary, ground_speed: float) -> void:
 	var cycle := float(animation_tree.get_meta(&"crouch_cycle_m", 0.0))
 	var cfg: Dictionary = head.get("free_crouch", {})
@@ -503,7 +502,9 @@ func _drive_crouch(head: Dictionary, ground_speed: float) -> void:
 		open *= 1.0 - clampf(float(pose.weights["downed"]), 0.0, 1.0)
 		if not pawn.is_alive() or pawn.drop_state != Pawn.Drop.NONE:
 			open = 0.0
-		shown = clampf(pawn.free_crouch_amount, 0.0, 1.0) * open
+		var cover_amount := pawn.cover.crouch_amount if pawn.cover != null else 0.0
+		var free_amount := clampf(pawn.free_crouch_amount, 0.0, 1.0)
+		shown = minf(maxf(free_amount - cover_amount, 0.0), open) if cover_amount > 0.0 else free_amount * open
 		drop = shown * float(cfg["nominal_head_drop_m"])
 		animation_tree.set("parameters/crouch_gait/blend_amount", clampf(ground_speed / maxf(float(cfg["move_full_mps"]), 0.001), 0.0, 1.0))
 		animation_tree.set("parameters/crouch_move/speed/scale", ground_speed / cycle * SoldierClips.CYCLE_S)
