@@ -284,6 +284,29 @@ static func build(builder: Node, ground_size_m: float) -> RefCounted:
 	return map
 
 
+## Add gate-specific ground wear after clutter placement so road exclusions keep their original footprints.
+func add_gate_approaches(structures: Array, root: Node) -> void:
+	var approaches: Dictionary = _cfg.get("gate_approaches", {})
+	if approaches.is_empty():
+		return
+	for body: Node in structures:
+		var strips: Array = approaches.get(String(body.name), [])
+		if not strips.is_empty():
+			stamp_gate_approach(WorldClutter.xform_to(body, root), strips)
+
+
+## Each strip is [channel, across, inward, half width, half length, feather, value].
+## Metres are relative to the gateway. Geometry, road exclusions and baked paint stay separate.
+func stamp_gate_approach(frame: Transform3D, strips: Array) -> void:
+	var centre := Vector2(frame.origin.x, frame.origin.z)
+	var across := Vector2(frame.basis.x.x, frame.basis.x.z).normalized()
+	var inward := Vector2(-across.y, across.x)
+	for strip: Array in strips:
+		var c := centre + across * float(strip[1]) + inward * float(strip[2])
+		var box := {"c": c, "ax": across, "half": Vector2(float(strip[3]), float(strip[4]))}
+		stamp_box(int(strip[0]), box, 0.0, float(strip[5]), float(strip[6]))
+
+
 ## Contact blobs (B) under clutter: one soft disc per cluster or patch {c: Vector2, r: float}.
 func add_contact(spots: Array) -> void:
 	var c: Array = _cfg.get("contact", [0.6, 1.8, 0.75])  # [inner share of r, outer extra m, value]

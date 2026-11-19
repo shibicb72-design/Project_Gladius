@@ -52,6 +52,24 @@ var PlaceMapCfg: Dictionary:
 		return WorldSurface.ground_detail_config().get("place_map", {})
 
 
+func test_500_gate_approach_uses_the_gate_frame() -> void:
+	var script := preload("res://scripts/visual/place_map.gd")
+	var profiles: Dictionary = script.config("alesia_500")["gate_approaches"]
+	assert_true(not script.config("alesia_1km").has("gate_approaches"), "gate profiles apply to Alesia 500")
+	var placed: Array = DataRegistry.parse_quiet("res://data/maps/alesia_500_structures.json")["pieces"]
+	var gate_ids := placed.filter(func(row: Dictionary) -> bool: return row["type"] == "gate").map(func(row: Dictionary) -> String: return String(row["id"]))
+	gate_ids.sort()
+	var configured := profiles.keys()
+	configured.sort()
+	assert_eq(configured, gate_ids, "a ground profile for every gateway")
+	var place := script.new(500.0, 512)
+	var frame := Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(40, 0, 20))
+	place.stamp_gate_approach(frame, profiles["OuterRing_054"])
+	assert_true(place.sample(Vector2(31, 14)).r > 0.85, "the east gate's forecourt lies on the authored shoulder")
+	assert_true(place.sample(Vector2(31, 28)).g > 0.75, "the east gate's opposite shoulder stays sheltered")
+	assert_true(place.sample(Vector2(49, 28)).g < 0.05, "the profile follows the inward side of the gate")
+
+
 func test_out_of_every_hashed_input() -> void:
 	# The paint keeps its pinned inputs hash; the navigation manifest's inputs name neither data file.
 	var settings := GroundPaint.settings_for(DataRegistry.parse_quiet(MAP_1KM))
