@@ -210,6 +210,10 @@ func begin() -> bool:
 		roster.build(self, director, slots, local_peer, director.authoritative, fill_bots, networked)
 		local_player = roster.local_pawn
 		bots = roster.bots
+		# M2 B4 (OQ-BOT-DIFFICULTY): the host's bot difficulty. The host runs the brains; on clients the bot pawns
+		# have no Brain, so nothing changes there. An unknown value plays as the data default (normal), explicitly.
+		# Without a lobby (tests, sims, offline) bots keep match_fill.profile.
+		apply_bot_difficulty(bots, validated_bot_difficulty(lobby.bot_difficulty))
 		if networked:
 			roster.attach_bridge(session, slots)
 			if not session.is_host:
