@@ -2,7 +2,7 @@ class_name ViewHands
 extends RefCounted
 ## M2 AN1: the first-person gloved hands and forearms. Each arm is ONE skinned mesh (one draw call) on a small
 ## code-built Skeleton3D with rigid per-segment weights (the SoldierRig technique): hand (root, at the wrist),
-## forearm, four fingers of three segments and a thumb of three. Shapes and finger poses are data/art_soldier.json
+## forearm, wrist cuff, four fingers of three segments and a thumb of three. Shapes and finger poses are data/art_soldier.json
 ## "hands" (OQ-ART-SOLDIER placeholders). The right arm is authored; the left is its mirror in x.
 ## Hand frame (right hand): origin at the wrist, fingers along -z, back of the hand +y, thumb on -x; the forearm
 ## runs from the wrist along +z at rest and is turned toward the elbow by aim_forearm.
@@ -23,6 +23,13 @@ static func cfg() -> Dictionary:
 
 static func bone_names() -> Array[String]:
 	var out: Array[String] = ["hand", "forearm"]
+	out.append_array(finger_bone_names())
+	out.append("wrist")
+	return out
+
+
+static func finger_bone_names() -> Array[String]:
+	var out: Array[String] = []
 	for f in FINGERS:
 		for s in SEGMENTS:
 			out.append("%s_%d" % [f, s])
@@ -32,7 +39,7 @@ static func bone_names() -> Array[String]:
 static func _parent_of(bone: String) -> String:
 	if bone == "hand":
 		return ""
-	if bone == "forearm":
+	if bone == "forearm" or bone == "wrist":
 		return "hand"
 	var parts := bone.split("_")
 	var seg := int(parts[1])
@@ -42,7 +49,7 @@ static func _parent_of(bone: String) -> String:
 ## Local rest transforms (right hand), by bone name.
 static func _right_rests() -> Dictionary:
 	var c := cfg()
-	var rests := {"hand": Transform3D.IDENTITY, "forearm": Transform3D.IDENTITY}
+	var rests := {"hand": Transform3D.IDENTITY, "forearm": Transform3D.IDENTITY, "wrist": Transform3D.IDENTITY}
 	for f in FINGERS:
 		var fd: Dictionary = c["fingers"][f]
 		var lengths: Array = fd["lengths"]
@@ -151,7 +158,7 @@ static func _side_data(side: String) -> Dictionary:
 	return data
 
 
-## The arm of the .glb (object "Arm", skinned to the 17 named bones): joints remapped by bone NAME onto bone_names()
+## The arm of the .glb (object "Arm"): joints remapped by bone name onto bone_names()
 ## order, colours made linear, mirrored in x for the left arm, the game's opaque material. The runtime skeleton keeps
 ## its rests from the data (the .glb's rests equal them: tests/test_view_glb.gd). Empty when the file lacks the arm.
 static func _glb_side(path: String, side: String, names: Array[String]) -> Dictionary:
@@ -283,13 +290,14 @@ static func apply_pose(arm: Node3D, p: Dictionary) -> void:
 			skel.set_bone_pose_rotation(skel.find_bone(bone), mirror_q(q) if left else q)
 
 
-## Turns the forearm (hand-frame direction from the wrist toward the elbow, in the arm node's space) and bends the
-## hand at the wrist by `wrist` (Basis of the hand inside the arm node; identity = as placed).
+## Aim the forearm toward the elbow in the arm node's frame. The cuff carries half of that turn.
 static func aim_forearm(arm: Node3D, to_elbow: Vector3) -> void:
 	var skel := arm.get_node("Skeleton") as Skeleton3D
 	if to_elbow.length_squared() < 0.000001:
 		return
-	skel.set_bone_pose_rotation(skel.find_bone("forearm"), Quaternion(Vector3.BACK, to_elbow.normalized()))
+	var turn := Quaternion(Vector3.BACK, to_elbow.normalized())
+	skel.set_bone_pose_rotation(skel.find_bone("forearm"), turn)
+	skel.set_bone_pose_rotation(skel.find_bone("wrist"), Quaternion.IDENTITY.slerp(turn, 0.5))
 
 
 ## The arm's vertices posed on the CPU (linear blend skinning, up to 4 bones per vertex, as the GPU skins), in the arm

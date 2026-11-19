@@ -634,7 +634,7 @@ class Soldier:
         g = self.g
         n = int(self.L["limb_n"])
         side, axis = self._arm_axis(s)
-        wf = chain(["Chest", side + "UpperArm", side + "ForeArm", side + "Hand"], A["blend"])
+        wf = chain(["Chest", side + "UpperArm", side + "ForeArm"], A["blend"])
         tube = A["tube"] if self.detail() else [A["tube"][0], A["tube"][2], A["tube"][4], A["tube"][-1]]
         rings = [ring(self._axis_at(axis, y), r, r, r, n, phase=math.pi / n) for y, r in tube]
         loft(g, rings, wf, "suit", 0.45)
@@ -663,9 +663,11 @@ class Soldier:
         loft(g, [ring(self._axis_at(axis, y), r * 1.0, r * 1.08, r * 0.95, n, phase=math.pi / n) for y, r in vb], fw, "steel", 0.55)
         if self.detail():
             loft(g, [ring(self._axis_at(axis, y), r, r * 1.08, r * 0.95, n, phase=math.pi / n) for y, r in A["band"]], fw, "bronze", 0.55)
-        # Glove cuff (both LODs: it joins the forearm to the fist).
+        # Each cuff ring keeps its cross-section under a large wrist turn. The short
+        # strip between the forearm and hand rings carries the bend.
+        cuff_split = (A["cuff"][0][0] + A["cuff"][-1][0]) * 0.5
         loft(g, [ring(self._axis_at(axis, y), r, r, r, n, phase=math.pi / n) for y, r in A["cuff"]],
-             lambda p: {side + "Hand": 0.8, side + "ForeArm": 0.2} if p[1] > 0.88 else {side + "Hand": 1.0}, "steel_dark", 0.45)
+             lambda p: {side + ("ForeArm" if p[1] > cuff_split else "Hand"): 1.0}, "steel_dark", 0.45)
 
     def hand(self, s):
         A = self.D["arm"]

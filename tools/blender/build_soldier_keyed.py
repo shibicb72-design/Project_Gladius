@@ -378,14 +378,15 @@ HUG_HIGH = {"hips": [-0.05, 0.935, 0.035], "hrot": [2, 6, 3], "spine": [1, -4, 4
                                   "Right": {"at": [0.16, 0.09, -0.12], "rot": [0, -16, 0], "pole": [0.3, 0, -1]}}}
 HUG_HIGH_IN = {"hips": [-0.05, 0.939, 0.035], "chest": [-1.4, -5, 2]}  # breath in: the chest lifts, the pelvis rises
 
-# Behind low cover: down on the left knee, the right foot planted, back rounded under the lowered helmet (the head
-# hitbox sits at cover.json crouch_head_y_m: the torso folds forward to put the chest top under it), rifle upright.
-HUG_LOW = {"hips": [0.0, 0.36, 0.36], "hrot": [-48, 8, 0], "spine": [-14, -4, 3], "chest": [-12, -6, 0], "head": [-4, -12, 0],
-           "gun": {"at": [0.08, -0.15, -0.25], "dir": [-0.3, 0.42, 0.92], "up": [0.1, 1.0, -0.08], "pole": [1, 0, 0.5], "lpole": [-1, 0, 0.5]},
-           "foot": {"Left": {"at": [-0.16, 0.17, 0.56], "rot": [-55, 4, 0], "pole": [0, -0.3, -1]},
-                    "Right": {"at": [0.17, 0.09, -0.12], "rot": [0, -10, 0], "pole": [0.3, 0.6, -1]}},
-           "toes": {"Left": [55, 0, 0]}, "neck_at": [0.0, -0.9, 0.0]}  # the Neck where CoverAnim puts it (head hitbox 0.85)
-HUG_LOW_IN = {"hips": [0.0, 0.364, 0.36], "chest": [-13.2, -6, 0]}
+# Low cover: sit into the wall-side hip, take the weight through staggered soles and
+# keep the rifle across the lap. The chest tilts away from the wall under the pinned helmet.
+HUG_LOW = {"hips": [-0.14, 0.22, 0.13], "hrot": [-12, 5, -12], "spine": [-6, -4, -6], "chest": [0, -7, 0],
+           "head": [0, -10, 0],
+           "gun": {"at": [0.16, -0.24, -0.33], "dir": [-0.9, 0.08, -0.45], "up": [0, 1, 0],
+                   "pole": [1, -0.8, -0.3], "lpole": [-1, -0.8, -0.3]},
+           "foot": {"Left": {"at": [-0.23, 0.09, 0.11], "rot": [0, 15, 0], "pole": [-0.3, 0, -1]},
+                    "Right": {"at": [0.15, 0.09, -0.26], "rot": [0, -18, 0], "pole": [0.7, 0, -1]}},
+           "neck_at": [0.0, -0.9, 0.0]}  # the Neck where CoverAnim puts it (head hitbox 0.85)
 
 # Leaning out round the right edge (the aimed layer owns the chest and arms at runtime; the gun row is for the preview):
 # the right foot steps out, the hips sway back against the lean, the spine leans out.
@@ -409,8 +410,8 @@ def cover_clips(cover):
         dict(t=3.0, **HUG_HIGH)]})
     out.append({"name": "cover_hug_low", "loop": True, "length": 3.0, "wall": True, "low": True, "keys": [
         dict(t=0.0, **HUG_LOW),
-        {"t": 1.2, **HUG_LOW_IN, "head": [-4, -20, 0]},
-        {"t": 2.2, "hips": [0.0, 0.362, 0.36], "chest": [-12.5, -6, 0], "head": [-4, -8, 0]},
+        {"t": 1.2, "head": [0, -16, 0]},
+        {"t": 2.2, "head": [0, -6, 0]},
         dict(t=3.0, **HUG_LOW)]})
     out.append({"name": "cover_lean_right", "loop": True, "length": 2.0, "keys": [
         dict(t=0.0, **LEAN),

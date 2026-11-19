@@ -22,7 +22,7 @@ const DT := 1.0 / 60.0
 const SETTLE_FRAMES := 10
 const DEFAULT_OUT := "C:/Users/shibi/OpenBot/Agents/agent-afa1d96b-b33b-4ce0-8b3e-07b60fbebb5d/gladius/runs/M2AN3/measure_before"
 const STATES: Array[String] = ["idle", "walk", "jog", "sprint", "strafe_left", "strafe_right", "backpedal",
-	"turn_stand", "turn_jog", "aim_down", "aim_level", "aim_up", "aim_sweep", "fire", "reload", "hit_chest", "hit_head",
+	"turn_stand", "turn_pivot", "turn_jog", "aim_down", "aim_level", "aim_up", "aim_sweep", "fire", "reload", "hit_chest", "hit_head",
 	"fall_land", "cover_stand", "cover_crouch", "cover_peek", "cover_rise", "downed_crawl", "revive",
 	"crouch_idle", "crouch_walk", "crouch_unmoved", "cover_crouch_ramped", "cover_rise_ramped"]
 ## cover_crouch and cover_rise are SNAPPED (crouch_amount forced to 1 at entry, the rise's crouch forced from
@@ -323,6 +323,10 @@ func _script(state: String) -> void:
 			await _hold(3.0, Vector3.ZERO, func(t: float) -> void:
 				_pawn.rotation.y = deg_to_rad(90.0) * sin(TAU * t / 2.0)
 				_pawn.set_meta(&"measure_velocity", Vector3.FORWARD * speed if moving else Vector3.ZERO))
+		"turn_pivot":
+			await _hold(0.3)
+			await _hold(3.0, Vector3.ZERO, func(t: float) -> void:
+				_pawn.rotation.y = deg_to_rad(120.0) * minf(t, 2.5))
 		"aim_down", "aim_level", "aim_up":
 			_pawn.pitch = limit * (-1.0 if state == "aim_down" else 1.0 if state == "aim_up" else 0.0)
 			await _hold(2.0)

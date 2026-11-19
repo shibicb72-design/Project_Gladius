@@ -55,9 +55,8 @@ func test_every_weapon_has_the_rig_and_the_required_clips() -> void:
 		if not melee:
 			need.append_array(["Cell", "Charge"])
 		for side in ["R_", "L_"]:
-			for n in ViewHands.bone_names():
-				if n != "hand" and n != "forearm":
-					need.append(side + n)
+			for n in ViewHands.finger_bone_names():
+				need.append(side + n)
 		for b in need:
 			assert_true(cs.rests.has(b), "%s: bone %s" % [id, b])
 		for c in (MELEE_CLIPS if melee else HITSCAN_CLIPS):
@@ -101,9 +100,7 @@ func test_idle_frame_zero_is_the_hold_pose() -> void:
 			var place: Transform3D = arm.get_meta(&"view_xf") if arm.has_meta(&"view_xf") else arm.get_meta(&"rest")
 			worst = maxf(worst, _err(bones[pre + "hand"], place))
 			var skel := arm.get_node("Skeleton") as Skeleton3D
-			for n in ViewHands.bone_names():
-				if n == "hand" or n == "forearm":
-					continue
+			for n in ViewHands.finger_bone_names():
 				var q := skel.get_bone_pose_rotation(skel.find_bone(n))
 				worst = maxf(worst, _qerr(q, (bones[pre + n] as Transform3D).basis.get_rotation_quaternion()))
 			# the same forearm aim: the clip's elbow seen from the placed arm points where the built arm points

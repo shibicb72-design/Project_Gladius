@@ -119,6 +119,46 @@ func test_wired_slots_resolve_to_the_blender_clips_and_cover_uses_them() -> void
 	pawn.free()
 
 
+func test_low_hug_sits_into_either_wall_side_with_planted_boots() -> void:
+	for side in [-1, 1]:
+		var pawn := _pawn()
+		var model := pawn.get_node("SoldierModel") as SoldierModel
+		pawn.enable_cover(DataRegistry.new().load_file("res://data/cover.json"))
+		var cover := pawn.get_node("CoverAnim") as CoverAnim
+		cover.set_process(false)
+		model.set_process(false)
+		model.animation_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		model.skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL
+		pawn.cover.state = CoverController.State.IN_COVER
+		pawn.cover.crouched = true
+		pawn.cover.crouch_amount = 1.0
+		pawn.cover.side = side
+		pawn.cover.normal = Vector3.BACK
+		pawn.cover.tangent = Vector3.RIGHT
+		var wall_offset := float(pawn.cover.config["wall_offset_m"])
+		pawn.position.z = wall_offset
+		pawn._apply_body_shapes()
+		for frame in 24:
+			cover.sync_pose(DT)
+			model._process(DT)
+			model.animation_tree.advance(DT)
+			model.skeleton.advance(DT)
+			await _tree().process_frame
+		var hips := model.pose_cache[model.skeleton.find_bone("Hips")]
+		var chest := model.pose_cache[model.skeleton.find_bone("Chest")]
+		var hip_clearance := model.skeleton.to_global(hips.origin).z
+		var chest_pitch := rad_to_deg(chest.basis.y.angle_to(Vector3.UP))
+		print("LOW_COVER side=%d hip_clearance_m=%.4f chest_tilt_deg=%.2f" % [side, hip_clearance, chest_pitch])
+		assert_true(hip_clearance > 0.0 and hip_clearance < wall_offset * 0.67, "the seated hip moves toward the wall")
+		assert_true(chest_pitch < 35.0, "the settled chest stays above the waist in the low hug")
+		var contacts := SoldierClips.contacts(model.pose_cache, SoldierClips.sole_points(model.skeleton))
+		var floor_band := float(SoldierRig.config()["gait"]["contact_height_m"])
+		for foot in [0, 2]:
+			var low := minf(contacts[foot].y, contacts[foot + 1].y)
+			assert_true(absf(low) <= floor_band, "both boots reach the floor")
+		pawn.free()
+
+
 ## A ladder (data/props.json "ladder") at the origin facing -z, and a pawn on its climb line, climbing.
 func _ladder_rig() -> Dictionary:
 	var root := Node3D.new()

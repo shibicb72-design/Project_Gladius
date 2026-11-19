@@ -1321,7 +1321,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
   (the third-person gun) and the empties `Muzzle`, `SightAnchor`, `Dot` (copies of the data anchors, which stay
   the source of truth; `test_view_glb.gd` compares them). `view_mesh.gd` (`glb_nodes`, `from_glb`) puts the
   game's shader on each pass; `view_weapons.gd` takes `Mesh` / `Cell` / `Charge` from the .glb. The arms:
-  `hands.mesh_source` -> `view_arms.glb` (an armoured gauntlet over a glove, 17 bones, four blended weights),
+  `hands.mesh_source` -> `view_arms.glb` (an armoured gauntlet over a glove, 18 bones, up to four weights),
   remapped by bone name onto the arm skeleton `view_rig.gd` still builds from data; the left arm is the right
   one mirrored; finger poses stay data (grip, trigger, foregrip, open, reach, blade). An empty `mesh_source`
   builds the old part lists (chamfered boxes, lathes, faceted fingers). Motion: `view_motion.gd` (4.16) plays
@@ -1336,7 +1336,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   vertices for the tests. Pickup is told apart from switch inside the view code by comparing the loadout's slot
   objects on `weapon_switched`; `pawn.gd` has no hook for it.
   CX1 keys a lower support elbow and keeps the rifle canted during the charging stage. Sprint settles back
-  to ready over 0.28 s, and the landing dip carries a small counter-pitch on recovery.
+  to ready over 0.28 s, and the landing dip carries a small counter-pitch on recovery. The interior wrist cuff
+  rings follow a bone that takes half the forearm bend. The hand and forearm retain their original aim transforms.
 - **Soldier mesh.** `art_soldier.json` `soldier.mesh_source` -> `soldier.glb`: one armature of 22 bones (the 17
   of `anim.json` plus LeftToes, RightToes, LeftFingers, RightFingers and Prop from
   `anim_third_person.json` `bones_add`; identity rest bases) and two skinned LODs, `SoldierNear` (2,536
@@ -1348,6 +1349,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
   them (helmet round the head sphere, rests and bind poses within 1 mm). An empty `mesh_source` builds the old
   merged-parts mesh (one LOD). The corpse keeps the near mesh. CX1 opens the lower spaulder lames and weights
   them nearer the cuirass. The cape's hem sits higher and farther behind the hips, with less inward sway while downed.
+  The glove-side cuff ring follows the hand and the sleeve-side ring follows the forearm, preserving their cross-sections.
 - **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json` in the
   order `blender`, `actionforge`, `ual`, `mixamo_local`. `blender` = `soldier_clips.glb` (the CC0 Quaternius
   UAL clips retargeted in Blender onto the soldier rig, feet and loops cleaned, shipped baked: idle, walk, jog,
@@ -1402,14 +1404,18 @@ fallback when a `mesh_source` is empty or a clip is missing.
   sweeps about 82 deg of hunch in `aim_out_s` (0.12 s, gameplay), 681 deg/s on average, the legacy path too (726), so
   `exceptions.cover_crouch.neck_chest_rate_max_dps` is 750 (`head._exceptions_note`). The tool's old `cover_crouch` /
   `cover_rise` states snap the crouch (0.136 m, 1357 deg/s); `cover_crouch_ramped` / `cover_rise_ramped` do not.
+- **Low-cover squat (M2 CX1).** `build_soldier_keyed.py` bakes a staggered, wall-side squat and its mirror
+  into `soldier_keyed.glb`. The hip moves into the wall and the torso stays over the boots. The rifle sits
+  diagonally across the front with clearance from the chest and wall. During the free-crouch handoff, SoldierGait
+  pins the neck to the live Head height and keeps the shoulders under it while preserving the solved foot goals.
+  The cover layer, controller timings and head limits keep their existing values.
 - **Tool and debug switches, default off, not gameplay** (static vars; nothing in the game sets them):
   `SoldierRig.head_legacy` (the pre-AN3 head and body; `--legacy-head` in `head_motion_measure.gd`,
   `soldier_capture.gd`, `cover_capture.gd`, `drop_capture.gd`, `anim_cost.gd`), `SoldierPose.measure_off` and `CoverAnim.measure_clip_neck` (per-source attribution in
   `tools/head_motion_measure.gd` only), `SoldierModel.code_built_reload` (the code-built reload; capture
   `--code-reload`).
-- **Free crouch (M2 AN3, M2 FIX1).** One owner per crouch: `SoldierModel._drive_crouch` shows only the H1c free
-  crouch's own share, `pawn.free_crouch_amount` x (1 - the cover layer's weight), never `pawn.crouch_amount()` (which
-  holds the cover crouch too) nor the Head node's drop; `CoverAnim._show_crouch` shows the cover crouch, divided by
+- **Free crouch (M2 AN3, M2 FIX1, M2 CX1).** `SoldierModel._drive_crouch` shows the free crouch beyond the cover
+  crouch amount, capped by the remaining weight outside the cover layer. `CoverAnim._show_crouch` shows the cover crouch, divided by
   the layer's weight while it fades in (`head.cover_mix_fade_s`), so the helmet is lowered once. (The AN3
   `has_method(&"crouch_amount")` fallback is gone: every Pawn has it since H1c.) `SoldierModel.crouch_amount()` is
   `pawn.crouch_amount()`, read-only. Out of cover the lower body blends to the existing `cover_crouch_idle` /
@@ -1417,12 +1423,18 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `head.free_crouch` keys: `nominal_head_drop_m` 0.9 (measured: standing Head rest 1.75 - cover.json
   `crouch_head_y_m` 0.85), `hips_drop_per_head`, `move_full_mps`, `reach_max_deg`. Tests (real pawn):
   `tests/test_soldier_crouch.gd`, and in `tests/test_soldier_head_motion.gd` the free crouch down / up and the
-  free-crouch-to-low-cover hand-off (open finding, OQ-ANIM-HEAD). `tools/head_motion_measure.gd` and
+  free-crouch-to-low-cover hand-off (printed, not asserted: open finding, OQ-ANIM-HEAD). `tools/head_motion_measure.gd` and
   `tools/soldier_capture.gd` drive the real pawn's free crouch amount and update its body shapes.
 - **Downed crawl and revive (M2 CX1).** The existing SoldierCrawl modifier offsets the shoulders and elbows
   in opposition to the knee cycle. The arm motion eases out when the pawn stops. During revive, SoldierModel
   hides the held weapon mesh at half pose weight so both hands can work clear of the weapon. Visibility
   returns as the revive pose blends out. The active loadout stays available throughout.
+- **Stationary pivot (M2 CX1).** SoldierGait keeps the support boot in world space while the pawn turns. The
+  other boot lifts, moves toward the new heading after clearing the ground, and settles before taking load.
+  The existing leg solve reaches both targets. The contact and upright head limits are checked on steady turns
+  and fast reversals in `test_soldier_turn_in_place.gd`. Moving off fades the held feet and the hip clamp back
+  to the clip over `gait.pivot.release_s`; the same file checks that walking off a turn moves the feet no more
+  per frame than a still start.
 - **Keyed rifle reload (M2 AN3; OQ-ANIM-RELOAD).** `build_soldier_rifle.py` writes `soldier_rifle.glb`: one staged
   reload per gun (`reload_pilum_br`, `reload_sagittarii_rifle`), 50 frames at 30 fps, starting and ending on the
   aimed pose (a port of `SoldierRig.arm_rotations`) with the left hand on that gun's foregrip; stage times, cant
