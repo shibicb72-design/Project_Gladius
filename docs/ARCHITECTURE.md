@@ -850,8 +850,9 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
     Arx ring in contact. The other terrain cells retain their 4 m far meshes. The contact
     test samples the render step at each point of a piece's footprint.
   - Each of the ten gates has a local approach profile in Alesia 500's place-map settings.
-    The masks guide the clutter sampler away from worn ground. Alesia 500's compacted
-    earth uses the ochre soil palette set alongside the profiles.
+    The masks are stamped before clutter: trodden strips keep ground patches out, and
+    shelter strips draw them in (world_clutter.gd shelter chance). Alesia 500's compacted
+    earth uses the ochre soil colour set alongside the profiles (trial value).
   - Saved-nav doorway coverage includes the new housing and civic rooms. Re-baked meshes for
     `alesia_1km`, `alesia_section` and `test_300` retain their pinned hashes in
     `tests/test_m2w1_backdrop.gd`. Their manifests carry the updated shared input hash.
