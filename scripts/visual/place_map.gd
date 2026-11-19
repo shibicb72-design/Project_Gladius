@@ -284,7 +284,7 @@ static func build(builder: Node, ground_size_m: float) -> RefCounted:
 	return map
 
 
-## Add gate-specific ground wear after clutter placement so road exclusions keep their original footprints.
+## Add gate-specific ground wear before clutter so the sampler avoids the compacted shoulders.
 func add_gate_approaches(structures: Array, root: Node) -> void:
 	var approaches: Dictionary = _cfg.get("gate_approaches", {})
 	if approaches.is_empty():
