@@ -103,6 +103,10 @@ uniform float puddle_far_m = 100000.0;  // puddles fade out between half this an
 uniform float ground_specular = 0.5;  // dry ground's specular (0.5 = the item-4 look); lower = less sheen towards the sun
 
 // Optional transition from the final painted texels into continuous, world-space skirt colour.
+// PLACEHOLDERS (M2CX2, OQ-ART-WORLD): the verge numbers in fragment() (start map_size_m*0.43, noise widths 46 and 65,
+// fade widths +78 and -18, far-field radii 285/780, grass mixes 0.68/0.95/0.36/0.69) are trial values tuned by eye
+// for alesia_500 only. Off on every other map (edge_blend_on = 0). Move them to art_backdrop.json skirt before
+// another map turns the blend on.
 uniform float backdrop_edge_blend_m = 0.0;
 
 varying vec3 v_world;
