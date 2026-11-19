@@ -1196,9 +1196,9 @@
 		},
 		{
 			"at": [
-				41.0,
+				38.5,
 				0.45,
-				-104.0
+				-100.0
 			],
 			"id": "Chest_007",
 			"size": [
@@ -1206,13 +1206,13 @@
 				0.9,
 				0.9
 			],
-			"yaw": 90.0
+			"yaw": 180.0
 		},
 		{
 			"at": [
-				96.0,
+				89.0,
 				0.45,
-				52.0
+				51.5
 			],
 			"id": "Chest_008",
 			"size": [
@@ -1220,7 +1220,7 @@
 				0.9,
 				0.9
 			],
-			"yaw": 90.0
+			"yaw": 270.0
 		},
 		{
 			"at": [
@@ -3185,29 +3185,12 @@
 		},
 		{
 			"at": [
-				-37.3,
-				0.0,
-				105.6
-			],
-			"height": 3.3,
-			"id": "Ladder_028",
-			"piece": "Oppidum18_Domus_0",
-			"top": [
-				-38.0,
-				3.3,
-				105.6
-			],
-			"width": 0.6,
-			"yaw": 90.0
-		},
-		{
-			"at": [
 				-63.0,
 				0.0,
 				102.7
 			],
 			"height": 3.3,
-			"id": "Ladder_029",
+			"id": "Ladder_028",
 			"piece": "Oppidum19_Domus_0",
 			"top": [
 				-63.0,
@@ -3224,7 +3207,7 @@
 				63.0
 			],
 			"height": 3.3,
-			"id": "Ladder_030",
+			"id": "Ladder_029",
 			"piece": "Oppidum20_Domus_0",
 			"top": [
 				-94.0,
@@ -3241,7 +3224,7 @@
 				37.3
 			],
 			"height": 3.3,
-			"id": "Ladder_031",
+			"id": "Ladder_030",
 			"piece": "Oppidum21_Domus_0",
 			"top": [
 				-105.0,
@@ -3258,7 +3241,7 @@
 				49.0
 			],
 			"height": 3.3,
-			"id": "Ladder_032",
+			"id": "Ladder_031",
 			"piece": "Oppidum22_Domus_0",
 			"top": [
 				-130.0,
@@ -3275,7 +3258,7 @@
 				18.7
 			],
 			"height": 3.3,
-			"id": "Ladder_033",
+			"id": "Ladder_032",
 			"piece": "Oppidum23_Domus_0",
 			"top": [
 				-119.0,
@@ -3292,7 +3275,7 @@
 				-20.5
 			],
 			"height": 3.3,
-			"id": "Ladder_034",
+			"id": "Ladder_033",
 			"piece": "Oppidum24_Domus_0",
 			"top": [
 				-135.8,
@@ -3309,7 +3292,7 @@
 				-35.5
 			],
 			"height": 3.3,
-			"id": "Ladder_035",
+			"id": "Ladder_034",
 			"piece": "Oppidum25_Domus_0",
 			"top": [
 				-133.0,
@@ -3326,7 +3309,7 @@
 				-34.3
 			],
 			"height": 3.3,
-			"id": "Ladder_036",
+			"id": "Ladder_035",
 			"piece": "Oppidum26_Domus_0",
 			"top": [
 				-91.5,
@@ -3343,7 +3326,7 @@
 				-65.3
 			],
 			"height": 3.3,
-			"id": "Ladder_037",
+			"id": "Ladder_036",
 			"piece": "Oppidum27_Domus_0",
 			"top": [
 				-91.0,
@@ -3360,7 +3343,7 @@
 				-105.0
 			],
 			"height": 3.3,
-			"id": "Ladder_038",
+			"id": "Ladder_037",
 			"piece": "Oppidum28_Domus_0",
 			"top": [
 				-66.0,
@@ -3377,7 +3360,7 @@
 				-102.7
 			],
 			"height": 3.3,
-			"id": "Ladder_039",
+			"id": "Ladder_038",
 			"piece": "Oppidum29_Domus_0",
 			"top": [
 				-49.0,
@@ -3394,7 +3377,7 @@
 				-119.0
 			],
 			"height": 3.3,
-			"id": "Ladder_040",
+			"id": "Ladder_039",
 			"piece": "Oppidum30_Domus_0",
 			"top": [
 				-46.0,
@@ -3411,7 +3394,7 @@
 				-121.3
 			],
 			"height": 3.3,
-			"id": "Ladder_041",
+			"id": "Ladder_040",
 			"piece": "Oppidum31_Domus_0",
 			"top": [
 				-7.0,
@@ -3428,7 +3411,7 @@
 				-133.2
 			],
 			"height": 3.3,
-			"id": "Ladder_042",
+			"id": "Ladder_041",
 			"piece": "Villa1_Domus_0",
 			"top": [
 				122.5,
@@ -3445,7 +3428,7 @@
 				42.3
 			],
 			"height": 3.3,
-			"id": "Ladder_043",
+			"id": "Ladder_042",
 			"piece": "Villa2_Domus_0",
 			"top": [
 				170.0,
@@ -3462,7 +3445,7 @@
 				170.0
 			],
 			"height": 3.3,
-			"id": "Ladder_044",
+			"id": "Ladder_043",
 			"piece": "Villa3_Domus_0",
 			"top": [
 				51.0,
@@ -3479,7 +3462,7 @@
 				122.5
 			],
 			"height": 3.3,
-			"id": "Ladder_045",
+			"id": "Ladder_044",
 			"piece": "Villa4_Domus_0",
 			"top": [
 				-124.5,
@@ -3496,7 +3479,7 @@
 				-42.3
 			],
 			"height": 3.3,
-			"id": "Ladder_046",
+			"id": "Ladder_045",
 			"piece": "Villa5_Domus_0",
 			"top": [
 				-170.0,
@@ -3513,7 +3496,7 @@
 				-170.0
 			],
 			"height": 3.3,
-			"id": "Ladder_047",
+			"id": "Ladder_046",
 			"piece": "Villa6_Domus_0",
 			"top": [
 				-51.0,
@@ -3530,7 +3513,7 @@
 				-83.7
 			],
 			"height": 3.3,
-			"id": "Ladder_048",
+			"id": "Ladder_047",
 			"piece": "Villa7_Domus_0",
 			"top": [
 				133.5,
@@ -3547,7 +3530,7 @@
 				95.3
 			],
 			"height": 3.3,
-			"id": "Ladder_049",
+			"id": "Ladder_048",
 			"piece": "Villa8_Domus_0",
 			"top": [
 				169.5,
@@ -3564,7 +3547,7 @@
 				198.5
 			],
 			"height": 3.3,
-			"id": "Ladder_050",
+			"id": "Ladder_049",
 			"piece": "Villa9_Domus_0",
 			"top": [
 				32.5,
@@ -3581,7 +3564,7 @@
 				104.7
 			],
 			"height": 3.3,
-			"id": "Ladder_051",
+			"id": "Ladder_050",
 			"piece": "Villa10_Domus_0",
 			"top": [
 				-169.5,
@@ -3598,7 +3581,7 @@
 				-74.3
 			],
 			"height": 3.3,
-			"id": "Ladder_052",
+			"id": "Ladder_051",
 			"piece": "Villa11_Domus_0",
 			"top": [
 				-133.5,
@@ -3615,7 +3598,7 @@
 				-198.5
 			],
 			"height": 3.3,
-			"id": "Ladder_053",
+			"id": "Ladder_052",
 			"piece": "Villa12_Domus_0",
 			"top": [
 				-32.5,
@@ -3632,7 +3615,7 @@
 				-131.5
 			],
 			"height": 3.3,
-			"id": "Ladder_054",
+			"id": "Ladder_053",
 			"piece": "Oppidum33_Domus_0",
 			"top": [
 				69.0,
@@ -3649,7 +3632,7 @@
 				-131.5
 			],
 			"height": 3.3,
-			"id": "Ladder_055",
+			"id": "Ladder_054",
 			"piece": "Oppidum34_Domus_0",
 			"top": [
 				97.0,
@@ -3666,7 +3649,7 @@
 				-75.5
 			],
 			"height": 3.3,
-			"id": "Ladder_056",
+			"id": "Ladder_055",
 			"piece": "Oppidum35_Domus_0",
 			"top": [
 				69.0,
@@ -3683,7 +3666,7 @@
 				-97.7
 			],
 			"height": 3.3,
-			"id": "Ladder_057",
+			"id": "Ladder_056",
 			"piece": "Oppidum36_Domus_0",
 			"top": [
 				92.5,
@@ -3700,7 +3683,7 @@
 				-97.7
 			],
 			"height": 3.3,
-			"id": "Ladder_058",
+			"id": "Ladder_057",
 			"piece": "Oppidum37_Domus_0",
 			"top": [
 				120.5,
@@ -3717,7 +3700,7 @@
 				-69.7
 			],
 			"height": 3.3,
-			"id": "Ladder_059",
+			"id": "Ladder_058",
 			"piece": "Oppidum38_Domus_0",
 			"top": [
 				120.5,
@@ -3734,7 +3717,7 @@
 				-14.3
 			],
 			"height": 3.3,
-			"id": "Ladder_060",
+			"id": "Ladder_059",
 			"piece": "Oppidum39_Domus_0",
 			"top": [
 				103.5,
@@ -3751,7 +3734,7 @@
 				-8.5
 			],
 			"height": 3.3,
-			"id": "Ladder_061",
+			"id": "Ladder_060",
 			"piece": "Oppidum40_Domus_0",
 			"top": [
 				155.0,
@@ -3768,7 +3751,7 @@
 				19.5
 			],
 			"height": 3.3,
-			"id": "Ladder_062",
+			"id": "Ladder_061",
 			"piece": "Oppidum41_Domus_0",
 			"top": [
 				155.0,
@@ -3785,7 +3768,7 @@
 				64.5
 			],
 			"height": 3.3,
-			"id": "Ladder_063",
+			"id": "Ladder_062",
 			"piece": "Oppidum44_Domus_0",
 			"top": [
 				125.0,
@@ -3802,7 +3785,7 @@
 				75.5
 			],
 			"height": 3.3,
-			"id": "Ladder_064",
+			"id": "Ladder_063",
 			"piece": "Oppidum45_Domus_0",
 			"top": [
 				71.0,
@@ -3819,7 +3802,7 @@
 				120.5
 			],
 			"height": 3.3,
-			"id": "Ladder_065",
+			"id": "Ladder_064",
 			"piece": "Oppidum46_Domus_0",
 			"top": [
 				69.0,
@@ -3836,7 +3819,7 @@
 				103.5
 			],
 			"height": 3.3,
-			"id": "Ladder_066",
+			"id": "Ladder_065",
 			"piece": "Oppidum48_Domus_0",
 			"top": [
 				15.0,
@@ -3853,7 +3836,7 @@
 				148.5
 			],
 			"height": 3.3,
-			"id": "Ladder_067",
+			"id": "Ladder_066",
 			"piece": "Oppidum49_Domus_0",
 			"top": [
 				13.0,
@@ -3870,7 +3853,7 @@
 				153.7
 			],
 			"height": 3.3,
-			"id": "Ladder_068",
+			"id": "Ladder_067",
 			"piece": "Oppidum50_Domus_0",
 			"top": [
 				-8.5,
@@ -3887,7 +3870,7 @@
 				103.5
 			],
 			"height": 3.3,
-			"id": "Ladder_069",
+			"id": "Ladder_068",
 			"piece": "Oppidum51_Domus_0",
 			"top": [
 				-13.0,
@@ -3904,7 +3887,7 @@
 				120.5
 			],
 			"height": 3.3,
-			"id": "Ladder_070",
+			"id": "Ladder_069",
 			"piece": "Oppidum52_Domus_0",
 			"top": [
 				-71.0,
@@ -3921,7 +3904,7 @@
 				126.3
 			],
 			"height": 3.3,
-			"id": "Ladder_071",
+			"id": "Ladder_070",
 			"piece": "Oppidum53_Domus_0",
 			"top": [
 				-103.5,
@@ -3938,7 +3921,7 @@
 				92.5
 			],
 			"height": 3.3,
-			"id": "Ladder_072",
+			"id": "Ladder_071",
 			"piece": "Oppidum54_Domus_0",
 			"top": [
 				-99.0,
@@ -3955,7 +3938,7 @@
 				70.3
 			],
 			"height": 3.3,
-			"id": "Ladder_073",
+			"id": "Ladder_072",
 			"piece": "Oppidum55_Domus_0",
 			"top": [
 				-75.5,
@@ -3972,7 +3955,7 @@
 				92.5
 			],
 			"height": 3.3,
-			"id": "Ladder_074",
+			"id": "Ladder_073",
 			"piece": "Oppidum56_Domus_0",
 			"top": [
 				-127.0,
@@ -3989,7 +3972,7 @@
 				64.5
 			],
 			"height": 3.3,
-			"id": "Ladder_075",
+			"id": "Ladder_074",
 			"piece": "Oppidum57_Domus_0",
 			"top": [
 				-127.0,
@@ -4006,7 +3989,7 @@
 				14.3
 			],
 			"height": 3.3,
-			"id": "Ladder_076",
+			"id": "Ladder_075",
 			"piece": "Oppidum58_Domus_0",
 			"top": [
 				-103.5,
@@ -4023,7 +4006,7 @@
 				8.5
 			],
 			"height": 3.3,
-			"id": "Ladder_077",
+			"id": "Ladder_076",
 			"piece": "Oppidum59_Domus_0",
 			"top": [
 				-155.0,
@@ -4040,7 +4023,7 @@
 				-19.5
 			],
 			"height": 3.3,
-			"id": "Ladder_078",
+			"id": "Ladder_077",
 			"piece": "Oppidum60_Domus_0",
 			"top": [
 				-155.0,
@@ -4057,7 +4040,7 @@
 				-64.5
 			],
 			"height": 3.3,
-			"id": "Ladder_079",
+			"id": "Ladder_078",
 			"piece": "Oppidum63_Domus_0",
 			"top": [
 				-125.0,
@@ -4074,7 +4057,7 @@
 				-75.5
 			],
 			"height": 3.3,
-			"id": "Ladder_080",
+			"id": "Ladder_079",
 			"piece": "Oppidum64_Domus_0",
 			"top": [
 				-71.0,
@@ -4091,7 +4074,7 @@
 				-131.5
 			],
 			"height": 3.3,
-			"id": "Ladder_081",
+			"id": "Ladder_080",
 			"piece": "Oppidum65_Domus_0",
 			"top": [
 				-71.0,
@@ -4108,7 +4091,7 @@
 				-103.5
 			],
 			"height": 3.3,
-			"id": "Ladder_082",
+			"id": "Ladder_081",
 			"piece": "Oppidum67_Domus_0",
 			"top": [
 				-15.0,
@@ -4125,7 +4108,7 @@
 				-159.5
 			],
 			"height": 3.3,
-			"id": "Ladder_083",
+			"id": "Ladder_082",
 			"piece": "Oppidum68_Domus_0",
 			"top": [
 				-15.0,

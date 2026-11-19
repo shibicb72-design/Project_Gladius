@@ -148,7 +148,8 @@ func _ready() -> void:
 	chunks.build()
 	for body in chest_bodies:
 		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
-	_build_terrain(nav)
+	var terrain_cfg: Dictionary = map_def.get("terrain", {})
+	_build_terrain(nav, bool(terrain_cfg.get("far_keep_centre", false)))
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	# M2L1 (binding fix 5): a map json may switch it off ("backdrop": false; default true).
 	if backdrop_wanted(map_def, bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false))):
@@ -379,7 +380,7 @@ func _paint_ground(nav: Node) -> void:
 ## goes: never neither, both only at d == E +- m. No end on Far: a terrain chunk is never culled. Without a
 ## usable far mesh (far_swap_m 0, a bad far_step_m: push_error, or a partial edge cell) "Mesh" keeps no range.
 ## The collider is untouched (one HeightMapShape3D of the full heights).
-func _build_terrain(nav: Node) -> void:
+func _build_terrain(nav: Node, keep_centre: bool) -> void:
 	if terrain == null:
 		return
 	_build_terrain_collider(nav)
@@ -395,6 +396,7 @@ func _build_terrain(nav: Node) -> void:
 		if problem != "":
 			push_error("ArtBuilder: no far terrain: " + problem)
 			swap_m = 0.0
+	var mid := floori(chunks.per_side * 0.5)
 	var root := Node3D.new()
 	root.name = "Terrain"
 	add_child(root)
@@ -409,6 +411,8 @@ func _build_terrain(nav: Node) -> void:
 			mesh.material_override = ground_material
 			mesh.cast_shadow = shadow
 			chunk.add_child(mesh)
+			if keep_centre and ix == mid and iz == mid:
+				continue
 			var far_mesh: ArrayMesh = terrain.far_chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side, step_m) if swap_m > 0.0 else null
 			if far_mesh == null:
 				continue

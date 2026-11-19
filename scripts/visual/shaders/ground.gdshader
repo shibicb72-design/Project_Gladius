@@ -102,6 +102,13 @@ uniform float wet_rough_vary = 0.0;
 uniform float puddle_far_m = 100000.0;  // puddles fade out between half this and this camera distance
 uniform float ground_specular = 0.5;  // dry ground's specular (0.5 = the item-4 look); lower = less sheen towards the sun
 
+// Optional transition from the final painted texels into continuous, world-space skirt colour.
+// PLACEHOLDERS (M2CX2, OQ-ART-WORLD): the verge numbers in fragment() (start map_size_m*0.43, noise widths 46 and 65,
+// fade widths +78 and -18, far-field radii 285/780, grass mixes 0.68/0.95/0.36/0.69) are trial values tuned by eye
+// for alesia_500 only. Off on every other map (edge_blend_on = 0). Move them to art_backdrop.json skirt before
+// another map turns the blend on.
+uniform float backdrop_edge_blend_m = 0.0;
+
 varying vec3 v_world;
 varying vec3 v_normal_world;
 
@@ -112,6 +119,10 @@ void vertex() {
 
 void fragment() {
 	vec2 p = v_world.xz;
+	float edge_distance = max(abs(p.x), abs(p.y)) - map_size_m * 0.5;
+	float edge_blend_on = step(0.01, backdrop_edge_blend_m);
+	float radius_m = length(p);
+	float verge_start = map_size_m * 0.43;
 	if (detail_enabled) {
 		vec2 ground_uv = p / map_size_m + 0.5;
 		vec4 paint_d = texture(paint_map, ground_uv);
@@ -120,7 +131,15 @@ void fragment() {
 		vec4 Nn = texture(noise_pack, p / detail_near_m + vec2(0.13, 0.53));
 		// Outside the ground square (the backdrop skirt) and without a place map: no masks, a flat broad noise.
 		float inside = place_enabled * (1.0 - step(0.5, max(abs(ground_uv.x - 0.5), abs(ground_uv.y - 0.5))));
-		P = mix(vec4(0.0, 0.0, 0.0, 0.5), P, inside);
+		float interior = 1.0 - edge_blend_on * smoothstep(-18.0, 0.0, edge_distance);
+		// Spread the paint transition over a broken, radial verge that starts inside the square.
+		// The two meshes sample the same pattern and grass coverage on either side of their seam.
+		float verge_m = radius_m - verge_start + (M.a - 0.5) * 46.0;
+		float verge = edge_blend_on * smoothstep(0.0, backdrop_edge_blend_m + 78.0, verge_m);
+		float far_field = smoothstep(285.0, 780.0, radius_m + (M.a - 0.5) * 65.0);
+		float verge_grass = mix(mix(0.68, 0.95, M.a), mix(0.36, 0.69, M.a), far_field);
+		P = mix(vec4(0.0, 0.0, 0.0, mix(0.5, M.a, verge)), P, inside * interior);
+		paint_d = mix(paint_d, vec4(0.0, verge_grass, 0.0, 1.0), verge);
 		vec4 L = vec4(mix(M.a, 1.0 - P.a, 0.5), P.a, 0.0, 0.0);  // the broad noise (was a 360 m noise fetch)
 		float dist = length(v_world - CAMERA_POSITION_WORLD);
 		float far_k = smoothstep(fade_start_m, fade_end_m, dist) * fade_amount;  // tiling detail fades into macro colour
@@ -130,11 +149,11 @@ void fragment() {
 		// The citadel hill (the only ground above the plain): its height drives the bands; the paint's pale paving
 		// halo at its foot goes under the base skirt (the summit's paving stays).
 		float h = v_world.y;
-		float hill_w = smoothstep(hill_from_m, hill_from_m + 1.0, h) * hill_amount;
+		float hill_w = smoothstep(hill_from_m, hill_from_m + 1.0, h) * hill_amount * interior;
 		paving *= 1.0 - smoothstep(0.05, hill_from_m + 0.6, h) * (1.0 - smoothstep(hill_crown_m, hill_crown_m + 2.0, h)) * hill_paving_absorb;
 		float trod = P.r * (1.0 - paving);
 		float shel = P.g * (1.0 - paving) * (1.0 - trod * 0.6) * (1.0 - hill_w);
-		float openness = (1.0 - smoothstep(0.0, 0.35, max(P.r, P.g))) * inside * (1.0 - hill_w);
+		float openness = (1.0 - smoothstep(0.0, 0.35, max(P.r, P.g))) * inside * interior * (1.0 - hill_w);
 		// Rock and scree on the slopes (the hill's steepest is 29 degrees: planar xz stretches 14% there at most).
 		// It also covers most of the paint's paving there (looks only: the paint map and footsteps are unchanged).
 		float slope = 1.0 - normalize(v_normal_world).y;
@@ -217,6 +236,11 @@ void fragment() {
 	vec4 nz = texture(noise_pack, p * macro_per_m);
 	// A second, much larger sample for the broad patches, so the first one's tiling does not show from the air.
 	vec4 wide = texture(noise_pack, p * macro_per_m * 0.27 + vec2(0.37, 0.11));
+	float verge = edge_blend_on * smoothstep(0.0, backdrop_edge_blend_m + 78.0,
+		radius_m - verge_start + (wide.r - 0.5) * 46.0);
+	float far_field = smoothstep(285.0, 780.0, radius_m + (wide.r - 0.5) * 65.0);
+	float verge_grass = mix(mix(0.68, 0.95, wide.r), mix(0.36, 0.69, wide.r), far_field);
+	paint = mix(paint, vec4(0.0, verge_grass, 0.0, 1.0), verge);
 	float paving = smoothstep(0.42, 0.58, paint.r + (nz.b - 0.5) * edge_noise * 0.6);
 	float grass = smoothstep(0.38, 0.62, paint.g + (nz.r - 0.5) * edge_noise) * (1.0 - paving);
 	vec4 te = texture(surfaces, vec3(p * tiles_per_m.x, layer_ids.x));

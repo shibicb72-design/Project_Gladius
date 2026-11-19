@@ -25,8 +25,9 @@ func test_alesia_500_pieces_touch_the_ground() -> void:
 	assert_true(int((families["all"] as Dictionary)["n"]) > 1000, "nonvacuous: %d visuals measured" % int((families["all"] as Dictionary)["n"]))
 	for key: String in ["structure", "cover", "ring", "decor", "props"]:
 		assert_true(families.has(key), "the %s family is measured" % key)
-	for piece: Array in report["floating"]:
-		assert_true(float(piece[0]) <= tol, "%s %s floats %.3f m above the ground (max_visual_float_m %.2f)" % [piece[1], piece[2], float(piece[0]), tol])
+	for key: String in ["floating", "far_floating"]:
+		for piece: Array in report[key]:
+			assert_true(float(piece[0]) <= tol, "%s %s floats %.3f m above the ground (max_visual_float_m %.2f)" % [piece[1], piece[2], float(piece[0]), tol])
 
 
 func test_alesia_1km_report_only() -> void:
@@ -60,12 +61,20 @@ static func contact_report(map: Node, def: Dictionary) -> Dictionary:
 	var ids := _ids_by_spot(def)
 	var families := {}
 	var floating: Array = []
-	# The far ground (MapTerrain.far_chunk_mesh, drawn beyond data/map_build.json terrain.far_swap_m): report only.
+	# The ground at long range uses each chunk's actual far or full-resolution mesh.
 	var far_families := {}
 	var far_floating: Array = []
 	var far_step := 0.0
 	if terrain != null:
 		far_step = float((def["terrain"] as Dictionary).get("far_step_m", MapChunks.config()["terrain"].get("far_step_m", 0.0)))
+	var near_only := {}
+	if far_step > 0.0:
+		for iz in chunks.per_side:
+			for ix in chunks.per_side:
+				if builder.get_node_or_null("Terrain/Chunk_%d_%d/Far" % [ix, iz]) == null:
+					near_only[Vector2i(ix, iz)] = true
+	var step_at := func(p: Vector3) -> float:
+		return 0.0 if near_only.has(chunks.index_of(p)) else far_step
 	for batch: MultiMeshInstance3D in chunks.batches():
 		if int(batch.get_meta(&"lod_level", 0)) == 1:
 			continue  # the far look of a near piece
@@ -82,7 +91,7 @@ static func contact_report(map: Node, def: Dictionary) -> Dictionary:
 			var where := "%s at (%.1f, %.1f, %.1f)" % [ids.get(_spot_key(xform.origin), type), xform.origin.x, xform.origin.y, xform.origin.z]
 			_add(families, floating, [top + "/" + type, top, "all"], m, where)
 			if far_step > 0.0 and source != "clutter":
-				_add(far_families, far_floating, ["far/" + top], measure(terrain, xform, aabb, far_step), where)
+				_add(far_families, far_floating, ["far/" + top], measure(terrain, xform, aabb, step_at), where)
 	var props := builder.get_node_or_null("Props")
 	if props != null:
 		for node: Node in props.find_children("*", "MeshInstance3D", true, false):
@@ -149,8 +158,8 @@ static func far_height(terrain: MapTerrain, x: float, z: float, step_m: float) -
 
 
 ## One visual: {float, sink} of the AABB `aabb` (local) under `xform` against the terrain (null = flat 0), or against
-## the far ground when `far_step_m` > 0.
-static func measure(terrain: MapTerrain, xform: Transform3D, aabb: AABB, far_step_m := 0.0) -> Dictionary:
+## the far ground, using the render step at each sample when supplied.
+static func measure(terrain: MapTerrain, xform: Transform3D, aabb: AABB, step_at := Callable()) -> Dictionary:
 	var bottom := INF
 	for i in 8:
 		bottom = minf(bottom, (xform * aabb.get_endpoint(i)).y)
@@ -163,7 +172,8 @@ static func measure(terrain: MapTerrain, xform: Transform3D, aabb: AABB, far_ste
 			var p := xform * Vector3(lerpf(lo.x, hi.x, u), lo.y, lerpf(lo.z, hi.z, v))
 			var ground := 0.0
 			if terrain != null:
-				ground = far_height(terrain, p.x, p.z, far_step_m) if far_step_m > 0.0 else terrain.height_at(p.x, p.z)
+				var step_m: float = step_at.call(p) if step_at.is_valid() else 0.0
+				ground = far_height(terrain, p.x, p.z, step_m) if step_m > 0.0 else terrain.height_at(p.x, p.z)
 			worst_float = maxf(worst_float, bottom - ground)
 			worst_sink = maxf(worst_sink, ground - bottom)
 	return {"float": worst_float, "sink": worst_sink}
@@ -221,7 +231,7 @@ static func report_lines(map_id: String, report: Dictionary) -> PackedStringArra
 	var floating: Array = report["floating"]
 	for i in mini(WORST, floating.size()):
 		lines.append("GROUND_CONTACT_WORST map=%s rank=%d float_m=%.3f family=%s piece=%s" % [map_id, i + 1, float(floating[i][0]), floating[i][1], floating[i][2]])
-	# Report only: the same pieces against the far ground (drawn beyond the terrain's far swap distance).
+	# The same pieces against the ground drawn beyond the terrain's far swap distance.
 	var far: Dictionary = report["far_families"]
 	for key: String in far:
 		var f: Dictionary = far[key]

@@ -200,6 +200,8 @@ func _build_far(block: Dictionary, ground_material: Material, terrain: MapTerrai
 	_far_noise.fractal_octaves = 3
 	_far_noise.frequency = 1.0 / float(block["skirt"]["roll_noise_m"])
 	if ground_material != null:
+		if ground_material is ShaderMaterial and block["skirt"].has("edge_blend_m"):
+			(ground_material as ShaderMaterial).set_shader_parameter("backdrop_edge_blend_m", float(block["skirt"]["edge_blend_m"]))
 		_build_far_skirt(block["skirt"], ground_material)
 	_build_far_hills(block["hills"])
 	if block.has("aqueduct"):

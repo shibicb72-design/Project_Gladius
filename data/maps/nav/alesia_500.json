@@ -2,21 +2,21 @@
 	"godot": "4.7.2",
 	"inputs": {
 		"res://data/art_astra.json": "4ad5a9bc3218128deb08f3491e2924ad41a4101aa7d5bbfd780133accafed498",
-		"res://data/maps/alesia_500.json": "6ea5fd595b8010be146247c687c7cb46d611a644fa056bd558d9a8119edf06fe",
-		"res://data/maps/alesia_500_cover.json": "91d1331aa148f30bd5c22dfba03fdc13a2379bf81144963bb71710a84a24e908",
-		"res://data/maps/alesia_500_structures.json": "85555fe979c94f38c72359d8e342970b489ff8bb62c823eb934859fd3201a3f3",
+		"res://data/maps/alesia_500.json": "72ba98b82262ddbb1d9df8ec1eac7a55f2700cdd4774cb7f56b6792bfd7d948f",
+		"res://data/maps/alesia_500_cover.json": "854a8d99322a699d9006875218f9a198db228c69f4aec4d272c7d41e71fbb106",
+		"res://data/maps/alesia_500_structures.json": "b33b260b0149d9bda2817292bf99c75d6248ac33ffec5884ababa9cd0cbf3c84",
 		"res://data/maps/alesia_cover.json": "54ac19f80114344e7f7b37811fb6605f685fe863b2e30ec6b5928dcbc95f8221",
-		"res://data/maps/alesia_structures.json": "a185a5544dd777eb91887766790a7522aec95fe5e99d280d491c3da4fc2da0d6"
+		"res://data/maps/alesia_structures.json": "6551a29cf01981513967ed86a9081ca1bb77c27e36a4d70f9c82a7321fb4eac1"
 	},
 	"map": "res://data/maps/alesia_500.json",
-	"mesh_bytes": 575591,
-	"mesh_sha256": "24e32fff3f38a1d2634da03f63c7f725de78ba88b9da31434a45f4d3bdddd164",
-	"polygons": 18303,
+	"mesh_bytes": 603467,
+	"mesh_sha256": "a0d9275cfcd54a9b84345c9d223ca27f35363e78dadcdd2131003f1a62ad6f53",
+	"polygons": 19152,
 	"tool_inputs": {
 		"res://data/maps/alesia_500_heights.res": "f73b7b2e590bb743a6634b919e972ab3131705dc4127331087dd7a13b7c4c88c",
-		"res://data/maps/alesia_500_paint.res": "d42937c0154324faf27ae963bd37158efefc5cce1fdcb1c338e9d3308dfbe530",
+		"res://data/maps/alesia_500_paint.res": "786a9c51af27bcd9529ce1245dd0a7ab2f58055e314d838c8e4bf7820888e528",
 		"res://scenes/maps/alesia_500.tscn": "d002b61072586d909a9e3acbbc9d0780694531f3d5354ec3c27f775824685f0e"
 	},
 	"version": 1,
-	"vertices": 17389
+	"vertices": 18297
 }
