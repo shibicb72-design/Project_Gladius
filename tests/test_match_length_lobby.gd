@@ -161,7 +161,7 @@ func test_lobby_length_button_cycles_saves_and_updates_the_profile() -> void:
 	assert_eq(AppFlow.profile, old_profile, "AppFlow.profile restored")
 
 
-## The five ActionBar buttons (Back, Class, Mode, Length, Start) at every phone size and the smallest desktop
+## The six ActionBar buttons (Back, Class, Mode, Length, Bots, Start; Bots since M2 B4) at every phone size and the smallest desktop
 ## size the UI tests use (tests/test_front_end_sizes.gd): inside the viewport, not narrower than their minimum
 ## (text not clipped), no overlap, >= 48 dp tall.
 func test_action_bar_fits_with_the_length_button() -> void:
@@ -183,7 +183,7 @@ func test_action_bar_fits_with_the_length_button() -> void:
 		for c in bar.get_children():
 			if c is Button and (c as Button).is_visible_in_tree():
 				buttons.append(c)
-		assert_eq(buttons.size(), 5, "Back, Class, Mode, Length, Start at %s" % tag)
+		assert_eq(buttons.size(), 6, "Back, Class, Mode, Length, Bots, Start at %s" % tag)  # M2 B4: + Bots
 		var min_sum := 0.0
 		for b in buttons:
 			min_sum += b.get_combined_minimum_size().x

@@ -169,7 +169,9 @@ func _trial(seed_value: int, gun: String, dist: float, profile: Dictionary, over
 	return out
 
 
-func _case(gun: String, dist: float, profile_name: String, dists: Array) -> void:
+## M2 B4: a non-empty `level` (a bots.json "difficulty" level) puts the level's accuracy and reaction_time_s over
+## the profile and adds its fight.settle_s / fight.settle_floor_frac to the overrides; the lines print profile=<level>.
+func _case(gun: String, dist: float, profile_name: String, dists: Array, level: String = "") -> void:
 	var all := DataRegistry.new().load_file(BOTS_PATH)
 	var profile: Dictionary = all["profiles"][profile_name]
 	var reg := DataRegistry.new()
@@ -179,6 +181,17 @@ func _case(gun: String, dist: float, profile_name: String, dists: Array) -> void
 	var sight_override := dist > shipped_sight
 	if sight_override:
 		overrides["fight.sight_by_weapon." + gun] = range_m
+	if level != "":
+		var lv := MatchRoot.bot_difficulty_level(level)
+		assert_true(not lv.is_empty(), "difficulty level %s exists" % level)
+		if lv.is_empty():
+			return
+		profile = profile.duplicate(true)
+		profile["accuracy"] = float(lv["accuracy"])
+		profile["reaction_time_s"] = float(lv["reaction_time_s"])
+		overrides["fight.settle_s"] = float(lv["settle_s"])
+		overrides["fight.settle_floor_frac"] = float(lv["settle_floor_frac"])
+		profile_name = level
 	var times: Array = []
 	var shots := 0
 	var hits := 0
@@ -242,3 +255,44 @@ func test_ttd_rifle_tiro() -> void:
 func test_ttd_rifle_legatus() -> void:
 	for d in RIFLE_DISTS:
 		await _case("sagittarii_rifle", d, "legatus", RIFLE_DISTS)
+
+
+## M2 B4: one method per gun and bots.json difficulty level (the match_fill profile, tiro, under the level), e.g.
+##   ... --only=test_sim_bot_ttd.gd::test_ttd_pilum_hard
+## test_ttd_pilum_normal draws the same numbers as test_ttd_pilum_tiro (only profile= and overrides= differ).
+func _level_cases(gun: String, level: String, dists: Array) -> void:
+	var base := String(DataRegistry.new().load_file(BOTS_PATH)["match_fill"]["profile"])
+	for d in dists:
+		await _case(gun, d, base, dists, level)
+
+
+func test_ttd_pilum_easy() -> void:
+	await _level_cases("pilum_br", "easy", PILUM_DISTS)
+
+
+func test_ttd_pilum_normal() -> void:
+	await _level_cases("pilum_br", "normal", PILUM_DISTS)
+
+
+func test_ttd_pilum_hard() -> void:
+	await _level_cases("pilum_br", "hard", PILUM_DISTS)
+
+
+func test_ttd_pilum_very_hard() -> void:
+	await _level_cases("pilum_br", "very_hard", PILUM_DISTS)
+
+
+func test_ttd_sagittarii_easy() -> void:
+	await _level_cases("sagittarii_rifle", "easy", RIFLE_DISTS)
+
+
+func test_ttd_sagittarii_normal() -> void:
+	await _level_cases("sagittarii_rifle", "normal", RIFLE_DISTS)
+
+
+func test_ttd_sagittarii_hard() -> void:
+	await _level_cases("sagittarii_rifle", "hard", RIFLE_DISTS)
+
+
+func test_ttd_sagittarii_very_hard() -> void:
+	await _level_cases("sagittarii_rifle", "very_hard", RIFLE_DISTS)

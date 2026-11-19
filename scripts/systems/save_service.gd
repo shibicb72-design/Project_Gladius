@@ -26,6 +26,7 @@ static func defaults() -> Dictionary:
 				"left_fire_enabled": _left_fire_default(),  # G3e: optional left Fire button, default from data (false)
 				"shooting_mode": shooting_mode_default(),  # M2 H1a: "advanced" | "simple", default from data (OQ-SHOOT-MODE)
 				"match_length": match_length_default(),  # M2 Z2: a br.json match_length option id, default from data (OQ-BR-LENGTH)
+				"bot_difficulty": bot_difficulty_default(),  # M2 B4: a bots.json difficulty level id, default from data (OQ-BOT-DIFFICULTY)
 				"minimap_rotate": true,  # M2 H1b: the small minimap turns with the heading (true) or stays north up (OQ-MINIMAP)
 				"coach_done": false}  # M2 H1b commit 5: the first-play coach was finished or skipped (OQ-COACH)
 
@@ -45,6 +46,17 @@ static func match_length_default() -> String:
 static func match_length(value: Variant) -> String:
 	var cfg := _br_cfg()
 	return MatchDirector.validated_match_length_id(cfg, str(value) if value is String else "")
+
+
+## M2 B4: data/bots.json difficulty.default (OQ-BOT-DIFFICULTY placeholder, "normal").
+static func bot_difficulty_default() -> String:
+	return MatchRoot.bot_difficulty_default()
+
+
+## M2 B4: a bot difficulty id from a file or menu; only bots.json difficulty level ids are kept, anything else
+## (missing, unknown, not a string) means the data default.
+static func bot_difficulty(value: Variant) -> String:
+	return MatchRoot.validated_bot_difficulty(value)
 
 
 ## M2 H1a: data/input.json shooting.default_mode (OQ-SHOOT-MODE placeholder, "advanced").
@@ -141,6 +153,7 @@ func load_profile() -> Dictionary:
 	profile["left_fire_enabled"] = _left_fire(data.get("left_fire_enabled", null))
 	profile["shooting_mode"] = shooting_mode(data.get("shooting_mode", null))
 	profile["match_length"] = match_length(data.get("match_length", null))
+	profile["bot_difficulty"] = bot_difficulty(data.get("bot_difficulty", null))  # M2 B4
 	profile["minimap_rotate"] = minimap_rotate(data.get("minimap_rotate", null))  # M2 H1b
 	profile["coach_done"] = coach_done(data.get("coach_done", null))  # M2 H1b commit 5
 	# M2 H1a layout migration (OQ-H1A-LAYOUT): saved layouts without the current layout version (or a pre-G2e file with
@@ -174,6 +187,7 @@ func save_profile(profile: Dictionary) -> bool:
 	out["left_fire_enabled"] = _left_fire(profile.get("left_fire_enabled", null))
 	out["shooting_mode"] = shooting_mode(profile.get("shooting_mode", null))
 	out["match_length"] = match_length(profile.get("match_length", null))
+	out["bot_difficulty"] = bot_difficulty(profile.get("bot_difficulty", null))  # M2 B4
 	out["minimap_rotate"] = minimap_rotate(profile.get("minimap_rotate", null))  # M2 H1b
 	out["coach_done"] = coach_done(profile.get("coach_done", null))  # M2 H1b commit 5
 	f.store_string(JSON.stringify(out, "\t"))

@@ -5,7 +5,7 @@ extends Control
 ## to the host and applies its snapshots (see MatchRoot, NetMatchBridge, tests/test_net_match.gd).
 ## All networking goes through NetLobby (session.lobby); this UI only calls it and listens to its signals.
 ## Layout (docs/UI_STYLE.md): page backdrop; header (title, IPs or status); the roster as a grid of squad cards in a
-## vertical scroll; the always-visible ActionBar (Back, Class, Mode, Length, Start) at the bottom.
+## vertical scroll; the always-visible ActionBar (Back, Class, Mode, Length, Bots, Start) at the bottom.
 
 const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const CLASSES: Array[String] = ["hastati", "sagittarii"]
@@ -25,7 +25,9 @@ var class_button: Button
 var mode_button: Button
 ## Host only (M2 Z2, OQ-BR-LENGTH): cycles the data/br.json match_length options. Clients see it in the status line.
 var length_button: Button
-## Where a length change is saved (tests point it at a temp user:// file).
+## Host only (M2 B4, OQ-BOT-DIFFICULTY): cycles the data/bots.json difficulty levels. Clients see it in the status line.
+var bot_button: Button
+## Where a length or bot difficulty change is saved (tests point it at a temp user:// file).
 var save := SaveService.new()
 var is_host: bool = true
 var _br_cfg: Dictionary = {}
@@ -126,6 +128,12 @@ func _ready() -> void:
 	length_button.visible = is_host
 	length_button.pressed.connect(cycle_match_length)
 	actions.add_child(length_button)
+	bot_button = Button.new()
+	bot_button.name = "BotDifficultyButton"
+	bot_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bot_button.visible = is_host
+	bot_button.pressed.connect(cycle_bot_difficulty)
+	actions.add_child(bot_button)
 	start_button = Button.new()
 	start_button.text = "Start"
 	start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -152,6 +160,8 @@ func _ready() -> void:
 		set_team_mode(MatchDirector.team_mode_of(_br_cfg))
 		# M2 Z2: the profile's last length (validated, else the data default). Not saved here: only a change saves.
 		_apply_match_length(SaveService.match_length(_profile().get("match_length", null)), false)
+		# M2 B4: the profile's last bot difficulty (validated, else the data default). Not saved here either.
+		_apply_bot_difficulty(SaveService.bot_difficulty(_profile().get("bot_difficulty", null)), false)
 	else:
 		status_label.text = "Connected. Waiting for the host to start."
 		net_lobby.submit_local(my_name, "hastati")
@@ -218,14 +228,49 @@ func _apply_match_length(id: String, persist: bool) -> bool:
 		profile["match_length"] = id
 		save.save_profile(profile)
 		AppFlow.profile = save.load_profile()
-	# NetLobby (read-only in this slice) has no host_set_match_length. Its public submit_local on the host applies
-	# the host's own unchanged name and class and then broadcasts state.to_dict() to every client, so re-submitting
-	# them sends the new length. A dedicated NetLobby.host_set_match_length would be cleaner (outside this slice).
+	_resend_lobby()
+	refresh()
+	return true
+
+
+## M2 B4, host only: the next data/bots.json difficulty level, in data order (wraps).
+func cycle_bot_difficulty() -> void:
+	var ids := MatchRoot.bot_difficulty_ids()
+	if ids.is_empty():
+		return
+	set_bot_difficulty(ids[(ids.find(state.bot_difficulty) + 1) % ids.size()])
+
+
+## M2 B4, host only: sets a data bot difficulty id, saves it in the profile and sends it to the clients. False for a
+## client, an id not in data, or after the start.
+func set_bot_difficulty(id: String) -> bool:
+	if not is_host or MatchRoot.bot_difficulty_level(id).is_empty():
+		return false
+	return _apply_bot_difficulty(id, true)
+
+
+func _apply_bot_difficulty(id: String, persist: bool) -> bool:
+	if not net_lobby.state.set_bot_difficulty(id):
+		return false
+	state = net_lobby.state
+	if persist:
+		var profile := save.load_profile()
+		profile["bot_difficulty"] = id
+		save.save_profile(profile)
+		AppFlow.profile = save.load_profile()
+	_resend_lobby()
+	refresh()
+	return true
+
+
+## Host: sends the lobby state (match length, bot difficulty) to the clients. NetLobby (read-only in this slice) has
+## no host_set_match_length / host_set_bot_difficulty. Its public submit_local on the host applies the host's own
+## unchanged name and class and then broadcasts state.to_dict() to every client, so re-submitting them sends the new
+## value. A dedicated NetLobby setter would be cleaner (outside this slice).
+func _resend_lobby() -> void:
 	var i := state.find_human(net_lobby.local_id())
 	if i >= 0:
 		net_lobby.submit_local(str(state.humans[i]["name"]), str(state.humans[i]["class_id"]))
-	refresh()
-	return true
 
 
 func toggle_class() -> void:
@@ -303,9 +348,12 @@ func refresh() -> void:
 	mode_button.text = "Mode: %s" % mode_name
 	var length_label := MatchDirector.match_length_label(_br_cfg, state.match_length)  # "" for "" or an unknown id
 	length_button.text = "Length: %s" % (length_label if length_label != "" else "-")
+	var bots_label := MatchRoot.bot_difficulty_label(state.bot_difficulty)  # "" for an unknown id
+	bot_button.text = "Bots: %s" % (bots_label if bots_label != "" else "-")
 	if not is_host:
 		var length_part := " Length: %s." % length_label if length_label != "" else ""
-		status_label.text = "Mode: %s.%s Waiting for the host to start." % [mode_name, length_part]
+		var bots_part := " Bots: %s." % bots_label if bots_label != "" else ""
+		status_label.text = "Mode: %s.%s%s Waiting for the host to start." % [mode_name, length_part, bots_part]
 
 
 ## Squad card columns: one per ~15 body-font widths of roster width, 1 to 3.
