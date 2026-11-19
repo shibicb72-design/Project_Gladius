@@ -23,7 +23,7 @@ const STATES: Array[String] = ["idle", "walk", "run", "sprint", "strafe", "straf
 		"aim_fire", "reload", "hit", "jump", "death", "downed_crawl", "revive", "blade",
 		"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground",
 		"fall", "fall_side", "turn", "crouch", "crouch_walk",  # M2 AN3 stage C
-		"aim_sweep", "reload_sagittarii"]  # M2 AN3 stage D
+		"aim_sweep", "reload_sagittarii", "run_transition"]
 
 var _out := "build/an1_after/c4_soldier"
 var _fps := 20
@@ -136,11 +136,8 @@ func _build_stage() -> void:
 	_camera.current = true
 
 
-func _spawn(state: String = "") -> void:
+func _spawn() -> void:
 	_pawn = load("res://scenes/player/pawn.tscn").instantiate()
-	if state.begins_with("crouch"):
-		# M2 AN3 stage C: the free crouch through the H1c stand-in (Pawn.crouch_amount(), tests/crouch_stub_pawn.gd).
-		_pawn.set_script(load("res://tests/crouch_stub_pawn.gd"))
 	_stage.add_child(_pawn)
 	_pawn.set_physics_process(false)
 	_pawn.global_position = Vector3.ZERO
@@ -198,7 +195,7 @@ func _hold(seconds: float, velocity: Vector3 = Vector3.ZERO) -> void:
 
 func _capture(state: String) -> void:
 	_build_stage()
-	_spawn(state)
+	_spawn()
 	_state = state
 	_dir = _out.path_join(state)
 	DirAccess.make_dir_recursive_absolute(_dir)
@@ -221,6 +218,10 @@ func _capture(state: String) -> void:
 			await _hold(2.0, Vector3.FORWARD * speed * float(SoldierRig.config()["gait"]["walk_slow_blend"]))
 		"run":
 			await _hold(1.6, Vector3.FORWARD * speed)
+		"run_transition":
+			await _hold(0.3)
+			await _hold(1.0, Vector3.FORWARD * speed)
+			await _hold(0.6)
 		"sprint":
 			await _hold(1.6, Vector3.FORWARD * _pawn.get_max_move_speed())
 		"strafe":
@@ -334,17 +335,21 @@ func _capture(state: String) -> void:
 					await _frame(Vector3.FORWARD * speed if moving else Vector3.ZERO)
 			_pawn.rotation.y = 0.0
 		"crouch", "crouch_walk":
-			# M2 AN3 stage C: the free crouch (the stub's crouch_amount() 0 -> 1 over 0.3 s; the Head node lowered with
-			# it by head.free_crouch.nominal_head_drop_m, as H1c will), then 1.5 s held or walked at 0.4 x move speed.
 			_cam_offset = Vector3(2.6, 1.0, -2.6)
-			var head_node := _pawn.get_node("Head") as Node3D
-			var standing := head_node.position.y
-			var drop := float(SoldierRig.config()["head"]["free_crouch"]["nominal_head_drop_m"])
-			for i in 18:
-				_pawn.set("crouch_value", (i + 1) / 18.0)
-				head_node.position.y = standing - drop * (i + 1) / 18.0
+			var crouch: Dictionary = registry.get_movement_cfg()["crouch"]
+			var blend_frames := maxi(1, ceili(float(crouch["blend_s"]) * 60.0))
+			await _hold(0.3)
+			for i in range(1, blend_frames + 1):
+				_pawn.free_crouch_amount = float(i) / blend_frames
+				_pawn._apply_body_shapes()
 				await _frame(Vector3.ZERO)
-			await _hold(1.5, Vector3.FORWARD * speed * 0.4 if state == "crouch_walk" else Vector3.ZERO)
+			var crouch_speed := speed * float(crouch["speed_multiplier"])
+			await _hold(1.5, Vector3.FORWARD * crouch_speed if state == "crouch_walk" else Vector3.ZERO)
+			for i in range(blend_frames - 1, -1, -1):
+				_pawn.free_crouch_amount = float(i) / blend_frames
+				_pawn._apply_body_shapes()
+				await _frame(Vector3.ZERO)
+			await _hold(0.3)
 		"ladder_up", "ladder_down", "ladder_top":
 			var ladder := _ladder_stage()
 			var climb := float(ladder.cfg.get("climb_speed_mps", 2.0))

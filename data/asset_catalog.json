@@ -1383,8 +1383,8 @@
 			"path": "res://assets/generated/characters/soldier.glb",
 			"made_by": "tools/blender/build_soldier.py",
 			"licence": "generated in this project (no source material)",
-			"bytes": 383344,
-			"sha256": "84245cfed83d4d1789f69343d46d35e34830fa82a75f4bbe176e91cf5587596c"
+			"bytes": 383208,
+			"sha256": "6c6570e4880f23392506da2c40e1fae70854c4e3ac446fc75c5f638ac55bcd28"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_clips.glb",
@@ -1393,6 +1393,13 @@
 			"licence": "derived in this project from Quaternius Universal Animation Library Standard (data/asset_catalog.json assets id quaternius_ual_standard_glb, CC0-1.0)",
 			"bytes": 771152,
 			"sha256": "8ac1d5c18f7b862cfe75a78cf590c6dd0f1d4f2215ae3d237cfe30df35c2dc4d"
+		},
+		{
+			"path": "res://assets/generated/characters/soldier_directional.glb",
+			"made_by": "tools/blender/build_soldier_directional.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 61064,
+			"sha256": "4dc107f1d730eb8cba2d5ebcf9b85bc884f3f717a57ded93fd3852192a14032c"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_keyed.glb",
@@ -1427,14 +1434,14 @@
 			"made_by": "tools/blender/build_view_clips.py",
 			"licence": "generated in this project (no source material)",
 			"bytes": 643604,
-			"sha256": "d1ef537e8889e3bcca3d21728ff60fd54ed4b38cd9d715beadb3b7bebec9cab5"
+			"sha256": "2dae2ce55fbf1b6fa125d81bdacd85a63ac5224d9d345f836ee54840c9dd97d7"
 		},
 		{
 			"path": "res://assets/generated/characters/view_clips_sagittarii_rifle.glb",
 			"made_by": "tools/blender/build_view_clips.py",
 			"licence": "generated in this project (no source material)",
 			"bytes": 644052,
-			"sha256": "9357ca88cf5ea7d109cf0689ff97d374e28742cfcb3fe4ddeb39b72b9dfcc830"
+			"sha256": "320faea2979b9105ceff84b1138c4eabbbb4977c2559d4cdb814a15855bfa0bc"
 		},
 		{
 			"path": "res://assets/generated/textures/noise_pack.png",

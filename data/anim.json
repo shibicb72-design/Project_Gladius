@@ -6,7 +6,7 @@
 		"_todo": "OQ-FP-ANIM (M2 AN1): the first-person view-model motion (scripts/visual/view_motion.gd), view only. Every number is a presentation trial for Shibi on the Fold, not a design value. Durations: switch, blade swing and the kick timer are data/camera.json first_person.view_model swap_s, swing_s and recoil_s; a reload lasts the weapon's own WeaponDef.reload_s (stats.json) and its stages are fractions of it; pickup lasts pickup.s. Positions are view-model metres before view_model.scale, rotations degrees (pitch, yaw, roll).",
 		"breath": {"hz": 0.25, "pos_m": [0.003, 0.008, 0.0], "rot_deg": [1.1, 0.6, 0.8], "moving_mult": 0.3},
 		"walk": {"stride_m": 1.5, "pos_m": [0.011, 0.012, 0.004], "rot_deg": [1.0, 1.2, 1.6], "smooth_s": 0.15},
-		"sprint": {"blend_s": 0.2, "pos_m": [-0.05, -0.08, 0.0], "rot_deg": [-14.0, 38.0, 22.0], "bob_mult": 1.7, "stride_m": 2.0},
+		"sprint": {"blend_s": 0.2, "release_s": 0.28, "pos_m": [-0.05, -0.08, 0.0], "rot_deg": [-14.0, 34.0, 16.0], "bob_mult": 1.35, "stride_m": 2.0},
 		"ads": {"settle_hz": 4.5, "settle_damping": 0.35, "settle_lag_s": 0.05, "settle_m": 0.012},
 		"kick": {"spring_hz": 8.0, "damping": 0.55, "pos_m": [0.0, 0.006, 0.022], "pitch_deg": 6.0, "yaw_deg": 1.8, "roll_deg": 2.5},
 		"reload": {"stages": [["tilt", 0.14], ["hand_to_cell", 0.12], ["cell_out", 0.16], ["cell_in", 0.22], ["charge", 0.2], ["return", 0.16]],
@@ -20,7 +20,7 @@
 			{"t": 0.42, "pos_m": [-0.08, -0.03, -0.035], "rot_deg": [-22.0, -60.0, 36.0], "ease": "in"},
 			{"t": 0.56, "pos_m": [-0.095, -0.045, -0.03], "rot_deg": [-27.0, -68.0, 40.0], "ease": "out"},
 			{"t": 1.0, "pos_m": [0.0, 0.0, 0.0], "rot_deg": [0.0, 0.0, 0.0], "ease": "inout"}]},
-		"land": {"dip_m": 0.035, "per_mps": 0.008, "max_m": 0.09, "pitch_deg": 7.0, "s": 0.5, "min_air_s": 0.12},
+		"land": {"dip_m": 0.035, "per_mps": 0.008, "max_m": 0.09, "pitch_deg": 7.0, "settle_pitch_deg": 0.8, "s": 0.5, "min_air_s": 0.12},
 		"clips": {
 			"_todo": "M2 AN2 item 4b (OQ-FP-ANIM): first-person clips hand-keyed in Blender on a view rig (tools/blender/build_view_clips.py -> sources, one .glb per weapon; clip names <weapon id>_<clip>). A motion listed true in enabled plays its clip (ViewMotion.clip_on); false or a missing clip keeps today's procedural curve above. The reload clip is authored on reload.stages (the same fractions reload_stage() reads) and played time-scaled to the weapon's reload_s; switch plays switch_out then switch_in over swap_s; pickup is authored on pickup.swap_at and played over pickup.s; swing over swing_s. fade_s: the parts blend from their last pose when a clip starts, stops or is interrupted; ads_dir_s: the ease between the ADS raise and lower paths on a reversal. Presentation trials, not design values.",
 			"sources": {"pilum_br": "res://assets/generated/characters/view_clips_pilum_br.glb", "sagittarii_rifle": "res://assets/generated/characters/view_clips_sagittarii_rifle.glb", "gladius_lux": "res://assets/generated/characters/view_clips_gladius_lux.glb"},

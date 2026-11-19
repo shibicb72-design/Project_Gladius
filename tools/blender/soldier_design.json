@@ -58,15 +58,15 @@
 		"emblem": {"y": 1.392, "w": 0.11, "h": 0.074, "depth": 0.014},
 		"cell": {"y": 1.335, "w": 0.22, "h": 0.2, "z": [0.16, 0.234, 0.254], "chamfer": 0.03, "glow_x": 0.045, "glow_w": 0.014, "glow_h": 0.12, "glow_proud": 0.003}
 	},
-	"cape": {"top_y": 1.455, "bottom_y": 0.72, "top_half_w": 0.16, "bottom_half_w": 0.28, "z": [[1.455, 0.165], [1.4, 0.192], [1.3, 0.196], [1.1, 0.176], [0.9, 0.195], [0.72, 0.225]], "fold": [0.014, 0.05], "wrap": 0.05,
+	"cape": {"top_y": 1.455, "bottom_y": 0.80, "top_half_w": 0.16, "bottom_half_w": 0.245, "z": [[1.455, 0.165], [1.4, 0.192], [1.3, 0.196], [1.1, 0.198], [0.9, 0.231], [0.80, 0.255]], "fold": [0.014, 0.041], "wrap": 0.038,
 		"_note": "Round 2: narrow at the collar, wide at the hem (mid-thigh), three shallow vertical folds: a zig-zag cross-section of cape_cols columns whose depth grows from fold[0] at the collar to fold[1] at the hem. The inside is a coarser copy (inner_cols)."},
 	"pauldron": {
 		"centre": [0.36, 1.395, 0.0], "r": [0.165, 0.13, 0.15],
 		"_round2_note": "A spaulder of three steel lames on the shoulder joint (centre at the arm pivot): the top lame is a cap whose inner edge sits on the gorget; each lower lame is slightly smaller at its top (tucked under the one above) and flares out at its lower edge, sweeping down and out over the upper arm. The squad colour is an inset stripe (field_row) on the top lame with bronze ends and a bronze tier rim. arm: share of the lame on the upper arm (top mostly Chest), so a raised arm stacks the lames upward.",
 		"bands": [
 			{"theta_deg": [30, 90], "phi_deg": 150, "cols": 8, "scale": 1.0, "rows": 3, "style": "steel", "field_row": 1, "flare": 0.04, "rim": "trim", "arm": 0.2},
-			{"theta_deg": [-4, 36], "phi_deg": 112, "cols": 6, "scale": 0.97, "rows": 1, "style": "steel_shade", "flare": 0.07, "rim": "steel_dark", "arm": 0.6},
-			{"theta_deg": [-36, 2], "phi_deg": 104, "cols": 6, "scale": 0.94, "rows": 1, "style": "steel", "flare": 0.09, "rim": "steel_dark", "arm": 0.95}
+			{"theta_deg": [-4, 36], "phi_deg": 96, "cols": 6, "scale": 0.97, "rows": 1, "style": "steel_shade", "flare": 0.07, "rim": "steel_dark", "arm": 0.34},
+			{"theta_deg": [-36, 2], "phi_deg": 83, "cols": 6, "scale": 0.94, "rows": 1, "style": "steel", "flare": 0.09, "rim": "steel_dark", "arm": 0.48}
 		],
 		"_weights_note": "arm: the share of a lame that follows the upper arm (the rest stays on the Chest), fading to the Chest from chest_from_x to chest_to_x toward the neck.",
 		"lip": 0.012,

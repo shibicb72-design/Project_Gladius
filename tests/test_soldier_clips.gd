@@ -10,7 +10,7 @@ const UAL := "res://assets/third_party/quaternius_ual/UAL1_Standard.glb"
 ## candidates stay listed behind them as the fallback.
 const STATES := {
 	"idle": ["idle", "blender"], "walk (slow)": ["walk_slow", "blender"], "move speed (jog)": ["walk_fwd", "blender"],
-	"sprint": ["run_fwd", "blender"], "back-pedal (reversed jog)": ["walk_back", "blender"], "strafe left": ["strafe_l", "blender"],
+	"sprint": ["run_fwd", "blender"], "back-pedal": ["walk_back", "blender"], "strafe left": ["strafe_l", "blender"],
 	"strafe right": ["strafe_r", "blender"], "airborne": ["jump_air", "blender"], "hit chest": ["hit_chest", "blender"],
 	"hit head": ["hit_head", "blender"], "death": ["death", "blender"], "revive (reviver)": ["revive", "blender"],
 	"blade swing": ["blade_swing", "blender"], "cover crouch": ["cover_crouch_idle", "blender"],

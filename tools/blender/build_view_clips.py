@@ -408,9 +408,9 @@ def gun_specs(fp: dict) -> dict:
               (S("cell_out", 1.0), (-0.052, 0.055, -0.07, 21.0, 16.0, -33.0)), (S("cell_in", 0.7), tilt),
               (S("cell_in", 0.9), (-0.05, 0.072, -0.073, 26.0, 16.0, -29.0)),
               (S("charge", 0.12), (-0.045, 0.06, -0.066, 18.0, 14.0, -14.0)),
-              (S("charge", 0.45), (-0.04, 0.056, -0.056, 13.0, 11.0, 5.0)),
-              (S("charge", 0.62), (-0.036, 0.053, -0.05, 12.0, 10.0, 8.0)),
-              (S("charge", 0.78), (-0.042, 0.066, -0.06, 16.0, 12.0, 3.0)),
+              (S("charge", 0.45), (-0.04, 0.056, -0.056, 13.0, 11.0, -7.0)),
+              (S("charge", 0.62), (-0.036, 0.053, -0.05, 12.0, 10.0, -5.0)),
+              (S("charge", 0.78), (-0.042, 0.066, -0.06, 16.0, 12.0, -9.0)),
               (S("return", 0.2), (-0.028, 0.038, -0.04, 9.0, 7.0, -2.0)),
               (S("return", 0.78), (0.002, -0.005, 0.004, -2.0, -1.0, 1.5)), (1.0, Z6)],
         "cell": [(0.0, Z6), (S("cell_out", 0.0), Z6), (S("cell_out", 0.2), (0.0, -0.012, 0.0, 0.0, 0.0, 0.0)),
@@ -428,8 +428,8 @@ def gun_specs(fp: dict) -> dict:
                  (S("return", 0.7), Z3), (1.0, Z3)],
         # the elbow drops and comes back under the gun while the hand works the charging handle, so the forearm runs
         # down out of the view instead of across it
-        "lelb": [(0.0, Z3), (S("charge", 0.0), Z3), (S("charge", 0.35), (-0.06, -0.16, 0.12)),
-                 (S("charge", 0.84), (-0.06, -0.16, 0.12)), (S("return", 0.7), Z3), (1.0, Z3)],
+        "lelb": [(0.0, Z3), (S("charge", 0.0), Z3), (S("charge", 0.35), (-0.085, -0.19, 0.12)),
+                 (S("charge", 0.84), (-0.085, -0.19, 0.12)), (S("return", 0.7), Z3), (1.0, Z3)],
         "lpose": [(0.0, "foregrip"), (S("tilt", 0.35), "foregrip"), (S("tilt", 0.9), "open"), (S("hand_to_cell", 0.7), "reach"),
                   (S("hand_to_cell", 1.0), "grip"), (S("cell_out", 1.0), "grip"), (S("cell_in", 0.06), "reach"),
                   (S("cell_in", 0.2), "grip"), (S("charge", 0.0), "grip"), (S("charge", 0.2), "reach"),

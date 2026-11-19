@@ -11,6 +11,7 @@ static func _node(clip: String) -> AnimationNodeAnimation:
 ## M2 AN1: the moving gait slots. Library cycles are normalized (SoldierClips) and each blend point carries a
 ## TimeScale "speed" the model sets to ground speed / cycle_m, so the feet travel with the ground.
 const GAITS: Array[String] = ["walk_slow", "walk_fwd", "walk_back", "strafe_l", "strafe_r", "run_fwd"]
+const DIRECTIONAL_GAITS: Array[String] = ["walk_back", "strafe_l", "strafe_r"]
 
 
 static func _gait_point(clip: String) -> AnimationNodeBlendTree:
@@ -31,9 +32,16 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	var clips := ClipLibrary.new(sources)
 	var library := AnimationLibrary.new()
 	var cycles: Dictionary = {}
+	var directional := 0
 	for clip in ["idle"] + GAITS:
 		var resolved := clips.resolve(clip, _locomotion(clip, cfg), skeleton)
-		if clip != "idle" and clips.source_for(clip) != "procedural":
+		var candidate: Dictionary = clips.resolved_candidates.get(clip, {})
+		var authored_cycle := float(candidate.get("directional_cycle_m", 0.0))
+		if authored_cycle > 0.0 and clip in DIRECTIONAL_GAITS:
+			resolved = SoldierClips.gait(resolved, skeleton, false, authored_cycle)["clip"]
+			cycles[clip] = authored_cycle
+			directional += 1
+		elif clip != "idle" and clips.source_for(clip) != "procedural":
 			var gait := SoldierClips.gait(resolved, skeleton, clip == "walk_back")
 			resolved = gait["clip"]
 			# M2 AN1 commit 6: gait.cycle_scale corrects a measured stride where the gait's leg re-solve (SoldierGait)
@@ -59,6 +67,8 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	var tree := AnimationTree.new()
 	tree.set_meta(&"clip_library", clips)
 	tree.set_meta(&"gait_cycles", cycles)
+	var has_directional := directional == DIRECTIONAL_GAITS.size()
+	tree.set_meta(&"directional_gait", has_directional)
 	tree.name = "AnimationTree"
 	tree.root_node = NodePath("..")
 	tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
@@ -72,9 +82,10 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 	move.add_blend_point(_node("idle"), Vector2.ZERO, -1, &"idle")
 	move.add_blend_point(_gait_point("walk_slow"), Vector2(0, -float(gait_cfg["walk_slow_blend"])), -1, &"walk_slow")
 	move.add_blend_point(_gait_point("walk_fwd"), Vector2(0, -1), -1, &"walk_fwd")
-	move.add_blend_point(_gait_point("walk_back"), Vector2(0, 1), -1, &"walk_back")
-	move.add_blend_point(_gait_point("strafe_l"), Vector2(-1, 0), -1, &"strafe_l")
-	move.add_blend_point(_gait_point("strafe_r"), Vector2(1, 0), -1, &"strafe_r")
+	var side_speed := float(DataRegistry.new().get_movement_cfg()["strafe_back_ratio"]["value"]) if has_directional else 1.0
+	move.add_blend_point(_gait_point("walk_back"), Vector2(0, side_speed), -1, &"walk_back")
+	move.add_blend_point(_gait_point("strafe_l"), Vector2(-side_speed, 0), -1, &"strafe_l")
+	move.add_blend_point(_gait_point("strafe_r"), Vector2(side_speed, 0), -1, &"strafe_r")
 	move.add_blend_point(_gait_point("run_fwd"), Vector2(0, -sprint), -1, &"run_fwd")
 	graph.add_node(&"locomotion", move)
 	# Keep the public BlendSpace2D live at its original parameter path.

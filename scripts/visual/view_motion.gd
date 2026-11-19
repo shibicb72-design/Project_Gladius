@@ -231,8 +231,11 @@ func tick(delta: float, speed: float, run_speed: float, sprint: float, ads: floa
 	var smooth := float(walk_cfg["smooth_s"])
 	var k := 1.0 - exp(-delta / smooth) if smooth > 0.0 else 1.0
 	_walk = lerpf(_walk, clampf(speed / maxf(run_speed, 0.01), 0.0, 1.0), k)
-	var sb := float(cfg["sprint"]["blend_s"])
-	_sprint = move_toward(_sprint, clampf(sprint, 0.0, 1.0) * (1.0 - ads), delta / sb if sb > 0.0 else 1.0)
+	var sprint_cfg: Dictionary = cfg["sprint"]
+	var sprint_target := clampf(sprint, 0.0, 1.0) * (1.0 - ads)
+	var sprint_blend_key := "release_s" if sprint_target < _sprint else "blend_s"
+	var sb := float(sprint_cfg.get(sprint_blend_key, sprint_cfg["blend_s"]))
+	_sprint = move_toward(_sprint, sprint_target, delta / sb if sb > 0.0 else 1.0)
 	# The step phase advances with the real distance walked: one cycle per stride (two steps).
 	var stride := lerpf(float(walk_cfg["stride_m"]), float(cfg["sprint"]["stride_m"]), _sprint)
 	_step_phase = fmod(_step_phase + speed * delta / maxf(stride, 0.01) * TAU, TAU * 4.0)
@@ -415,8 +418,10 @@ func pivot_xf(calm: float) -> Transform3D:
 		var l: Dictionary = cfg["land"]
 		var p := _land_t / float(l["s"])
 		var dip := smoothstep(0.0, 0.25, p) * (1.0 - smoothstep(0.25, 1.0, p))  # quick drop, slow recovery
+		var settle := smoothstep(0.55, 0.76, p) * (1.0 - smoothstep(0.76, 1.0, p))
 		pos.y -= _land_amount * dip
 		rot.x -= float(l["pitch_deg"]) * dip * (_land_amount / maxf(float(l["max_m"]), 0.0001))
+		rot.x += float(l.get("settle_pitch_deg", 0.0)) * settle * (_land_amount / maxf(float(l["max_m"]), 0.0001))
 	var swing := _swing_pose()
 	var lower := Transform3D(_deg(Vector3(-lower_deg(), 0.0, 0.0)), Vector3.ZERO)
 	return lower * Transform3D(_deg(rot + swing[1]), pos + swing[0])
