@@ -163,7 +163,7 @@ func _ready() -> void:
 	# The br config: team layouts (host) and the match length options and labels (host and clients, M2 Z2).
 	_br_cfg = ModeRegistry.merged_config(MatchDirector.MODE_ID, reg.load_file("res://data/modes.json"))
 	if is_host:
-		ips_label.text = "Solo, offline" if solo else "Your IP: " + ", ".join(local_ipv4())
+		ips_label.text = "Solo, offline" if solo else host_address_text(session)
 		_match_cfg = cfg
 		var layout := MatchDirector.team_layout(_br_cfg, cfg)
 		net_lobby.host_open(int(layout["squad_count"]), int(layout["squad_size"]), my_name, [], int(cfg.get("max_humans", 8)))
@@ -183,6 +183,42 @@ func _ready() -> void:
 	_WebArgs.pending = {}  # taken by the first lobby either way; only a solo lobby acts on it
 	if solo and not request.is_empty():
 		_autosolo(request)
+	var lan_request: Dictionary = _WebArgs.pending_lan
+	_WebArgs.pending_lan = {}  # likewise: only a LAN host lobby acts on it
+	if is_host and not solo and str(lan_request.get("role", "")) == "host":
+		_autohost(lan_request)
+
+
+## The host's "how to join" line: the relay's join URLs for a WebRTC (browser) host, else this device's IPv4s.
+static func host_address_text(session: NetSession) -> String:
+	if session != null and session.transport == NetSession.TRANSPORT_WEBRTC and not session.join_urls.is_empty():
+		return "Players join at " + ", ".join(session.join_urls)
+	return "Your IP: " + ", ".join(local_ipv4())
+
+
+## W2 (debug web builds only, WebArgs.parse_lan): the LAN smoke's autohost request. Applies the requested team mode,
+## then presses Start (exactly as the button) AUTOHOST_START_DELAY_S after the first guest is listed; bots fill the
+## rest as usual. Back cancels (the timer is a child).
+func _autohost(request: Dictionary) -> void:
+	var mode := str(request.get("mode", ""))
+	if mode != "":
+		set_team_mode(mode)
+	var timer := Timer.new()
+	timer.name = "AutohostTimer"
+	timer.wait_time = 0.25
+	timer.timeout.connect(func() -> void:
+			if state.humans.size() < 2 or state.started:
+				return
+			timer.stop()
+			timer.queue_free()
+			get_tree().create_timer(_WebArgs.AUTOHOST_START_DELAY_S).timeout.connect(_autohost_start))
+	add_child(timer)
+	timer.start()
+
+
+func _autohost_start() -> void:
+	if is_inside_tree() and not state.started:
+		_on_start()
 
 
 ## W0 (debug web builds only, WebArgs): the autosolo request from the URL. The lobby's defaults (team mode, bots) as

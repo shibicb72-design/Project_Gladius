@@ -47,6 +47,11 @@ var relay_url_provider: Callable
 ## Returns a WebSocketPeer-like socket for the signaling client; empty means a real WebSocketPeer.
 var socket_factory: Callable
 var rtc_factory: WebRtcFactory = WebRtcFactory.new()
+## W2: round-trip ping and snapshot counters for the LAN smoke (debug web builds only; inert elsewhere).
+var debug_ping: NetDebugPing
+## W2: why the app's WebRTC session last lost its host ("host_left" / "relay_lost"), for the main menu to show once
+## after the lobby or match sends the player back (they end the session first). Set only for AppFlow.session.
+static var lost_notice: String = ""
 
 var _mp: SceneMultiplayer
 var _peer: ENetMultiplayerPeer
@@ -84,6 +89,11 @@ func _enter_tree() -> void:
 		bridge = NetMatchBridge.new()
 		bridge.name = "Bridge"
 		add_child(bridge)
+	# W2: always added (same RPC paths in every build); it only acts in a debug web build.
+	if debug_ping == null:
+		debug_ping = NetDebugPing.new()
+		debug_ping.name = NetDebugPing.NODE_NAME
+		add_child(debug_ping)
 
 
 func max_clients() -> int:
@@ -423,8 +433,17 @@ func _lose_host(code: String) -> void:
 		return
 	_host_lost_sent = true
 	last_error = code
+	if AppFlow.session == self:
+		lost_notice = code
 	leave()
 	host_lost.emit()
+
+
+## W2: the pending host-lost reason for the main menu, cleared on read ("" when none).
+static func take_lost_notice() -> String:
+	var code := lost_notice
+	lost_notice = ""
+	return code
 
 
 func _teardown_webrtc() -> void:
