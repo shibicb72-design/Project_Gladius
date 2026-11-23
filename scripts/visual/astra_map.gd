@@ -21,8 +21,12 @@ const PlaceMap := preload("res://scripts/visual/place_map.gd")
 @export var map_json: String = "res://data/maps/alesia_section.json"
 
 const COVER_PATH := "res://data/maps/alesia_cover.json"
+## W1c step 1: debug-only phase timing (debug web build + ?perf=1; a cached no-op everywhere else, no output change).
+const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
 
 func _ready() -> void:
+	var t_all := _PerfMarks.start()
+	var t := _PerfMarks.start()
 	var map := get_parent()
 	var nav := map.get_node("Nav")
 	var reg := DataRegistry.new()
@@ -44,6 +48,8 @@ func _ready() -> void:
 		# M2W1 astraA (F4): the kit-parts cover look on the same box when the world-kit looks are on (WorldKit.cover_mesh).
 		var look := WorldKit.cover_mesh(type)
 		meshes[type] = look if look != null else LowpolyKit.build_cover(definition)
+	_PerfMarks.done("map.data_and_cover_meshes", t)
+	t = _PerfMarks.start()
 	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
 	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
 	# runs once, after the decor loop.
@@ -54,6 +60,8 @@ func _ready() -> void:
 	chunks.setup(ground_size_m)
 	# M2P1B: resolved before the pieces so each stands on the ground under its origin (lifted()).
 	terrain = MapTerrain.for_map(map_def)
+	_PerfMarks.done("map.terrain_heights", t)
+	t = _PerfMarks.start()
 	for entry: Dictionary in cfg["pieces"]:
 		var definition: Dictionary = cfg["types"][entry["type"]]
 		var body := StaticBody3D.new()
@@ -74,10 +82,14 @@ func _ready() -> void:
 		body.add_child(shape)
 		nav.add_child(body)
 		cover_bodies.append(body)
+	_PerfMarks.done("map.cover_pieces", t, "n=%d" % cover_bodies.size())
+	t = _PerfMarks.start()
 	# M2 L1b: breakables (the cover file's "breakables"; a map without the key gets no Props node). In cover_bodies
 	# right after the pieces: the order of the paint's trodden points (tools/gen_alesia.gd trodden_of).
 	if placed.has("breakables"):
 		_build_breakables(placed["breakables"])
+	_PerfMarks.done("map.breakables", t)
+	t = _PerfMarks.start()
 	for body in nav.get_children():
 		if body in cover_bodies or body.name == &"Ground" or body is LootChest:  # a chest is never a wall, whatever the build order
 			continue
@@ -93,10 +105,16 @@ func _ready() -> void:
 		mesh.mesh = meshes[key]
 		if size.z > size.x:
 			mesh.rotation.y = PI * 0.5
+	_PerfMarks.done("map.walls", t)
+	t = _PerfMarks.start()
 	# W1: world kit pieces come after the loop above, which takes every other Nav child for a one-box wall.
 	# They are bodies in group "structure" (never cover_wall); their look is one batch per chunk and type.
 	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def), terrain)
+	_PerfMarks.done("map.world_kit", t, "n=%d" % structure_bodies.size())
+	t = _PerfMarks.start()
 	_build_ring(nav, cfg, meshes)
+	_PerfMarks.done("map.ring", t)
+	t = _PerfMarks.start()
 	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
 	# M2P1A: the decor looks draw as one batch per chunk, kind and size (source "decor", type "<kind>_<n>", see
 	# decor_types); the scene's Decor node stays empty. Solid decor bodies still go under Nav.
@@ -121,6 +139,8 @@ func _ready() -> void:
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
 			decor_bodies.append(solid)
+	_PerfMarks.done("map.decor", t, "n=%d" % decor_types.size())
+	t = _PerfMarks.start()
 	# M2 L1b: the loot chests (the cover file's "chests"), after the wall loop above (a chest has no "Mesh" child).
 	if placed.has("chests"):
 		_build_chests(nav, placed["chests"])
@@ -130,9 +150,13 @@ func _ready() -> void:
 	# M2 L1c commit 5: the ladders (the cover file's "ladders"), after the doors: outside Nav, non-blocking triggers.
 	if placed.has("ladders"):
 		_build_ladders(placed["ladders"])
+	_PerfMarks.done("map.chests_doors_ladders", t)
+	t = _PerfMarks.start()
 	# M2W1 item 5: the paint is made from the bodies' data only, so it comes before chunks.build(): the clutter
 	# (looks only, MapChunks source "clutter") reads the paint and every body, door and ladder built above.
 	_paint_ground(nav)
+	_PerfMarks.done("map.paint_ground", t)
+	t = _PerfMarks.start()
 	# M2W1 astraB: the place map (looks only; from the built bodies, never saved, never a hashed input) for the ground
 	# shader and the clutter; the clutter adds its contact blobs, then the texture goes to the ground material.
 	place_map = null
@@ -142,18 +166,28 @@ func _ready() -> void:
 		var soil: Array = PlaceMap.config(map_json.get_file().get_basename()).get("compacted_soil", [])
 		if not soil.is_empty():
 			ground_material.set_shader_parameter("compacted_soil", Color(soil[0], soil[1], soil[2], 1.0))
+	_PerfMarks.done("map.place_map", t)
+	t = _PerfMarks.start()
 	clutter_report = WorldClutter.populate(self, chunks, map_def)
+	_PerfMarks.done("map.clutter", t)
+	t = _PerfMarks.start()
 	if place_map != null:
 		var contact_started := Time.get_ticks_usec()
 		place_map.add_contact(clutter_report.get("contact", []))
 		ground_material.set_shader_parameter("place_map", place_map.texture())
 		ground_material.set_shader_parameter("place_enabled", 1.0)
 		place_map.build_ms += int((Time.get_ticks_usec() - contact_started) / 1000)
+	_PerfMarks.done("map.place_contact", t)
+	t = _PerfMarks.start()
 	chunks.build()
 	for body in chest_bodies:
 		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
+	_PerfMarks.done("map.chunks_build", t, ("batches=%d" % chunks.batches().size()) if t >= 0 else "")
+	t = _PerfMarks.start()
 	var terrain_cfg: Dictionary = map_def.get("terrain", {})
 	_build_terrain(nav, bool(terrain_cfg.get("far_keep_centre", false)))
+	_PerfMarks.done("map.terrain_build", t)
+	t = _PerfMarks.start()
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	# M2L1 (binding fix 5): a map json may switch it off ("backdrop": false; default true).
 	if backdrop_wanted(map_def, bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false))):
@@ -161,11 +195,15 @@ func _ready() -> void:
 		backdrop.name = "Backdrop"
 		add_child(backdrop)
 		backdrop.build(ground_material, map_json, terrain)  # M2W1 item 9: a map with an art_backdrop.json "maps" block gets its far backdrop
+	_PerfMarks.done("map.backdrop", t)
+	t = _PerfMarks.start()
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
 	add_child(ambient)  # before configure: the tufts ask this builder (their parent) where the grass is
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
+	_PerfMarks.done("map.ambient", t)
+	_PerfMarks.done("map.total", t_all)
 
 
 ## M2 L1b: the breakable crates and barrels under ArtBuilder/Props: OUTSIDE Nav, so the navigation bake never
@@ -363,9 +401,13 @@ func _paint_ground(nav: Node) -> void:
 		ground_paint = GroundPaint.load_baked(map_json, baked, px, want)
 		if ground_paint == null:
 			print("ArtBuilder: painting the ground at load: %s (rerun tools/gen_alesia.gd)" % GroundPaint.baked_problem(baked, px, want))
+	var t := _PerfMarks.start()
 	if ground_paint == null:
 		ground_paint = GroundPaint.build(map_json, ground_size_m, landmarks, trodden, settings)
+		_PerfMarks.done("map.paint_ground.paint_at_load", t)
+	t = _PerfMarks.start()
 	ground_material = WorldSurface.ground_material(GroundPaint.texture(map_json), ground_size_m, map_json)
+	_PerfMarks.done("map.paint_ground.material", t, "baked=%s" % (baked != ""))
 	var ground_mesh := nav.get_node_or_null("Ground/Mesh") as MeshInstance3D
 	if ground_mesh != null:
 		ground_mesh.material_override = ground_material
@@ -387,7 +429,9 @@ func _paint_ground(nav: Node) -> void:
 func _build_terrain(nav: Node, keep_centre: bool) -> void:
 	if terrain == null:
 		return
+	var t := _PerfMarks.start()
 	_build_terrain_collider(nav)
+	_PerfMarks.done("map.terrain_build.collider", t)
 	var cfg: Dictionary = MapChunks.config().get("terrain", {})
 	var shadow := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(cfg.get("cast_shadows", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var swap_m := float(cfg.get("far_swap_m", 0.0))

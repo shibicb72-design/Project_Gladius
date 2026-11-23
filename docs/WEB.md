@@ -310,3 +310,60 @@ node tools/web/perf.mjs --shots=<dir> [--levels=pc_high] [--seconds=30] [--varia
   right after the match start (about 1 s and 2 s at 8-10 s), at the route's first frame (about 10 s, the drop view) and
   on the first flight over the town (about 3 s, three times); the route's later views had none. Cause unknown [inferred:
   first-time shader / pipeline compilation for newly visible materials]; not fixed here.
+
+## Stall timing (W1c)
+
+Measurement only (W1c commit 1): tooling to attribute every browser stall over 250 ms to a cause. No behaviour change in
+release builds, desktop, Android or the headless suite.
+
+```
+node tools/web/perf.mjs --profile-dir=<profiles root> --cold --levels=pc_high --seconds=20 --trace=<dir>/trace.json --out=<dir>/cold.json
+node tools/web/perf.mjs --profile-dir=<profiles root> --profile-name=warm --levels=pc_high --seconds=20 --out=<dir>/warm.json
+node tools/web/perf_stalls.mjs <dir>/cold.json [--trace=<file>] [--level=<id>] [--out=<dir>/cold_stalls.md]
+```
+
+- `--profile-dir=<root>`: every level runs in its **own** Chrome launch (W1a ran levels back to back in one browser,
+  which hid the cold cost). `--cold`: a fresh profile per level (`<root>/cold_<level>_XXXXXX`, deleted after the level
+  unless `--keep-profiles`) and `--disable-gpu-shader-disk-cache`; "cold" is [inferred] partial: the GPU driver's own
+  shader cache survives. Without `--cold`: the named reused profile `<root>/<--profile-name>` (default `warm`); it is
+  warm only after an earlier run used it (`levels[].profile.existedBefore`), so run the warm command once to prime it.
+  Without `--profile-dir` the harness behaves as in W1a.
+- `--trace=<file>`: a Chrome trace per level from just before the navigation to `GLADIUS_PERF_DONE` (categories gpu,
+  gpu.service, disabled-by-default-gpu.service, gpu.angle, v8, v8.wasm, disabled-by-default-v8.gc, blink.user_timing,
+  devtools.timeline, toplevel, blink, loading); `_<level>` is added before the extension when several levels run. Keep
+  `--seconds` short with a trace (the file grows with the route).
+- The page side records from the document's start: every `requestAnimationFrame` stamp and every console line holding
+  `GLADIUS_` with `performance.now()` at the moment the game called `console.*`. Each level entry gets `w1c`:
+  `matchStartedPageS`, `canMovePageS`, `routeStartPageS` (seconds since the game page's `performance.timeOrigin`), every
+  rAF gap over 250 ms from page load (`stalls[]`: start, end, ms, ms since CAN_MOVE, before / after / spanning CAN_MOVE),
+  `stallSummary` (counts before and after CAN_MOVE, longest each; a gap spanning CAN_MOVE counts as after), `afterCanMove`
+  (median frame, 1 percent low from CAN_MOVE to the frame-cap probe), the markers and the parsed `GLADIUS_T` lines. A
+  second markdown table on stdout lists them per level.
+- `tools/web/perf_stalls.mjs`: per stall, start, duration, the `GLADIUS_T` phases and frame lines overlapping it, and,
+  from the trace (read as a stream), the time inside the stall in GPU program compile/link, texture uploads, V8 GC,
+  wasm compile, image decode, the renderer waiting on the GPU process, and script, with the top event names. The clock
+  maps the trace's user-timing events `GT:<label>` to the `GLADIUS_T` page times (median). The cause column is a rule
+  over those buckets, so it is [inferred from trace]; without a trace it falls back to the game's frame line (cpu vs
+  draw) and says so.
+
+Game side (debug web build + `?perf=1` only: the PerfRoute gate; `scripts/debug/perf_marks.gd`, a cached no-op
+elsewhere; no output or RNG change):
+
+- `GLADIUS_T <label> <msec since engine start> <duration ms | -> page=<page epoch ms> [k=v ...]`, printed at the end
+  of the span, plus a `performance.measure("GT:<label>")` (or `performance.mark` for a point) so the phase shows under
+  blink.user_timing in a trace. Labels: `begin.config`, `begin.scene_load`, `begin.instantiate`, `begin.map_build`
+  (the whole `add_child(map)`), `begin.nav`, `begin.roster`, `match_started`, `begin.hud_bind`, `begin.camera_rig`,
+  `begin.loot`, `begin.world_props`, `begin.director_start`, `begin.zone_wall`, `begin.total` (MatchRoot.begin);
+  `map.*` inside the map build (scripts/visual/astra_map.gd: data and cover meshes, terrain heights, cover pieces,
+  breakables, walls, world kit, ring, decor, chests / doors / ladders, paint_ground (+ `.paint_at_load`, `.material`),
+  place map, clutter, place contact, chunks_build (MultiMesh batches), terrain_build (+ `.collider`), backdrop, ambient,
+  total); from `scripts/debug/perf_route.gd`: `match_root.added`, `world_environment.added`, `particles.first`
+  (first add of each particle node kind; the add, not the first emit), `can_move`, and `frame` lines (post-draw to
+  post-draw, with `cpu=` before the draw and `draw=` the renderer's GL calls, where first-use shader compiles and texture
+  uploads land) for the first `timing.first_frames` frames after the MatchRoot enters the tree and any frame of at least
+  `timing.long_frame_ms` (tools/web/perf_route.json, tool data).
+- `GLADIUS_CAN_MOVE` (debug web build, like `GLADIUS_MATCH_STARTED`, which stays where it is: mid-`begin()`, once the
+  local player exists): once, at the first physics tick after `MatchRoot.begin()` returned a started match
+  (`SceneTree.physics_frame`, armed at the end of begin()). That tick is the first in which MatchRoot._physics_process
+  hands the router's input to the local pawn while the director runs: aboard the carrier the pawn applies look and
+  records Jump as its drop request (Pawn._physics_process, Drop.ABOARD). The W1c DONE criterion counts stalls from it.

@@ -5,6 +5,8 @@
 	"seed": 20261123,
 	"variant_seeds": {"dusk": 20261123, "storm": 20261122, "night": 20261124},
 	"warmup_frames": 60,
+	"_timing_note": "W1c step 1 (measurement only; TOOL DATA, not a budget): scripts/debug/perf_route.gd prints a GLADIUS_T frame line (cpu / draw split) for each of the first first_frames frames after the MatchRoot enters the tree, and for any frame of at least long_frame_ms at any time (debug web build + perf=1 only; docs/WEB.md \"Stall timing (W1c)\").",
+	"timing": {"first_frames": 240, "long_frame_ms": 100},
 	"probe": {"caps": [30, 60, 0], "settle_s": 0.5, "seconds": 5.0},
 	"shot_view": "porta_aquilae",
 	"views": [

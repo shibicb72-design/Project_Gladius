@@ -13,6 +13,8 @@ const MAP_OVERRIDE_PATH := "user://map_select_override"
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
 const _WebArgs := preload("res://scripts/platform/web_args.gd")
+## W1c step 1: debug-only phase timing (debug web build + ?perf=1; a cached no-op everywhere else).
+const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
 
 ## Tests turn this off to override director config before calling begin().
 @export var auto_start: bool = true
@@ -147,6 +149,8 @@ static func _check_map(wanted: String, source: String) -> Dictionary:
 
 ## Loads the map and starts the match. Returns false if the data is unusable.
 func begin() -> bool:
+	var t_begin := _PerfMarks.start()  # W1c: GLADIUS_T timing spans in this function (debug web + perf=1 only)
+	var t := _PerfMarks.start()
 	# P0c: temporary Fold presentation diagnostic. Magenta clear splits "world not drawing" from the engine default gray.
 	RenderingServer.set_default_clear_color(Color(1, 0, 1))
 	if get_node_or_null("PerfLog") == null and PerfLog.wanted():  # M2 P0: phone frame-time log, off by default
@@ -163,16 +167,24 @@ func begin() -> bool:
 	if director.mode_cfg.is_empty():
 		director.load_config(map_path, lobby.match_length if lobby != null else "")
 	map_def = DataRegistry.new().load_file(map_path)
+	_PerfMarks.done("begin.config", t)
+	t = _PerfMarks.start()
 	var scene: PackedScene = load(str(map_def.get("scene", ""))) as PackedScene
+	_PerfMarks.done("begin.scene_load", t)
 	if scene == null:
 		push_error("MatchRoot.begin: map scene is null (path '%s' from %s)" % [str(map_def.get("scene", "")), map_path])
 		return false
+	t = _PerfMarks.start()
 	map = scene.instantiate()
+	_PerfMarks.done("begin.instantiate", t)
 	var builder := map.get_node_or_null("ArtBuilder")
 	if builder != null and "map_json" in builder:
 		builder.set("map_json", map_path)  # before add_child: the builder reads it in _ready
-	add_child(map)
+	t = _PerfMarks.start()
+	add_child(map)  # the whole map build (ArtBuilder._ready, scripts/visual/astra_map.gd: its own map.* spans)
+	_PerfMarks.done("begin.map_build", t)
 	print("MatchRoot.begin: map load OK, scene non-null")
+	t = _PerfMarks.start()
 	var nav := map.get_node_or_null("Nav") as NavigationRegion3D
 	if bake_navmesh and nav != null:
 		# M2P1B: the saved mesh (tools/bake_nav.gd) when its manifest matches the data; else bake as before.
@@ -183,6 +195,8 @@ func begin() -> bool:
 			print("MatchRoot.begin: saved navigation for %s is missing or stale (%s); baking at match start" % [map_path, MapNav.last_reasons[0] if not MapNav.last_reasons.is_empty() else "unknown"])
 			nav.bake_navigation_mesh(false)
 			nav_bakes += 1
+	_PerfMarks.done("begin.nav", t, "bakes=%d" % nav_bakes)
+	t = _PerfMarks.start()
 
 	# Spawns face the zone start center (br.json zone.start_center, x/z).
 	var zc: Array = director.mode_cfg.get("zone", {}).get("start_center", [0, 0])
@@ -242,18 +256,24 @@ func begin() -> bool:
 		director.add_player(0, local_player)
 		if fill_bots:
 			bots = BotSpawner.spawn_bots(self, director, {0: 1})
+	_PerfMarks.done("begin.roster", t, "bots=%d" % bots.size())
 	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
 	_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W0: the browser smoke test waits for this line (debug web build only; docs/WEB.md)
+	_PerfMarks.mark("match_started")
+	t = _PerfMarks.start()
 	hud.bind(director, local_player)
 	if roster != null and roster.bridge != null: hud.bind_kill_bridge(roster.bridge)
 	HapticsEvents.bind_pawn(local_player)
+	_PerfMarks.done("begin.hud_bind", t)
+	t = _PerfMarks.start()
 	var rig := _RigScene.instantiate()
 	rig.name = "CameraRig"
 	local_player.add_child(rig)
 	# Path A / P0c: fail closed if the third-person camera never becomes current (tps-demo make_current pattern).
 	var cam_ok := rig is CameraRig and (rig as CameraRig).ensure_current()
+	_PerfMarks.done("begin.camera_rig", t)
 	print("MatchRoot.begin: local_player=%s CameraRig=%s camera_current=%s" % [
 			local_player != null, rig != null, cam_ok])
 	if not cam_ok:
@@ -262,6 +282,7 @@ func begin() -> bool:
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
+	t = _PerfMarks.start()
 	if ground_loot:
 		loot = LootField.new()
 		loot.name = "Loot"
@@ -277,6 +298,8 @@ func begin() -> bool:
 		loot.setup(loot_cfg, seed_value, director.mode_cfg.get("zone", {}), landmarks, ground_height)
 		add_child(loot)
 		director.loot = loot
+	_PerfMarks.done("begin.loot", t)
+	t = _PerfMarks.start()
 	# M2 L1b: every match gets its WorldProps (empty on maps without breakables): the breakables' state and their
 	# seeded loot roll on the authority (host or offline); a client applies the host's states (commit 5).
 	world_props = WorldProps.new()
@@ -285,14 +308,21 @@ func begin() -> bool:
 	world_props.collect(map)
 	add_child(world_props)
 	director.props = world_props
+	_PerfMarks.done("begin.world_props", t)
+	t = _PerfMarks.start()
 	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))
 	var started := director.start(xforms, seed_value, use_drop)
+	_PerfMarks.done("begin.director_start", t)
+	t = _PerfMarks.start()
 	if started:
 		director.player_eliminated.connect(_on_player_eliminated)
 		zone_wall = ZoneWall.new()
 		zone_wall.name = "ZoneWall"
 		zone_wall.bind(director, DataRegistry.new().load_file(UI_PATH).get("zone_wall", {}))
 		add_child(zone_wall)
+		_PerfMarks.arm_can_move(get_tree())  # W1c: GLADIUS_CAN_MOVE at the first physics tick after this (debug web only)
+	_PerfMarks.done("begin.zone_wall", t)
+	_PerfMarks.done("begin.total", t_begin)
 	return started
 
 

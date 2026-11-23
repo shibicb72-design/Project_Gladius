@@ -21,8 +21,17 @@ extends Node
 ## the current camera once and this node takes it back (camera_retakes counts it).
 ## Console markers: GLADIUS_PERF_ARMED, GLADIUS_PERF_ROUTE_START <json>, GLADIUS_PERF_VIEW <name> (a hold begins),
 ## GLADIUS_PERF_PROBE <cap>, GLADIUS_PERF_DONE <json>, GLADIUS_PERF_ERROR <text>.
+## W1c step 1 (measurement only): GLADIUS_T timing lines (scripts/debug/perf_marks.gd, same gate as this node):
+##   - "frame": every frame from RenderingServer.frame_post_draw to the next, with cpu= (previous post-draw to this
+##     frame's pre-draw: scripts, physics, scene changes) and draw= (pre-draw to post-draw: the renderer's GL calls,
+##     where first-use shader compiles and texture uploads land), for the first perf_route.json timing.first_frames
+##     frames after the MatchRoot enters the tree, and any frame of at least timing.long_frame_ms at any time;
+##   - "match_root.added" when the MatchRoot enters the tree (before its _ready / begin), "world_environment.added",
+##     and "particles.first" the first time each particle node kind (class + scene path / node path, digits folded)
+##     enters the tree (a GPU particle process shader compiles on its first emit; this marks the add, not the emit).
 
 const ROUTE_RES := "res://tools/web/perf_route.json"
+const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
 const FREEZE_MS := 250.0
 const SLOW_MS := 33.0
 ## The most one frame advances the route clock (seconds): a freeze longer than this stalls the camera instead of
@@ -65,6 +74,14 @@ var _probe_i: int = 0
 var _probe_t0: int = 0
 var _probe_deltas: Array = []
 var _probe_out: Array = []
+## W1c timing (perf_route.json "timing"; 0 = off).
+var _timing_first_frames: int = 0
+var _timing_long_ms: float = 0.0
+var _frames_after_match: int = -1  # -1 until the MatchRoot enters the tree
+var _pre_usec: int = 0
+var _post_usec: int = 0
+var _particle_kinds: Dictionary = {}
+var _digits := RegEx.create_from_string("\\d+")
 
 
 ## Called by Boot before the node enters the tree: keeps the request and applies its quality (if any) to `viewport`.
@@ -95,6 +112,12 @@ func _ready() -> void:
 	var probe: Dictionary = route.get("probe", {})
 	_probe_caps = probe.get("caps", [30, 60, 0])
 	_segments = timeline(route["views"], time_scale)
+	var timing: Dictionary = route.get("timing", {}) if route.get("timing") is Dictionary else {}
+	_timing_first_frames = maxi(0, int(timing.get("first_frames", 0)))
+	_timing_long_ms = maxf(0.0, float(timing.get("long_frame_ms", 0.0)))
+	if _PerfMarks.enabled():
+		RenderingServer.frame_pre_draw.connect(_on_pre_draw)
+		RenderingServer.frame_post_draw.connect(_on_post_draw)
 	get_tree().node_added.connect(_on_node_added)
 	print("GLADIUS_PERF_ARMED " + JSON.stringify({"quality": request.get("quality", ""), "seed": request.get("seed", 0),
 			"time_scale": time_scale, "shots": shots, "active_preset": GraphicsPresets.resolved_active_id()}))
@@ -199,12 +222,54 @@ static func frame_stats(deltas: Array) -> Dictionary:
 
 
 func _on_node_added(node: Node) -> void:
+	if _PerfMarks.enabled():
+		_time_node(node)
 	if _match != null or not (node is MatchRoot):
 		return
 	_match = node
 	var seed_value := int(request.get("seed", 0))
 	if seed_value != 0:
 		AppFlow.match_seed = seed_value  # read by MatchRoot.begin (match_root.gd ~:261), which runs in this node's _ready
+
+
+## W1c timing: marks for the nodes named in the header (only while GLADIUS_T timing is on).
+func _time_node(node: Node) -> void:
+	if node is MatchRoot:
+		if _frames_after_match < 0:
+			_frames_after_match = 0
+		_PerfMarks.mark("match_root.added")
+	elif node is WorldEnvironment:
+		_PerfMarks.mark("world_environment.added")
+	elif node is GPUParticles3D or node is CPUParticles3D or node is GPUParticles2D or node is CPUParticles2D:
+		var where := node.scene_file_path
+		if where == "" and node.owner != null:
+			where = node.owner.scene_file_path + ":" + str(node.owner.get_path_to(node))
+		if where == "":
+			var parent := node.get_parent()
+			where = (str(parent.name) + "/" if parent != null else "") + str(node.name)
+		var kind := node.get_class() + " " + _digits.sub(where, "#", true)
+		if not _particle_kinds.has(kind):
+			_particle_kinds[kind] = true
+			_PerfMarks.mark("particles.first", "kind=" + kind.replace(" ", "_"))
+
+
+func _on_pre_draw() -> void:
+	_pre_usec = Time.get_ticks_usec()
+
+
+## One GLADIUS_T "frame" line per frame named in the header: total = post-draw to post-draw.
+func _on_post_draw() -> void:
+	var now := Time.get_ticks_usec()
+	if _post_usec > 0:
+		var total := (now - _post_usec) / 1000.0
+		var draw := (now - _pre_usec) / 1000.0 if _pre_usec > _post_usec else 0.0
+		var first := _frames_after_match >= 0 and _frames_after_match < _timing_first_frames
+		if first or (_timing_long_ms > 0.0 and total >= _timing_long_ms):
+			_PerfMarks.emit("frame", total, "after_match=%d cpu=%.1f draw=%.1f phase=%s" % [
+					_frames_after_match, total - draw, draw, Phase.keys()[phase]])
+		if _frames_after_match >= 0:
+			_frames_after_match += 1
+	_post_usec = now
 
 
 func _process(_delta: float) -> void:
