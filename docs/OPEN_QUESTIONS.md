@@ -7,6 +7,15 @@ A placeholder is never a design value.
 
 Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
+## Web gladiator art (A2)
+
+- **OQ-A2-SET: first armour set and artwork.** Placeholder now is the Murmillo, with a bronze crested grille helmet,
+  sword-arm manica, left greave, balteus, and a wrapped cloth subligaculum. Its appearance is a guess for Shibi.
+- **OQ-A2-BUDGET: PC armour budgets.** Placeholder now is 20,000 near and 4,000 far body triangles, with four near and
+  three far total draws including the weapon. These are guesses for Shibi in `data/art_soldier.json`.
+- **OQ-A2-WARDROBE: armour selection.** Placeholder now is a free whole-set choice in Settings for the local
+  player. Slot, rarity and price in `data/cosmetics.json` are guesses for Shibi pending per-slot Shop cosmetics.
+
 ## Battle royale (DESIGN.md update, Nov 9 2026; milestone M1)
 
 - **OQ-BR-ZONE: zone phases.** Number of phases, wait and shrink times, radius per phase, damage per second per phase, and whether zone damage skips shields. Placeholders in `data/br.json` until measured M1 matches give a basis.

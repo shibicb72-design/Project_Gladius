@@ -31,7 +31,8 @@ static func defaults() -> Dictionary:
 				"coach_done": false,  # M2 H1b commit 5: the first-play coach was finished or skipped (OQ-COACH)
 				# W1a (PC only, data/graphics_presets.json, OQ-WEB-GFX-*): "" = Auto; frame cap in fps (0 = none);
 				# render scale 0.5 .. 1.0; field of view in degrees ("" = Auto: data/camera.json fov_table, OQ-WEB-FOV).
-				"graphics_quality": "", "frame_cap": FRAME_CAP_DEFAULT, "render_scale": 1.0, "fov": ""}
+				"graphics_quality": "", "frame_cap": FRAME_CAP_DEFAULT, "render_scale": 1.0, "fov": "",
+				"armour_set": SoldierRig.armour_set_id()}
 
 
 ## W1a: the Frame cap setting's default (fps).
@@ -204,6 +205,7 @@ func load_profile() -> Dictionary:
 	profile["frame_cap"] = frame_cap(data.get("frame_cap", null))  # W1a
 	profile["render_scale"] = render_scale(data.get("render_scale", null))  # W1a
 	profile["fov"] = fov(data.get("fov", null))  # W1a
+	profile["armour_set"] = SoldierRig.armour_set_id(data.get("armour_set"))
 	# M2 H1a layout migration (OQ-H1A-LAYOUT): saved layouts without the current layout version (or a pre-G2e file with
 	# only the legacy sprint_lock_pos) were made for the old placement. They are reset to the new defaults once, the
 	# legacy sprint_lock_pos with them, the touch HUD shows a one-time notice when something was discarded, and the
@@ -242,5 +244,6 @@ func save_profile(profile: Dictionary) -> bool:
 	out["frame_cap"] = frame_cap(profile.get("frame_cap", null))  # W1a
 	out["render_scale"] = render_scale(profile.get("render_scale", null))  # W1a
 	out["fov"] = fov(profile.get("fov", null))  # W1a
+	out["armour_set"] = SoldierRig.armour_set_id(profile.get("armour_set"))
 	f.store_string(JSON.stringify(out, "\t"))
 	return true
