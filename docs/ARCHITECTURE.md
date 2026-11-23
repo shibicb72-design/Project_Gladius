@@ -341,6 +341,61 @@ android/              debug.keystore (shared debug key only)
 - Remapping (later) edits InputMap events and saves them to the profile. Gyro settings (toggle,
   sensitivity, ADS-only, recenter, Off/ADS/Always) live in `input.json` defaults + the profile.
 
+#### W0: PC keyboard and mouse (web milestone, Nov 22 2026)
+Key map (project.godot [input]; every key is a physical keycode, so it sits in the same place on any layout; the
+key map itself is a guess for Shibi, OQ-WEB-KEYS):
+
+| Action | Keys / buttons | Path |
+|---|---|---|
+| move_forward / move_left / move_back / move_right | W / A / S / D | polled (`Input.get_vector`) |
+| look | mouse motion while captured (arrows still bound to look_*) | `KeyboardMouseProvider.get_look`, Camera / ADS tables |
+| fire | left mouse button | polled bit |
+| aim | right mouse button | polled bit (Aim tap toggle as before) |
+| sprint (new action) | Shift (hold) | `KeyboardMouseProvider.is_sprinting()` -> `InputFrame.sprint`; no new BUTTONS bit |
+| jump | Space | polled bit |
+| crouch | C, Ctrl | press path (`PRESS_ACTIONS`, router latch) |
+| prone | Z | polled bit only: bound, no behaviour (pawn.gd is read-only in W0) |
+| interact | E (press and release) | press path + `action_released` (revive hold ends on release) |
+| cover | F | press path (`NON_FRAME_ACTIONS`) |
+| swap_shoulder | V | polled LOCAL_BUTTONS bit (view only) |
+| reload | R | polled bit |
+| swap_weapon | Q, 1, 2, mouse wheel up / down | keys polled; the wheel through the router latch (`MOUSE_LATCH_ACTIONS`); each is a toggle, no slot select |
+| pause | Esc | MouseCapture / PauseMenu (below) |
+
+- Shift and Ctrl bindings leave the key location unspecified (Left Shift / Left Ctrl are the intended keys; the right
+  ones also match), so a browser that reports no key location never loses sprint or crouch.
+- Sprint in cover: the pawn exits cover on the rising edge of `InputFrame.sprint` (pawn.gd, the touch Sprint lock's
+  path), so a Shift press in cover leaves cover and sprints, exactly as the lock does. A Shift already held when cover
+  starts has no edge and does not exit (as a lock already on at entry). No tunable (OQ-WEB-SPRINT-COVER).
+- Mouse look: `KeyboardMouseProvider.mouse_sensitivity` comes from data/input.json `sensitivity.mouse_look`
+  (placeholder, OQ-36; replaced the hard-coded 0.002 rad per pixel), then the router's Camera / ADS percent tables
+  scale it like every "camera" provider. The in-match Settings -> Sensitivity screen's Camera and ADS tables are
+  therefore the mouse sensitivity setting; there is no separate mouse row.
+- Conflicts: no physical key, mouse button, pad button or pad axis direction is in two gameplay actions
+  (tests/test_w0_input.gd); the engine's ui_* actions are excluded (ui_cancel = Esc, ui_accept = Space, ui_ arrows).
+- Browser hazard (not fixable in the page): Ctrl is also the browser's shortcut key; Ctrl+W / Ctrl+T / Ctrl+N
+  cannot be blocked by a page, so crouching on Ctrl while pressing W can close the tab. C is the safe crouch key.
+
+Mouse capture state machine (`MouseCapture`, scripts/input/mouse_capture.gd; owned and driven by `PauseMenu`, which
+runs with PROCESS_MODE_ALWAYS; active only while `PlatformServices.is_touch_device()` is false):
+
+| State | Event | Next | Effect |
+|---|---|---|---|
+| FREE | left click in the match (not the gear) | CAPTURED once the mode reads captured | `set_mode(CAPTURED)`; a refused request stays FREE and the next click asks again |
+| CAPTURED | Esc (desktop: the key arrives) | MENU | release, open the menu |
+| CAPTURED | capture lost (mode no longer captured, no key event: the browser ate Esc, or the tab lost focus) | MENU | open the menu (polled once per frame) |
+| any | menu opened (gear included) | MENU | release |
+| MENU | Esc (no Sensitivity / Layout / Haptics screen open) or Resume | FREE | close; never recaptures by itself |
+| FREE | the next click | CAPTURED | recapture (Chrome refuses an immediate re-lock after Esc) |
+| any | PauseMenu leaves the tree (quit, end screen) | FREE | release |
+
+- Seam (binding fix 13): every mouse mode read and write goes through `MouseCapture.get_mode` / `set_mode`
+  (defaults: `Input.mouse_mode`), and MatchRoot points `KeyboardMouseProvider.get_mouse_mode` at it, so the captured
+  check for mouse look and the state machine read one mode. Headless ignores mouse mode changes; tests fake the seam.
+- Pausing stays MatchRoot's: offline and solo the open menu pauses the tree, online it only zeroes the frame.
+- Touch devices: unchanged. Android Back, ui_cancel and Esc never open the menu; the gear is the only way in.
+- The first click that captures also fires (the fire action is polled from Input), a known W0 behaviour.
+
 ### 4.14 Platform layer
 - `PlatformServices` (`scripts/platform/platform_services.gd`) picks an implementation with an
   `OS.get_name()` switch: Android, desktop (Windows/Linux/macOS), iOS, Web, and a null fallback.
@@ -353,6 +408,23 @@ android/              debug.keystore (shared debug key only)
   - `share_file(path)` (later "Send logs")
   - `get_local_addresses()`
   Every method has a safe no-op default.
+
+#### W0: Web build (web milestone, Nov 22 2026)
+- `export_presets.cfg` gains a "Web" preset (appended; Android and iOS byte-identical): single-threaded
+  (`variant/thread_support=false`, so no COOP/COEP headers), desktop texture compression, `tests/*, tools/*`
+  excluded (`build/` is never packed: it has a `.gdignore`), adaptive canvas resize, export path
+  `build/web/index.html`. `project.godot` sets `rendering_method.web="gl_compatibility"` explicitly (WebGL2); desktop
+  and Android keep `mobile`. Desktop and web share one code path; the only web branches are `PlatformServices.is_web()`
+  (Host / Join off) and `WebArgs` below.
+- `WebArgs` (scripts/platform/web_args.gd): debug-only URL arguments for automation, read through `JavaScriptBridge`
+  only when `OS.is_debug_build()` and the `web` feature tag hold. `?autosolo=1&length=<id>&wait=<s>`: the main menu
+  presses Play solo (`apply_autosolo`, request in `WebArgs.pending`), the solo lobby applies the length (not saved)
+  and presses Start after `wait` seconds via a child Timer (Back cancels it). Parsing is the pure
+  `WebArgs.parse(query, debug, web)`; tests/test_w0_web.gd covers it. `WebArgs.debug_marker` prints the debug web
+  markers `GLADIUS_MENU_READY` / `GLADIUS_LOBBY_READY` / `GLADIUS_PAUSE_OPENED` / `GLADIUS_PAUSE_CLOSED`;
+  `GLADIUS_MATCH_STARTED` is a plain print in `MatchRoot.begin` once the local player exists.
+- `tools/web/serve.mjs` (static server, Node built-ins) and `tools/web/smoke.mjs` (headed Chrome through
+  puppeteer-core from outside the repo) are the browser smoke test; docs/WEB.md has the commands and caveats.
 
 ### 4.15 HUD and touch HUD
 - `hud.tscn`: presentation only. Binds to signals from MatchDirector (or its replicated mirror on
@@ -565,6 +637,32 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
 - Dedicated server later: the same project runs `--headless` with a server boot scene. Its
   MatchDirector is authority with zero local players. Because rules are pure and presentation only
   listens, no rules code changes.
+
+#### W0: Play solo without a network (web milestone, Nov 22 2026)
+- The main menu's first button, **Play solo** (`MainMenu._on_solo`), sets the explicit flag `AppFlow.solo` and opens
+  the same lobby screen. The flag is cleared by `AppFlow.end_session()` (every Back, quit, result-screen Menu and lost
+  host goes through it) and by Host and Join.
+- `Lobby._ready` sees the flag and calls `NetSession.start_offline()`: any network peer is dropped and the session's
+  multiplayer gets an `OfflineMultiplayerPeer` (unique id 1, so the host entry is id 1 as on a real host). No
+  `ENetMultiplayerPeer` is ever created (`host_game` / `join_game` are never called). `NetSession.solo` and
+  `NetLobby.solo` are set with it.
+- The lobby acts as host locally (`Lobby.is_host = session.is_host or solo`): team mode, match length, bot difficulty
+  and Start all show and work, the header says "Solo, offline" instead of IPs, and the client branch (`submit_local`
+  to the host) never runs. `NetLobby` with `solo` is host (`is_host()`), skips every broadcast RPC, and `start_match()`
+  calls the shared `_enter_match` directly instead of `_start_match.rpc` (no protocol change: the RPC still calls the
+  same body on LAN peers).
+- `MatchRoot.begin`: `networked = local_peer != 0 and not solo_match`, where `solo_match` is `AppFlow.solo` or the
+  session's `solo`. Solo therefore takes the lobby branch (roster, the lobby's team mode, length and bot difficulty)
+  with `networked_match == false`, no `NetMatchBridge` wired and the director authoritative; the pause menu pauses the
+  tree as offline always did. Only the flag changes the rule: a Host with no client is still a networked match
+  (tests/test_h1c_cover_button.gd).
+- **Why an explicit flag, not a peer trick:** the lobby always creates a session (`AppFlow.ensure_session`) and the
+  tree's default `OfflineMultiplayerPeer` reports unique id 1, which is exactly what a real host reports. Sniffing the
+  peer would therefore call solo networked (bridge wired, no tree pause), and a "no session" lobby would need a second
+  lobby code path. One flag, set in one place and cleared in the two places that end it, keeps the LAN path unchanged.
+- **Web:** `PlatformServices.is_web()` (`OS.has_feature("web")`, test hook `simulate_web`) and `can_lan()` decide
+  whether Host and Join are enabled. In a browser (no ENet) they are disabled with the note "LAN in the browser comes
+  later" instead of failing; the LAN relay is slice W2. Tests: tests/test_w0_solo.gd.
 
 ### 4.18 Graphics quality
 - Renderer: Mobile (Vulkan) project-wide. Compatibility only as a per-platform override (e.g. web).

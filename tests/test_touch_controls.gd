@@ -400,7 +400,8 @@ func test_hud_has_six_labelled_buttons_and_no_sprint() -> void:
 		var b := hud._buttons[action] as Button
 		assert_eq(b.mouse_filter, Control.MOUSE_FILTER_IGNORE, "%s mouse_filter" % action)
 		assert_eq(b.focus_mode, Control.FOCUS_NONE, "%s focus_mode" % action)
-	assert_true(not InputMap.has_action("sprint"), "no sprint action")
+	# W0 (PC keyboard): a "sprint" action now exists for Left Shift (KeyboardMouseProvider.is_sprinting); the touch HUD
+	# still has no sprint button (the stick gesture and the Sprint lock sprint on touch).
 	assert_true(not hud.get_button_actions().has("sprint"), "no sprint button")
 	hud.free()
 

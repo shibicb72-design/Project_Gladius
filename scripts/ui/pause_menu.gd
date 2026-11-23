@@ -1,7 +1,9 @@
 class_name PauseMenu
 extends Control
 ## In-match menu: a small gear at the top-right opens a full-screen overlay (Resume, Settings, Quit to main
-## menu with a confirm step). The gear is the ONLY way in: Android Back / ui_cancel are not handled here.
+## menu with a confirm step). On a touch device the gear is the ONLY way in: Android Back / ui_cancel are not
+## handled. W0 (PC, no touchscreen): Esc (the "pause" action) and a lost mouse capture also open it, Esc closes it
+## again, and a click in the match captures the mouse (MouseCapture, scripts/input/mouse_capture.gd).
 ## Pausing and the zero InputFrame are decided by MatchRoot; this node only reports opened/closed/quit.
 
 signal opened
@@ -10,6 +12,7 @@ signal quit_confirmed
 
 const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
 
 var is_open: bool = false
 var settings: SettingsPanel
@@ -30,11 +33,14 @@ var _confirm_box: VBoxContainer
 var _settings_box: VBoxContainer
 ## The sheet under the main list and the confirm step.
 var _card: PanelContainer
+## W0: the mouse capture state machine (PC only: idle while PlatformServices reports a touch device).
+var capture: MouseCapture = MouseCapture.new()
 
 
 func _ready() -> void:
 	theme = _Theme
 	process_mode = Node.PROCESS_MODE_ALWAYS  # works while the tree is paused (offline)
+	capture.pause_requested.connect(open)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ui := DataRegistry.new().load_file("res://data/ui.json")
@@ -165,9 +171,11 @@ func open() -> void:
 	if is_open:
 		return
 	is_open = true
+	capture.on_menu_opened()
 	_show(_main_box)
 	_overlay.visible = true
 	queue_redraw()
+	_WebArgs.debug_marker("GLADIUS_PAUSE_OPENED")  # W0: browser smoke test only (debug web build; docs/WEB.md)
 	opened.emit()
 
 
@@ -175,9 +183,31 @@ func close() -> void:
 	if not is_open:
 		return
 	is_open = false
+	capture.on_menu_closed()  # no recapture here: the next click in the match captures
 	_overlay.visible = false
 	queue_redraw()
+	_WebArgs.debug_marker("GLADIUS_PAUSE_CLOSED")
 	closed.emit()
+
+
+## W0: keyboard-and-mouse controls (Esc, click to capture) apply only without a touchscreen.
+func pc_controls() -> bool:
+	return not PlatformServices.new().is_touch_device()
+
+
+## W0: a Sensitivity, Layout or Haptics screen is up over the menu (it has its own Back; Esc leaves it alone).
+func _sub_screen_open() -> bool:
+	return settings != null and (settings.sensitivity_layer != null or settings.layout_layer != null \
+			or settings.haptics_layer != null)
+
+
+func _process(_delta: float) -> void:
+	if pc_controls():
+		capture.poll()
+
+
+func _exit_tree() -> void:
+	capture.release()
 
 
 ## Touch rect of the gear in global coordinates: touch_dp square (>= 48 dp) in the corner given by data.
@@ -228,6 +258,8 @@ func _draw() -> void:
 ## The gear is handled here, before the touch HUD's stick/button zones (this node sits after it in the tree),
 ## and the tap is consumed so it never becomes a look touch.
 func _input(event: InputEvent) -> void:
+	if pc_controls() and _pc_input(event):
+		return
 	if is_open:
 		return
 	var pos := Vector2.ZERO
@@ -241,6 +273,23 @@ func _input(event: InputEvent) -> void:
 	if get_gear_touch_rect().has_point(pos):
 		open()
 		get_viewport().set_input_as_handled()
+	elif pc_controls() and event is InputEventMouseButton:
+		capture.on_click()  # W0: a click in the match (not on the gear) asks for the mouse; it still fires as today
+
+
+## W0 (no touchscreen): Esc opens the menu (releasing the mouse), or closes it again (resume, no recapture).
+## Returns true when the event was used.
+func _pc_input(event: InputEvent) -> bool:
+	if not (InputMap.has_action("pause") and event.is_action_pressed("pause", false)):
+		return false
+	if is_open:
+		if _sub_screen_open():
+			return false
+		close()
+	else:
+		capture.on_escape()  # emits pause_requested -> open()
+	get_viewport().set_input_as_handled()
+	return true
 
 
 static func _color(a: Array) -> Color:

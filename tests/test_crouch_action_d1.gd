@@ -22,10 +22,15 @@ func tree() -> SceneTree:
 ## D2 adds keyboard/gamepad bindings for crouch and may update the "no events" assertion.
 ## M2 H1c item 4 (OQ-CROUCH): crouch is bound (keyboard C, gamepad B) so keyboard / gamepad reach the same press path
 ## (KeyboardMouseProvider.PRESS_ACTIONS); prone and interact stay unbound (was: all three with no bindings).
-func test_t1_inputmap_has_crouch_prone_interact_without_events() -> void:
+## W0 (PC keyboard, binding fix 4): crouch also on Left Ctrl, interact on E, prone on Z (bound only, no behaviour:
+## pawn.gd is read-only in W0). tests/test_w0_input.gd checks the keys themselves.
+const W0_BINDINGS := {"crouch": 3, "prone": 1, "interact": 1}
+
+
+func test_t1_inputmap_has_crouch_prone_interact_bindings() -> void:
 	for a in NEW_BUTTONS:
 		assert_true(InputMap.has_action(a), "InputMap has %s" % a)
-		assert_eq(InputMap.action_get_events(a).size(), 2 if a == "crouch" else 0, "%s bindings (H1c: crouch C + B)" % a)
+		assert_eq(InputMap.action_get_events(a).size(), int(W0_BINDINGS[a]), "%s bindings (crouch C + Left Ctrl + pad B; prone Z; interact E)" % a)
 
 
 # ---- T2 BUTTONS order -------------------------------------------------------------------------

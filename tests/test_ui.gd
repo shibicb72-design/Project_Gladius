@@ -295,9 +295,9 @@ func _entry_menu() -> MainMenu:
 	return menu
 
 
-## Every control of the HOME page that must be reachable: text fields, Host/Join, Settings and the later entries.
+## Every control of the HOME page that must be reachable: text fields, Play solo, Host/Join, Settings and the later entries.
 func _entry_controls(menu: MainMenu) -> Array:
-	var out: Array = [menu.name_edit, menu.host_button, menu.ip_edit, menu.join_button, menu.settings_button]
+	var out: Array = [menu.name_edit, menu.solo_button, menu.host_button, menu.ip_edit, menu.join_button, menu.settings_button]
 	out.append_array(menu.later_buttons)
 	return out
 

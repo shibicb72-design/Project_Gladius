@@ -56,6 +56,22 @@ func log_display_info() -> void:
 			get_dp_scale(), DisplayServer.window_get_size()])
 
 
+## Tool/test hook (W0): makes is_web() true off the browser, so the web-only menu path (Host and Join disabled) can
+## be exercised headless. Never set in shipping code.
+static var simulate_web: bool = false
+
+
+## W0: true in a web (browser) export. ENet does not exist in browsers, so LAN hosting / joining is unavailable there
+## (main_menu.gd disables Host and Join with a note). The one place that reads the "web" feature tag.
+func is_web() -> bool:
+	return simulate_web or OS.has_feature("web")
+
+
+## W0: whether this platform can host or join a LAN game (ENet). False in the browser until the relay (slice W2).
+func can_lan() -> bool:
+	return not is_web()
+
+
 func is_touch_device() -> bool:
 	match OS.get_name():
 		"Android", "iOS":

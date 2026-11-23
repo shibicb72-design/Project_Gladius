@@ -12,6 +12,7 @@ const MAP_PATH := "res://data/maps/alesia_section.json"
 const MAP_OVERRIDE_PATH := "user://map_select_override"
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
 
 ## Tests turn this off to override director config before calling begin().
 @export var auto_start: bool = true
@@ -78,7 +79,10 @@ func _ready() -> void:
 	router.action_triggered.connect(_on_action_triggered)
 	router.action_released.connect(_on_action_released)
 	router.action_look_changed.connect(_on_action_look_changed)
-	router.add_provider(KeyboardMouseProvider.new())
+	var kbm := KeyboardMouseProvider.new()
+	if pause_menu != null:
+		kbm.get_mouse_mode = func() -> int: return pause_menu.capture.mode()  # W0: one mouse mode seam (fix 13)
+	router.add_provider(kbm)
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
 	router.add_provider(gamepad)
@@ -197,7 +201,10 @@ func begin() -> bool:
 	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
 		session = AppFlow.session
 	var local_peer := session.get_unique_id() if session != null else 0
-	var networked := local_peer != 0
+	# W0 (binding fix 1): Play solo is offline by its explicit flag, whatever the peer reports (the default
+	# OfflineMultiplayerPeer says id 1). Only the flag changes the rule: a Host with no client stays networked.
+	var solo_match := AppFlow.solo or (session != null and session.solo)
+	var networked := local_peer != 0 and not solo_match
 	networked_match = networked
 	director.authoritative = not networked or session.is_host
 	if lobby != null:
@@ -237,6 +244,7 @@ func begin() -> bool:
 	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
+	_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W0: the browser smoke test waits for this line (debug web build only; docs/WEB.md)
 	hud.bind(director, local_player)
 	if roster != null and roster.bridge != null: hud.bind_kill_bridge(roster.bridge)
 	HapticsEvents.bind_pawn(local_player)

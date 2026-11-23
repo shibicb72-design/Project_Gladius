@@ -169,7 +169,7 @@ Speed scales continuously with stick length (full analog, no walk/run step). For
 
 ## Sprint
 
-Sprint added by Shibi's decision, Oct 22 2026 (OQ-SPRINT, closed). Touch only for now; keyboard and gamepad bindings are undecided (TODO in OPEN_QUESTIONS.md).
+Sprint added by Shibi's decision, Oct 22 2026 (OQ-SPRINT, closed). Keyboard: Shift (hold), since W0 (Nov 22 2026, a guess, OQ-WEB-KEYS); gamepad binding undecided (TODO in OPEN_QUESTIONS.md).
 
 - **Trigger:** the move stick reaching the forward extreme starts sprint on that tick; there is no hold (Shibi Oct 23 2026: "Start on the threshold like PUBG"). "Forward extreme" = deflection >= the forward threshold AND the stick direction within `input.json` `sprint.forward_cone_half_angle_deg` of straight forward. Leaving the extreme (below the threshold or outside the cone) stops the sprint request at once, and returning starts it again on the first tick back. Works for the floating and fixed VirtualJoystick and the custom stick (the check is in `TouchProvider`/`SprintDetector`, on the provider's move vector).
 - **Speed:** `InputFrame.sprint` asks the pawn to ease its speed factor from 1 (run) to `movement.sprint_speed_multiplier` (1.34, giving 6.3 m/s sprint at 4.7 m/s run; community-measured on PC, not official, still a placeholder; Shibi Oct 23 2026) over `movement.sprint_ramp_s` (placeholder), with no snap. Releasing, dropping below the threshold, or leaving the cone eases back down over the same time.

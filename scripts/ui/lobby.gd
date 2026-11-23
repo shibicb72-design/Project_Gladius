@@ -8,6 +8,7 @@ extends Control
 ## vertical scroll; the always-visible ActionBar (Back, Class, Mode, Length, Bots, Start) at the bottom.
 
 const _Theme := preload("res://scenes/ui/menu_theme.tres")
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
 const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
 var net_lobby: NetLobby
@@ -30,6 +31,10 @@ var bot_button: Button
 ## Where a length or bot difficulty change is saved (tests point it at a temp user:// file).
 var save := SaveService.new()
 var is_host: bool = true
+## W0: a Play solo lobby (AppFlow.solo): local host, no network, no IPs shown.
+var solo: bool = false
+## Test hook (W0): when valid, the lobby's scene changes call go_scene.call(scene_path) instead of AppFlow.go.
+var go_scene: Callable
 var _br_cfg: Dictionary = {}
 var _match_cfg: Dictionary = {}
 ## HudNumbers.roman_enabled() read once in _ready, not on every refresh.
@@ -46,8 +51,13 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var cfg := DataRegistry.new().load_file("res://data/match.json")
 	var session := AppFlow.ensure_session(get_tree())
+	# W0 (binding fix 2): Play solo. The session goes offline (no ENet peer) and this lobby is the host locally:
+	# every host control shows, the host entry opens through host_open, Start begins the match without an RPC.
+	if AppFlow.solo and not session.solo:
+		session.start_offline()
+	solo = session.solo
 	net_lobby = session.lobby
-	is_host = session.is_host
+	is_host = session.is_host or solo
 	state = net_lobby.state
 	AppFlow.lobby = state
 	var my_name := str(_profile().get("gamertag", SaveService.DEFAULT_GAMERTAG))
@@ -153,7 +163,7 @@ func _ready() -> void:
 	# The br config: team layouts (host) and the match length options and labels (host and clients, M2 Z2).
 	_br_cfg = ModeRegistry.merged_config(MatchDirector.MODE_ID, reg.load_file("res://data/modes.json"))
 	if is_host:
-		ips_label.text = "Your IP: " + ", ".join(local_ipv4())
+		ips_label.text = "Solo, offline" if solo else "Your IP: " + ", ".join(local_ipv4())
 		_match_cfg = cfg
 		var layout := MatchDirector.team_layout(_br_cfg, cfg)
 		net_lobby.host_open(int(layout["squad_count"]), int(layout["squad_size"]), my_name, [], int(cfg.get("max_humans", 8)))
@@ -168,6 +178,29 @@ func _ready() -> void:
 	refresh()
 	UiScale.bind(self)
 	MenuStyle.fade_in(box)
+	_WebArgs.debug_marker("GLADIUS_LOBBY_READY")  # W0: browser smoke test only (debug web build; docs/WEB.md)
+	var request: Dictionary = _WebArgs.pending
+	_WebArgs.pending = {}  # taken by the first lobby either way; only a solo lobby acts on it
+	if solo and not request.is_empty():
+		_autosolo(request)
+
+
+## W0 (debug web builds only, WebArgs): the autosolo request from the URL. The lobby's defaults (team mode, bots) as
+## Play solo opens them, the requested length (not saved to the profile), then Start after wait_s seconds, exactly as
+## the Start button. Back during the wait cancels.
+func _autosolo(request: Dictionary) -> void:
+	_apply_match_length(str(request.get("length", "")), false)
+	refresh()
+	# A child Timer, so leaving the lobby (Back) frees it and the Start never fires.
+	var timer := Timer.new()
+	timer.name = "AutosoloTimer"
+	timer.one_shot = true
+	timer.wait_time = maxf(float(request.get("wait_s", 0.0)), 0.05)
+	timer.timeout.connect(func() -> void:
+			if AppFlow.solo:
+				_on_start())
+	add_child(timer)
+	timer.start()
 
 
 func _profile() -> Dictionary:
@@ -389,7 +422,7 @@ func _on_state_changed() -> void:
 
 func _on_match_starting() -> void:
 	AppFlow.coach_route = true  # M2 H1b commit 5 (OQ-COACH): a real match from the menu / lobby route
-	AppFlow.go(get_tree(), AppFlow.MATCH_SCENE)
+	_go(AppFlow.MATCH_SCENE)
 
 
 func _on_start() -> void:
@@ -397,5 +430,12 @@ func _on_start() -> void:
 
 
 func _on_back() -> void:
-	AppFlow.end_session()
-	AppFlow.go(get_tree(), AppFlow.MENU_SCENE)
+	AppFlow.end_session()  # also clears AppFlow.solo (W0)
+	_go(AppFlow.MENU_SCENE)
+
+
+func _go(scene_path: String) -> void:
+	if go_scene.is_valid():
+		go_scene.call(scene_path)
+	else:
+		AppFlow.go(get_tree(), scene_path)
