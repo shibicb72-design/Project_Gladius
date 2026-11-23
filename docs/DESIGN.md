@@ -1,6 +1,11 @@
-# Project Gladius - approved design (Shibi, Oct 21 2026; battle royale update Nov 9 2026)
+﻿# Project Gladius - approved design (Shibi, Oct 21 2026; battle royale update Nov 9 2026)
 Rules: everything modular, data-driven, future-proof (additions must not mean rewrites). All numbers live in editable data files (res://data/*.json). Do NOT invent product decisions; where something is undecided, leave a clearly-marked TODO/placeholder.
 
+## Platform pivot (Shibi, Nov 22 2026; supersedes the Android, phone, hotspot, APK and CC0-only lines below)
+- Target: PC web browser only (Godot web export, Compatibility renderer / WebGL2), keyboard and mouse. Android is no longer a target; its preset may keep building but nothing ships to phones.
+- Modes: solo with bots (no network at all), and LAN for up to 8 humans through a small relay that runs only on the home network (nothing online; slice W2).
+- Art: higher-quality models for PC. Tripo AI models are approved by Shibi (Nov 22) alongside CC0 sources; models are repainted in Blender (Blender MCP, Opus 5.5 and GPT-6.2 Sol). Next art: gladiator character and armour sets, animation, weapons and weapon skins.
+- Milestone check: each milestone ends with a web build Shibi plays in his PC browser (no APKs).
 ## Platform/tech
 Godot 4.7.2, GDScript, Android (Vulkan Mobile renderer). Phones: S24 Ultra, S25 Ultra, Z Fold7 (wider FOV on inner screen). 60 fps target, optional 120 fps setting. Low-poly 3D: first person while moving, third person in cover (Shibi, Nov 14 2026; was third-person throughout). The drop, downed and spectating stay third person. Free CC0 art (Kenney, Quaternius); Mixamo (Adobe terms, local builds only, never committed). Networking: local hotspot multiplayer, host phone is authoritative (decides hits/payouts). Later: dedicated server on Alienware is authoritative online (same rules code). Progress stored on phone; later sync to Alienware keeping last good sync.
 
