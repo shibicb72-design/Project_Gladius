@@ -409,6 +409,23 @@ runs with PROCESS_MODE_ALWAYS; active only while `PlatformServices.is_touch_devi
   - `get_local_addresses()`
   Every method has a safe no-op default.
 
+#### W0: Web build (web milestone, Nov 22 2026)
+- `export_presets.cfg` gains a "Web" preset (appended; Android and iOS byte-identical): single-threaded
+  (`variant/thread_support=false`, so no COOP/COEP headers), desktop texture compression, `tests/*, tools/*`
+  excluded (`build/` is never packed: it has a `.gdignore`), adaptive canvas resize, export path
+  `build/web/index.html`. `project.godot` sets `rendering_method.web="gl_compatibility"` explicitly (WebGL2); desktop
+  and Android keep `mobile`. Desktop and web share one code path; the only web branches are `PlatformServices.is_web()`
+  (Host / Join off) and `WebArgs` below.
+- `WebArgs` (scripts/platform/web_args.gd): debug-only URL arguments for automation, read through `JavaScriptBridge`
+  only when `OS.is_debug_build()` and the `web` feature tag hold. `?autosolo=1&length=<id>&wait=<s>`: the main menu
+  presses Play solo (`apply_autosolo`, request in `WebArgs.pending`), the solo lobby applies the length (not saved)
+  and presses Start after `wait` seconds via a child Timer (Back cancels it). Parsing is the pure
+  `WebArgs.parse(query, debug, web)`; tests/test_w0_web.gd covers it. `WebArgs.debug_marker` prints the debug web
+  markers `GLADIUS_MENU_READY` / `GLADIUS_LOBBY_READY` / `GLADIUS_PAUSE_OPENED` / `GLADIUS_PAUSE_CLOSED`;
+  `GLADIUS_MATCH_STARTED` is a plain print in `MatchRoot.begin` once the local player exists.
+- `tools/web/serve.mjs` (static server, Node built-ins) and `tools/web/smoke.mjs` (headed Chrome through
+  puppeteer-core from outside the repo) are the browser smoke test; docs/WEB.md has the commands and caveats.
+
 ### 4.15 HUD and touch HUD
 - `hud.tscn`: presentation only. Binds to signals from MatchDirector (or its replicated mirror on
   clients) and the local pawn. Classic Halo layout, red/gold theme (`theme.tres`), Roman numerals via

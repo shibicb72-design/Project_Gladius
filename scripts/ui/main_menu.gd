@@ -15,6 +15,7 @@ const CARD_RATIO := 1.0
 const LAN_LATER_NOTE := "LAN in the browser comes later"
 
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
 
 ## Profile store; assigning it also points the shared settings panel at it.
 var save := SaveService.new():
@@ -93,6 +94,19 @@ func _ready() -> void:
 	# Deferred: on a window resize UiScale (viewport size_changed) may re-size the fonts after home resizes.
 	home.resized.connect(_update_later_columns, CONNECT_DEFERRED)
 	_update_later_columns.call_deferred()  # after the first layout and UiScale's sizes
+	# W0: debug web builds only (WebArgs): ?autosolo=1 plays solo straight from the URL, for the browser smoke test.
+	_WebArgs.debug_marker("GLADIUS_MENU_READY")
+	apply_autosolo(_WebArgs.take_autosolo())
+
+
+## W0: an autosolo request (WebArgs.parse) presses Play solo and hands the request to the solo lobby, which applies
+## the length and presses Start. {} does nothing. Returns whether it started.
+func apply_autosolo(request: Dictionary) -> bool:
+	if request.is_empty():
+		return false
+	_on_solo()
+	_WebArgs.pending = request.duplicate()
+	return true
 
 
 ## Left: the logo at the top-left; the space below it shows the backdrop art. Nothing interactive.

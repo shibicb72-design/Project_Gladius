@@ -20,6 +20,8 @@ extends RefCounted
 
 signal pause_requested
 
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
+
 enum State { FREE, CAPTURED, MENU }
 
 var state: State = State.FREE
@@ -54,6 +56,7 @@ func on_escape() -> void:
 		return
 	_release()
 	state = State.MENU
+	_WebArgs.debug_marker("GLADIUS_PAUSE_PATH key")  # W0 smoke test: which path paused (debug web build only)
 	pause_requested.emit()
 
 
@@ -78,6 +81,7 @@ func poll() -> void:
 		State.CAPTURED:
 			if not captured:
 				state = State.MENU
+				_WebArgs.debug_marker("GLADIUS_PAUSE_PATH capture_lost")
 				pause_requested.emit()
 		State.MENU:
 			if captured:

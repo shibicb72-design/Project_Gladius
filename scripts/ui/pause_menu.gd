@@ -12,6 +12,7 @@ signal quit_confirmed
 
 const _Theme := preload("res://scenes/ui/menu_theme.tres")
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
 
 var is_open: bool = false
 var settings: SettingsPanel
@@ -174,6 +175,7 @@ func open() -> void:
 	_show(_main_box)
 	_overlay.visible = true
 	queue_redraw()
+	_WebArgs.debug_marker("GLADIUS_PAUSE_OPENED")  # W0: browser smoke test only (debug web build; docs/WEB.md)
 	opened.emit()
 
 
@@ -184,6 +186,7 @@ func close() -> void:
 	capture.on_menu_closed()  # no recapture here: the next click in the match captures
 	_overlay.visible = false
 	queue_redraw()
+	_WebArgs.debug_marker("GLADIUS_PAUSE_CLOSED")
 	closed.emit()
 
 

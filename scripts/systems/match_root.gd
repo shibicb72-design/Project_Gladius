@@ -243,6 +243,7 @@ func begin() -> bool:
 	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
+	print("GLADIUS_MATCH_STARTED")  # W0: the one console line the browser smoke test waits for (docs/WEB.md)
 	hud.bind(director, local_player)
 	if roster != null and roster.bridge != null: hud.bind_kill_bridge(roster.bridge)
 	HapticsEvents.bind_pawn(local_player)

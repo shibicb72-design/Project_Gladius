@@ -8,6 +8,7 @@ extends Control
 ## vertical scroll; the always-visible ActionBar (Back, Class, Mode, Length, Bots, Start) at the bottom.
 
 const _Theme := preload("res://scenes/ui/menu_theme.tres")
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
 const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
 var net_lobby: NetLobby
@@ -177,6 +178,29 @@ func _ready() -> void:
 	refresh()
 	UiScale.bind(self)
 	MenuStyle.fade_in(box)
+	_WebArgs.debug_marker("GLADIUS_LOBBY_READY")  # W0: browser smoke test only (debug web build; docs/WEB.md)
+	var request: Dictionary = _WebArgs.pending
+	_WebArgs.pending = {}  # taken by the first lobby either way; only a solo lobby acts on it
+	if solo and not request.is_empty():
+		_autosolo(request)
+
+
+## W0 (debug web builds only, WebArgs): the autosolo request from the URL. The lobby's defaults (team mode, bots) as
+## Play solo opens them, the requested length (not saved to the profile), then Start after wait_s seconds, exactly as
+## the Start button. Back during the wait cancels.
+func _autosolo(request: Dictionary) -> void:
+	_apply_match_length(str(request.get("length", "")), false)
+	refresh()
+	# A child Timer, so leaving the lobby (Back) frees it and the Start never fires.
+	var timer := Timer.new()
+	timer.name = "AutosoloTimer"
+	timer.one_shot = true
+	timer.wait_time = maxf(float(request.get("wait_s", 0.0)), 0.05)
+	timer.timeout.connect(func() -> void:
+			if AppFlow.solo:
+				_on_start())
+	add_child(timer)
+	timer.start()
 
 
 func _profile() -> Dictionary:
