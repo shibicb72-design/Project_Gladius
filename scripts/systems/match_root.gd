@@ -12,6 +12,7 @@ const MAP_PATH := "res://data/maps/alesia_section.json"
 const MAP_OVERRIDE_PATH := "user://map_select_override"
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
+const _WebArgs := preload("res://scripts/platform/web_args.gd")
 
 ## Tests turn this off to override director config before calling begin().
 @export var auto_start: bool = true
@@ -243,7 +244,7 @@ func begin() -> bool:
 	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
-	print("GLADIUS_MATCH_STARTED")  # W0: the one console line the browser smoke test waits for (docs/WEB.md)
+	_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W0: the browser smoke test waits for this line (debug web build only; docs/WEB.md)
 	hud.bind(director, local_player)
 	if roster != null and roster.bridge != null: hud.bind_kill_bridge(roster.bridge)
 	HapticsEvents.bind_pawn(local_player)

@@ -78,8 +78,8 @@ browser (`OS.is_debug_build()` and the `web` feature tag). Release builds and ev
 | `length=<id>` | A data/br.json `match_length` option id (`12`, `15`, `20`). Unknown or missing: the data default (`15`). Not saved to the profile. |
 | `wait=<s>` | Seconds in the lobby before Start (0 to 30; default 0), so a script can screenshot the lobby. |
 
-Console markers for automation: `GLADIUS_MATCH_STARTED` (printed by MatchRoot.begin when the local player exists,
-every build) and, only in a debug web build, `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
+Console markers for automation, all printed only in a debug web build (`WebArgs.debug_marker`): `GLADIUS_MATCH_STARTED`
+(MatchRoot.begin, once the local player exists), `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
 `GLADIUS_PAUSE_CLOSED` and `GLADIUS_PAUSE_PATH key|capture_lost` (which MouseCapture path opened the menu)
 (`WebArgs.debug_marker`).
 
