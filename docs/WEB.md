@@ -126,7 +126,7 @@ guess for Shibi (OQ-WEB-KEYS).
   (browser autoplay rule).
 - LAN (Host / Join) is disabled in the browser (ENet does not exist there); the home-network relay is slice W2.
 
-## Look parity with Mobile (W1a)
+## Look parity with Mobile (W1a and W1b)
 
 The browser runs the Compatibility renderer (WebGL 2); the look was authored on Mobile. Compatibility shades in sRGB
 space: `source_color` uniforms and light colours reach a shader unconverted, `OUTPUT_IS_SRGB` is true, and a shader's
@@ -140,7 +140,9 @@ as `(c)`: their output is unchanged (tests/test_w1a_renderer_look.gd pins the Mo
 material against tests/fixtures/w1a_mobile_look_golden.json, recorded from base c9b385a).
 
 Per-renderer numbers go in `data/art_look.json` "compatibility" (read only on gl_compatibility; `GreyboxArt.renderer_override`
-injects the renderer in tests). It is empty: no W1a fix needed a number (OQ-WEB-GFX-PARITY). AgX works on Compatibility (measured with
+injects the renderer in tests). W1b uses variant Environment overrides for exposure and ambient fill at night and in storm
+(OQ-WEB-GFX-PARITY). The original property goldens and `tests/test_w1b_mobile_shader_text.gd` pin the Mobile look and
+shader source. AgX works on Compatibility (measured with
 `tools/compat_probe.gd`: an unshaded pure red reads (1.0, 0.0, 0.0) with the linear tonemapper and (0.871, 0.251,
 0.110) with AgX, Mobile (0.894, 0.231, 0.086)), so the tonemapper stays AgX. Open differences: OQ-WEB-GFX-SKYLIGHT,
 OQ-WEB-GFX-GLOW, OQ-WEB-GFX-DISC (docs/OPEN_QUESTIONS.md).
@@ -148,7 +150,9 @@ OQ-WEB-GFX-GLOW, OQ-WEB-GFX-DISC (docs/OPEN_QUESTIONS.md).
 Tools: `tools/parity_capture.gd` (Mobile / Compatibility captures and side-by-side sheets; `--left-dir`, `--right`,
 `--env` for before/after and A/B runs; `--quality=<preset id>` captures under that preset, file names
 `<view>_<variant>_<renderer>_<quality>.png`) and `tools/compat_probe.gd` (a row of quads per material under ambient, sun,
-omni and sky light, printing each renderer's pixel values).
+omni and sky light, printing each renderer's pixel values). W1b's probe takes
+`--sky-ambient-energy`, `--glow-hdr-threshold`, `--glow-intensity`, `--glow-hdr-scale` and
+`--linear-hdr-headroom` for A/B measurements.
 
 ## PC graphics settings (W1a)
 

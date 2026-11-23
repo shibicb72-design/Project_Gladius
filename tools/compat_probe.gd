@@ -1,10 +1,13 @@
 extends SceneTree
 ## W1a: renderer probe. Draws a row of quads with the world material (and variants of its shader source) under
-## three lights (ambient only, a sun, an omni) and prints the linear centre colour of every quad, so the Mobile and
+## three lights (ambient only, a sun, an omni) and prints the displayed centre colour of every quad, so the Mobile and
 ## Compatibility renderers can be compared number for number without the match.
 ##   godot.cmd --path . --rendering-method gl_compatibility --resolution 1280x720 --log-file <log>
 ##       --script res://tools/compat_probe.gd -- --out=<absolute png path prefix>
 ## Prints PROBE <light> <column> r g b lines and writes <prefix>_<light>.png.
+## Skylight diagnosis: --sky --tonemap=agx --exposure=<value> --sky-ambient-energy=<value>.
+## Bloom diagnosis: --glow --glow-hdr-threshold=<value> --glow-intensity=<value> --glow-hdr-scale=<value>.
+## --linear-hdr-headroom tests a Compatibility-only HDR curve on the unshaded quads.
 
 const COLUMNS := ["standard", "world", "world_kit", "no_arrays", "no_ao", "dbg_surf_b", "dbg_surf_a", "dbg_custom0",
 		"min_unshaded", "min_lit", "min_source_color", "min_unshaded_flat", "metal_std", "world_gold", "hdr_x1", "hdr_x4", "hdr_x16"]
@@ -17,6 +20,11 @@ var _fog := false
 var _sky := false  # a ProceduralSkyMaterial sky as background, ambient and reflections (the "sky" light pass)
 var _sun_energy := 1.0
 var _exposure := 1.0
+var _sky_ambient_energy := 1.0
+var _glow_threshold := 8.0
+var _glow_intensity := -1.0
+var _glow_hdr_scale := -1.0
+var _linear_hdr_headroom := false
 var _cam: Camera3D
 var _env: Environment
 var _sun: DirectionalLight3D
@@ -39,6 +47,16 @@ func _initialize() -> void:
 			_sun_energy = float(a.substr(13))
 		elif a.begins_with("--exposure="):
 			_exposure = float(a.substr(11))
+		elif a.begins_with("--sky-ambient-energy="):
+			_sky_ambient_energy = float(a.get_slice("=", 1))
+		elif a.begins_with("--glow-hdr-threshold="):
+			_glow_threshold = float(a.get_slice("=", 1))
+		elif a.begins_with("--glow-intensity="):
+			_glow_intensity = float(a.get_slice("=", 1))
+		elif a.begins_with("--glow-hdr-scale="):
+			_glow_hdr_scale = float(a.get_slice("=", 1))
+		elif a == "--linear-hdr-headroom":
+			_linear_hdr_headroom = true
 	_run.call_deferred()
 
 
@@ -49,9 +67,10 @@ func _shader_variant(name: String) -> Shader:
 			src = "shader_type spatial;\nuniform vec4 c : source_color = vec4(0.7, 0.7, 0.7, 1.0);\nvoid fragment() {\n\tALBEDO = c.rgb;\n}\n"
 		"hdr_x1", "hdr_x4", "hdr_x16":
 			var k := name.substr(5)
+			var curve := "max(encoded, c)" if _linear_hdr_headroom else "encoded"
 			src = ("shader_type spatial;\nrender_mode unshaded;\nvoid fragment() {\n\tvec3 c = vec3(0.1, 0.4, 0.6) * %s.0;\n"
-					+ "#if CURRENT_RENDERER == RENDERER_COMPATIBILITY\n\tc = mix(vec3(1.055) * pow(c, vec3(1.0 / 2.4)) - vec3(0.055), c * 12.92, lessThan(c, vec3(0.0031308)));\n#endif\n"
-					+ "\tALBEDO = c;\n}\n") % k
+					+ "#if CURRENT_RENDERER == RENDERER_COMPATIBILITY\n\tvec3 encoded = mix(vec3(1.055) * pow(c, vec3(1.0 / 2.4)) - vec3(0.055), c * 12.92, lessThan(c, vec3(0.0031308)));\n\tc = %s;\n#endif\n"
+					+ "\tALBEDO = c;\n}\n") % [k, curve]
 		"min_unshaded":
 			src = "shader_type spatial;\nrender_mode unshaded;\nvoid fragment() {\n\tALBEDO = vec3(0.25);\n}\n"
 		"min_lit":
@@ -145,7 +164,12 @@ func _run() -> void:
 	_env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	_env.tonemap_mode = GreyboxArt.TONEMAPPERS.get(_tonemap, Environment.TONE_MAPPER_LINEAR)
 	_env.glow_enabled = _glow
-	_env.glow_hdr_threshold = 8.0  # nothing in the probe blooms: glow only switches the post path on
+	# Default threshold keeps bloom off so the probe can isolate the tonemapper.
+	_env.glow_hdr_threshold = _glow_threshold
+	if _glow_intensity >= 0.0:
+		_env.glow_intensity = _glow_intensity
+	if _glow_hdr_scale >= 0.0:
+		_env.glow_hdr_scale = _glow_hdr_scale
 	_env.fog_enabled = _fog
 	_env.fog_mode = Environment.FOG_MODE_DEPTH
 	_env.fog_depth_begin = 1000.0
@@ -197,6 +221,8 @@ func _run() -> void:
 		_env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY if light == "sky" else Environment.REFLECTION_SOURCE_DISABLED
 		_env.ambient_light_color = Color(0.5, 0.5, 0.5) if light == "ambient" else Color.BLACK
 		_env.ambient_light_energy = 1.0 if light == "ambient" or light == "sky" else 0.0
+		if light == "sky":
+			_env.ambient_light_energy = _sky_ambient_energy
 		_sun.visible = light == "sun"
 		_omni.visible = light == "omni"
 		for f in 8:

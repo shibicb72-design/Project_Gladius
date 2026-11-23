@@ -668,9 +668,11 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
 - Renderer: Mobile (Vulkan) project-wide. Compatibility only as a per-platform override (e.g. web).
 - W1a look parity: `GreyboxArt.renderer()` (the running rendering method, or `GreyboxArt.renderer_override` in tests
   and tools) picks `data/art_look.json` "compatibility" on gl_compatibility only, applied last on the Environment
-  (`renderer_block()`, `_apply_renderer_block()`; empty today, OQ-WEB-GFX-PARITY). The colour-space fixes live in the
+  (`renderer_block()`, `_apply_renderer_block()`, OQ-WEB-GFX-PARITY). W1b sets exposure and ambient fill for night and storm.
+  The colour-space fixes live in the
   shaders behind `#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` (W1A_LIN / W1A_OUT; docs/WEB.md "Look parity").
   tests/test_w1a_renderer_look.gd pins the Mobile look to tests/fixtures/w1a_mobile_look_golden.json.
+  tests/test_w1b_mobile_shader_text.gd also pins the Mobile paths of the 13 W1b base shaders.
 - `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap, LOD), read by
   `GraphicsPresets` (`scripts/systems/graphics_presets.gd`). W1a: quality levels are preset ids (Low = "default",
   today's preset; Medium = "pc_medium"; High = "pc_high"). One preset is active per process (`GraphicsPresets.active_id`,
