@@ -247,9 +247,24 @@
 	},
 	"compatibility": {
 		"_placeholder": true,
-		"_note": "W1a (OQ-WEB-GFX-PARITY): values only the Compatibility renderer (gl_compatibility, the web build) applies, after the look is built (scripts/visual/greybox_art.gd renderer_block(); Mobile and Forward+ never read this block). \"environment\": Environment property overrides for every variant; \"variants\": {<id>: {\"environment\": {...}}} per variant (a 4-number array is a colour). Empty on purpose: every parity defect W1a fixed was in the shaders (Compatibility shades in sRGB space; W1A_LIN / W1A_OUT in scripts/visual/shaders), none was a number. A value added here is a guess for Shibi until a capture shows it restores what Mobile draws; the open differences are OQ-WEB-GFX-SKYLIGHT, OQ-WEB-GFX-GLOW and OQ-WEB-GFX-DISC (docs/OPEN_QUESTIONS.md).",
+		"_note": "W1b (OQ-WEB-GFX-PARITY): Compatibility-only guesses for Shibi. Environment properties are applied after the base look, with variant values taking precedence.",
 		"environment": {},
-		"variants": {}
+		"variants": {
+			"night": {
+				"environment": {
+					"_note": "OQ-WEB-GFX-SKYLIGHT: reduce the brightness of moonlit paving and retain the fill on shaded stone.",
+					"tonemap_exposure": 1.24,
+					"ambient_light_energy": 0.88
+				}
+			},
+			"storm": {
+				"environment": {
+					"_note": "OQ-WEB-GFX-SKYLIGHT: match the Mobile wet ground with reduced exposure and ambient fill.",
+					"tonemap_exposure": 0.95,
+					"ambient_light_energy": 0.65
+				}
+			}
+		}
 	},
 	"shafts": {
 		"_note": "Sun shafts are a few see-through quads that hang in the air along the sun's direction at the places listed (additive, no depth read). Drawn only with art_shafts_enabled and when the variant's sun is strong enough (min_sun_energy).",
