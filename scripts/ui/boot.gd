@@ -8,6 +8,9 @@ extends Control
 ## Hold ceiling: a bad data value must never trap the player on the boot screen.
 const MAX_HOLD_S := 3.0
 const MAX_FADE_S := 2.0
+## W1a commit 4: the debug-only frame-rate harness node (loaded only when a request exists).
+const PERF_ROUTE_PATH := "res://scripts/debug/perf_route.gd"
+const PERF_ROUTE_NAME := "PerfRoute"
 
 ## When false the screen stays still (tools set it before add_child); when true it goes to the menu after the hold.
 @export var auto_advance: bool = true
@@ -26,6 +29,8 @@ func _ready() -> void:
 	# (data auto_pc, "pc_high"), plus the player's frame cap and render scale; anywhere else, and in every headless run
 	# (PlatformServices.is_pc is false there), today's "default" preset alone.
 	GraphicsPresets.new().apply_settings(AppFlow.profile, get_viewport(), PlatformServices.new().is_pc())
+	# W1a commit 4: the frame-rate harness (debug web builds only, ?perf=1; docs/WEB.md "Frame-rate harness").
+	add_perf_route()
 	theme = MenuStyle.THEME
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	# Nothing here takes the mouse, so a click or tap reaches _unhandled_input and skips the hold.
@@ -87,6 +92,25 @@ func go_to_menu() -> void:
 		navigate.call()
 	else:
 		AppFlow.go(get_tree(), AppFlow.MENU_SCENE)
+
+
+## W1a commit 4: in a debug web build whose URL has perf=1 (WebArgs.perf_request; release builds and every other
+## platform get {}), puts the PerfRoute node (scripts/debug/perf_route.gd) under the tree root, where it outlives the
+## scene changes. Its setup applies the requested quality now, before any match look is built. At most one per run.
+## Returns the node, or null when there is no request.
+func add_perf_route() -> Node:
+	var request := WebArgs.perf_request()
+	if request.is_empty():
+		return null
+	var root := get_tree().root
+	var existing := root.get_node_or_null(PERF_ROUTE_NAME)
+	if existing != null:
+		return existing
+	var node: Node = load(PERF_ROUTE_PATH).new()
+	node.name = PERF_ROUTE_NAME
+	node.call("setup", request, get_viewport())
+	root.add_child.call_deferred(node)  # the root is still adding the boot scene
+	return node
 
 
 ## Seconds the logo is held: data `menu_style.boot.hold_s`, bounded; 0 when headless (no waiting in test runs).

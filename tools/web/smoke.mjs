@@ -9,11 +9,14 @@
 // Exit code: 0 only when the match started and no page error, failed request or unallowed Godot ERROR line appeared;
 // 1 = the run failed those checks, 2 = bad arguments / missing build, 3 = the overall hard timeout fired.
 // puppeteer-core (Apache-2.0) is NOT in the repo: it is loaded by absolute path from the webtools folder.
+// W1a: the Chrome launcher, WebGL probe and frame statistics live in chrome.mjs (shared with perf.mjs); unchanged.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { startServer } from './serve.mjs';
+import {
+  DEFAULT_CHROME, DEFAULT_WEBTOOLS, frameStats, launchChrome, loadPuppeteer, makeProfileDir, removeProfile, sleep,
+  webglRenderer,
+} from './chrome.mjs';
 
 // ---- Allowed Godot ERROR / SCRIPT ERROR console lines (binding fix 15). STARTS EMPTY. Every entry needs a pattern,
 // ---- a justification comment and a mention in the slice report. Nothing is allowed silently.
@@ -22,8 +25,8 @@ const ALLOWED_LINES = [];
 const DEFAULTS = {
   build: 'build/web',
   seconds: 60,
-  webtools: 'C:\\Users\\shibi\\cc_gladius\\webtools',
-  chrome: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  webtools: DEFAULT_WEBTOOLS,
+  chrome: DEFAULT_CHROME,
 };
 const LOBBY_WAIT_S = 6;          // the autosolo lobby wait, so lobby.png can be taken (WebArgs wait=)
 const MATCH_LENGTH = '12';       // the brief's 12-minute solo match
@@ -49,41 +52,6 @@ function parseArgs(argv) {
   return out;
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// ---- frame statistics from requestAnimationFrame timestamps (ms) ----
-// `segments` is an array of timestamp arrays; frame deltas are taken inside each segment only (a removed pause adds
-// no delta), and the seconds are the sum of the segment spans.
-function frameStats(segments) {
-  const dts = [];
-  let span = 0;
-  let frames = 0;
-  for (const stamps of segments) {
-    frames += stamps.length;
-    for (let i = 1; i < stamps.length; i++) dts.push(stamps[i] - stamps[i - 1]);
-    if (stamps.length > 1) span += stamps[stamps.length - 1] - stamps[0];
-  }
-  if (dts.length < 2) return { frames };
-  const sorted = [...dts].sort((a, b) => a - b);
-  const pct = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
-  const worstN = Math.max(1, Math.floor(sorted.length * 0.01));
-  const worst = sorted.slice(sorted.length - worstN);
-  const worstAvg = worst.reduce((s, v) => s + v, 0) / worst.length;
-  const r = (v, d = 2) => Number(v.toFixed(d));
-  return {
-    frames,
-    seconds: r(span / 1000, 2),
-    hitchesOver250ms: dts.filter((d) => d > 250).length,
-    hitchesOver1s: dts.filter((d) => d > 1000).map((d) => r(d, 0)),
-    avgFps: r((dts.length / span) * 1000, 1),
-    onePercentLowFps: r(1000 / worstAvg, 1),
-    medianFrameMs: r(pct(0.5)),
-    p95FrameMs: r(pct(0.95)),
-    p99FrameMs: r(pct(0.99)),
-    maxFrameMs: r(sorted[sorted.length - 1]),
-  };
-}
-
 async function main() {
   let args;
   try {
@@ -98,9 +66,7 @@ async function main() {
     return 2;
   }
   fs.mkdirSync(args.outDir, { recursive: true });
-  const requireFromWebtools = createRequire(path.join(args.webtools, 'package.json'));
-  const pptrModule = requireFromWebtools('puppeteer-core');
-  const puppeteer = pptrModule.default ?? pptrModule;
+  const puppeteer = loadPuppeteer(args.webtools);
 
   const t0 = Date.now();
   const log = (m) => console.log(`[smoke ${((Date.now() - t0) / 1000).toFixed(1)}s] ${m}`);
@@ -138,7 +104,7 @@ async function main() {
   };
 
   const consoleLines = []; // { t, type, text }
-  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gladius-smoke-'));
+  const profileDir = makeProfileDir('gladius-smoke-');
   let server = null;
   let browser = null;
   let hardTimer = null;
@@ -150,9 +116,7 @@ async function main() {
     try { if (browser) await Promise.race([browser.close(), sleep(15000)]); } catch { /* closing anyway */ }
     try { browser?.process()?.kill('SIGKILL'); } catch { /* already gone */ }
     try { if (server) await Promise.race([server.close(), sleep(5000)]); } catch { /* closing anyway */ }
-    for (let i = 0; i < 10; i++) {
-      try { fs.rmSync(profileDir, { recursive: true, force: true }); break; } catch { await sleep(500); }
-    }
+    await removeProfile(profileDir);
   };
 
   const hardTimeout = new Promise((resolve) => {
@@ -162,21 +126,7 @@ async function main() {
   const run = async () => {
     server = await startServer(buildDir, 0);
     log(`serving ${buildDir} at ${server.url}`);
-    browser = await puppeteer.launch({
-      executablePath: args.chrome,
-      headless: false,
-      userDataDir: profileDir,
-      defaultViewport: VIEWPORT,
-      protocolTimeout: 120000,
-      args: [
-        `--window-size=${VIEWPORT.width + 40},${VIEWPORT.height + 180}`,
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-backgrounding-occluded-windows',
-      ],
-    });
+    browser = await launchChrome(puppeteer, { chrome: args.chrome, profileDir, viewport: VIEWPORT });
     summary.chromeVersion = await browser.version();
     summary.label = `[measured] this PC, ${summary.chromeVersion}, not a performance claim`;
     const page = (await browser.pages())[0] ?? (await browser.newPage());
@@ -232,15 +182,7 @@ async function main() {
 
     // WebGL renderer string from a throwaway canvas (webgl2 context).
     await page.goto('about:blank');
-    summary.webglRenderer = await page.evaluate(() => {
-      const c = document.createElement('canvas');
-      const gl = c.getContext('webgl2');
-      if (!gl) return 'no webgl2 context';
-      const ext = gl.getExtension('WEBGL_debug_renderer_info');
-      const r = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-      const v = ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
-      return `${v} | ${r}`;
-    });
+    summary.webglRenderer = await webglRenderer(page);
     log(`chrome ${summary.chromeVersion}; webgl ${summary.webglRenderer}`);
 
     // 1. The menu, no URL arguments.

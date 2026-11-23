@@ -18,6 +18,9 @@ extends SceneTree
 ## Options: --variant=<id> (default art_look.json "variant"), --views=<res path> (default res://tools/parity_views.json),
 ##   --only=<text> (views whose name contains it), --size=<W>x<H> (the --resolution given; default the views file's
 ##   "size"), --settle=<frames> (default the views file's "settle_frames").
+##   W1a commit 4: --quality=<preset id> (data/graphics_presets.json, e.g. pc_high) sets GraphicsPresets.active_id before
+##   the match look is built (default unchanged: the active preset, "default"); only when given, the quality joins the
+##   file names: <view>_<variant>_<renderer>_<quality>.png and parity_<variant>_<renderer>_<quality>.json.
 ## A view fails (exit 1) when the PNG cannot be saved, the image is not the asked size, is black (mean luma < 0.01),
 ## is mostly the match's magenta clear colour (the world did not draw), or the camera stands inside a collider.
 ##
@@ -50,6 +53,8 @@ var _scale := 0.5
 var _left_dir := ""
 var _right := RIGHT
 var _env_overrides := ""
+## W1a commit 4: --quality=<preset id>; "" = not given (the active preset, file names unchanged).
+var _quality := ""
 
 var _match: Node
 var _camera: Camera3D
@@ -87,6 +92,8 @@ func _initialize() -> void:
 			_right = a.substr(8)
 		elif a.begins_with("--env="):
 			_env_overrides = a.substr(6)
+		elif a.begins_with("--quality="):
+			_quality = a.substr(10)
 	if _out == "":
 		printerr("parity_capture: give --out=<absolute dir>")
 		quit(2)
@@ -145,6 +152,11 @@ func _capture(cfg: Dictionary) -> bool:
 		printerr("parity_capture: the window is %dx%d, asked %dx%d (pass --resolution %dx%d, or --size= the size the window gets)" % [
 				root.size.x, root.size.y, _size.x, _size.y, _size.x, _size.y])
 		return false
+	if _quality != "":
+		if not Dictionary(GraphicsPresets.config().get("presets", {})).has(_quality):
+			printerr("parity_capture: unknown --quality %s" % _quality)
+			return false
+		GraphicsPresets.active_id = _quality  # before the match look is built (shadow_mode, shadow_max_distance_m)
 	GraphicsPresets.new().apply("", root)  # as scripts/ui/boot.gd does for the game's viewport (msaa, 3D scale)
 	MatchLook.variant_override = _variant
 	var map_path := String(cfg.get("map", "res://data/maps/alesia_500.json"))
@@ -162,7 +174,7 @@ func _capture(cfg: Dictionary) -> bool:
 	if not _match.call("begin"):
 		printerr("parity_capture: the match did not start")
 		return false
-	print("PARITY_BUILD renderer=%s map=%s variant=%s seed=%d build_ms=%d" % [renderer, map_path, _variant, seed_value, Time.get_ticks_msec() - t0])
+	print("PARITY_BUILD renderer=%s map=%s variant=%s seed=%d quality=%s build_ms=%d" % [renderer, map_path, _variant, seed_value, GraphicsPresets.resolved_active_id(), Time.get_ticks_msec() - t0])
 	var hud := _match.get_node_or_null("Hud") as CanvasLayer
 	if hud != null:
 		hud.visible = false
@@ -199,7 +211,7 @@ func _capture(cfg: Dictionary) -> bool:
 		made += 1
 	report["views"] = view_reports
 	report["ok"] = ok and made > 0
-	var json_path := _out.path_join("parity_%s_%s.json" % [_variant, renderer])
+	var json_path := _out.path_join("parity_%s_%s%s.json" % [_variant, renderer, _quality_suffix()])
 	var f := FileAccess.open(json_path, FileAccess.WRITE)
 	if f == null:
 		printerr("parity_capture: cannot write %s" % json_path)
@@ -209,9 +221,16 @@ func _capture(cfg: Dictionary) -> bool:
 		f.close()
 	print("PARITY_DONE renderer=%s variant=%s views=%d ok=%s json=%s" % [renderer, _variant, made, ok, json_path])
 	MatchLook.variant_override = ""
+	if _quality != "":
+		GraphicsPresets.active_id = ""
 	_match.queue_free()
 	await process_frame
 	return ok and made > 0
+
+
+## "_<quality>" when --quality was given, else "" (the W1a file names stay as they were).
+func _quality_suffix() -> String:
+	return "_" + _quality if _quality != "" else ""
 
 
 func _ground(x: float, z: float) -> float:
@@ -273,7 +292,7 @@ func _take(view: Dictionary, renderer: String) -> Dictionary:
 		"primitives": RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
 	}
 	var img := root.get_texture().get_image()
-	var file := "%s_%s_%s.png" % [view_name, _variant, renderer]
+	var file := "%s_%s_%s%s.png" % [view_name, _variant, renderer, _quality_suffix()]
 	var path := _out.path_join(file)
 	var err := img.save_png(path)
 	var stats := _image_stats(img)
@@ -418,6 +437,8 @@ func _run_report(cfg: Dictionary, renderer: String, map_path: String, seed_value
 		"video_adapter_api": RenderingServer.get_video_adapter_api_version(),
 		"godot": Engine.get_version_info()["string"],
 		"variant": _variant, "seed": seed_value, "map": map_path,
+		"quality": GraphicsPresets.resolved_active_id(), "quality_given": _quality,
+		"presets_applied": GraphicsPresets.applied.duplicate(),
 		"window": [root.size.x, root.size.y], "settle_frames": _settle,
 		"first_settle_frames": int(cfg.get("first_settle_frames", 180)),
 		"viewport": {"msaa_3d": root.msaa_3d, "scaling_3d_scale": root.scaling_3d_scale, "scaling_3d_mode": root.scaling_3d_mode,

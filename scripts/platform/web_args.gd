@@ -8,6 +8,7 @@ extends RefCounted
 ## Read ONLY in a debug build running in the browser (OS.is_debug_build() and the "web" feature tag): release builds
 ## and every other platform ignore the URL. The query string comes through JavaScriptBridge, which is a safe no-op
 ## off the web. Parsing is a pure function (parse) so tests run it headless with the debug / web flags as arguments.
+## W1a commit 4 adds the frame-rate harness's ?perf=1[&quality=<preset id>][&seed=<n>] (parse_perf), same rules.
 
 ## Upper bound for the lobby wait, so a typo cannot park the lobby for minutes. Automation-only, not a game tunable.
 const MAX_WAIT_S := 30.0
@@ -67,6 +68,33 @@ static func parse(query: String, debug_build: bool, web: bool) -> Dictionary:
 	var wait_raw := str(pairs.get("wait", "0"))
 	var wait_s := clampf(wait_raw.to_float(), 0.0, MAX_WAIT_S) if wait_raw.is_valid_float() else 0.0
 	return {"length": SaveService.match_length(str(pairs.get("length", ""))), "wait_s": wait_s}
+
+
+## W1a commit 4: the frame-rate harness request in `query` (tools/web/perf.mjs; docs/WEB.md "Frame-rate harness"), or
+## {} when there is none or it must be ignored (not a debug build, not the browser, perf is not "1"):
+##   ?perf=1[&quality=<graphics preset id>][&seed=<match seed>]
+## A request is {"quality": String, "seed": int}. quality must name one of data/graphics_presets.json quality_levels
+## that is also a preset ("default", "pc_medium", "pc_high"); anything else (unknown, empty, Auto "") is "" = the
+## platform's own pick. seed must be a whole non-zero number (0 means "no seed" to MatchRoot); anything else is 0.
+## quality and seed are read only together with perf=1. Boot (debug web builds) turns a request into the PerfRoute node.
+static func parse_perf(query: String, debug_build: bool, web: bool) -> Dictionary:
+	if not debug_build or not web:
+		return {}
+	var pairs := query_pairs(query)
+	if str(pairs.get("perf", "")) != "1":
+		return {}
+	var quality := str(pairs.get("quality", ""))
+	var presets: Dictionary = GraphicsPresets.config().get("presets", {})
+	if quality == "" or not GraphicsPresets.quality_ids().has(quality) or not presets.has(quality):
+		quality = ""
+	var seed_raw := str(pairs.get("seed", ""))
+	var seed_value := seed_raw.to_int() if seed_raw.is_valid_int() else 0
+	return {"quality": quality, "seed": seed_value}
+
+
+## The frame-rate harness request for this page (parse_perf on the real or simulated query and flags).
+static func perf_request() -> Dictionary:
+	return parse_perf(read_query(), is_debug(), is_web())
 
 
 ## The autosolo request for this run, handed out once (the first main menu takes it); {} afterwards or when none.

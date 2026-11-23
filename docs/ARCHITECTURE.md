@@ -689,6 +689,27 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   replacing base_fov only). The rig camera's far plane is data/camera.json `far_m` (OQ-WEB-FAR).
   Tests: tests/test_w1a_gfx_settings.gd.
 
+#### W1a perf hook: the browser frame-rate harness (debug web builds only)
+- Rule: the hook exists only in a DEBUG build running in the BROWSER whose URL has `perf=1`. `WebArgs.parse_perf` /
+  `perf_request()` (`scripts/platform/web_args.gd`) return {} for a release build, off the web, or without perf=1;
+  `quality` (a quality-level preset id, else "") and `seed` (a whole non-zero number, else 0) are read only with it.
+- `Boot.add_perf_route()` (`scripts/ui/boot.gd`) is the only call site: with a request it loads
+  `scripts/debug/perf_route.gd` (the one debug-only file), calls `setup(request, viewport)` (the requested quality through
+  `GraphicsPresets.apply_settings` on a profile COPY, before any match look exists; nothing is saved) and adds the node
+  under the tree root (deferred), where it outlives scene changes. At most one per run.
+- No gameplay, match, lobby or AppFlow code knows about it. It rides on W0's `?autosolo=1` start: on `node_added` of
+  the MatchRoot (before its `_ready`/`begin`) it puts the URL seed into `AppFlow.match_seed` (begin reads it,
+  match_root.gd ~:261), so loot, bot streams and the look variant (`MatchLook.variant_for_seed`) are fixed. Once the
+  director runs (+ warmup frames) it makes its OWN Camera3D current (near/far copied from the rig camera; it takes the
+  current camera back if the SpectatorCamera grabs it, `camera_retakes`), flies the route from
+  `tools/web/perf_route.json` (injected by `tools/web/perf.mjs` as `window.GLADIUS_PERF_ROUTE`, because tools/ is not
+  exported; `res://` file fallback for desktop debug), records real frame deltas, probes Engine.max_fps 30 / 60 / 0 and
+  restores it, and publishes `GLADIUS_PERF_DONE <json>` (console) and `window.GLADIUS_PERF_RESULT`. In `--shots` mode
+  it also hides the match's Hud layer. `PerfRoute.frame_stats` / `timeline` are pure static functions.
+- Harness side: `tools/web/perf.mjs` shares `serve.mjs` (server) and `chrome.mjs` (puppeteer-core loader, headed
+  Chrome launcher, WebGL renderer probe, rAF frame statistics) with `tools/web/smoke.mjs`. docs/WEB.md "Frame-rate
+  harness". Tests: tests/test_w1a_perf.gd.
+
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.
   `audio.json` maps event ids (announcer lines, music states) to streams. Shibi's Latin announcer

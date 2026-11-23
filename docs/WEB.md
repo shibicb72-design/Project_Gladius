@@ -61,6 +61,8 @@ node tools/web/smoke.mjs <out_dir> [--build build/web] [--seconds 60]
   frame statistics from `requestAnimationFrame` (whole 60 s and with the paused seconds removed), the Chrome version,
   the WebGL renderer string and the viewport. Frame rates are "[measured] this PC, Chrome <version>, not a
   performance claim".
+- The Chrome launcher, the puppeteer-core loader, the WebGL probe and the rAF statistics live in `tools/web/chrome.mjs`
+  (W1a), shared with the frame-rate harness; smoke.mjs behaves and exits as before.
 - Allowed Godot error lines: the `ALLOWED_LINES` list in smoke.mjs, which starts empty; every entry needs a
   justification comment there and a mention in the slice report.
 - Exit code 0 only when the match started and no page error, failed request, HTTP error or unallowed Godot error
@@ -77,6 +79,9 @@ browser (`OS.is_debug_build()` and the `web` feature tag). Release builds and ev
 | `autosolo=1` | Play solo straight from the URL: the main menu presses Play solo, the solo lobby presses Start. Taken once per page load (the menu after the match does not restart it). |
 | `length=<id>` | A data/br.json `match_length` option id (`12`, `15`, `20`). Unknown or missing: the data default (`15`). Not saved to the profile. |
 | `wait=<s>` | Seconds in the lobby before Start (0 to 30; default 0), so a script can screenshot the lobby. |
+| `perf=1` | W1a: the frame-rate harness hook (Boot adds `scripts/debug/perf_route.gd`; "Frame-rate harness" below). |
+| `quality=<id>` | With perf=1 only: the graphics preset for this page (`default`, `pc_medium`, `pc_high`), applied at boot, not saved. Anything else: the platform's own pick. |
+| `seed=<n>` | With perf=1 only: the match seed (a whole non-zero number; anything else is ignored), so loot, bots' seeded streams and the look variant are fixed. |
 
 Console markers for automation, all printed only in a debug web build (`WebArgs.debug_marker`): `GLADIUS_MATCH_STARTED`
 (MatchRoot.begin, once the local player exists), `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
@@ -141,7 +146,8 @@ injects the renderer in tests). It is empty: no W1a fix needed a number (OQ-WEB-
 OQ-WEB-GFX-GLOW, OQ-WEB-GFX-DISC (docs/OPEN_QUESTIONS.md).
 
 Tools: `tools/parity_capture.gd` (Mobile / Compatibility captures and side-by-side sheets; `--left-dir`, `--right`,
-`--env` for before/after and A/B runs) and `tools/compat_probe.gd` (a row of quads per material under ambient, sun,
+`--env` for before/after and A/B runs; `--quality=<preset id>` captures under that preset, file names
+`<view>_<variant>_<renderer>_<quality>.png`) and `tools/compat_probe.gd` (a row of quads per material under ambient, sun,
 omni and sky light, printing each renderer's pixel values).
 
 ## PC graphics settings (W1a)
@@ -167,10 +173,57 @@ for Shibi (OQ-WEB-GFX-PRESETS, -SHADOWS, -AA, -FPS, -SCALE; OQ-WEB-FOV; OQ-WEB-F
 | render_scale (profile, PC) | - | 1.0 default; 0.5-1.0 | same | live, times scale_3d | Viewport.scaling_3d_scale |
 | fov (profile, PC) | - | "" (Auto) or 60-95 deg | same | live (CameraRig.GROUP) | CameraRig.base_fov |
 
-In a browser the frame is paced by requestAnimationFrame: vsync cannot be turned off there and whether Engine.max_fps
-caps anything is [unknown]; a later step measures it. Whether the Compatibility renderer honours each value (MSAA,
+In a browser the frame is paced by requestAnimationFrame: vsync cannot be turned off there. Engine.max_fps, measured
+by the frame-rate harness's cap probe (below): 30 gave a median frame of 32.9-33.3 ms, 60 and 0 gave 17.4-18.6 ms, the
+display's rAF cadence (about 57 Hz on the page) [measured, this PC, Chrome 157.0.8103.80, not a performance claim]. Whether the Compatibility renderer honours each value (MSAA,
 anisotropy, PSSM splits, 3D scale) is [unknown] until the parity captures show it.
 
 The rig camera's far plane is `data/camera.json` `far_m` (4000 m, OQ-WEB-FAR): the 1 km map's far hill ring reaches
 3922 m from a ground corner (measured; tests/test_w1a_gfx_settings.gd prints `W1A_FAR`), so it cannot be shorter. Depth
 precision on WebGL 2's 24-bit buffer is set by the near plane (0.05 m), not the far one [inferred].
+
+## Frame-rate harness (W1a)
+
+Measures the debug web export in the real browser (Compatibility renderer, WebGL 2) along a fixed camera route on
+alesia_500, once per quality level. Every number it writes is "[measured] this PC, Chrome <version>, not a performance
+claim"; no budget or preset is tuned to it (OQ-WEB-PERF-ROUTE).
+
+```
+godot.cmd --headless --path . --import
+godot.cmd --headless --path . --export-debug Web build/web/index.html
+node tools/web/perf.mjs --out=<file.json> [--levels=default,pc_medium,pc_high] [--seconds=90] [--size=1280x720]
+node tools/web/perf.mjs --shots=<dir> [--levels=pc_high] [--seconds=30] [--variants=dusk,night,storm] [--shot-view=porta_aquilae]
+```
+
+- Same server, Chrome and puppeteer-core as the smoke test (`serve.mjs`, `chrome.mjs`; `--build`, `--webtools`,
+  `--chrome` as there). Headed Chrome, temporary profile (so the profile is the default one: frame cap 60 on a PC).
+- Per level it opens `?autosolo=1&length=12&wait=0&perf=1&quality=<id>&seed=<perf_route.json seed>`, injects
+  `tools/web/perf_route.json` (scaled to `--seconds`) as `window.GLADIUS_PERF_ROUTE`, waits for `GLADIUS_MATCH_STARTED`
+  (300 s) and `GLADIUS_PERF_DONE <json>` (route + probe + 180 s). The match is W0's autosolo solo match: 17 bots at the
+  lobby's bot difficulty, the local player idle in the drop; the harness's own camera does not depend on them.
+- In the game (`scripts/debug/perf_route.gd`, debug web builds only): after the director runs and 60 warmup frames, the
+  route: drop (150 m over the south edge looking north over the town), market (the forum_stall cluster), Porta Aquilae,
+  the Arx top; 90 s of route clock (real time, but one frame advances it by at most 0.1 s, so a freeze stalls the camera
+  instead of skipping a view; `route_wall_s` is the real duration). Markers: `GLADIUS_PERF_ARMED`,
+  `GLADIUS_PERF_ROUTE_START <json>`, `GLADIUS_PERF_VIEW <name>` (a hold begins), `GLADIUS_PERF_PROBE <cap>`,
+  `GLADIUS_PERF_DONE <json>` (also `window.GLADIUS_PERF_RESULT`), `GLADIUS_PERF_ERROR <text>`.
+- Numbers (game side, real frame deltas from `Time.get_ticks_usec` between consecutive frames): frame count, median
+  (middle value; mean of the two middle ones for an even count), p99 (nearest rank), 1 percent low (the MEAN of the
+  slowest 1 percent of frames, at least one; also as fps), frames over 33 ms, the longest frame, per-segment medians
+  (a delta counts for the segment the camera was in while that frame rendered), every frame over 250 ms with its route
+  time, the active preset, Engine.max_fps, the rendering method, the window and content-scale sizes, MSAA, 3D scale.
+- Cap probe: after the route, Engine.max_fps = 30, 60, then 0, 0.5 s settle + 5 s each, the median frame time of each;
+  then the previous value is restored. It reports what the cap did, it assumes nothing.
+- Harness side: the Chrome version, the WebGL renderer string, devicePixelRatio, window and screen size, the display
+  refresh (rAF on about:blank for 2 s), seconds from navigation to the match start, the page's own rAF cadence over the
+  route (a cross-check) and every rAF gap over 250 ms from the match start (`secondsAfterMatchStart`, phase).
+- Output: the `--out` JSON (default `build/perf/perf.json`) with the top-level `label` "this PC, Chrome <version>, not a
+  performance claim", one entry per level, `<out>_console.log`, and a markdown table on stdout. Exit 0 only when every
+  requested level produced a result; 1 otherwise; 2 bad arguments / missing build; 3 the hard timeout.
+- `--shots`: one page per look variant (`variant_seeds` in perf_route.json: dusk 20261123, storm 20261122, night
+  20261124; art_look.json picks by seed modulo 5), HUD hidden, a screenshot 1.5 s after `GLADIUS_PERF_VIEW <shot view>`:
+  `web_<view>_<variant>.png` plus `shots.json`. Storm lightning is not switched off (a flash may land in the shot).
+- Seen on the first runs [measured, this PC, Chrome 157.0.8103.80, not a performance claim]: multi-second single frames
+  right after the match start (about 1 s and 2 s at 8-10 s), at the route's first frame (about 10 s, the drop view) and
+  on the first flight over the town (about 3 s, three times); the route's later views had none. Cause unknown [inferred:
+  first-time shader / pipeline compilation for newly visible materials]; not fixed here.

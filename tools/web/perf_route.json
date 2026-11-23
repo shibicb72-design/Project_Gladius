@@ -1,0 +1,60 @@
+{
+	"_note": "W1a commit 4: the browser frame-rate harness's fixed camera route (tools/web/perf.mjs injects it into the page as window.GLADIUS_PERF_ROUTE; scripts/debug/perf_route.gd flies it; docs/WEB.md \"Frame-rate harness\"). TOOL DATA, not game data and not a budget: the timings and views are the harness's choice (OQ-WEB-PERF-ROUTE). Coordinates as tools/parity_views.json: pos = [x, z] in map metres, the camera stands eye_m above the terrain under it; yaw_deg is a compass bearing (0 = north = -z, 90 = east = +x), pitch_deg up-positive, fov_deg the vertical FOV. Each view: travel_s = seconds flying from the previous view (smoothstep; arc_m lifts the middle of the flight by up to that many metres so it clears walls and roofs; ignored on the first view), then hold_s = seconds standing at the view. The sum of every travel_s (except the first view's) and hold_s is total_s; the harness's --seconds scales all of them. variant_seeds: a match seed per look variant (data/art_look.json rotation.by_seed, seed modulo 5: 3 = dusk, 2 = storm, 4 = night); seed is the perf runs' seed (dusk). shot_view: the hold the --shots mode screenshots.",
+	"map": "res://data/maps/alesia_500.json",
+	"total_s": 90.0,
+	"seed": 20261123,
+	"variant_seeds": {"dusk": 20261123, "storm": 20261122, "night": 20261124},
+	"warmup_frames": 60,
+	"probe": {"caps": [30, 60, 0], "settle_s": 0.5, "seconds": 5.0},
+	"shot_view": "porta_aquilae",
+	"views": [
+		{
+			"name": "drop",
+			"reason": "Where the drop shows the map: 150 m over the south edge (0, 230) looking north over the whole town, the Arx and the far north backdrop (the most objects and the longest shadow range of the route; the carrier's altitude is 180 m).",
+			"pos": [0.0, 230.0],
+			"eye_m": 150.0,
+			"yaw_deg": 0.0,
+			"pitch_deg": -30.0,
+			"fov_deg": 75.0,
+			"travel_s": 0.0,
+			"arc_m": 0.0,
+			"hold_s": 8.0
+		},
+		{
+			"name": "market",
+			"reason": "tools/parity_views.json \"market\": the forum_stall cluster (the A1 Tripo textured stalls) from the south, 3 m up; reached by a 20 s glide down over the town.",
+			"pos": [42.0, -78.0],
+			"eye_m": 3.0,
+			"yaw_deg": 0.0,
+			"pitch_deg": -12.0,
+			"fov_deg": 75.0,
+			"travel_s": 20.0,
+			"arc_m": 20.0,
+			"hold_s": 14.0
+		},
+		{
+			"name": "porta_aquilae",
+			"reason": "tools/parity_views.json \"porta_aquilae\": the north gate from 26 m inside, the four-brazier cluster (per-object light limit), the flags and the north backdrop through the gate. The --shots view.",
+			"pos": [0.0, -196.0],
+			"eye_m": 1.7,
+			"yaw_deg": 0.0,
+			"pitch_deg": -2.0,
+			"fov_deg": 75.0,
+			"travel_s": 12.0,
+			"arc_m": 25.0,
+			"hold_s": 14.0
+		},
+		{
+			"name": "citadel_top",
+			"reason": "tools/parity_views.json \"citadel_top\": the Arx top looking north at Porta Arcis, the sun in frame (glow, sky, sun disc) and the Arx gate braziers; reached over the town with a 30 m arc.",
+			"pos": [3.0, -14.0],
+			"eye_m": 1.7,
+			"yaw_deg": 15.0,
+			"pitch_deg": -5.0,
+			"fov_deg": 75.0,
+			"travel_s": 12.0,
+			"arc_m": 30.0,
+			"hold_s": 10.0
+		}
+	]
+}
