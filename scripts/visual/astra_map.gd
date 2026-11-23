@@ -1,5 +1,6 @@
 extends Node3D
-## Synchronous map construction: ready before MatchRoot bakes parsed static colliders.
+## Synchronous map construction: ready before MatchRoot bakes parsed static colliders. W1c stage B: or frame-sliced
+## (`sliced`, MatchRoot's staged open only; see "the build as an ordered list of steps" below), same output.
 var cover_bodies: Array[StaticBody3D] = []
 var structure_bodies: Array[StaticBody3D] = []  # W1 world kit pieces (group "structure")
 var decor_bodies: Array[StaticBody3D] = []  # W2 colliders of the solid rim decor (group "structure")
@@ -24,44 +25,192 @@ const COVER_PATH := "res://data/maps/alesia_cover.json"
 ## W1c step 1: debug-only phase timing (debug web build + ?perf=1; a cached no-op everywhere else, no output change).
 const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
 
+## ---- W1c stage B: the build as an ordered list of steps ----
+## _ready runs every step at once (the synchronous contract every test, tool, LAN match and non-web open relies on).
+## With `sliced` set before the node enters the tree (MatchRoot's staged open only), _ready builds nothing and the
+## owner calls build_step() once per frame until it returns true; each call runs steps until slice_budget_ms of work
+## is spent. Both paths run the same step functions in the same order: a long step resumes item by item (the same
+## items, the same arithmetic, the same order), so the built map is identical and only where the frame boundaries
+## fall depends on the budget. Nothing here awaits or processes on its own: a builder freed mid-build leaves no work.
+## While sliced and not build_done() the builder's fields describe a half-built map; nothing may read them then
+## (MatchRoot's later stages wait for build_done()).
+var sliced := false
+## Milliseconds of build work per build_step() when sliced (MatchRoot passes data/warmup.json build_slice_ms,
+## OQ-W1C-SLICE); 0 = no limit. Read only on the sliced path; it never changes the result.
+var slice_budget_ms := 0
+## build_step() calls that ran build work (1 on the synchronous path).
+var build_slices := 0
+var _steps: Array = []  # [label, Callable] in build order
+var _step_at := 0
+var _cur := 0  # the running step's next item (resumable steps)
+var _fresh := true  # the running step has not been called yet
+var _frac := 0.0  # the running step's done share, for build_progress()
+var _deadline := -1  # engine usec at which this build_step() stops starting items; -1 = none
+var _mark := ""  # extra text for the running step's GLADIUS_T line
+var _script_usec := 0  # build work so far (GLADIUS_T map.total on the sliced path)
+var _wall_usec := 0  # the first build_step()'s start
+# The build's shared values (what _ready's locals were before W1c stage B).
+var _nav: Node
+var _map_def: Dictionary
+var _placed: Dictionary
+var _cfg: Dictionary
+var _meshes: Dictionary
+var _list: Array  # the running resumable step's items
+var _types_kit: Dictionary  # WorldKit.config()["types"]
+var _tb := {}  # _build_terrain's settings (_terrain_setup)
+
+
 func _ready() -> void:
-	var t_all := _PerfMarks.start()
-	var t := _PerfMarks.start()
-	var map := get_parent()
-	var nav := map.get_node("Nav")
+	_steps = [
+		["data", _step_data],
+		["cover_meshes", _step_cover_meshes],
+		["terrain_heights", _step_chunks_and_heights],
+		["cover_pieces", _step_cover_pieces],
+		["breakables", _step_breakables],
+		["walls", _step_walls],
+		["world_kit", _step_world_kit],
+		["ring", _step_ring],
+		["decor", _step_decor],
+		["chests_doors_ladders", _step_chests_doors_ladders],
+		["paint_ground", _step_paint_ground],
+		["place_map", _step_place_map],
+		["place_map_bodies", _step_place_map_bodies],
+		["place_map_tracks", _step_place_map_tracks],
+		["place_map_noise", _step_place_map_noise],
+		["place_map_stamps", _step_place_map_stamps],
+		["clutter", _step_clutter, true],
+		["place_contact", _step_place_contact],
+		["chunks_build", _step_chunks_build],
+		["terrain_build", _step_terrain_build],
+		["backdrop", _step_backdrop, true],
+		["ambient", _step_ambient],
+	]
+	_step_at = 0
+	_cur = 0
+	_fresh = true
+	if not sliced:
+		build_step()
+
+
+## True once every step has run (at once after _ready on the synchronous path).
+func build_done() -> bool:
+	return not _steps.is_empty() and _step_at >= _steps.size()
+
+
+## 0..1, never back: steps done plus the running step's done share.
+func build_progress() -> float:
+	if _steps.is_empty():
+		return 0.0
+	if build_done():
+		return 1.0
+	return (float(_step_at) + clampf(_frac, 0.0, 0.999)) / float(_steps.size())
+
+
+## The label of the step that runs next ("" when done).
+func build_step_label() -> String:
+	return "" if build_done() or _steps.is_empty() else String(_steps[_step_at][0])
+
+
+## Runs build steps (all of them unless sliced with a budget). True when the build is done.
+func build_step() -> bool:
+	if _steps.is_empty() or build_done():
+		return build_done()
+	var started := Time.get_ticks_usec()
+	if build_slices == 0:
+		_wall_usec = started
+	_deadline = started + slice_budget_ms * 1000 if sliced and slice_budget_ms > 0 else -1
+	build_slices += 1
+	var ran := false
+	while _step_at < _steps.size():
+		var step: Array = _steps[_step_at]
+		if ran and _deadline >= 0 and step.size() > 2 and bool(step[2]):
+			break  # a step that cannot be split starts its own slice (the frame is then that step alone)
+		ran = true
+		var t := _PerfMarks.start()
+		_mark = ""
+		var finished: bool = (step[1] as Callable).call()
+		if t >= 0:
+			var extra := _mark
+			if sliced:
+				extra = ("%s slice=%d%s" % [extra, build_slices, "" if finished else " more=1"]).strip_edges()
+			_PerfMarks.done("map." + String(step[0]), t, extra)
+		if finished:
+			_step_at += 1
+			_cur = 0
+			_fresh = true
+			_frac = 0.0
+		if _out_of_time():
+			break
+	var now := Time.get_ticks_usec()
+	_script_usec += now - started
+	if build_done() and _PerfMarks.enabled():
+		_PerfMarks.emit("map.total", _script_usec / 1000.0, "slices=%d wall_ms=%.1f" % [build_slices, (now - _wall_usec) / 1000.0])
+	return build_done()
+
+
+func _out_of_time() -> bool:
+	return _deadline >= 0 and Time.get_ticks_usec() >= _deadline
+
+
+## A resumable step stops here (not done): records its done share of `total` items.
+func _pause_at(total: int) -> bool:
+	_frac = float(_cur) / float(maxi(total, 1))
+	return false
+
+
+func _step_data() -> bool:
+	_nav = get_parent().get_node("Nav")
 	var reg := DataRegistry.new()
-	var map_def := reg.load_file(map_json)
+	_map_def = reg.load_file(map_json)
 	# Cover types and decor colliders always come from the alesia cover file; the pieces, ring pieces and
 	# decor come from the map's "cover_data" file (default: the same alesia file).
 	var base := reg.load_file(COVER_PATH)
-	var placed := reg.load_file(String(map_def.get("cover_data", COVER_PATH)))
-	var cfg := {
+	_placed = reg.load_file(String(_map_def.get("cover_data", COVER_PATH)))
+	_cfg = {
 		"types": base["types"],
 		"decor_colliders": base.get("decor_colliders", {}),
-		"pieces": placed["pieces"],
-		"ring_pieces": placed.get("ring_pieces", []),
-		"decor": placed["decor"],
+		"pieces": _placed["pieces"],
+		"ring_pieces": _placed.get("ring_pieces", []),
+		"decor": _placed["decor"],
 	}
-	var meshes := {}
-	for type: String in cfg["types"]:
-		var definition: Dictionary = cfg["types"][type]
+	_meshes = {}
+	return true
+
+
+func _step_cover_meshes() -> bool:
+	if _fresh:
+		_fresh = false
+		_list = (_cfg["types"] as Dictionary).keys()
+	while _cur < _list.size():
+		var type: String = _list[_cur]
+		var definition: Dictionary = _cfg["types"][type]
 		# M2W1 astraA (F4): the kit-parts cover look on the same box when the world-kit looks are on (WorldKit.cover_mesh).
 		var look := WorldKit.cover_mesh(type)
-		meshes[type] = look if look != null else LowpolyKit.build_cover(definition)
-	_PerfMarks.done("map.data_and_cover_meshes", t)
-	t = _PerfMarks.start()
+		_meshes[type] = look if look != null else LowpolyKit.build_cover(definition)
+		_cur += 1
+		if _cur < _list.size() and _out_of_time():
+			return _pause_at(_list.size())
+	return true
+
+
+func _step_chunks_and_heights() -> bool:
 	# M2P1A: cover, ring cover, structure and decor looks draw as one batch per chunk, source and type (MapChunks);
 	# the grid comes from the ground size and is set before any piece is added (no ground: one chunk); build()
 	# runs once, after the decor loop.
-	ground_size_m = ground_size_of(map_def, nav)
+	ground_size_m = ground_size_of(_map_def, _nav)
 	chunks = MapChunks.new()
 	chunks.name = "Chunks"
 	add_child(chunks)
 	chunks.setup(ground_size_m)
 	# M2P1B: resolved before the pieces so each stands on the ground under its origin (lifted()).
-	terrain = MapTerrain.for_map(map_def)
-	_PerfMarks.done("map.terrain_heights", t)
-	t = _PerfMarks.start()
+	terrain = MapTerrain.for_map(_map_def)
+	return true
+
+
+func _step_cover_pieces() -> bool:
+	var nav := _nav
+	var cfg := _cfg
+	var meshes := _meshes
 	for entry: Dictionary in cfg["pieces"]:
 		var definition: Dictionary = cfg["types"][entry["type"]]
 		var body := StaticBody3D.new()
@@ -82,14 +231,21 @@ func _ready() -> void:
 		body.add_child(shape)
 		nav.add_child(body)
 		cover_bodies.append(body)
-	_PerfMarks.done("map.cover_pieces", t, "n=%d" % cover_bodies.size())
-	t = _PerfMarks.start()
+	_mark = "n=%d" % cover_bodies.size()
+	return true
+
+
+func _step_breakables() -> bool:
 	# M2 L1b: breakables (the cover file's "breakables"; a map without the key gets no Props node). In cover_bodies
 	# right after the pieces: the order of the paint's trodden points (tools/gen_alesia.gd trodden_of).
-	if placed.has("breakables"):
-		_build_breakables(placed["breakables"])
-	_PerfMarks.done("map.breakables", t)
-	t = _PerfMarks.start()
+	if _placed.has("breakables"):
+		_build_breakables(_placed["breakables"])
+	return true
+
+
+func _step_walls() -> bool:
+	var nav := _nav
+	var meshes := _meshes
 	for body in nav.get_children():
 		if body in cover_bodies or body.name == &"Ground" or body is LootChest:  # a chest is never a wall, whatever the build order
 			continue
@@ -105,16 +261,37 @@ func _ready() -> void:
 		mesh.mesh = meshes[key]
 		if size.z > size.x:
 			mesh.rotation.y = PI * 0.5
-	_PerfMarks.done("map.walls", t)
-	t = _PerfMarks.start()
+	return true
+
+
+## Resumable by piece (WorldKit.populate's loop, one WorldKit.populate_one per piece, in order).
+func _step_world_kit() -> bool:
 	# W1: world kit pieces come after the loop above, which takes every other Nav child for a one-box wall.
 	# They are bodies in group "structure" (never cover_wall); their look is one batch per chunk and type.
-	structure_bodies = WorldKit.populate(nav, chunks, WorldKit.pieces_for(map_def), terrain)
-	_PerfMarks.done("map.world_kit", t, "n=%d" % structure_bodies.size())
-	t = _PerfMarks.start()
-	_build_ring(nav, cfg, meshes)
-	_PerfMarks.done("map.ring", t)
-	t = _PerfMarks.start()
+	if _fresh:
+		_fresh = false
+		_list = WorldKit.pieces_for(_map_def)
+		_types_kit = WorldKit.config()["types"]
+		structure_bodies = [] as Array[StaticBody3D]
+	while _cur < _list.size():
+		structure_bodies.append(WorldKit.populate_one(_nav, chunks, _types_kit, _list[_cur], terrain))
+		_cur += 1
+		if _cur < _list.size() and _out_of_time():
+			_mark = "n=%d" % structure_bodies.size()
+			return _pause_at(_list.size())
+	_mark = "n=%d" % structure_bodies.size()
+	return true
+
+
+func _step_ring() -> bool:
+	_build_ring(_nav, _cfg, _meshes)
+	return true
+
+
+func _step_decor() -> bool:
+	var nav := _nav
+	var cfg := _cfg
+	var meshes := _meshes
 	# W2: decor kinds listed in "decor_colliders" (rim arches and rocks) are solid; flat paving is not listed.
 	# M2P1A: the decor looks draw as one batch per chunk, kind and size (source "decor", type "<kind>_<n>", see
 	# decor_types); the scene's Decor node stays empty. Solid decor bodies still go under Nav.
@@ -139,71 +316,154 @@ func _ready() -> void:
 			var solid := WorldKit.decor_body(entry, String(decor_solid[entry["kind"]]), meshes[key], lift)
 			nav.add_child(solid)
 			decor_bodies.append(solid)
-	_PerfMarks.done("map.decor", t, "n=%d" % decor_types.size())
-	t = _PerfMarks.start()
+	_mark = "n=%d" % decor_types.size()
+	return true
+
+
+func _step_chests_doors_ladders() -> bool:
 	# M2 L1b: the loot chests (the cover file's "chests"), after the wall loop above (a chest has no "Mesh" child).
-	if placed.has("chests"):
-		_build_chests(nav, placed["chests"])
+	if _placed.has("chests"):
+		_build_chests(_nav, _placed["chests"])
 	# M2 L1c: the doors and gates (the cover file's "doors"), last: outside Nav, outside every body list above.
-	if placed.has("doors"):
-		_build_doors(placed["doors"])
+	if _placed.has("doors"):
+		_build_doors(_placed["doors"])
 	# M2 L1c commit 5: the ladders (the cover file's "ladders"), after the doors: outside Nav, non-blocking triggers.
-	if placed.has("ladders"):
-		_build_ladders(placed["ladders"])
-	_PerfMarks.done("map.chests_doors_ladders", t)
-	t = _PerfMarks.start()
+	if _placed.has("ladders"):
+		_build_ladders(_placed["ladders"])
+	return true
+
+
+func _step_paint_ground() -> bool:
 	# M2W1 item 5: the paint is made from the bodies' data only, so it comes before chunks.build(): the clutter
 	# (looks only, MapChunks source "clutter") reads the paint and every body, door and ladder built above.
-	_paint_ground(nav)
-	_PerfMarks.done("map.paint_ground", t)
-	t = _PerfMarks.start()
+	_paint_ground(_nav)
+	return true
+
+
+## The place map's shapes, PlaceMap.build() as begin_build() and its phases, one per step (its pixel work queued:
+## PlaceMap.deferred, run by place_map_stamps).
+func _step_place_map() -> bool:
 	# M2W1 astraB: the place map (looks only; from the built bodies, never saved, never a hashed input) for the ground
 	# shader and the clutter; the clutter adds its contact blobs, then the texture goes to the ground material.
 	place_map = null
 	if ground_material != null and bool(ground_material.get_shader_parameter("detail_enabled")):
-		place_map = PlaceMap.build(self, ground_size_m)
-		place_map.add_gate_approaches(structure_bodies, map)
-		var soil: Array = PlaceMap.config(map_json.get_file().get_basename()).get("compacted_soil", [])
-		if not soil.is_empty():
-			ground_material.set_shader_parameter("compacted_soil", Color(soil[0], soil[1], soil[2], 1.0))
-	_PerfMarks.done("map.place_map", t)
-	t = _PerfMarks.start()
-	clutter_report = WorldClutter.populate(self, chunks, map_def)
-	_PerfMarks.done("map.clutter", t)
-	t = _PerfMarks.start()
+		place_map = PlaceMap.begin_build(self, ground_size_m, true)
+		place_map.build_phase(0)
+		_mark = "queued=%d" % place_map.queued()
+	return true
+
+
+func _step_place_map_bodies() -> bool:
 	if place_map != null:
+		place_map.build_phase(1)
+		_mark = "queued=%d" % place_map.queued()
+	return true
+
+
+func _step_place_map_tracks() -> bool:
+	if place_map != null:
+		place_map.build_phase(2)
+		_mark = "queued=%d" % place_map.queued()
+	return true
+
+
+## The last phase (the noise), then the gate approaches and the compacted soil colour.
+func _step_place_map_noise() -> bool:
+	if place_map == null:
+		return true
+	for phase in range(3, PlaceMap.BUILD_PHASES):
+		place_map.build_phase(phase)
+	place_map.add_gate_approaches(structure_bodies, get_parent())
+	var soil: Array = PlaceMap.config(map_json.get_file().get_basename()).get("compacted_soil", [])
+	if not soil.is_empty():
+		ground_material.set_shader_parameter("compacted_soil", Color(soil[0], soil[1], soil[2], 1.0))
+	_mark = "queued=%d" % place_map.queued()
+	return true
+
+
+## Resumable: the place map's queued stamps and noise rows, in queue order (PlaceMap.flush), before the clutter reads it.
+func _step_place_map_stamps() -> bool:
+	if place_map == null:
+		return true
+	var done: bool = place_map.flush(_deadline)
+	_frac = 1.0 - float(place_map.pending()) / float(maxi(place_map.queued(), 1))
+	return done
+
+
+func _step_clutter() -> bool:
+	clutter_report = WorldClutter.populate(self, chunks, _map_def)
+	return true
+
+
+## Resumable: the clutter's contact blobs (queued, then flushed like the place map's stamps), then the texture.
+func _step_place_contact() -> bool:
+	if place_map == null:
+		return true
+	if _fresh:
+		_fresh = false
 		var contact_started := Time.get_ticks_usec()
 		place_map.add_contact(clutter_report.get("contact", []))
-		ground_material.set_shader_parameter("place_map", place_map.texture())
-		ground_material.set_shader_parameter("place_enabled", 1.0)
 		place_map.build_ms += int((Time.get_ticks_usec() - contact_started) / 1000)
-	_PerfMarks.done("map.place_contact", t)
-	t = _PerfMarks.start()
+	if not place_map.flush(_deadline):
+		_frac = 1.0 - float(place_map.pending()) / float(maxi(place_map.queued(), 1))
+		return false
+	var texture_started := Time.get_ticks_usec()
+	place_map.deferred = false  # built: later stamps (tests, tools) apply at once again
+	ground_material.set_shader_parameter("place_map", place_map.texture())
+	ground_material.set_shader_parameter("place_enabled", 1.0)
+	place_map.build_ms += int((Time.get_ticks_usec() - texture_started) / 1000)
+	return true
+
+
+func _step_chunks_build() -> bool:
 	chunks.build()
 	for body in chest_bodies:
 		chunks.hide_piece(LootChest.open_id((body as LootChest).prop_id))  # every chest starts closed
-	_PerfMarks.done("map.chunks_build", t, ("batches=%d" % chunks.batches().size()) if t >= 0 else "")
-	t = _PerfMarks.start()
-	var terrain_cfg: Dictionary = map_def.get("terrain", {})
-	_build_terrain(nav, bool(terrain_cfg.get("far_keep_centre", false)))
-	_PerfMarks.done("map.terrain_build", t)
-	t = _PerfMarks.start()
+	if _PerfMarks.enabled():
+		_mark = "batches=%d" % chunks.batches().size()
+	return true
+
+
+## Resumable by terrain cell (_build_terrain's loop, one _terrain_cell per cell, in order).
+func _step_terrain_build() -> bool:
+	if terrain == null:
+		return true
+	var cells := chunks.per_side * chunks.per_side
+	if _fresh:
+		_fresh = false
+		var terrain_cfg: Dictionary = _map_def.get("terrain", {})
+		_terrain_setup(_nav, bool(terrain_cfg.get("far_keep_centre", false)))
+		if _out_of_time() and cells > 0:
+			return _pause_at(cells)
+	while _cur < cells:
+		_terrain_cell(_cur)
+		_cur += 1
+		if _cur < cells and _out_of_time():
+			return _pause_at(cells)
+	return true
+
+
+func _step_backdrop() -> bool:
 	# S6: the horizon (outer wall ring, hills, ground skirt): looks only, outside the ground square.
 	# M2L1 (binding fix 5): a map json may switch it off ("backdrop": false; default true).
-	if backdrop_wanted(map_def, bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false))):
+	if backdrop_wanted(_map_def, bool(GraphicsPresets.new().get_preset().get("art_backdrop_enabled", false))):
 		var backdrop := Backdrop.new()
 		backdrop.name = "Backdrop"
 		add_child(backdrop)
 		backdrop.build(ground_material, map_json, terrain)  # M2W1 item 9: a map with an art_backdrop.json "maps" block gets its far backdrop
-	_PerfMarks.done("map.backdrop", t)
-	t = _PerfMarks.start()
+	return true
+
+
+func _step_ambient() -> bool:
 	# Attach below this builder: never add a sibling while the map root is in _ready.
 	var ambient := WorldAmbient.new()
 	ambient.name = "Ambient"
 	add_child(ambient)  # before configure: the tufts ask this builder (their parent) where the grass is
 	ambient.configure(DataRegistry.new().load_file("res://data/art_world.json"), bool(GraphicsPresets.new().get_preset().get("art_ambient_enabled", false)))
-	_PerfMarks.done("map.ambient", t)
-	_PerfMarks.done("map.total", t_all)
+	# The build's shared values are not needed any more (the fields above keep what readers use).
+	_list = []
+	_tb = {}
+	return true
 
 
 ## M2 L1b: the breakable crates and barrels under ArtBuilder/Props: OUTSIDE Nav, so the navigation bake never
@@ -429,6 +689,13 @@ func _paint_ground(nav: Node) -> void:
 func _build_terrain(nav: Node, keep_centre: bool) -> void:
 	if terrain == null:
 		return
+	_terrain_setup(nav, keep_centre)
+	for i in chunks.per_side * chunks.per_side:
+		_terrain_cell(i)
+
+
+## _build_terrain's first part: the collider, the near/far settings (in _tb) and the "Terrain" node.
+func _terrain_setup(nav: Node, keep_centre: bool) -> void:
 	var t := _PerfMarks.start()
 	_build_terrain_collider(nav)
 	_PerfMarks.done("map.terrain_build.collider", t)
@@ -448,35 +715,47 @@ func _build_terrain(nav: Node, keep_centre: bool) -> void:
 	var root := Node3D.new()
 	root.name = "Terrain"
 	add_child(root)
-	for iz in chunks.per_side:
-		for ix in chunks.per_side:
-			var chunk := Node3D.new()
-			chunk.name = "Chunk_%d_%d" % [ix, iz]
-			root.add_child(chunk)
-			var mesh := MeshInstance3D.new()
-			mesh.name = "Mesh"
-			mesh.mesh = terrain.chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side)
-			mesh.material_override = ground_material
-			mesh.cast_shadow = shadow
-			chunk.add_child(mesh)
-			if keep_centre and ix == mid and iz == mid:
-				continue
-			var far_mesh: ArrayMesh = terrain.far_chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side, step_m) if swap_m > 0.0 else null
-			if far_mesh == null:
-				continue
-			var box := mesh.mesh.get_aabb()
-			var end := MapChunks.range_end_for(swap_m, box.size.length() * 0.5, margin_m)
-			mesh.visibility_range_end = end
-			mesh.visibility_range_end_margin = margin_m
-			var far := MeshInstance3D.new()
-			far.name = "Far"
-			far.mesh = far_mesh
-			far.material_override = ground_material
-			far.cast_shadow = shadow
-			far.custom_aabb = box  # the same centre as "Mesh": both swap at the same measured distance
-			far.visibility_range_begin = end
-			far.visibility_range_begin_margin = margin_m
-			chunk.add_child(far)
+	_tb = {"shadow": shadow, "swap_m": swap_m, "step_m": step_m, "margin_m": margin_m, "mid": mid, "root": root, "keep_centre": keep_centre}
+
+
+## One cell of _build_terrain's grid: i = iz * per_side + ix (the old nested loop's order). Settings from _terrain_setup.
+func _terrain_cell(i: int) -> void:
+	var ix := i % chunks.per_side
+	var iz := i / chunks.per_side
+	var shadow: GeometryInstance3D.ShadowCastingSetting = _tb["shadow"]
+	var swap_m: float = _tb["swap_m"]
+	var step_m: float = _tb["step_m"]
+	var margin_m: float = _tb["margin_m"]
+	var mid: int = _tb["mid"]
+	var root: Node3D = _tb["root"]
+	var keep_centre: bool = _tb["keep_centre"]
+	var chunk := Node3D.new()
+	chunk.name = "Chunk_%d_%d" % [ix, iz]
+	root.add_child(chunk)
+	var mesh := MeshInstance3D.new()
+	mesh.name = "Mesh"
+	mesh.mesh = terrain.chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side)
+	mesh.material_override = ground_material
+	mesh.cast_shadow = shadow
+	chunk.add_child(mesh)
+	if keep_centre and ix == mid and iz == mid:
+		return
+	var far_mesh: ArrayMesh = terrain.far_chunk_mesh(Vector2i(ix, iz), chunks.chunk_size_m, chunks.per_side, step_m) if swap_m > 0.0 else null
+	if far_mesh == null:
+		return
+	var box := mesh.mesh.get_aabb()
+	var end := MapChunks.range_end_for(swap_m, box.size.length() * 0.5, margin_m)
+	mesh.visibility_range_end = end
+	mesh.visibility_range_end_margin = margin_m
+	var far := MeshInstance3D.new()
+	far.name = "Far"
+	far.mesh = far_mesh
+	far.material_override = ground_material
+	far.cast_shadow = shadow
+	far.custom_aabb = box  # the same centre as "Mesh": both swap at the same measured distance
+	far.visibility_range_begin = end
+	far.visibility_range_begin_margin = margin_m
+	chunk.add_child(far)
 
 
 ## M2P1B: the terrain collider, ONE HeightMapShape3D under Nav/Ground (one height field has no seams between

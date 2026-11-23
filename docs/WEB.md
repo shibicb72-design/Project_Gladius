@@ -354,10 +354,15 @@ elsewhere; no output or RNG change):
   blink.user_timing in a trace. Labels: `begin.config`, `begin.scene_load`, `begin.instantiate`, `begin.map_build`
   (the whole `add_child(map)`), `begin.nav`, `begin.roster`, `match_started`, `begin.hud_bind`, `begin.camera_rig`,
   `begin.loot`, `begin.world_props`, `begin.director_start`, `begin.zone_wall`, `begin.total` (MatchRoot.begin);
-  `map.*` inside the map build (scripts/visual/astra_map.gd: data and cover meshes, terrain heights, cover pieces,
-  breakables, walls, world kit, ring, decor, chests / doors / ladders, paint_ground (+ `.paint_at_load`, `.material`),
-  place map, clutter, place contact, chunks_build (MultiMesh batches), terrain_build (+ `.collider`), backdrop, ambient,
-  total); from `scripts/debug/perf_route.gd`: `match_root.added`, `world_environment.added`, `particles.first`
+  `map.<step>` inside the map build, one per build step (scripts/visual/astra_map.gd, W1c stage B: `data`,
+  `cover_meshes`, `terrain_heights`, `cover_pieces`, `breakables`, `walls`, `world_kit`, `ring`, `decor`,
+  `chests_doors_ladders`, `paint_ground` (+ `.paint_at_load`, `.material`), `place_map`, `place_map_bodies`,
+  `place_map_tracks`, `place_map_noise`, `place_map_stamps`, `clutter`, `place_contact`, `chunks_build` (MultiMesh
+  batches), `terrain_build` (+ `.collider`), `backdrop`, `ambient`; until stage B `data_and_cover_meshes` was one span
+  and the place map one `place_map` span). On the sliced path (the staged open) a step that runs over several frames
+  prints one line per frame with `slice=<n>` and `more=1` on every part but its last; `map.total` is then the build's
+  script time with `slices=` and `wall_ms=`; begin() prints one line per step and `map.total` `slices=1`;
+  from `scripts/debug/perf_route.gd`: `match_root.added`, `world_environment.added`, `particles.first`
   (first add of each particle node kind; the add, not the first emit), `can_move`, and `frame` lines (post-draw to
   post-draw, with `cpu=` before the draw and `draw=` the renderer's GL calls, where first-use shader compiles and texture
   uploads land) for the first `timing.first_frames` frames after the MatchRoot enters the tree and any frame of at least
@@ -383,7 +388,8 @@ matches, desktop, Android, tools and the headless suite keep the old one-frame `
   and its input script) and `perf.mjs` (`match start s`, `GLADIUS_PERF_*` after the director runs) keep working
   unchanged; their match-start seconds are not comparable with runs before W1c commit 2.
 - Timing lines (perf=1): `open.overlay_shown` (frames the overlay was drawn before the build), the `begin.*` phases
-  (one stage per frame), `open.warmup_setup` (items, contexts), one `open.warm_item <ms> item=<id>` per item (the
+  (one stage per frame; W1c stage B: the map_build stage takes several frames, its `map.<step>` lines carry
+  `slice=`, see above, and `begin.map_build` is only the `add_child(map)`), `open.warmup_setup` (items, contexts), one `open.warm_item <ms> item=<id>` per item (the
   frame in which its copies were first drawn: their programs compile there), `open.warmup <ms> items= derived= listed=
   longest_ms= longest_item=`, `match_started`, `open.total`, `can_move`. The frame lines carry `pre= phys= proc= tail=`
   (the cpu split: input, the physics ticks incl. the navigation step, the nodes' _process, the rest before the draw)

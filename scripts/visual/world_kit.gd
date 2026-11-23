@@ -288,25 +288,30 @@ static func decor_body(entry: Dictionary, mode: String, mesh: Mesh, lift: float 
 ## caller builds the chunks. The mesh carries material(), so the batch gets no material_override.
 ## M2P1B: with a `terrain` each piece is raised by the height under its origin (body and look together).
 static func populate(nav: Node, chunks: MapChunks, pieces: Array, terrain: MapTerrain = null) -> Array[StaticBody3D]:
-	var cfg := config()
-	var types: Dictionary = cfg["types"]
+	var types: Dictionary = config()["types"]
 	var bodies: Array[StaticBody3D] = []
+	for entry: Dictionary in pieces:
+		bodies.append(populate_one(nav, chunks, types, entry, terrain))
+	return bodies
+
+
+## One piece of populate() (W1c stage B: the map builder's frame-sliced build calls it piece by piece, in order).
+## `types` = config()["types"].
+static func populate_one(nav: Node, chunks: MapChunks, types: Dictionary, entry: Dictionary, terrain: MapTerrain = null) -> StaticBody3D:
 	# M2P1C stop 4: the batch shadow is the "structure" class's in data/map_build.json "classes" (MapChunks); it
 	# replaces this file's batches.cast_shadows, which stays in alesia_structures.json (a saved-navigation input).
-	for entry: Dictionary in pieces:
-		var type := String(entry["type"])
-		var at := LowpolyKit.vec(entry["at"])
-		if terrain != null:
-			at.y += terrain.height_at(at.x, at.z)
-		var body := build_body(String(entry["id"]), type, types[type], at, float(entry.get("yaw", 0.0)))
-		nav.add_child(body)
-		bodies.append(body)
-		var collides := not (types[type]["colliders"] as Array).is_empty()
-		chunks.add("structure", type, mesh_for(type), null, body.transform, collides)
-		# M2W1: the far look of the same piece (MapChunks draws one of the two by distance).
-		var lod := lod_for(type)
-		if not lod.is_empty():
-			var far_type := type + WorldKitMeshes.LOD1_SUFFIX
-			chunks.add("structure", far_type, lod[0], null, body.transform, collides)
-			chunks.pair_lod("structure", type, far_type, float(lod[1]))
-	return bodies
+	var type := String(entry["type"])
+	var at := LowpolyKit.vec(entry["at"])
+	if terrain != null:
+		at.y += terrain.height_at(at.x, at.z)
+	var body := build_body(String(entry["id"]), type, types[type], at, float(entry.get("yaw", 0.0)))
+	nav.add_child(body)
+	var collides := not (types[type]["colliders"] as Array).is_empty()
+	chunks.add("structure", type, mesh_for(type), null, body.transform, collides)
+	# M2W1: the far look of the same piece (MapChunks draws one of the two by distance).
+	var lod := lod_for(type)
+	if not lod.is_empty():
+		var far_type := type + WorldKitMeshes.LOD1_SUFFIX
+		chunks.add("structure", far_type, lod[0], null, body.transform, collides)
+		chunks.pair_lod("structure", type, far_type, float(lod[1]))
+	return body

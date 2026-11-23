@@ -26,6 +26,19 @@ var stamps := 0
 ## clutter's foreground pockets along them (WorldClutter). Empty without a "roads" block.
 var roads: Array = []
 var _cfg := {}
+## W1c stage B: when true, stamp_box (and so every stamp) and bake_noise only QUEUE their pixel work, with the values
+## they computed, in call order; flush() then runs it in that same order with the same arithmetic, so the bytes are
+## identical to stamping at once. The map builder (astra_map.gd) uses it on both its paths, so its frame-sliced
+## build can spread the pixel loops over frames; nothing may read `data` while work is queued (pending() > 0).
+var deferred := false
+## The queue: _Q_STRIDE floats per item [kind (channel 0..3, or _Q_NOISE_ROW / _Q_NOISE_FLAT), c.x, c.y, ax.x, ax.y,
+## half.x, half.y, inner, outer, value]; a noise row stores its y in slot 1. 64-bit floats keep every value exact.
+var _queue := PackedFloat64Array()
+var _queue_at := 0  # items already run
+var _noise := {}  # the bake_noise inputs a queued noise row reads (src bytes, sizes, tile, offset)
+const _Q_STRIDE := 10
+const _Q_NOISE_ROW := -1.0
+const _Q_NOISE_FLAT := -2.0
 
 
 ## The place_map block for a map: the global block, with the optional per-map override place_map.maps.<map_id>
@@ -96,8 +109,31 @@ func _put(x: int, y: int, ch: int, v: float) -> void:
 func stamp_box(ch: int, o: Dictionary, inner: float, outer: float, value: float, offset := Vector2.ZERO) -> void:
 	var c: Vector2 = (o["c"] as Vector2) + offset
 	var ax: Vector2 = o["ax"]
-	var az := Vector2(-ax.y, ax.x)
 	var half: Vector2 = o["half"]
+	if deferred:
+		_enqueue(float(ch), c, ax, half, inner, outer, value)
+		return
+	_stamp_box_now(ch, c, ax, half, inner, outer, value)
+
+
+func _enqueue(kind: float, c: Vector2, ax: Vector2, half: Vector2, inner: float, outer: float, value: float) -> void:
+	var i := _queue.size()
+	_queue.resize(i + _Q_STRIDE)
+	_queue[i] = kind
+	_queue[i + 1] = c.x
+	_queue[i + 2] = c.y
+	_queue[i + 3] = ax.x
+	_queue[i + 4] = ax.y
+	_queue[i + 5] = half.x
+	_queue[i + 6] = half.y
+	_queue[i + 7] = inner
+	_queue[i + 8] = outer
+	_queue[i + 9] = value
+
+
+## stamp_box's pixel loop (c already offset). Vector2 components are 32-bit: a queued item rebuilds the same values.
+func _stamp_box_now(ch: int, c: Vector2, ax: Vector2, half: Vector2, inner: float, outer: float, value: float) -> void:
+	var az := Vector2(-ax.y, ax.x)
 	var reach := half.length() + outer
 	var lo := to_px(c - Vector2(reach, reach))
 	var hi := to_px(c + Vector2(reach, reach))
@@ -115,6 +151,9 @@ func stamp_box(ch: int, o: Dictionary, inner: float, outer: float, value: float,
 
 
 func stamp_disc(ch: int, c: Vector2, inner: float, outer: float, value: float) -> void:
+	if deferred:  # stamp_box's values without building its dictionary (c + offset ZERO, as stamp_box computes it)
+		_enqueue(float(ch), c + Vector2.ZERO, Vector2.RIGHT, Vector2.ZERO, inner, outer, value)
+		return
 	stamp_box(ch, {"c": c, "ax": Vector2.RIGHT, "half": Vector2.ZERO}, inner, outer, value)
 
 
@@ -127,10 +166,14 @@ func stamp_line(ch: int, a: Vector2, b: Vector2, inner: float, outer: float, val
 
 
 ## A = the ground's broad noise (noise pack G at detail_large_m, offset as the shader's old large fetch).
+## W1c stage B: when deferred, the work is queued (the flat fill as one item, else one item per row) after every
+## stamp queued before it, so A is written in the same order as stamping at once.
 func bake_noise(noise: Image, tile_m: float, offset: Vector2) -> void:
 	if noise == null or noise.is_empty():
-		for i in px * px:
-			data[i * 4 + 3] = 128
+		if deferred:
+			_queue_item(_Q_NOISE_FLAT, 0.0)
+			return
+		_noise_flat()
 		return
 	var img := noise
 	if img.is_compressed():
@@ -140,17 +183,75 @@ func bake_noise(noise: Image, tile_m: float, offset: Vector2) -> void:
 		img = img.duplicate()
 		img.clear_mipmaps()
 		img.convert(Image.FORMAT_RGBA8)
-	var nw := img.get_width()
-	var nh := img.get_height()
-	var src := img.get_data()
-	var m := size_m / float(px)
+	_noise = {"nw": img.get_width(), "nh": img.get_height(), "src": img.get_data(), "tile_m": tile_m, "offset": offset}
 	for y in px:
-		var v := ((y + 0.5) * m - size_m * 0.5) / tile_m + offset.y
-		var ty := posmod(int(floor(v * nh)), nh)
-		for x in px:
-			var u := ((x + 0.5) * m - size_m * 0.5) / tile_m + offset.x
-			var tx := posmod(int(floor(u * nw)), nw)
-			data[(y * px + x) * 4 + 3] = src[(ty * nw + tx) * 4 + 1]
+		if deferred:
+			_queue_item(_Q_NOISE_ROW, float(y))
+		else:
+			_noise_row(y)
+	if not deferred:
+		_noise = {}
+
+
+func _noise_flat() -> void:
+	for i in px * px:
+		data[i * 4 + 3] = 128
+
+
+## One row of bake_noise (the inputs in _noise).
+func _noise_row(y: int) -> void:
+	var nw: int = _noise["nw"]
+	var nh: int = _noise["nh"]
+	var src: PackedByteArray = _noise["src"]
+	var tile_m: float = _noise["tile_m"]
+	var offset: Vector2 = _noise["offset"]
+	var m := size_m / float(px)
+	var v := ((y + 0.5) * m - size_m * 0.5) / tile_m + offset.y
+	var ty := posmod(int(floor(v * nh)), nh)
+	for x in px:
+		var u := ((x + 0.5) * m - size_m * 0.5) / tile_m + offset.x
+		var tx := posmod(int(floor(u * nw)), nw)
+		data[(y * px + x) * 4 + 3] = src[(ty * nw + tx) * 4 + 1]
+
+
+func _queue_item(kind: float, arg: float) -> void:
+	_enqueue(kind, Vector2(arg, 0.0), Vector2.ZERO, Vector2.ZERO, 0.0, 0.0, 0.0)
+
+
+## W1c stage B: queued items not run yet.
+func pending() -> int:
+	return _queue.size() / _Q_STRIDE - _queue_at
+
+
+## W1c stage B: queued items so far (run or not), for a progress fraction.
+func queued() -> int:
+	return _queue.size() / _Q_STRIDE
+
+
+## W1c stage B: runs queued work in call order until the queue is empty (true; the queue is then cleared) or the
+## engine clock reaches `deadline_usec` (false; -1 = no deadline). Only where frame boundaries fall depends on it.
+func flush(deadline_usec: int = -1) -> bool:
+	var started := Time.get_ticks_usec()
+	var n := _queue.size() / _Q_STRIDE
+	while _queue_at < n:
+		var i := _queue_at * _Q_STRIDE
+		var kind := _queue[i]
+		if kind == _Q_NOISE_ROW:
+			_noise_row(int(_queue[i + 1]))
+		elif kind == _Q_NOISE_FLAT:
+			_noise_flat()
+		else:
+			_stamp_box_now(int(kind), Vector2(_queue[i + 1], _queue[i + 2]), Vector2(_queue[i + 3], _queue[i + 4]),
+					Vector2(_queue[i + 5], _queue[i + 6]), _queue[i + 7], _queue[i + 8], _queue[i + 9])
+		_queue_at += 1
+		if deadline_usec >= 0 and Time.get_ticks_usec() >= deadline_usec and _queue_at < n:
+			build_ms += int((Time.get_ticks_usec() - started) / 1000)
+			return false
+	_queue = PackedFloat64Array()
+	_queue_at = 0
+	_noise = {}
+	build_ms += int((Time.get_ticks_usec() - started) / 1000)
+	return true
 
 
 func image() -> Image:
@@ -184,24 +285,69 @@ static func footprints(body: Node, root: Node, terrain: MapTerrain) -> Array:
 
 
 ## Builds R, G and A from the map builder's bodies (call after the doors and ladders exist). Returns the map.
-static func build(builder: Node, ground_size_m: float) -> RefCounted:
+## W1c stage B: `deferred` returns it with its pixel work queued (deferred stays on; run flush() before reading it).
+## W1c stage B: build() is begin_build() and then build_phase(0 .. BUILD_PHASES - 1) in order (the map builder's
+## sliced build runs one phase per step; the same code and the same stamp order either way).
+static func build(builder: Node, ground_size_m: float, deferred_stamps: bool = false) -> RefCounted:
+	var map = begin_build(builder, ground_size_m, deferred_stamps)
+	for phase in BUILD_PHASES:
+		map.build_phase(phase)
+	return map
+
+
+## The phases of build(): the structures' aprons and shelter; the cover, chests, doors and ladders; the roads and
+## worn tracks; the broad noise.
+const BUILD_PHASES := 4
+var _ctx := {}  # build()'s shared values between its phases (cleared after the last)
+
+
+## The empty map build() fills, with its config and the builder's facts for the phases.
+static func begin_build(builder: Node, ground_size_m: float, deferred_stamps: bool = false) -> RefCounted:
 	var started := Time.get_ticks_usec()
 	# M2 L2a: the map id is the builder's map json file name (alesia_500.json -> alesia_500), for place_map.maps.
 	var map_json: Variant = builder.get("map_json")
 	var cfg := config(String(map_json).get_file().get_basename() if typeof(map_json) == TYPE_STRING else "")
 	var map = load("res://scripts/visual/place_map.gd").new(ground_size_m, int(cfg.get("px", 512)))
 	map._cfg = cfg
-	var root := builder.get_parent()
-	var terrain: MapTerrain = builder.get("terrain")
+	map.deferred = deferred_stamps
+	map._ctx = {"builder": builder, "root": builder.get_parent(), "terrain": builder.get("terrain"), "camps": {}, "gates": [],
+			"gate_bodies": [], "camp_parts": {}, "usec": Time.get_ticks_usec() - started}
+	return map
+
+
+## One phase of build() (0 .. BUILD_PHASES - 1, in order).
+func build_phase(phase: int) -> void:
+	var started := Time.get_ticks_usec()
+	match phase:
+		0:
+			_phase_structures()
+		1:
+			_phase_small_bodies()
+		2:
+			_phase_tracks()
+		3:
+			_phase_noise()
+	_ctx["usec"] = int(_ctx["usec"]) + Time.get_ticks_usec() - started
+	if phase == BUILD_PHASES - 1:
+		build_ms = int(int(_ctx["usec"]) / 1000)
+		_ctx = {}
+
+
+func _phase_structures() -> void:
+	var map = self
+	var cfg := _cfg
+	var builder: Node = _ctx["builder"]
+	var root: Node = _ctx["root"]
+	var terrain: MapTerrain = _ctx["terrain"]
 	var aprons: Dictionary = cfg.get("apron_by_type", {})
 	var lee_v: Array = cfg.get("lee_dir", [-0.707, 0.707])
 	var lee := Vector2(float(lee_v[0]), float(lee_v[1])).normalized()
 	var shelter: Dictionary = cfg.get("shelter_by_type", {})
 	var foot := float(cfg.get("wall_foot_contact", 0.0))
-	var camps := {}  # camp id -> [Vector2] building centres
-	var gates: Array = []
-	var gate_bodies: Array = []
-	var camp_parts := {}  # camp id -> {barracks: [Vector2], tent: [Vector2]}
+	var camps: Dictionary = _ctx["camps"]  # camp id -> [Vector2] building centres
+	var gates: Array = _ctx["gates"]
+	var gate_bodies: Array = _ctx["gate_bodies"]
+	var camp_parts: Dictionary = _ctx["camp_parts"]  # camp id -> {barracks: [Vector2], tent: [Vector2]}
 	for body: Node in builder.get("structure_bodies"):
 		var type := String(body.get_meta(&"structure_type", ""))
 		var boxes := footprints(body, root, terrain)
@@ -229,6 +375,14 @@ static func build(builder: Node, ground_size_m: float) -> RefCounted:
 				camp_parts[camp] = {"barracks": [], "tent": []}
 			(camps[camp] as Array).append(c)
 			(camp_parts[camp][type] as Array).append(c)
+
+
+func _phase_small_bodies() -> void:
+	var map = self
+	var cfg := _cfg
+	var builder: Node = _ctx["builder"]
+	var root: Node = _ctx["root"]
+	var terrain: MapTerrain = _ctx["terrain"]
 	# Cover (incl. breakables) and chests: small aprons.
 	var cover_apron: Array = cfg.get("cover_apron", [0.5, 2.5, 0.45])
 	for body: Node in builder.get("cover_bodies"):
@@ -249,6 +403,16 @@ static func build(builder: Node, ground_size_m: float) -> RefCounted:
 	for ladder: Node in builder.get("ladders"):
 		var t := WorldClutter.xform_to(ladder, root)
 		map.stamp_disc(R, Vector2(t.origin.x, t.origin.z), 0.5, 2.5, 0.6)
+
+
+func _phase_tracks() -> void:
+	var map = self
+	var cfg := _cfg
+	var root: Node = _ctx["root"]
+	var camps: Dictionary = _ctx["camps"]
+	var gates: Array = _ctx["gates"]
+	var gate_bodies: Array = _ctx["gate_bodies"]
+	var camp_parts: Dictionary = _ctx["camp_parts"]
 	# Worn tracks: each camp's centre to its nearest gate, and each building to its nearest neighbour in the camp.
 	var track: Array = cfg.get("track", [1.0, 3.5, 0.55, 260.0])  # [inner, outer, value, longest m]
 	var nb: Array = cfg.get("neighbour_track", [0.8, 2.8, 0.5, 40.0])
@@ -276,12 +440,13 @@ static func build(builder: Node, ground_size_m: float) -> RefCounted:
 					near = q
 			if near != Vector2.INF and near.distance_to(p) <= float(nb[3]):
 				map.stamp_line(R, p, near, float(nb[0]), float(nb[1]), float(nb[2]))
+
+
+func _phase_noise() -> void:
 	var noise_path := String(WorldSurface.config().get("noise", ""))
 	var noise_tex := load(noise_path) as Texture2D if noise_path != "" else null
 	var detail: Dictionary = WorldSurface.ground_detail_config().get("uniforms", {})
-	map.bake_noise(noise_tex.get_image() if noise_tex != null else null, float(detail.get("detail_large_m", 360.0)), Vector2(0.37, 0.11))
-	map.build_ms = int((Time.get_ticks_usec() - started) / 1000)
-	return map
+	bake_noise(noise_tex.get_image() if noise_tex != null else null, float(detail.get("detail_large_m", 360.0)), Vector2(0.37, 0.11))
 
 
 ## Add gate-specific ground wear before clutter: trodden strips keep patches off the shoulders, shelter strips draw them in.

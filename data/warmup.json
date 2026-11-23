@@ -31,6 +31,7 @@
 	],
 	"copy_frames": {"_placeholder": true, "_todo": "OQ-W1C-STEP: frames each item's copies stay up (a particle's process shader runs on its first processed frame, its draw shader on the first drawn one). One item STARTS per frame.", "value": 3},
 	"overlay_frames": {"_placeholder": true, "_todo": "OQ-W1C-LOADING: frames the opaque overlay is drawn before the match build starts (at least one, so the page shows it before the long build frame).", "value": 2},
+	"build_slice_ms": {"_placeholder": true, "_todo": "OQ-W1C-SLICE: milliseconds of map-build work per frame in the staged open's map_build stage (scripts/visual/astra_map.gd build_step; W1c stage B). A frame stops starting build items once this is spent, so a frame is this plus at most one item (and the steps that cannot be split: clutter, backdrop). Only where the frame boundaries fall depends on it, never the built map. A guess for Shibi, not a budget.", "value": 100},
 	"settle_frames": {"_placeholder": true, "_todo": "OQ-W1C-SETTLE: frames after the last warm item, still behind the overlay, before the director starts (the last copies leave, the sky's incremental radiance update and the renderer's first-time work for the match camera's own view land here).", "value": 6},
 	"_listed_note": "Visuals that do not exist yet when the warm-up starts (they appear after the director starts or on events), each made through its own public code path into the warm cell and freed again: no match state, RNG stream, loot, prop, stat, sound or haptic is touched.",
 	"listed": [

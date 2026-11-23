@@ -441,6 +441,8 @@
 		"font_size_px": 28,
 		"bar_size_px": [420, 12],
 		"gap_px": 18,
-		"progress_build_share": 0.3
+		"progress_build_share": 0.3,
+		"_progress_map_share_note": "OQ-W1C-LOADING (W1c stage B): the part of the build share the map build's steps fill (the other stages before the warm-up share the rest equally). A guess for Shibi.",
+		"progress_map_share": 0.6
 	}
 }

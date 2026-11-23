@@ -485,8 +485,16 @@ func _open_tick() -> void:
 			_PerfMarks.mark("open.overlay_shown", "frames=%d" % _open_frames)
 		"config":
 			ok = _open_config()
+			if ok and _open_builder != null and "sliced" in _open_builder:
+				# W1c stage B: the builder's steps run from the map_build stage, a budget per frame (same map).
+				_open_builder.set("sliced", true)
+				_open_builder.set("slice_budget_ms", _warm_num("build_slice_ms"))
 		"map_build":
-			_open_map_build()
+			if map.get_parent() == null:
+				_open_map_build()  # the builder readies without building when sliced
+			if _open_builder != null and _open_builder.has_method("build_step") and not bool(_open_builder.call("build_step")):
+				_show_progress()
+				return  # the next frame runs the next slice; the nav stage starts only after the whole build
 		"nav":
 			_open_nav()
 		"roster":
@@ -574,11 +582,20 @@ func _restore_match_camera() -> bool:
 func _show_progress() -> void:
 	if loading_overlay == null:
 		return
-	var share := clampf(float(LoadingOverlay.config().get("progress_build_share", 0.0)), 0.0, 1.0)
+	var cfg := LoadingOverlay.config()
+	var share := clampf(float(cfg.get("progress_build_share", 0.0)), 0.0, 1.0)
 	var warm_at := _OPEN_STAGES.find("warmup")
 	var p := 0.0
 	if _open_stage < warm_at:
-		p = share * float(_open_stage) / float(warm_at)
+		# W1c stage B: the map build fills progress_map_share of the build part (its steps move it), the other stages
+		# before the warm-up share the rest equally.
+		var map_at := _OPEN_STAGES.find("map_build")
+		var map_share := clampf(float(cfg.get("progress_map_share", 1.0 / float(warm_at))), 0.0, 1.0)
+		var other := (1.0 - map_share) / float(warm_at - 1)
+		var done := other * float(mini(_open_stage, map_at)) + (map_share + other * float(_open_stage - map_at - 1) if _open_stage > map_at else 0.0)
+		if _open_stage == map_at and _open_builder != null and _open_builder.has_method("build_progress"):
+			done += map_share * clampf(float(_open_builder.call("build_progress")), 0.0, 1.0)
+		p = share * done
 	elif _open_stage == warm_at and _open_warmup != null:
 		p = share + (1.0 - share) * _open_warmup.progress()
 	else:

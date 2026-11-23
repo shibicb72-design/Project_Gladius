@@ -805,7 +805,7 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   `_OpenDriver` child with PROCESS_MODE_ALWAYS) runs the SAME phases in the same order (same RNG use), one stage per
   frame, with the tree PAUSED (no pawn moves, falls, thinks or takes input; no physics step; the pause menu is
   disabled, so Esc cannot unpause): overlay (data/warmup.json overlay_frames, so `scenes/ui/loading_overlay.tscn` is
-  drawn before the long build frame), config, map_build (one chunk; W1c stage B slices it here), nav, roster, bind
+  drawn before the long build frame), config, map_build (frame-sliced, W1c stage B: see below), nav, roster, bind
   (the rig camera proves it can be current, then stops drawing), world (+ the seed's look variant applied now through
   GreyboxArt._apply_environment, which MatchLook would otherwise do on the first frame after the start), warmup_setup,
   warmup (one item per frame), settle (settle_frames, the rig camera current again), start: `_open_start` (director,
@@ -813,6 +813,38 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   So the carrier, the bots' carrier_t and the zone clocks start only when the player can act.
 - Quit (`quit_to_menu`) or a freed scene (`_exit_tree`) mid-open: `_end_staged` stops the stages, frees the driver,
   overlay and warm-up and unpauses the tree; nothing awaits, so nothing resumes later.
+- Sliced map build (W1c stage B; scripts/visual/astra_map.gd "the build as an ordered list of steps"): ArtBuilder's
+  old _ready body is an ordered list of step functions: data, cover_meshes (resumable by cover type), terrain_heights
+  (chunk grid + MapTerrain), cover_pieces, breakables, walls, world_kit (resumable by piece:
+  `WorldKit.populate_one`, the loop body of `WorldKit.populate`), ring, decor, chests_doors_ladders, paint_ground,
+  place_map / place_map_bodies / place_map_tracks / place_map_noise (`PlaceMap.begin_build` + `build_phase(0..3)`,
+  the phases of `PlaceMap.build`, then the gate approaches and the soil colour), place_map_stamps (resumable:
+  `PlaceMap.flush`), clutter, place_contact (resumable flush, then the texture), chunks_build, terrain_build
+  (resumable by terrain cell: `_terrain_setup` + `_terrain_cell`, the old nested loop's order), backdrop, ambient.
+  _ready runs them all at once unless `sliced` was set before the node entered the tree; only the staged open sets
+  it (its config stage, with `slice_budget_ms` = data/warmup.json `build_slice_ms`, OQ-W1C-SLICE), and its map_build
+  stage then calls `build_step()` once per frame until it returns true; nav and every later stage start only then.
+  A build_step stops starting items once the budget is spent; clutter and backdrop (they cannot be split inside the
+  fences) start a slice of their own. Both paths run the same functions on the same items in the same order, so the
+  bodies (Jolt bodies too) are made and added in the same order and no RNG stream is used differently (the builders
+  draw no RNG; Backdrop and WorldAmbient use their own local, seeded RNGs inside one call each).
+- The place map's pixel work is queued while the builder builds (`PlaceMap.deferred`: stamp_box / stamp_disc /
+  bake_noise record their computed values in call order in a PackedFloat64Array, 64-bit, so every value is exact)
+  and `flush(deadline)` runs it in that order with the same arithmetic; the builder uses that on both paths
+  (sync: flush with no deadline) and switches `deferred` off once the texture is made. Nothing reads the place map
+  while work is queued (the clutter runs after the stamps' flush). `PlaceMap.build()` called directly (tests, tools)
+  still stamps at once.
+- What a half-built map means: while `sliced` and not `build_done()`, ArtBuilder's fields describe a partial map, and
+  the map root (greybox_art.gd) and its siblings have already run _ready (their _ready only reads scene-authored Nav
+  children, which the build does not change). Nothing reads the builder before build_done(): the staged open's later
+  stages wait for it, and every other reader (MatchLook's shafts, MatchAudio, PerfRoute) runs in _process, which the
+  paused tree does not call. Progress: `build_progress()` (steps done + the running step's share) moves the bar
+  through data/ui.json `progress_map_share` of the build part. Quit or free mid-build: no more build_step() calls;
+  the builder holds no timer, signal or await, so nothing runs later; the half-built map is freed with the match.
+- Not sliced (measured on this PC, Chrome 157, warm profile; not a performance claim): WorldClutter.populate (about
+  0.6 s, one call, read-only file), Backdrop.build (about 0.33 s, read-only), the navigation map sync in the frame
+  after the saved navmesh is assigned plus begin.roster in the same frame (about 0.9 + 0.75 s, engine and read-only
+  bots), the boot of the engine, and the warm-up items (stage A).
 - `ShaderWarmup` (scripts/visual/shader_warmup.gd, data/warmup.json; OQ-W1C-STEP, OQ-W1C-STAGE): in the match's own
   World3D (sun, Environment, shadow mode, MSAA, after the preset and the variant) a warm Camera3D looks at a row of
   cells 420 m above the map, one per light context (the sun only; plus a warm omni and / or spot when the match holds
@@ -827,7 +859,9 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   covered keys and the longest step; tests/test_w1c_warmup.gd fails when a built match has a draw key or a .gdshader
   the warm-up does not cover. HUD and other canvas items draw under the opaque overlay while it is up.
 - Tests: tests/test_w1c_staged_open.gd (paths, pause, progress, LAN, quit / free, staged == begin() state),
-  tests/test_w1c_warmup.gd (keys, stepping, coverage in dusk / night / storm).
+  tests/test_w1c_warmup.gd (keys, stepping, coverage in dusk / night / storm), tests/test_w1c_sliced_build.gd (the world
+  hash of tests/world_hash.gd equal through begin() and the sliced staged open on alesia_500 and alesia_section,
+  more than one slice, no later stage during the build, the bar moving; a negative self-check; quit / free mid-build).
 
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.
