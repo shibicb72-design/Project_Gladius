@@ -83,9 +83,108 @@ func is_pc() -> bool:
 	return is_web() or OS.get_name() in ["Windows", "macOS", "Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD"]
 
 
-## W0: whether this platform can host or join a LAN game (ENet). False in the browser until the relay (slice W2).
+## W0 / W2: whether this platform can host or join a LAN game. Off the web always (ENet). In the browser only when the
+## page came from the LAN relay (tools/lan: GET /lan.json answered {"lan": true, "proto": 1}); a page from
+## tools/web/serve.mjs, a plain host or a file has no relay, so LAN stays off and W0's note shows.
 func can_lan() -> bool:
-	return not is_web()
+	return not is_web() or uses_relay()
+
+
+# ---- W2: LAN relay detection --------------------------------------------------------------------
+
+## The relay protocol version this build speaks (tools/lan/lan_protocol.mjs, NetSignaling.PROTO).
+const RELAY_PROTO := 1
+const RELAY_INFO_PATH := "/lan.json"
+## Seconds before the /lan.json probe gives up (no relay). Tool value, not a game tunable.
+const RELAY_PROBE_TIMEOUT_S := 5.0
+
+
+## Emits `changed` whenever the relay answer is set (the menu re-applies LAN availability). Static signals do not exist
+## in GDScript, so the signal lives on this one shared object.
+class RelayEvents extends RefCounted:
+	signal changed
+
+
+static var relay_events := RelayEvents.new()
+## The validated relay answer ({"lan": true, "proto": 1, "urls": PackedStringArray, "max_peers": int}); {} = no relay
+## (the default, also while the probe is running). Set only by set_relay_info (the probe, or a test).
+static var relay_info: Dictionary = {}
+## "" = not probed yet, "pending", "done". The probe runs once per page load.
+static var _probe_state: String = ""
+
+
+## W2: true when this page talks to a LAN relay: in the browser (is_web) AND a relay answered. Decides the menu's
+## transport (WebRTC through the relay); never is_web() alone. False off the web even if relay_info is set.
+func uses_relay() -> bool:
+	return is_web() and not relay_info.is_empty()
+
+
+## Pure: whether `d` is a relay answer this build accepts: a Dictionary with lan == true and proto == RELAY_PROTO.
+static func is_relay_answer(d: Variant) -> bool:
+	if not d is Dictionary:
+		return false
+	var dict: Dictionary = d
+	var proto: Variant = dict.get("proto")
+	return dict.get("lan") is bool and bool(dict["lan"]) and (proto is int or proto is float) and int(proto) == RELAY_PROTO
+
+
+## Records the relay answer (also the test hook that simulates "web with relay" and "the answer arriving later"):
+## an accepted answer is kept (urls as PackedStringArray), anything else clears it. Emits relay_events.changed.
+static func set_relay_info(info: Variant) -> void:
+	if is_relay_answer(info):
+		var d: Dictionary = info
+		var urls := PackedStringArray()
+		var raw: Variant = d.get("urls", [])
+		if raw is Array or raw is PackedStringArray:
+			for u: Variant in raw:
+				if u is String:
+					urls.append(u)
+		relay_info = {"lan": true, "proto": RELAY_PROTO, "urls": urls, "max_peers": int(d.get("max_peers", 0))}
+	else:
+		relay_info = {}
+	relay_events.changed.emit()
+
+
+## Test hook: no relay, not probed.
+static func reset_relay_for_tests() -> void:
+	relay_info = {}
+	_probe_state = ""
+
+
+## Pure: the relay answer in a /lan.json response body, or {} when it is not one (an HTML 404 page, bad JSON, lan
+## false, another protocol version).
+static func parse_relay_answer(body: String) -> Dictionary:
+	var json := JSON.new()
+	if json.parse(body) != OK or not is_relay_answer(json.data):
+		return {}
+	return json.data
+
+
+## W2: in a real web export, asks the page's own origin for /lan.json once per page load (an HTTPRequest under the
+## tree root, so it survives scene changes) and calls set_relay_info with the answer. Off the web (also with
+## simulate_web) it does nothing: headless tests set the answer with set_relay_info.
+static func start_relay_probe(tree: SceneTree) -> void:
+	if _probe_state != "" or not OS.has_feature("web") or tree == null:
+		return
+	var origin: Variant = JavaScriptBridge.eval("location.origin", true)
+	if not origin is String or not String(origin).begins_with("http"):
+		_probe_state = "done"  # file:// or an opaque origin: no relay
+		return
+	_probe_state = "pending"
+	var req := HTTPRequest.new()
+	req.name = "LanRelayProbe"
+	req.timeout = RELAY_PROBE_TIMEOUT_S
+	tree.root.add_child(req)
+	req.request_completed.connect(func(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+			_probe_state = "done"
+			req.queue_free()
+			var info := {}
+			if result == HTTPRequest.RESULT_SUCCESS and code == 200:
+				info = parse_relay_answer(body.get_string_from_utf8())
+			set_relay_info(info))
+	if req.request(String(origin) + RELAY_INFO_PATH) != OK:
+		_probe_state = "done"
+		req.queue_free()
 
 
 func is_touch_device() -> bool:

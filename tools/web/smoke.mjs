@@ -151,7 +151,13 @@ async function main() {
     });
     page.on('pageerror', (err) => summary.pageErrors.push(String(err?.stack || err?.message || err)));
     page.on('requestfailed', (req) => summary.failedRequests.push(`${req.url()} ${req.failure()?.errorText ?? ''}`.trim()));
-    page.on('response', (res) => { if (res.status() >= 400) summary.httpErrors.push(`${res.status()} ${res.url()}`); });
+    // W2: the menu asks /lan.json once to detect the LAN relay (PlatformServices.start_relay_probe); serve.mjs has none,
+    // so its 404 is the expected "no relay" answer, recorded but not an error.
+    page.on('response', (res) => {
+      if (res.status() < 400) return;
+      if (res.status() === 404 && new URL(res.url()).pathname === '/lan.json') summary.lanProbe404 = true;
+      else summary.httpErrors.push(`${res.status()} ${res.url()}`);
+    });
 
     const waitForLine = async (needle, timeoutMs, fromIndex = 0) => {
       const end = Date.now() + timeoutMs;

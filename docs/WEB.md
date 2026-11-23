@@ -37,6 +37,80 @@ then open http://127.0.0.1:8060/ in Chrome. `tools/web/serve.mjs` uses Node buil
 sends `application/wasm` for `.wasm` and `application/octet-stream` for `.pck`, and refuses paths outside the root.
 Port 0 picks a free port.
 
+## Play on your home network (W2)
+
+Nothing here uses the internet. A small program (the relay) runs on one PC in your home and helps the browsers find
+each other. The game traffic then goes straight between the PCs. The relay never sees it.
+
+1. Export the Web build (see "Export" above). The relay serves `build/web`.
+2. Double-click `tools\lan\start_lan.cmd`. It needs Node.js and the `ws` package folder at
+   `C:\Users\shibi\cc_gladius\webtools` (set the environment variable `GLADIUS_WEBTOOLS` to use another folder).
+3. The window prints two kinds of address: the host URL for this PC (`http://127.0.0.1:47480/`) and the URLs for the
+   other PCs (`https://<this PC's address>:47443/`). Leave the window open.
+4. On the host PC, open the host URL in Chrome and press Host. The lobby says "Players join at ..." and lists the
+   addresses.
+5. On each other PC, open that `https://` address in Chrome. Chrome shows a certificate warning once on that PC: choose
+   Advanced, then Continue. Then press Join. You do not type any IP.
+6. The host presses Start. Bots fill the rest of the match. Up to 8 humans can play.
+
+Why the warning: a game page on a plain `http://` home address is refused by the browser's security rules (the web
+export does not start, and its audio needs a secure page) [measured, W2 spike, Chrome 157]. So other PCs use HTTPS with
+a certificate the relay makes for itself. It is safe for your own home network, but no outside authority has signed it
+(OQ-W2-HTTPS). The host PC uses `127.0.0.1`, which the browser already trusts, so it sees no warning.
+
+**Windows firewall.** The first time, Windows may ask about Node. Allow it on Private networks, and make sure the home
+network is set to Private. Chrome on both PCs also needs to receive UDP traffic from the other PC, or the game cannot
+connect.
+
+**What the messages mean** (shown on the main menu):
+
+| Message | Meaning |
+|---|---|
+| Relay not reachable | The relay is not running, stopped, or did not answer in time. Start it again. |
+| A game is already hosted | Someone already pressed Host. Join instead, or stop the relay and start it again. |
+| Room full | The room already has 8 players. |
+| No game is hosted yet | You pressed Join before the host pressed Host. Ask the host, then try again. |
+| Host left | The host closed the game or the page. You are back at the menu. |
+| Could not connect | The relay answered, but the two browsers could not reach each other (see the PC test below). |
+
+**Ports.** The relay uses 47443 (HTTPS, other PCs) and 47480 (plain HTTP, this PC only). Change them in
+`data/net.json` under `lan_relay` (`port`, `host_port`) or on the command line:
+
+```
+node tools/lan/gladius_lan.mjs [build_dir] [--bind <ip>] [--port N] [--host-port N] [--cert-dir <dir>]
+```
+
+The relay keeps its certificate in `build/lan_cert` and reuses it while it is still valid for this PC's addresses.
+
+**Stopping.** Press Ctrl+C in the relay window. It prints its connection counts and closes. A match already
+running keeps going: players who have joined stay connected to the host. New players can no longer join, and a player
+who was still joining sees "Relay not reachable".
+
+**Not yet tried on two PCs [unknown].** Everything was tested with two Chrome windows on one PC. Chrome hides IP
+addresses behind names that end in ".local" (mDNS) [measured, this PC], so each PC must be able to find the other by
+that name on your network. Wi-Fi "client isolation" or a firewall that blocks UDP would stop it. If the games cannot
+connect, there is no fallback on purpose (OQ-W2-TWO-PC).
+
+### LAN smoke test (gate step)
+
+```
+node tools/web/lan_smoke.mjs [--build build/web] [--out build/lan_smoke] [--seconds 60] [--bind <LAN IPv4>]
+                             [--port N] [--host-port N] [--cert-flag] [--webtools <dir>] [--chrome <exe>]
+```
+
+- Starts the relay inside the script, then opens two headed Chrome windows with temporary profiles: the host at the
+  loopback `http://` URL with `?autohost=1&mode=squads`, and the guest at the `https://<LAN IPv4>:<port>/` URL with
+  `?autojoin=1`. It needs a debug Web build and puppeteer-core (same folder as the browser smoke test).
+- Both windows play scripted keyboard and mouse input for `--seconds`. Then the host window is closed and the script
+  measures how long the guest takes to report that the host is gone.
+- Pass rule (exit 0): both pages reached `GLADIUS_MATCH_STARTED`, the guest counted more than 0 snapshots, neither page
+  logged an RPC error, and there was no uncaught page error. Exit 1 means a check failed, 2 bad arguments or no
+  build or no LAN address, 3 the 20-minute timeout.
+- Two windows share one desktop, so Chrome refuses pointer lock to the window without focus. Those refusals are
+  counted separately (`pointerLockRefusals`) and do not fail the run.
+- Numbers it prints are "this PC, Chrome <version>, not a performance or LAN claim": both browsers run on the same PC.
+  The measured values are in the slice report, not here.
+
 ## Browser smoke test (gate step)
 
 ```
@@ -82,11 +156,15 @@ browser (`OS.is_debug_build()` and the `web` feature tag). Release builds and ev
 | `perf=1` | W1a: the frame-rate harness hook (Boot adds `scripts/debug/perf_route.gd`; "Frame-rate harness" below). |
 | `quality=<id>` | With perf=1 only: the graphics preset for this page (`default`, `pc_medium`, `pc_high`), applied at boot, not saved. Anything else: the platform's own pick. |
 | `seed=<n>` | With perf=1 only: the match seed (a whole non-zero number; anything else is ignored), so loot, bots' seeded streams and the look variant are fixed. |
+| `autohost=1` | W2: on a relay page, the main menu presses Host and the lobby presses Start about 1.5 s after the first guest is listed. Wins over `autojoin`. |
+| `mode=solo\|squads` | With autohost=1 only: the lobby team mode. Anything else: the lobby default. |
+| `autojoin=1` | W2: on a relay page, the main menu presses Join, trying again every second (up to 120 times) while no game is hosted yet. |
 
 Console markers for automation, all printed only in a debug web build (`WebArgs.debug_marker`): `GLADIUS_MATCH_STARTED`
 (MatchRoot.begin, once the local player exists), `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
 `GLADIUS_PAUSE_CLOSED` and `GLADIUS_PAUSE_PATH key|capture_lost` (which MouseCapture path opened the menu)
-(`WebArgs.debug_marker`).
+(`WebArgs.debug_marker`). W2 adds the `GLADIUS_LAN_*` markers from `scripts/net/net_debug_ping.gd` (snapshots, ping,
+host ready, connected, error, host lost, peer joined / left), also debug web builds only.
 
 Timing note: the page's main thread stays busy for several seconds after `GLADIUS_MATCH_STARTED` (the rest of the
 match setup), so the "5 s" screenshot is taken as soon as the page answers after 5 s; summary.json records the real
@@ -124,7 +202,8 @@ guess for Shibi (OQ-WEB-KEYS).
   them. Crouching on Ctrl while pressing W can close the tab. Crouch on C.
 - The build is single-threaded: no COOP/COEP headers, no SharedArrayBuffer. Audio starts after the first click or key
   (browser autoplay rule).
-- LAN (Host / Join) is disabled in the browser (ENet does not exist there); the home-network relay is slice W2.
+- LAN (Host / Join) needs the home-network relay (ENet does not exist in a browser): see "Play on your home network
+  (W2)". A page served by `tools/web/serve.mjs` has no LAN: Host and Join stay off with a short note.
 
 ## Look parity with Mobile (W1a and W1b)
 

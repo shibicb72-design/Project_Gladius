@@ -1,7 +1,9 @@
 class_name MainMenu
 extends Control
 ## Main menu: Play solo (W0, no network), Host, Join (manual IP, OQ-41), gamertag (OQ-39). Later-milestone entries are
-## shown disabled. In a web build Host and Join are disabled with a note (PlatformServices.can_lan()).
+## shown disabled. In a web build Host and Join are disabled with a note (PlatformServices.can_lan()) unless the page came
+## from the LAN relay (W2: /lan.json answered): then Host and Join use WebRTC through the relay, need no IP, and wait
+## for the relay's answer (host_ready / connected, or failed with a plain message).
 ## Two pages (docs/UI_STYLE.md 5): HOME (logo left, action card right) and SETTINGS (the shared panel in a
 ## centred column under a Back header). Both pages sit on the code-drawn backdrop.
 
@@ -13,6 +15,13 @@ const HERO_RATIO := 1.3
 const CARD_RATIO := 1.0
 ## W0: the note under Host / Join in a web build (LAN in the browser is slice W2).
 const LAN_LATER_NOTE := "LAN in the browser comes later"
+## W2: plain messages for a web (relay / WebRTC) Host or Join that did not work (NetSession.last_error).
+const MSG_RELAY := "Relay not reachable"
+const MSG_HOST_EXISTS := "A game is already hosted"
+const MSG_ROOM_FULL := "Room full"
+const MSG_NO_HOST := "No game is hosted yet"
+const MSG_HOST_LEFT := "Host left"
+const MSG_NO_CONNECT := "Could not connect"
 
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")
 const _WebArgs := preload("res://scripts/platform/web_args.gd")
@@ -38,8 +47,20 @@ var host_button: Button
 var join_button: Button
 ## W0: shown under Join when LAN is unavailable here (the browser); hidden otherwise.
 var lan_note: Label
+## The "HOST IP" caption over ip_edit (hidden with it on a relay page).
+var ip_caption: Label
+## W2: true while a web Host / Join waits for the relay / WebRTC answer.
+var lan_busy: bool = false
+## The profile's last_ip as loaded: a relay page (no IP field) saves it back unchanged.
+var _saved_last_ip: String = ""
+## W2 (debug web builds only, WebArgs.take_lan): the LAN smoke request, acted on once LAN is available.
+var _lan_request: Dictionary = {}
+var _autojoin_tries: int = 0
 ## Test hook (W0): when valid, Play solo calls go_scene.call(scene_path) instead of AppFlow.go.
 var go_scene: Callable
+## Test hook (W2): when valid and AppFlow has no live session, Host / Join use make_session.call() (a NetSession that
+## the hook has already added to the tree) as AppFlow.session instead of a new one.
+var make_session: Callable
 var settings_button: Button
 ## The settings page, drawn over the home page with its own dimmed backdrop. Built in _ready (Host and Join
 ## persist through the panel), shown by open_settings().
@@ -96,7 +117,20 @@ func _ready() -> void:
 	_update_later_columns.call_deferred()  # after the first layout and UiScale's sizes
 	# W0: debug web builds only (WebArgs): ?autosolo=1 plays solo straight from the URL, for the browser smoke test.
 	_WebArgs.debug_marker("GLADIUS_MENU_READY")
-	apply_autosolo(_WebArgs.take_autosolo())
+	# W2: the relay answer (/lan.json, asked once per page load in a web export) can arrive after the menu is built.
+	PlatformServices.relay_events.changed.connect(apply_lan_availability)
+	PlatformServices.start_relay_probe(get_tree())
+	var lost := NetSession.take_lost_notice()
+	if lost != "":
+		status_label.text = lan_error_text(lost, true)
+	if not apply_autosolo(_WebArgs.take_autosolo()):
+		_lan_request = _WebArgs.take_lan()
+		_try_lan_request()
+
+
+func _exit_tree() -> void:
+	if PlatformServices.relay_events.changed.is_connected(apply_lan_availability):
+		PlatformServices.relay_events.changed.disconnect(apply_lan_availability)
 
 
 ## W0: an autosolo request (WebArgs.parse) presses Play solo and hands the request to the solo lobby, which applies
@@ -165,13 +199,15 @@ func _build_card(parent: Control, profile: Dictionary) -> void:
 	# stays one line.
 	solo_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	host_button = _button(box, "Host", _on_host, "standard")
-	box.add_child(MenuStyle.caption("HOST IP"))
+	ip_caption = MenuStyle.caption("HOST IP")
+	box.add_child(ip_caption)
 	var join_row := HFlowContainer.new()
 	MenuStyle.gap(join_row, 1.5)
 	box.add_child(join_row)
 	ip_edit = LineEdit.new()
 	ip_edit.placeholder_text = "Host IP"
-	ip_edit.text = str(profile["last_ip"])
+	_saved_last_ip = str(profile["last_ip"])
+	ip_edit.text = _saved_last_ip
 	ip_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	MenuStyle.min_width(ip_edit, 22.0)
 	join_row.add_child(ip_edit)
@@ -315,21 +351,64 @@ func toggle_gyro() -> void:
 
 
 func _menu_fields() -> Dictionary:
-	return {"gamertag": name_edit.text.strip_edges(), "last_ip": ip_edit.text.strip_edges()}
+	# W2: a relay page has no IP field (hidden): the saved last_ip is kept as it was.
+	var last_ip := _saved_last_ip if PlatformServices.new().uses_relay() else ip_edit.text.strip_edges()
+	return {"gamertag": name_edit.text.strip_edges(), "last_ip": last_ip}
 
 
 func _save_profile() -> void:
 	settings.persist()
 
 
-## W0: Host and Join enabled only where LAN works (not in the browser); the note shows where it does not.
-## Re-run by tests after flipping PlatformServices.simulate_web.
+## W0 / W2: Host and Join enabled only where LAN works (desktop, or a browser page served by the LAN relay); the note
+## shows where it does not. A relay page needs no IP: the field and its caption hide. Re-run when the relay answer
+## arrives (PlatformServices.relay_events) and by tests after flipping PlatformServices.simulate_web.
 func apply_lan_availability() -> void:
-	var lan := PlatformServices.new().can_lan()
+	var ps := PlatformServices.new()
+	var lan := ps.can_lan()
+	var relay := ps.uses_relay()
 	host_button.disabled = not lan
 	join_button.disabled = not lan
 	ip_edit.editable = lan
+	ip_edit.visible = not relay
+	ip_caption.visible = not relay
 	lan_note.visible = not lan
+	if is_inside_tree():
+		_try_lan_request.call_deferred()
+
+
+## W2 (debug web builds only): the LAN smoke request (?autohost / ?autojoin), acted on once when LAN is available.
+func _try_lan_request() -> void:
+	if _lan_request.is_empty() or not PlatformServices.new().uses_relay() or lan_busy:
+		return
+	var req := _lan_request
+	_lan_request = {}
+	if str(req.get("role", "")) == "host":
+		_WebArgs.pending_lan = req.duplicate()
+		_on_host()
+	else:
+		_autojoin_tries = 1
+		_on_join()
+
+
+## Pure: the message for a web Host / Join error code (NetSession.last_error). `joining` picks the Join wording for the
+## codes both share (a timeout while joining is the WebRTC handshake).
+static func lan_error_text(code: String, joining: bool) -> String:
+	match code:
+		"host_exists":
+			return MSG_HOST_EXISTS
+		"room_full":
+			return MSG_ROOM_FULL
+		"no_host":
+			return MSG_NO_HOST
+		"host_left":
+			return MSG_HOST_LEFT
+		"connection_failed":
+			return MSG_NO_CONNECT
+		"timeout":
+			return MSG_NO_CONNECT if joining else MSG_RELAY
+		_:  # relay_unreachable, relay_lost, bad_relay, anything unknown
+			return MSG_RELAY
 
 
 ## W0: Play solo. Sets the solo flag and opens the same lobby screen, which goes offline (no ENet peer).
@@ -350,13 +429,26 @@ func _on_host() -> void:
 		status_label.text = LAN_LATER_NOTE
 		return
 	_save_profile()
-	var session := AppFlow.ensure_session(get_tree())
+	var relay := PlatformServices.new().uses_relay()
+	var session := _session()
+	# W2: WebRTC through the relay only on a relay page in the browser; everything else keeps ENet.
+	session.transport = NetSession.TRANSPORT_WEBRTC if relay else NetSession.TRANSPORT_ENET
+	if relay:
+		_wire(session, true)
 	var err := session.host_game()
 	if err != OK:
-		status_label.text = "Could not host (error %d)" % err
+		if relay:
+			_unwire(session)
+			status_label.text = lan_error_text(session.last_error, false)
+		else:
+			status_label.text = "Could not host (error %d)" % err
 		AppFlow.end_session()
 		return
-	AppFlow.go(get_tree(), AppFlow.LOBBY_SCENE)
+	if relay:  # the lobby opens on host_ready; failed shows a message and stays
+		lan_busy = true
+		status_label.text = "Starting..."
+		return
+	_go(AppFlow.LOBBY_SCENE)
 
 
 func _on_join() -> void:
@@ -365,25 +457,117 @@ func _on_join() -> void:
 		status_label.text = LAN_LATER_NOTE
 		return
 	_save_profile()
-	var address := str(AppFlow.profile["last_ip"])
-	if address.is_empty():
-		status_label.text = "Enter the host IP"
-		return
-	var session := AppFlow.ensure_session(get_tree())
-	session.connected.connect(_on_joined, CONNECT_ONE_SHOT)
-	session.failed.connect(_on_join_failed, CONNECT_ONE_SHOT)
+	var relay := PlatformServices.new().uses_relay()
+	var address := ""
+	if not relay:  # W2: a relay page knows its host (the relay's room); no IP, and last_ip is left alone
+		address = str(AppFlow.profile["last_ip"])
+		if address.is_empty():
+			status_label.text = "Enter the host IP"
+			return
+	var session := _session()
+	session.transport = NetSession.TRANSPORT_WEBRTC if relay else NetSession.TRANSPORT_ENET
+	if relay:
+		_wire(session, false)
+	else:
+		session.connected.connect(_on_joined, CONNECT_ONE_SHOT)
+		session.failed.connect(_on_join_failed, CONNECT_ONE_SHOT)
 	var err := session.join_game(address)
 	if err != OK:
-		status_label.text = "Could not connect (error %d)" % err
+		if relay:
+			_unwire(session)
+			status_label.text = lan_error_text(session.last_error, true)
+		else:
+			status_label.text = "Could not connect (error %d)" % err
 		AppFlow.end_session()
 		return
+	if relay:
+		lan_busy = true
 	status_label.text = "Connecting..."
 
 
 func _on_joined() -> void:
-	AppFlow.go(get_tree(), AppFlow.LOBBY_SCENE)
+	_go(AppFlow.LOBBY_SCENE)
 
 
 func _on_join_failed() -> void:
 	status_label.text = "Connection failed"
 	AppFlow.end_session()
+
+
+func _session() -> NetSession:
+	if make_session.is_valid() and (AppFlow.session == null or not is_instance_valid(AppFlow.session)):
+		AppFlow.session = make_session.call()
+	return AppFlow.ensure_session(get_tree())
+
+
+func _go(scene_path: String) -> void:
+	if go_scene.is_valid():
+		go_scene.call(scene_path)
+	else:
+		AppFlow.go(get_tree(), scene_path)
+
+
+# ---- W2: async Host / Join through the relay (WebRTC) ----------------------------------------
+
+## Connects the session's answer signals for one web Host (hosting) or Join; _unwire drops them all.
+func _wire(session: NetSession, hosting: bool) -> void:
+	_unwire(session)
+	if hosting:
+		session.host_ready.connect(_on_web_host_ready)
+		session.failed.connect(_on_web_host_failed)
+	else:
+		session.connected.connect(_on_web_joined)
+		session.failed.connect(_on_web_join_failed)
+
+
+func _unwire(session: NetSession) -> void:
+	if session == null or not is_instance_valid(session):
+		return
+	for pair: Array in [[session.host_ready, _on_web_host_ready], [session.failed, _on_web_host_failed],
+			[session.connected, _on_web_joined], [session.failed, _on_web_join_failed]]:
+		var sig: Signal = pair[0]
+		if sig.is_connected(pair[1]):
+			sig.disconnect(pair[1])
+
+
+func _on_web_host_ready(_urls: PackedStringArray) -> void:
+	_unwire(AppFlow.session)
+	lan_busy = false
+	_go(AppFlow.LOBBY_SCENE)
+
+
+func _on_web_host_failed() -> void:
+	var session := AppFlow.session
+	var code := session.last_error if session != null and is_instance_valid(session) else ""
+	_unwire(session)
+	lan_busy = false
+	status_label.text = lan_error_text(code, false)
+	AppFlow.end_session()
+
+
+func _on_web_joined() -> void:
+	_unwire(AppFlow.session)
+	lan_busy = false
+	_go(AppFlow.LOBBY_SCENE)
+
+
+func _on_web_join_failed() -> void:
+	var session := AppFlow.session
+	var code := session.last_error if session != null and is_instance_valid(session) else ""
+	_unwire(session)
+	lan_busy = false
+	status_label.text = lan_error_text(code, true)
+	AppFlow.end_session()
+	# W2 smoke (debug web builds only): autojoin retries while the host has not hosted yet.
+	if code == "no_host" and _autojoin_tries > 0 and _autojoin_tries < _WebArgs.AUTOJOIN_MAX_TRIES and is_inside_tree():
+		_autojoin_tries += 1
+		var timer := Timer.new()  # a child: freed with the menu, so a retry never outlives it
+		timer.name = "AutojoinRetry"
+		timer.one_shot = true
+		timer.wait_time = _WebArgs.AUTOJOIN_RETRY_S
+		timer.timeout.connect(func() -> void:
+				timer.queue_free()
+				if not lan_busy:
+					_on_join())
+		add_child(timer)
+		timer.start()

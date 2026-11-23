@@ -22,6 +22,17 @@ static var _taken: bool = false
 ## The request between the main menu (MainMenu.apply_autosolo sets it with Play solo) and the solo lobby (which takes
 ## it, applies the length and presses Start). {} = none.
 static var pending: Dictionary = {}
+## W2: take_lan() hands the LAN smoke request out once per run.
+static var _lan_taken: bool = false
+## W2: the autohost request between the main menu (Host) and the host lobby (team mode, Start once a guest is in). {} =
+## none.
+static var pending_lan: Dictionary = {}
+## W2 debug tool values (lan_smoke only, not game tunables): autojoin retries Join this often while the relay answers
+## "no game is hosted yet", at most AUTOJOIN_MAX_TRIES times; the autohost lobby presses Start this long after the
+## first guest is listed.
+const AUTOJOIN_RETRY_S := 1.0
+const AUTOJOIN_MAX_TRIES := 120
+const AUTOHOST_START_DELAY_S := 1.5
 
 
 static func is_debug() -> bool:
@@ -92,6 +103,32 @@ static func parse_perf(query: String, debug_build: bool, web: bool) -> Dictionar
 	return {"quality": quality, "seed": seed_value}
 
 
+## W2: the two-browser LAN smoke's request in `query` (tools/web/lan_smoke.mjs), or {} when there is none or it must be
+## ignored (not a debug build, not the browser):
+##   ?autohost=1[&mode=solo|squads]   -> {"role": "host", "mode": "solo" | "squads" | "" (the lobby default)}
+##   ?autojoin=1                      -> {"role": "guest"}
+## autohost wins when both are given. Acted on by the main menu once LAN is available (relay detected): autohost presses
+## Host and the lobby presses Start once a guest is in; autojoin presses Join, retrying while no game is hosted yet.
+static func parse_lan(query: String, debug_build: bool, web: bool) -> Dictionary:
+	if not debug_build or not web:
+		return {}
+	var pairs := query_pairs(query)
+	if str(pairs.get("autohost", "")) == "1":
+		var mode := str(pairs.get("mode", "")).to_lower()
+		return {"role": "host", "mode": mode if mode in ["solo", "squads"] else ""}
+	if str(pairs.get("autojoin", "")) == "1":
+		return {"role": "guest"}
+	return {}
+
+
+## The LAN smoke request for this run, handed out once (the first main menu takes it); {} afterwards or when none.
+static func take_lan() -> Dictionary:
+	if _lan_taken:
+		return {}
+	_lan_taken = true
+	return parse_lan(read_query(), is_debug(), is_web())
+
+
 ## The frame-rate harness request for this page (parse_perf on the real or simulated query and flags).
 static func perf_request() -> Dictionary:
 	return parse_perf(read_query(), is_debug(), is_web())
@@ -108,7 +145,9 @@ static func take_autosolo() -> Dictionary:
 ## Test hook: forget that the request was taken and clear the simulated flags.
 static func reset_for_tests() -> void:
 	_taken = false
+	_lan_taken = false
 	pending = {}
+	pending_lan = {}
 	simulate_query = null
 	simulate_debug = null
 	simulate_web = null
