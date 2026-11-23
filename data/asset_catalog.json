@@ -2,6 +2,28 @@
 	"version": 1,
 	"assets": [
 		{
+			"id": "tripo_forum_stall_reduced",
+			"path": "res://assets/third_party/tripo/forum_stall_reduced.glb",
+			"source": "Tripo AI Market Stall",
+			"source_url": "https://studio.tripo3d.ai",
+			"licence": "Tripo AI Free Output public waiver (Tripo Terms 5.2.1)",
+			"licence_url": "https://www.tripo3d.ai/terms",
+			"redistribution_quote": "you agree, to the extent permitted by law, to waive the relevant copyright and related rights and allow anyone, worldwide and permanently, to use, copy, modify, distribute or commercially exploit them free of charge, without further permission, payment or attribution.",
+			"download_date": "2026-11-22",
+			"sha256": "903a2b5b728b6f943968d70dc3fa9cbb9ae5a24dcb5b7eff8ad240bc351616bd"
+		},
+		{
+			"id": "tripo_farm_cart_reduced",
+			"path": "res://assets/third_party/tripo/farm_cart_reduced.glb",
+			"source": "Tripo AI Farm Cart",
+			"source_url": "https://studio.tripo3d.ai",
+			"licence": "Tripo AI Free Output public waiver (Tripo Terms 5.2.1)",
+			"licence_url": "https://www.tripo3d.ai/terms",
+			"redistribution_quote": "you agree, to the extent permitted by law, to waive the relevant copyright and related rights and allow anyone, worldwide and permanently, to use, copy, modify, distribute or commercially exploit them free of charge, without further permission, payment or attribution.",
+			"download_date": "2026-11-22",
+			"sha256": "215852365b38f7ce7ad8dccafce07a0292ce6f87ef6c8980f9dcded38dd52a8e"
+		},
+		{
 			"id": "polyhaven_aerial_grass_rock_diffuse",
 			"path": "res://assets/third_party/polyhaven/aerial_grass_rock/aerial_grass_rock_diff_1k.jpg",
 			"source": "Poly Haven Aerial Grass Rock",
@@ -1507,6 +1529,86 @@
 			"sha256": "31e03efd416595c5c345005cbe7440ec7dd5824548b168f5188ea21eecbc008c"
 		},
 		{
+			"path": "res://assets/generated/world/a1/farm_cart_albedo.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced",
+			"licence": "derived in this project from Tripo AI Farm Cart (data/asset_catalog.json assets id tripo_farm_cart_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 2181210,
+			"sha256": "1f1949a087c2982c45b0007cfce7c0860a7c0be949397ba89c0e91ee2a6e467a"
+		},
+		{
+			"path": "res://assets/generated/world/a1/farm_cart_lod1_albedo.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced",
+			"licence": "derived in this project from Tripo AI Farm Cart (data/asset_catalog.json assets id tripo_farm_cart_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 217939,
+			"sha256": "bdf916b12654d002c325d7032d20239dfa0b1a3767e7124207feba54e87997ca"
+		},
+		{
+			"path": "res://assets/generated/world/a1/farm_cart_normal.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced",
+			"licence": "derived in this project from Tripo AI Farm Cart (data/asset_catalog.json assets id tripo_farm_cart_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 924120,
+			"sha256": "6a5a8e7920152690201b604d3e1d3df0091f2b4e08101a638b46351f93d571a2"
+		},
+		{
+			"path": "res://assets/generated/world/a1/farm_cart_orm.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced",
+			"licence": "derived in this project from Tripo AI Farm Cart (data/asset_catalog.json assets id tripo_farm_cart_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 619501,
+			"sha256": "94c402ce37011e027d9e32c38cdf3def060d624edfd67b0bbeac1e4c588d5210"
+		},
+		{
+			"path": "res://assets/generated/world/a1/forum_stall_albedo.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced",
+			"licence": "derived in this project from Tripo AI Market Stall (data/asset_catalog.json assets id tripo_forum_stall_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 2548586,
+			"sha256": "3f19a1db1e243f351a855076c9aa2df7d7774de19c0975e90f8eb4a1924a5244"
+		},
+		{
+			"path": "res://assets/generated/world/a1/forum_stall_lod1_albedo.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced",
+			"licence": "derived in this project from Tripo AI Market Stall (data/asset_catalog.json assets id tripo_forum_stall_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 265983,
+			"sha256": "6312234714908d1b37d11514ee7da80298570080681328a2cece4a3687b472b3"
+		},
+		{
+			"path": "res://assets/generated/world/a1/forum_stall_normal.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced",
+			"licence": "derived in this project from Tripo AI Market Stall (data/asset_catalog.json assets id tripo_forum_stall_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 819152,
+			"sha256": "0bb8a27089422b916660882f4cb5bd3db991c4e2c7708cd2278e22270df84ccd"
+		},
+		{
+			"path": "res://assets/generated/world/a1/forum_stall_orm.png",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced",
+			"licence": "derived in this project from Tripo AI Market Stall (data/asset_catalog.json assets id tripo_forum_stall_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 397291,
+			"sha256": "f1b9802dde77b7a616a25e8dcfb6bfbada44ef9508639ed0893ee59048c769ed"
+		},
+		{
+			"path": "res://assets/generated/world/a1_farm_cart.glb",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced",
+			"licence": "derived in this project from Tripo AI Farm Cart (data/asset_catalog.json assets id tripo_farm_cart_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 1254568,
+			"sha256": "30d7126969ad2f482247060059b24820749f51b409ee5f1063c934306a87b0c3"
+		},
+		{
+			"path": "res://assets/generated/world/a1_forum_stall.glb",
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced",
+			"licence": "derived in this project from Tripo AI Market Stall (data/asset_catalog.json assets id tripo_forum_stall_reduced, Tripo AI Free Output public waiver (Tripo Terms 5.2.1))",
+			"bytes": 1804396,
+			"sha256": "bf7fed0d917c58b1c9a337708ca1a0041f19b7aa871f446194ffc86bdc38f707"
+		},
+		{
 			"path": "res://assets/generated/world/m2cx2_dressing.glb",
 			"made_by": "tools/blender/m2cx2_dressing.py",
 			"licence": "generated in this project (no source material)",
@@ -1542,5 +1644,5 @@
 			"sha256": "b5b17d2a394bb3ae899fbb46f494b0c2c96f874fa217ecd58e21fbf66b2c2100"
 		}
 	],
-	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that CC0 asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
+	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that catalogued asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 }

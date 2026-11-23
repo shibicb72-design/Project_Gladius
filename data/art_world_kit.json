@@ -10,6 +10,21 @@
 	"walk_head_m": 2.0,
 	"walk_edge_m": 0.02,
 	"lod1_max_tris": 250,
+	"lod1_max_tris_by_type": {"forum_stall": 3000, "farm_cart": 2000},
+	"retired_nodes": ["forum_stall", "forum_stall_lod1", "farm_cart"],
+	"_a1_note": "OQ-WEB-BUDGET: A1 fit, swap distances and mesh caps are placeholders and guesses for Shibi. W1 measures browser cost.",
+	"prop_fit_exceptions": {
+		"_placeholder": true,
+		"_a1_note": "OQ-WEB-BUDGET: guesses for Shibi. Only vertices in the awning fringe or pottery regions may exceed the standard collider tolerance.",
+		"forum_stall": {"tolerance_m": 0.5, "yaw_deg": 18, "regions": {
+			"front_awning_fringe": {"min": [-1.4666, 2.3758, 0.9191], "max": [1.4666, 3.0505, 1.1733]},
+			"rear_awning_fringe": {"min": [-1.4666, 2.3758, -1.1733], "max": [1.4666, 3.0505, -0.9191]},
+			"counter_pottery": {"min": [-1.1146, 1.1733, -0.5377], "max": [1.1146, 1.7697, 0.5377]}
+		}},
+		"farm_cart": {"tolerance_m": 0.5, "yaw_deg": 0, "regions": {
+			"bed_pottery": {"min": [-1.28, 1.08, -0.47], "max": [-0.76, 1.45, 0.47]}
+		}}
+	},
 	"_joint_note": "Wall pieces of one side overlap 0.5 to 1.4 m (centres 6.6 to 7.5 m apart on alesia_1km). The script skews every wall piece a little so overlapping faces never share a plane (no z-fighting): a point moves by offset_m * clamp(x / half_length_m, -1, 1) * f, f = min(y / y_knee_m, 1) up and clamp(z / z_knee_m, -1, 1) sideways.",
 	"joint": {"types": ["wall_walk", "wall_stair"], "offset_m": 0.015, "half_length_m": 4.0, "y_knee_m": 3.0, "z_knee_m": 1.2},
 	"types": {
@@ -24,9 +39,9 @@
 		"aqua_keystone": {"node": "aqua_keystone", "glb": "res://assets/generated/world/m2cx2_landmarks.glb", "lod_swap_m": 130, "lod1_node": "aqua_keystone_lod1"},
 		"cypress_group": {"node": "cypress_group", "glb": "res://assets/generated/world/m2cx2_dressing.glb", "lod_swap_m": 92, "lod1_node": "cypress_group_lod1"},
 		"farm_boundary": {"node": "farm_boundary", "glb": "res://assets/generated/world/m2cx2_dressing.glb", "lod_swap_m": 0},
-		"forum_stall": {"node": "forum_stall", "glb": "res://assets/generated/world/m2cx2_dressing.glb", "lod_swap_m": 80, "lod1_node": "forum_stall_lod1"},
+		"forum_stall": {"node": "forum_stall", "glb": "res://assets/generated/world/a1_forum_stall.glb", "textured": true, "lod_swap_m": 60, "lod1_node": "forum_stall_lod1", "_a1_fit": {"uniform_scale": 3.51, "blender_yaw_deg": -72}, "_a1_note": "OQ-WEB-BUDGET placeholder and fit guess for Shibi."},
 		"waystation": {"node": "waystation", "glb": "res://assets/generated/world/m2cx2_dressing.glb", "lod_swap_m": 80, "lod1_node": "waystation_lod1"},
-		"farm_cart": {"node": "farm_cart", "glb": "res://assets/generated/world/m2cx2_dressing.glb", "lod_swap_m": 0},
+		"farm_cart": {"node": "farm_cart", "glb": "res://assets/generated/world/a1_farm_cart.glb", "textured": true, "lod_swap_m": 50, "lod1_node": "farm_cart_lod1", "_a1_fit": {"uniform_scale": 2.59, "blender_yaw_deg": 180}, "_a1_note": "OQ-WEB-BUDGET placeholder and fit guess for Shibi."},
 		"wall_walk": {"node": "wall_walk", "lod1_node": "wall_walk_lod1", "lod_swap_m": 120},
 		"wall_stair": {"node": "wall_stair", "lod1_node": "wall_stair_lod1", "lod_swap_m": 120},
 		"gate": {"node": "gate", "lod1_node": "gate_lod1", "lod_swap_m": 150},
@@ -276,15 +291,16 @@
 	"_lod_note": "A type whose near mesh has more than lod_required_over_tris triangles must have a far mesh (lod1_node and lod_swap_m > 0); a lighter type may leave both out (tests/test_m2w1_world_kit.gd).",
 	"lod_required_over_tris": 300,
 	"budgets": {
+		"_a1_note": "OQ-WEB-BUDGET: A1 stall and cart near and far caps are PC placeholders and guesses for Shibi.",
 		"_note": "Triangle caps (placeholders): near per type, far per type, and the triangles of the structure batches in range at the four perf points of tests/test_alesia_1km.gd (instances x mesh triangles).",
 		"_r2a_note": "M2W1 r2a: wall_walk 1000 -> 1100 (bay hierarchy: wider buttress, sunk panel, blind arch), aqueduct_span lod1 80 -> 120 (the arch ring, lunette and spandrels kept as painted faces far; the near span stays at exactly 776 triangles: the small maps' backdrop instances it and tests/test_m2w1_backdrop.gd pins that count), aqueduct_ramp 200 -> 300 (worn treads: three strips a tread), eagle_standard 500 -> 550 and lod1 60 -> 80 (bigger vexillum, glow core, red plinth panels far).",
 		"near_tris": {
-			"insula_duplex": 580, "insula_triple": 580, "taberna_awning": 435, "thermae_rotunda": 580, "fabrica_stack": 430, "templum_roofed": 590, "arx_signal_eagle": 550, "specula_beacon": 280, "aqua_keystone": 930, "cypress_group": 280, "farm_boundary": 260, "forum_stall": 295, "waystation": 490, "farm_cart": 280,
+			"insula_duplex": 580, "insula_triple": 580, "taberna_awning": 435, "thermae_rotunda": 580, "fabrica_stack": 430, "templum_roofed": 590, "arx_signal_eagle": 550, "specula_beacon": 280, "aqua_keystone": 930, "cypress_group": 280, "farm_boundary": 260, "forum_stall": 30000, "waystation": 490, "farm_cart": 20000,
 			"wall_walk": 1100, "wall_stair": 1300, "gate": 2500, "watchtower": 2200, "barracks": 1600, "tent": 320, "stake_row": 200,
 			"aqueduct_span": 800, "aqueduct_ramp": 300, "column": 300, "colonnade": 1400, "pediment_front": 1800, "eagle_standard": 550, "ramp_block": 60, "terrace_block": 150},
 		"_lod1_walls_note": "M2W1 item 2: wall_walk 80 -> 100 and wall_stair 120 -> 130: the far parapet keeps the new merlon rhythm (five merlons a piece, was three).",
 		"lod1_tris": {
-			"insula_triple": 240, "thermae_rotunda": 250, "templum_roofed": 250, "arx_signal_eagle": 250, "aqua_keystone": 200, "cypress_group": 155, "forum_stall": 125, "waystation": 250,
+			"insula_triple": 240, "thermae_rotunda": 250, "templum_roofed": 250, "arx_signal_eagle": 250, "aqua_keystone": 200, "cypress_group": 155, "forum_stall": 3000, "waystation": 250, "farm_cart": 2000,
 			"wall_walk": 100, "wall_stair": 130, "gate": 250, "watchtower": 200, "barracks": 120, "tent": 40, "stake_row": 24,
 			"aqueduct_span": 120, "aqueduct_ramp": 12, "column": 40, "colonnade": 160, "pediment_front": 200, "eagle_standard": 80, "terrace_block": 24},
 		"visible_structure_tris": 400000,

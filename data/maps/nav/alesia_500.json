@@ -6,17 +6,17 @@
 		"res://data/maps/alesia_500_cover.json": "854a8d99322a699d9006875218f9a198db228c69f4aec4d272c7d41e71fbb106",
 		"res://data/maps/alesia_500_structures.json": "b33b260b0149d9bda2817292bf99c75d6248ac33ffec5884ababa9cd0cbf3c84",
 		"res://data/maps/alesia_cover.json": "54ac19f80114344e7f7b37811fb6605f685fe863b2e30ec6b5928dcbc95f8221",
-		"res://data/maps/alesia_structures.json": "6551a29cf01981513967ed86a9081ca1bb77c27e36a4d70f9c82a7321fb4eac1"
+		"res://data/maps/alesia_structures.json": "6f39fbf7795764e638ccacb638f332ef29c098cc840218a32e47213522a2976c"
 	},
 	"map": "res://data/maps/alesia_500.json",
-	"mesh_bytes": 603467,
-	"mesh_sha256": "a0d9275cfcd54a9b84345c9d223ca27f35363e78dadcdd2131003f1a62ad6f53",
-	"polygons": 19152,
+	"mesh_bytes": 601003,
+	"mesh_sha256": "8f9bb54513e69e5a81a66ecaefae3a694bcd86e921e08c8aef30ba5b2ad25e3d",
+	"polygons": 19066,
 	"tool_inputs": {
 		"res://data/maps/alesia_500_heights.res": "f73b7b2e590bb743a6634b919e972ab3131705dc4127331087dd7a13b7c4c88c",
 		"res://data/maps/alesia_500_paint.res": "786a9c51af27bcd9529ce1245dd0a7ab2f58055e314d838c8e4bf7820888e528",
 		"res://scenes/maps/alesia_500.tscn": "d002b61072586d909a9e3acbbc9d0780694531f3d5354ec3c27f775824685f0e"
 	},
 	"version": 1,
-	"vertices": 18297
+	"vertices": 18235
 }

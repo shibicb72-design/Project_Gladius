@@ -32,6 +32,10 @@ Standing: keep current art as **replaceable placeholders** so 3D models/textures
 
 Updated: 2026-10-24 America/Detroit (Engineering Lead, from Shibi standing + DeepTechTR fact-check).
 
+## Repainted Tripo props (A1)
+
+Tripo AI (studio.tripo3d.ai), generated Nov 22 2026 from Shibi's account, free plan; approved by Shibi for Gladius. The reduced stall and cart sources are recorded in the third-party ledger under the [Tripo Free Output terms](https://www.tripo3d.ai/terms). The Blender build preserves their Tripo generator and node provenance and writes the repainted near and far meshes and PNG atlases.
+
 ## Generated in this project (Saltline pass, Nov 9-10 2026)
 Nothing below is downloaded, recorded or taken from any game: each file is written by a tool in this repo from noise and maths, and is listed with its sha256 in `data/asset_catalog.json` `generated` (checked by `tests/test_generated_assets.gd`).
 

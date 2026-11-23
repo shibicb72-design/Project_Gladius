@@ -73,8 +73,16 @@ func test_kit_data_is_placeholder_and_every_type_builds_a_deterministic_mesh() -
 	assert_true(is_equal_approx(float(shared.get_shader_parameter("paint_mix")), 1.0) and WorldSurface.is_lit(shared)
 			and not code.contains("ALPHA") and not code.contains("blend_"), "kit material: vertex paint, lit, opaque")
 	for type: String in types:
-		var arrays := WorldKit.mesh_for(type).surface_get_arrays(0)
-		assert_true(arrays[Mesh.ARRAY_TEX_UV] != null and arrays[Mesh.ARRAY_TEX_UV2] != null and arrays[Mesh.ARRAY_TANGENT] != null, type + ": every vertex carries UV, surface id and tangent for the textures")
+		var mesh := WorldKit.mesh_for(type)
+		var arrays := mesh.surface_get_arrays(0)
+		assert_true(arrays[Mesh.ARRAY_TEX_UV] != null and arrays[Mesh.ARRAY_TANGENT] != null, type + ": vertices carry texture UVs and tangents")
+		if WorldKitMeshes.enabled() and bool(WorldKitMeshes.entry(type).get("textured", false)):
+			var paint := mesh.surface_get_material(0) as StandardMaterial3D
+			assert_true(paint != null and paint.albedo_texture != null, type + ": the active mesh uses its imported paint")
+			continue
+		assert_true(arrays[Mesh.ARRAY_TEX_UV2] != null, type + ": palette vertices carry surface ids")
+		if arrays[Mesh.ARRAY_TEX_UV2] == null:
+			continue
 		for uv2: Vector2 in arrays[Mesh.ARRAY_TEX_UV2]:
 			if uv2.x < 0.0 or uv2.x >= float((WorldSurface.config()["surface_order"] as Array).size()):
 				assert_true(false, type + ": a vertex names a surface outside surface_order")

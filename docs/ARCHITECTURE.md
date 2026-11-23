@@ -1007,6 +1007,12 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   - **Far backdrop.** `Backdrop.build(material, map_json, terrain)`: a map named in `art_backdrop.json` `maps`
     gets its own set (alesia_1km: ground skirt to 3 km, three hill rings, a far aqueduct, beacons, cypresses beyond
     the wall; 5 draws, about 10,000 triangles, inside the default 4 km far plane); other maps build the old ring.
+  - **A1 painted props.** `WorldKitMeshes.mesh()` returns the imported surfaces for a type with
+    `textured: true` in `data/art_world_kit.json`. `WorldKit.populate()` supplies a null material
+    override to `MapChunks.add()`, so each batch draws the imported PBR material. Each A1 prop has a
+    separate GLB with one surface per node, an explicit far node, and external PNG atlases.
+    `blender.cmd -b --factory-startup --python tools/blender/a1_tripo_props.py` rebuilds the GLBs
+    and atlases from the ledgered reduced sources. The other world-kit types keep the palette rebuild.
   - **Capture.** `tools/m2w1_capture.gd` with `data/m2w1_capture.json` (named shots per look and size);
     `tools/m2w1_pixel_probe.gd` samples screen values from a capture.
   - **After the Astra review (Nov 16 2026).** Built without Blender (it was refused in that session; the two glb

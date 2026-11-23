@@ -3,7 +3,7 @@
 	"inputs": {
 		"res://data/art_astra.json": "4ad5a9bc3218128deb08f3491e2924ad41a4101aa7d5bbfd780133accafed498",
 		"res://data/maps/alesia_cover.json": "54ac19f80114344e7f7b37811fb6605f685fe863b2e30ec6b5928dcbc95f8221",
-		"res://data/maps/alesia_structures.json": "6551a29cf01981513967ed86a9081ca1bb77c27e36a4d70f9c82a7321fb4eac1",
+		"res://data/maps/alesia_structures.json": "6f39fbf7795764e638ccacb638f332ef29c098cc840218a32e47213522a2976c",
 		"res://data/maps/test_300.json": "b812589ec552a23d210b23c38e761e023bede993c69088efd80961e565042705",
 		"res://data/maps/test_300_cover.json": "a204f258a5a489e838e288c123dfc3fd19a985f1409f1d485e6b54c2ad8f27ff",
 		"res://data/maps/test_300_structures.json": "9a0d710a0aca73a574a4b8d57c0667aac5148ddb4b07856af76342bc18bad105"
