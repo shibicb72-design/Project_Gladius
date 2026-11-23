@@ -666,6 +666,11 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
 
 ### 4.18 Graphics quality
 - Renderer: Mobile (Vulkan) project-wide. Compatibility only as a per-platform override (e.g. web).
+- W1a look parity: `GreyboxArt.renderer()` (the running rendering method, or `GreyboxArt.renderer_override` in tests
+  and tools) picks `data/art_look.json` "compatibility" on gl_compatibility only, applied last on the Environment
+  (`renderer_block()`, `_apply_renderer_block()`; empty today, OQ-WEB-GFX-PARITY). The colour-space fixes live in the
+  shaders behind `#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` (W1A_LIN / W1A_OUT; docs/WEB.md "Look parity").
+  tests/test_w1a_renderer_look.gd pins the Mobile look to tests/fixtures/w1a_mobile_look_golden.json.
 - `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap 60/120, LOD). Applied
   at boot by a small `GraphicsSettings` helper; the profile stores the chosen preset.
 

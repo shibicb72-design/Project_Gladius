@@ -16,6 +16,37 @@ const OPTIONAL_LIGHT_KEYS := ["ambient_source", "ambient_sky_contribution", "ref
 const OPTIONAL_FOG_KEYS := ["tonemap_white", "fog_height", "fog_height_density", "shadow_blur", "shadow_bias",
 		"shadow_normal_bias", "shadow_opacity", "shadow_fade_start", "shadow_blend_splits"]
 const OPTIONAL_POST_KEYS := ["glow_hdr_scale", "glow_levels"]
+## W1a: the renderer whose per-renderer block (data/art_look.json "compatibility") applies.
+const COMPATIBILITY_RENDERER := "gl_compatibility"
+## W1a, tests and tools only: the rendering method the look builder acts for ("" = the running one,
+## RenderingServer.get_current_rendering_method(); a headless run reports none of the real ones).
+static var renderer_override := ""
+
+
+## W1a: the rendering method the look is built for (renderer_override, else the running one).
+static func renderer() -> String:
+	return renderer_override if renderer_override != "" else RenderingServer.get_current_rendering_method()
+
+
+## W1a: the per-renderer look block for `method`: data/art_look.json "compatibility" on the Compatibility renderer
+## (the web build), {} on every other (Mobile and Forward+ never read it).
+static func renderer_block(method: String) -> Dictionary:
+	if method != COMPATIBILITY_RENDERER:
+		return {}
+	return MatchLook.config().get("compatibility", {})
+
+
+## W1a: sets the block's "environment" values, then its "variants"[variant]["environment"] ones, on `env`
+## (Environment property names; a 4-number array is a colour). Keys starting with "_" are notes.
+static func _apply_renderer_block(env: Environment, block: Dictionary, variant: String) -> void:
+	var layers: Array = [block.get("environment", {})]
+	layers.append(((block.get("variants", {}) as Dictionary).get(variant, {}) as Dictionary).get("environment", {}))
+	for layer: Dictionary in layers:
+		for key: String in layer:
+			if key.begins_with("_"):
+				continue
+			var value: Variant = layer[key]
+			env.set(key, color_value(value) if value is Array and (value as Array).size() == 4 else value)
 
 
 ## M2W1: the optional ambient keys (see OPTIONAL_LIGHT_KEYS); absent keys leave the Environment's defaults.
@@ -195,6 +226,8 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 		env.volumetric_fog_anisotropy = float(plus["volumetric_anisotropy"])
 		env.volumetric_fog_ambient_inject = float(plus["volumetric_ambient_inject"])
 		env.volumetric_fog_sky_affect = float(plus["volumetric_sky_affect"])
+	# W1a: the Compatibility renderer's own values last (nothing on Mobile or Forward+; OQ-WEB-GFX-PARITY).
+	_apply_renderer_block(env, renderer_block(renderer()), String(look["id"]))
 	world.environment = env
 	var sun := world.get_parent().get_node("Light") as DirectionalLight3D
 	sun.light_color = color_value(cfg["sun_color"])

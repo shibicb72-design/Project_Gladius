@@ -42,6 +42,23 @@ vec3 to_linear(vec3 c) {
 	return mix(pow((c + vec3(0.055)) * (1.0 / 1.055), vec3(2.4)), c * (1.0 / 12.92), lessThan(c, vec3(0.04045)));
 }
 
+// W1a: the Compatibility renderer (WebGL 2) shades in sRGB space: OUTPUT_IS_SRGB is true there, source_color
+// uniforms (rim_color) and light colours arrive unconverted, and StandardMaterial3D skips its vertex_color_is_srgb
+// step. This paint is linear (to_linear in vertex()), which darkened the dark and mid paints (belt, trims, squad
+// stripes) on the web. There, W1A_LIN() takes a source_color to linear, paint and emission are worked out as on
+// Mobile, and W1A_OUT() hands them over in sRGB. Mobile and Forward+ compile W1A_LIN(c) and W1A_OUT(c) as (c).
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+vec3 w1a_to_srgb(vec3 c) {
+	c = max(c, vec3(0.0));
+	return mix(vec3(1.055) * pow(c, vec3(1.0 / 2.4)) - vec3(0.055), c * 12.92, lessThan(c, vec3(0.0031308)));
+}
+#define W1A_LIN(c) to_linear(c)
+#define W1A_OUT(c) w1a_to_srgb(c)
+#else
+#define W1A_LIN(c) (c)
+#define W1A_OUT(c) (c)
+#endif
+
 void vertex() {
 	v_surface = int(UV2.x + 0.5);
 	vec3 paint = mix(squad_paint, COLOR.rgb, COLOR.a);
@@ -74,7 +91,7 @@ void fragment() {
 	float rough = clamp(t.g * b.x + b.y, 0.04, 1.0);
 	float soaked = wet * smoothstep(0.2, 0.9, up) * (1.0 - b.z);
 	paint *= mix(1.0, wet_dark, wet * (1.0 - b.z) * 0.5);
-	ALBEDO = paint;
+	ALBEDO = W1A_OUT(paint);
 	ROUGHNESS = mix(rough, wet_roughness, soaked);
 	METALLIC = b.z;
 	vec2 n = (t.ba * 2.0 - 1.0) * a.w;
@@ -84,5 +101,5 @@ void fragment() {
 	AO_LIGHT_AFFECT = 0.0;
 	float pulse = 1.0 + glow_pulse * sin(TIME * glow_pulse_speed);
 	float edge = pow(1.0 - clamp(dot(normal, VIEW), 0.0, 1.0), rim_power);
-	EMISSION = paint * ((b.w + v_tier_glow) * pulse) + rim_color * (edge * rim * (0.4 + 0.6 * clamp(up + 0.5, 0.0, 1.0)));
+	EMISSION = W1A_OUT(paint * ((b.w + v_tier_glow) * pulse) + W1A_LIN(rim_color) * (edge * rim * (0.4 + 0.6 * clamp(up + 0.5, 0.0, 1.0))));
 }

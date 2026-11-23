@@ -47,6 +47,13 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 - **OQ-WEB-BUDGET** — A1's stall and cart triangle caps and LOD swap distances are placeholder guesses for Shibi. Their mesh sizes, buffers and texture allocations are tracked separately from Chrome frame timings. W1 measures browser cost. Shibi's own PC play test is the final check.
 
+## Browser look parity (W1a)
+
+- **OQ-WEB-GFX-PARITY** — `data/art_look.json` "compatibility": the per-renderer block that only the Compatibility renderer (gl_compatibility, the web build) applies after the look is built (`scripts/visual/greybox_art.gd` renderer_block()). Empty on purpose and marked `_placeholder`: W1a found every parity defect it fixed in the shaders (Compatibility shades in sRGB space; the W1A_LIN / W1A_OUT steps in `scripts/visual/shaders/`), none in a number. Any value added there is a guess for Shibi until a capture shows it restores what Mobile draws; taste changes belong to W1b.
+- **OQ-WEB-GFX-SKYLIGHT** — Light taken from the sky (sky ambient and sky reflections) comes out brighter on Compatibility when the variant's `tonemap_exposure` is not 1.0: night (1.7) and storm (1.2) wet ground and stone read lighter than on Mobile. Measured with `tools/compat_probe.gd` (ProceduralSky, AgX): at exposure 1.0 a grey StandardMaterial3D lit only by the sky reads 0.235 / 0.239 (Compatibility / Mobile, sRGB), at 1.7 it reads 0.420 / 0.329 while the sky itself (0.525 / 0.529) and colour ambient (0.443 / 0.439) match. Cause inferred, not proven: the exposure reaches sky-sourced light twice on Compatibility. No Environment value scales sky reflections alone; open for W1b (or an engine report).
+- **OQ-WEB-GFX-GLOW** — Bloom on the emissive strips is weaker on Compatibility than on Mobile (storm and night centre_standard). Measured: an unshaded value of 4x and 16x (0.1, 0.4, 0.6) reads (0.737, 0.871, 0.914) and (0.925, 0.976, 0.992) on Compatibility against (0.729, 0.953, 1.0) and (0.953, 1.0, 1.0) on Mobile, so values above 1.0 are compressed before the tonemapper and the glow threshold sees less. Glow strength per renderer is look tuning: W1b.
+- **OQ-WEB-GFX-DISC** — The sun and moon disc is a horizontal ellipse on Mobile and round on Compatibility at the same camera (porta_aquilae dusk). Cause unknown (the sky shader's disc uses EYEDIR only; the two renderers draw the sky background differently). Not changed in W1a.
+
 ## Identity and packaging
 
 - **OQ-01: Final Android application id.** DECIDED (Shibi, 2026-10-22): `com.shibibabu.gladius` (export_presets.cfg `package/unique_name`). Superseded placeholder: `com.placeholder.gladius` (S1, export_presets.cfg `package/unique_name`).

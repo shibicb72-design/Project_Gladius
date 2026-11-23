@@ -120,3 +120,26 @@ guess for Shibi (OQ-WEB-KEYS).
 - The build is single-threaded: no COOP/COEP headers, no SharedArrayBuffer. Audio starts after the first click or key
   (browser autoplay rule).
 - LAN (Host / Join) is disabled in the browser (ENet does not exist there); the home-network relay is slice W2.
+
+## Look parity with Mobile (W1a)
+
+The browser runs the Compatibility renderer (WebGL 2); the look was authored on Mobile. Compatibility shades in sRGB
+space: `source_color` uniforms and light colours reach a shader unconverted, `OUTPUT_IS_SRGB` is true, and a shader's
+ALBEDO / EMISSION / sky COLOR is taken as sRGB. Our shaders mix colours in linear (vertex paint through `to_linear`,
+contrast, grime and wet factors, the sky's added energies), which drew walls and gates near black, stones in clutter
+black, stars and the moon's halo invisible and the glow strips too hot on the web. Each affected shader
+(world_surface, soldier_armor, ground, world_foliage, world_cloth, sky_astra) now has, under
+`#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` only, a `W1A_LIN()` that turns a `source_color` to linear and a
+`W1A_OUT()` (sky: `w1a_to_srgb`) that hands the Mobile-identical result over in sRGB. Mobile and Forward+ compile them
+as `(c)`: their output is unchanged (tests/test_w1a_renderer_look.gd pins the Mobile Environment, sky, sun and world
+material against tests/fixtures/w1a_mobile_look_golden.json, recorded from base c9b385a).
+
+Per-renderer numbers go in `data/art_look.json` "compatibility" (read only on gl_compatibility; `GreyboxArt.renderer_override`
+injects the renderer in tests). It is empty: no W1a fix needed a number (OQ-WEB-GFX-PARITY). AgX works on Compatibility (measured with
+`tools/compat_probe.gd`: an unshaded pure red reads (1.0, 0.0, 0.0) with the linear tonemapper and (0.871, 0.251,
+0.110) with AgX, Mobile (0.894, 0.231, 0.086)), so the tonemapper stays AgX. Open differences: OQ-WEB-GFX-SKYLIGHT,
+OQ-WEB-GFX-GLOW, OQ-WEB-GFX-DISC (docs/OPEN_QUESTIONS.md).
+
+Tools: `tools/parity_capture.gd` (Mobile / Compatibility captures and side-by-side sheets; `--left-dir`, `--right`,
+`--env` for before/after and A/B runs) and `tools/compat_probe.gd` (a row of quads per material under ambient, sun,
+omni and sky light, printing each renderer's pixel values).
