@@ -10,7 +10,7 @@
 	"walk_head_m": 2.0,
 	"walk_edge_m": 0.02,
 	"lod1_max_tris": 250,
-	"lod1_max_tris_by_type": {"forum_stall": 3000, "farm_cart": 2000},
+	"lod1_max_tris_by_type": {"_placeholder": true, "forum_stall": 3000, "farm_cart": 2000},
 	"retired_nodes": ["forum_stall", "forum_stall_lod1", "farm_cart"],
 	"_a1_note": "OQ-WEB-BUDGET: A1 fit, swap distances and mesh caps are placeholders and guesses for Shibi. W1 measures browser cost.",
 	"prop_fit_exceptions": {
@@ -41,7 +41,7 @@
 		"farm_boundary": {"node": "farm_boundary", "glb": "res://assets/generated/world/m2cx2_dressing.glb", "lod_swap_m": 0},
 		"forum_stall": {"node": "forum_stall", "glb": "res://assets/generated/world/a1_forum_stall.glb", "textured": true, "lod_swap_m": 60, "lod1_node": "forum_stall_lod1", "_a1_fit": {"uniform_scale": 3.51, "blender_yaw_deg": -72}, "_a1_note": "OQ-WEB-BUDGET placeholder and fit guess for Shibi."},
 		"waystation": {"node": "waystation", "glb": "res://assets/generated/world/m2cx2_dressing.glb", "lod_swap_m": 80, "lod1_node": "waystation_lod1"},
-		"farm_cart": {"node": "farm_cart", "glb": "res://assets/generated/world/a1_farm_cart.glb", "textured": true, "lod_swap_m": 50, "lod1_node": "farm_cart_lod1", "_a1_fit": {"uniform_scale": 2.59, "blender_yaw_deg": 180}, "_a1_note": "OQ-WEB-BUDGET placeholder and fit guess for Shibi."},
+		"farm_cart": {"node": "farm_cart", "glb": "res://assets/generated/world/a1_farm_cart.glb", "textured": true, "_placeholder": true, "lod_swap_m": 50, "lod1_node": "farm_cart_lod1", "_a1_fit": {"uniform_scale": 2.59, "blender_yaw_deg": 180}, "_a1_note": "OQ-WEB-BUDGET placeholder and fit guess for Shibi."},
 		"wall_walk": {"node": "wall_walk", "lod1_node": "wall_walk_lod1", "lod_swap_m": 120},
 		"wall_stair": {"node": "wall_stair", "lod1_node": "wall_stair_lod1", "lod_swap_m": 120},
 		"gate": {"node": "gate", "lod1_node": "gate_lod1", "lod_swap_m": 150},

@@ -160,7 +160,11 @@ func test_a1_market_near_meshes_fit_the_structure_budget() -> void:
 	assert_eq(counts, {"forum_stall": 6, "farm_cart": 3}, "the nine A1 placements retain their original counts")
 	var triangles := 0
 	for type: String in counts:
-		triangles += int(counts[type]) * _Perf.triangles(WorldKitMeshes.mesh(type, 0))
+		var row := WorldKitMeshes.entry(type)
+		var near := WorldKitMeshes.mesh(type, 0)
+		assert_true(near != null and near == WorldKitMeshes._source_mesh(String(row["glb"]), String(row["node"])), type + ": the near mesh is the A1 glTF mesh, not a fallback")
+		triangles += int(counts[type]) * _Perf.triangles(near)
+	assert_true(triangles > 200000 and triangles <= 240000, "the nine A1 near meshes total %d triangles, within the 240,000 A1 caps" % triangles)
 	var cap := int(WorldKitMeshes.config()["budgets"]["visible_structure_tris"])
 	# Six stalls × 30,000 + three carts × 20,000 = 240,000 at the caps, within 400,000.
 	assert_true(triangles > 0 and triangles <= cap, "all nine near meshes use %d of %d visible structure triangles" % [triangles, cap])

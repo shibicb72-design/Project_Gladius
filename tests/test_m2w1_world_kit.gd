@@ -515,11 +515,23 @@ func test_a1_props_use_imported_meshes_without_changing_palette_arrays() -> void
 				assert_true(absf(ratio[axis] - 1.0) <= 0.2, "%s %d: axis %d remains in the original 20%% envelope" % [type, level, axis])
 			var center := bounds.get_center()
 			assert_true(absf(center.x) < 0.02 and absf(center.z) < 0.02 and absf(bounds.position.y) < 0.02, type + ": centered on its original ground origin")
-	var unchanged := "wall_walk"
-	var config := WorldKitMeshes.entry(unchanged)
-	var original := WorldKitMeshes._source_mesh(String(_cfg()["glb"]), String(config["node"]))
-	var rebuild := WorldKitMeshes.rebuild(original, WorldKitMeshes.kit_custom(unchanged), unchanged if WorldKitMeshes.bake_enabled() else "")
-	assert_eq(var_to_bytes(WorldKitMeshes.mesh(unchanged, 0).surface_get_arrays(0)), var_to_bytes(rebuild.surface_get_arrays(0)), unchanged + ": still byte-identical to the palette rebuild")
+	# Pinned at f50f96a (pre-A1): sha256 of var_to_bytes(surface_get_arrays) over every surface. wall_walk comes from
+	# the default glb, waystation from m2cx2_dressing.glb (the glb A1 retired nodes from).
+	var pinned := {
+		"wall_walk": ["8196cd1476599bc04af1c820a3af0329b561650e9b21263ea578ac2fdbd222f2", "10ee1f64aeb1ce02fba68b060afb0455ae51c19822e5257d0ba0fe93c9d822a5"],
+		"waystation": ["696422cae54757c55b8ae743232c0223fc4532ce2ed9ad504038b2e386c51dac", "1a456ca252add23237cc49fb7c3a530ff9a16aca146dd32661aeca7ea1c4cbfd"],
+	}
+	for type: String in pinned:
+		for level: int in [0, 1]:
+			var built := WorldKitMeshes.mesh(type, level)
+			assert_true(built != null, "%s %d: still built" % [type, level])
+			if built == null:
+				continue
+			var ctx := HashingContext.new()
+			ctx.start(HashingContext.HASH_SHA256)
+			for s in built.get_surface_count():
+				ctx.update(var_to_bytes(built.surface_get_arrays(s)))
+			assert_eq(ctx.finish().hex_encode(), String(pinned[type][level]), "%s %d: arrays byte-identical to f50f96a" % [type, level])
 	_reset()
 
 
