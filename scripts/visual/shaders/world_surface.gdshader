@@ -57,6 +57,25 @@ vec3 to_linear(vec3 c) {
 	return mix(pow((c + vec3(0.055)) * (1.0 / 1.055), vec3(2.4)), c * (1.0 / 12.92), lessThan(c, vec3(0.04045)));
 }
 
+// W1a: the Compatibility renderer (WebGL 2) shades in sRGB space: OUTPUT_IS_SRGB is true there, source_color
+// uniforms (tint, bounce_color) and light colours arrive unconverted, and StandardMaterial3D skips its
+// vertex_color_is_srgb step. This shader mixes its paint in linear (to_linear in vertex(), then linear-space shade,
+// grime and wet factors), which drew every world-kit face (walls, gates, buildings) far too dark on the web and
+// pushed the glow strips (paint x glow_gain) far too hot. There, W1A_LIN() takes a source_color to linear, the paint
+// and the emission are worked out exactly as on Mobile, and W1A_OUT() hands them over in sRGB, as a
+// StandardMaterial3D albedo is there. Mobile and Forward+ compile W1A_LIN(c) and W1A_OUT(c) as (c), unchanged.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+vec3 w1a_to_srgb(vec3 c) {
+	c = max(c, vec3(0.0));
+	return mix(vec3(1.055) * pow(c, vec3(1.0 / 2.4)) - vec3(0.055), c * 12.92, lessThan(c, vec3(0.0031308)));
+}
+#define W1A_LIN(c) to_linear(c)
+#define W1A_OUT(c) w1a_to_srgb(c)
+#else
+#define W1A_LIN(c) (c)
+#define W1A_OUT(c) (c)
+#endif
+
 void vertex() {
 	v_surface = int(UV2.x + 0.5);
 	bool kit = CUSTOM0.y > 0.0;
@@ -80,14 +99,14 @@ void fragment() {
 	vec4 b = surf_b[v_surface];
 	vec4 t = texture(surfaces, vec3(UV * a.y, a.x));
 	float up = v_world_normal.y;
-	vec3 paint = COLOR.rgb * tint.rgb * (1.0 + a.z * (t.r * 2.0 - 1.0));
+	vec3 paint = COLOR.rgb * W1A_LIN(tint.rgb) * (1.0 + a.z * (t.r * 2.0 - 1.0));
 	// Dirt creeps up from the ground on faces that do not look up.
 	float foot = (1.0 - smoothstep(0.0, grime_height, v_world.y)) * (1.0 - max(up, 0.0)) * v_grime;
 	paint *= mix(1.0, grime_dark, foot * (0.6 + 0.4 * t.r));
 	float rough = clamp(t.g * b.x + b.y, 0.04, 1.0);
 	float soaked = wet * smoothstep(0.2, 0.9, up) * (1.0 - b.z) * (1.0 - smoothstep(wet_far_m * 0.5, wet_far_m, length(v_world - CAMERA_POSITION_WORLD)));
 	paint *= mix(1.0, wet_dark, wet * (1.0 - b.z) * 0.6);
-	ALBEDO = paint;
+	ALBEDO = W1A_OUT(paint);
 	ROUGHNESS = mix(rough, wet_roughness, soaked);
 	METALLIC = b.z;
 	vec2 n = (t.ba * 2.0 - 1.0) * a.w * (1.0 - soaked * 0.7);
@@ -96,5 +115,5 @@ void fragment() {
 	AO = mix(ambient_down, 1.0, up * 0.5 + 0.5);
 	AO_LIGHT_AFFECT = 0.0;
 	float pulse = 1.0 + glow_pulse * sin(TIME * glow_pulse_speed + v_world.x * 0.35 + v_world.z * 0.35);
-	EMISSION = paint * (b.w * pulse * glow_gain) +paint * bounce_color * (bounce * (0.5 - 0.5 * up));
+	EMISSION = W1A_OUT(paint * (b.w * pulse * glow_gain) +paint * W1A_LIN(bounce_color) * (bounce * (0.5 - 0.5 * up)));
 }

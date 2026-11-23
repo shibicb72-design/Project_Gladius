@@ -245,6 +245,12 @@
 		"volumetric_sky_affect": 0.0,
 		"volumetric_sun_energy": 2.2
 	},
+	"compatibility": {
+		"_placeholder": true,
+		"_note": "W1a (OQ-WEB-GFX-PARITY): values only the Compatibility renderer (gl_compatibility, the web build) applies, after the look is built (scripts/visual/greybox_art.gd renderer_block(); Mobile and Forward+ never read this block). \"environment\": Environment property overrides for every variant; \"variants\": {<id>: {\"environment\": {...}}} per variant (a 4-number array is a colour). Empty on purpose: every parity defect W1a fixed was in the shaders (Compatibility shades in sRGB space; W1A_LIN / W1A_OUT in scripts/visual/shaders), none was a number. A value added here is a guess for Shibi until a capture shows it restores what Mobile draws; the open differences are OQ-WEB-GFX-SKYLIGHT, OQ-WEB-GFX-GLOW and OQ-WEB-GFX-DISC (docs/OPEN_QUESTIONS.md).",
+		"environment": {},
+		"variants": {}
+	},
 	"shafts": {
 		"_note": "Sun shafts are a few see-through quads that hang in the air along the sun's direction at the places listed (additive, no depth read). Drawn only with art_shafts_enabled and when the variant's sun is strong enough (min_sun_energy).",
 		"min_sun_energy": 1.5,

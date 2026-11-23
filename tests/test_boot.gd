@@ -36,12 +36,28 @@ func _stage(auto: bool) -> Array:
 	return [boot, count]
 
 
+## W1a: Boot applies the graphics preset (GraphicsPresets.apply_settings); these are the engine values and statics it
+## may change beyond fps, 3D scale and MSAA. Returns them for _restore_gfx.
+func _save_gfx() -> Dictionary:
+	var vp := _tree().root
+	return {"aniso": vp.anisotropic_filtering_level, "vsync": DisplayServer.window_get_vsync_mode()}
+
+
+func _restore_gfx(saved: Dictionary) -> void:
+	_tree().root.anisotropic_filtering_level = saved["aniso"]
+	DisplayServer.window_set_vsync_mode(saved["vsync"])
+	RenderingServer.directional_shadow_atlas_set_size(GraphicsPresets.project_shadow_atlas_size(), GraphicsPresets.project_shadow_atlas_16_bits())
+	GraphicsPresets.active_id = ""
+	GraphicsPresets.applied = {}
+
+
 func test_boot_shows_the_logo_and_goes_to_the_menu_once() -> void:
 	var saved_profile: Dictionary = AppFlow.profile.duplicate(true)
 	var saved_fps := Engine.max_fps
 	var vp := _tree().root
 	var saved_scale := vp.scaling_3d_scale
 	var saved_msaa := vp.msaa_3d
+	var saved_gfx := _save_gfx()
 	AppFlow.profile = {}
 	var staged := _stage(false)
 	var boot: Boot = staged[0]
@@ -78,6 +94,7 @@ func test_boot_shows_the_logo_and_goes_to_the_menu_once() -> void:
 	Engine.max_fps = saved_fps
 	vp.scaling_3d_scale = saved_scale
 	vp.msaa_3d = saved_msaa
+	_restore_gfx(saved_gfx)
 
 
 func test_boot_auto_advances_after_the_hold() -> void:
@@ -86,6 +103,7 @@ func test_boot_auto_advances_after_the_hold() -> void:
 	var vp := _tree().root
 	var saved_scale := vp.scaling_3d_scale
 	var saved_msaa := vp.msaa_3d
+	var saved_gfx := _save_gfx()
 	var staged := _stage(true)
 	var boot: Boot = staged[0]
 	var count: Array[int] = staged[1]
@@ -99,3 +117,4 @@ func test_boot_auto_advances_after_the_hold() -> void:
 	Engine.max_fps = saved_fps
 	vp.scaling_3d_scale = saved_scale
 	vp.msaa_3d = saved_msaa
+	_restore_gfx(saved_gfx)

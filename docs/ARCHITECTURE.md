@@ -666,8 +666,49 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
 
 ### 4.18 Graphics quality
 - Renderer: Mobile (Vulkan) project-wide. Compatibility only as a per-platform override (e.g. web).
-- `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap 60/120, LOD). Applied
-  at boot by a small `GraphicsSettings` helper; the profile stores the chosen preset.
+- W1a look parity: `GreyboxArt.renderer()` (the running rendering method, or `GreyboxArt.renderer_override` in tests
+  and tools) picks `data/art_look.json` "compatibility" on gl_compatibility only, applied last on the Environment
+  (`renderer_block()`, `_apply_renderer_block()`; empty today, OQ-WEB-GFX-PARITY). The colour-space fixes live in the
+  shaders behind `#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` (W1A_LIN / W1A_OUT; docs/WEB.md "Look parity").
+  tests/test_w1a_renderer_look.gd pins the Mobile look to tests/fixtures/w1a_mobile_look_golden.json.
+- `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap, LOD), read by
+  `GraphicsPresets` (`scripts/systems/graphics_presets.gd`). W1a: quality levels are preset ids (Low = "default",
+  today's preset; Medium = "pc_medium"; High = "pc_high"). One preset is active per process (`GraphicsPresets.active_id`,
+  "" = the file default until set); `get_preset("")` returns it, then the tools' static `overrides` merge on top, so every
+  reader of the art_* / fx_* switches follows the choice. Boot calls `apply_settings(profile, viewport, is_pc)`:
+  `choose_id` = the saved `graphics_quality` on a PC (`PlatformServices.is_pc()`: a browser or a desktop OS, never a
+  headless run), else Auto = data `auto_pc` on a PC, else "default"; then on a PC the player's layer (`frame_cap`
+  replaces max_fps, `render_scale` multiplies scale_3d). LIVE keys (`apply()`): max_fps (Engine.max_fps), vsync
+  (DisplayServer.window_set_vsync_mode), msaa_3d / scale_3d / anisotropic_level (the Viewport), directional_shadow_size
+  (RenderingServer.directional_shadow_atlas_set_size). NEXT MATCH keys: shadow_mode, shadow_max_distance_m (read by
+  `GreyboxArt._apply_environment`). A preset without vsync / atlas / anisotropy (the "default" one) touches none of
+  them, except to put the project's value back after a PC preset (`GraphicsPresets.applied`). The PC-only Settings
+  rows (`SettingsPanel._build_graphics`: Quality, Frame cap; Field of view, Render scale and 144 / Unlimited behind
+  `show_advanced_graphics`) save the profile keys `graphics_quality`, `frame_cap`, `render_scale`, `fov`
+  (`SaveService`) and apply at once; the Field of view reaches every `CameraRig` in `CameraRig.GROUP` (`apply_fov`,
+  replacing base_fov only). The rig camera's far plane is data/camera.json `far_m` (OQ-WEB-FAR).
+  Tests: tests/test_w1a_gfx_settings.gd.
+
+#### W1a perf hook: the browser frame-rate harness (debug web builds only)
+- Rule: the hook exists only in a DEBUG build running in the BROWSER whose URL has `perf=1`. `WebArgs.parse_perf` /
+  `perf_request()` (`scripts/platform/web_args.gd`) return {} for a release build, off the web, or without perf=1;
+  `quality` (a quality-level preset id, else "") and `seed` (a whole non-zero number, else 0) are read only with it.
+- `Boot.add_perf_route()` (`scripts/ui/boot.gd`) is the only call site: with a request it loads
+  `scripts/debug/perf_route.gd` (the one debug-only file), calls `setup(request, viewport)` (the requested quality through
+  `GraphicsPresets.apply_settings` on a profile COPY, before any match look exists; nothing is saved) and adds the node
+  under the tree root (deferred), where it outlives scene changes. At most one per run.
+- No gameplay, match, lobby or AppFlow code knows about it. It rides on W0's `?autosolo=1` start: on `node_added` of
+  the MatchRoot (before its `_ready`/`begin`) it puts the URL seed into `AppFlow.match_seed` (begin reads it,
+  match_root.gd ~:261), so loot, bot streams and the look variant (`MatchLook.variant_for_seed`) are fixed. Once the
+  director runs (+ warmup frames) it makes its OWN Camera3D current (near/far copied from the rig camera; it takes the
+  current camera back if the SpectatorCamera grabs it, `camera_retakes`), flies the route from
+  `tools/web/perf_route.json` (injected by `tools/web/perf.mjs` as `window.GLADIUS_PERF_ROUTE`, because tools/ is not
+  exported; `res://` file fallback for desktop debug), records real frame deltas, probes Engine.max_fps 30 / 60 / 0 and
+  restores it, and publishes `GLADIUS_PERF_DONE <json>` (console) and `window.GLADIUS_PERF_RESULT`. In `--shots` mode
+  it also hides the match's Hud layer. `PerfRoute.frame_stats` / `timeline` are pure static functions.
+- Harness side: `tools/web/perf.mjs` shares `serve.mjs` (server) and `chrome.mjs` (puppeteer-core loader, headed
+  Chrome launcher, WebGL renderer probe, rAF frame statistics) with `tools/web/smoke.mjs`. docs/WEB.md "Frame-rate
+  harness". Tests: tests/test_w1a_perf.gd.
 
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.

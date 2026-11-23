@@ -28,7 +28,51 @@ static func defaults() -> Dictionary:
 				"match_length": match_length_default(),  # M2 Z2: a br.json match_length option id, default from data (OQ-BR-LENGTH)
 				"bot_difficulty": bot_difficulty_default(),  # M2 B4: a bots.json difficulty level id, default from data (OQ-BOT-DIFFICULTY)
 				"minimap_rotate": true,  # M2 H1b: the small minimap turns with the heading (true) or stays north up (OQ-MINIMAP)
-				"coach_done": false}  # M2 H1b commit 5: the first-play coach was finished or skipped (OQ-COACH)
+				"coach_done": false,  # M2 H1b commit 5: the first-play coach was finished or skipped (OQ-COACH)
+				# W1a (PC only, data/graphics_presets.json, OQ-WEB-GFX-*): "" = Auto; frame cap in fps (0 = none);
+				# render scale 0.5 .. 1.0; field of view in degrees ("" = Auto: data/camera.json fov_table, OQ-WEB-FOV).
+				"graphics_quality": "", "frame_cap": FRAME_CAP_DEFAULT, "render_scale": 1.0, "fov": ""}
+
+
+## W1a: the Frame cap setting's default (fps).
+const FRAME_CAP_DEFAULT := 60
+
+
+## W1a: a graphics quality from a file or menu: "" (Auto) or a data quality_levels id; anything else means "".
+static func graphics_quality(value: Variant) -> String:
+	return str(value) if value is String and GraphicsPresets.quality_ids().has(value) else ""
+
+
+## W1a: a frame cap from a file or menu: one of data frame_caps + advanced_frame_caps (whole numbers; 0 = no cap);
+## anything else means FRAME_CAP_DEFAULT.
+static func frame_cap(value: Variant) -> int:
+	if not (value is int or value is float) or float(value) != floorf(float(value)):
+		return FRAME_CAP_DEFAULT
+	var cfg := GraphicsPresets.config()
+	var allowed: Array = Array(cfg.get("frame_caps", [])) + Array(cfg.get("advanced_frame_caps", []))
+	for cap: Variant in allowed:
+		if int(cap) == int(value):
+			return int(value)
+	return FRAME_CAP_DEFAULT
+
+
+## W1a: a render scale from a file or menu: a number within data render_scale min .. max; anything else means 1.0.
+static func render_scale(value: Variant) -> float:
+	var r: Dictionary = GraphicsPresets.config().get("render_scale", {})
+	if not (value is int or value is float) or is_nan(float(value)):
+		return 1.0
+	var v := float(value)
+	return v if v >= float(r.get("min", 0.5)) and v <= float(r.get("max", 1.0)) else 1.0
+
+
+## W1a: a field of view from a file or menu: "" (Auto) or a number of degrees within data/camera.json fov_setting
+## min_deg .. max_deg (OQ-WEB-FOV); anything else means "".
+static func fov(value: Variant) -> Variant:
+	if not (value is int or value is float) or is_nan(float(value)):
+		return ""
+	var r: Dictionary = DataRegistry.new().get_camera_cfg().get("fov_setting", {})
+	var v := float(value)
+	return v if v >= float(r.get("min_deg", 60.0)) and v <= float(r.get("max_deg", 95.0)) else ""
 
 
 ## M2 Z2: the br config the lobby sees (data/br.json through modes.json, no map overrides).
@@ -156,6 +200,10 @@ func load_profile() -> Dictionary:
 	profile["bot_difficulty"] = bot_difficulty(data.get("bot_difficulty", null))  # M2 B4
 	profile["minimap_rotate"] = minimap_rotate(data.get("minimap_rotate", null))  # M2 H1b
 	profile["coach_done"] = coach_done(data.get("coach_done", null))  # M2 H1b commit 5
+	profile["graphics_quality"] = graphics_quality(data.get("graphics_quality", null))  # W1a
+	profile["frame_cap"] = frame_cap(data.get("frame_cap", null))  # W1a
+	profile["render_scale"] = render_scale(data.get("render_scale", null))  # W1a
+	profile["fov"] = fov(data.get("fov", null))  # W1a
 	# M2 H1a layout migration (OQ-H1A-LAYOUT): saved layouts without the current layout version (or a pre-G2e file with
 	# only the legacy sprint_lock_pos) were made for the old placement. They are reset to the new defaults once, the
 	# legacy sprint_lock_pos with them, the touch HUD shows a one-time notice when something was discarded, and the
@@ -190,5 +238,9 @@ func save_profile(profile: Dictionary) -> bool:
 	out["bot_difficulty"] = bot_difficulty(profile.get("bot_difficulty", null))  # M2 B4
 	out["minimap_rotate"] = minimap_rotate(profile.get("minimap_rotate", null))  # M2 H1b
 	out["coach_done"] = coach_done(profile.get("coach_done", null))  # M2 H1b commit 5
+	out["graphics_quality"] = graphics_quality(profile.get("graphics_quality", null))  # W1a
+	out["frame_cap"] = frame_cap(profile.get("frame_cap", null))  # W1a
+	out["render_scale"] = render_scale(profile.get("render_scale", null))  # W1a
+	out["fov"] = fov(profile.get("fov", null))  # W1a
 	f.store_string(JSON.stringify(out, "\t"))
 	return true

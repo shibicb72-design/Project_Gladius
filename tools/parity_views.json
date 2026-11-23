@@ -1,0 +1,65 @@
+{
+	"_note": "W1a renderer parity views for tools/parity_capture.gd (Mobile vs Compatibility). Tool data only: nothing in the game reads it. pos = [x, z] in map metres; the camera stands eye_m above the terrain under it. yaw_deg is a compass bearing (0 = north = -z, 90 = east = +x, as the map data), pitch_deg is up-positive, fov_deg is the vertical FOV (the game's 16:9 row of data/camera.json is 75). soldier (optional): the match's local player pawn is moved to at [x, z] on the terrain, facing the camera and turned turn_deg; in every other view it is hidden.",
+	"map": "res://data/maps/alesia_500.json",
+	"seed": 20261109,
+	"size": [1920, 1080],
+	"first_settle_frames": 180,
+	"settle_frames": 120,
+	"views": [
+		{
+			"name": "citadel_top",
+			"reason": "Perf point citadel_top (tests/test_m2w1_world_kit.gd; there (0, 5), moved 19 m north so the Arx_Eagle pole at the origin does not fill the frame) on alesia_500: the Arx top looking north at Porta Arcis, sun in frame (glow, sky, sun disc), the Arx gate braziers just outside it.",
+			"pos": [3.0, -14.0],
+			"eye_m": 1.7,
+			"yaw_deg": 15.0,
+			"pitch_deg": -5.0,
+			"fov_deg": 75.0
+		},
+		{
+			"name": "porta_aquilae",
+			"reason": "Perf point porta_aquilae (outer wall r 222, bearing 0) seen from 26 m inside: the four-brazier cluster at the gate (per-object light limit), the flags, and the north backdrop through the gate.",
+			"pos": [0.0, -196.0],
+			"eye_m": 1.7,
+			"yaw_deg": 0.0,
+			"pitch_deg": -2.0,
+			"fov_deg": 75.0
+		},
+		{
+			"name": "field_corner",
+			"reason": "Perf point field_corner (MapChunks.standard_points corner, -250, -250) looking out west-south-west: skirt, the three hill rings out to about 2240 m, the far spire and a far beacon (far-plane clipping, fog, sky horizon), zone wall if in frame.",
+			"pos": [-250.0, -250.0],
+			"eye_m": 1.7,
+			"yaw_deg": 255.0,
+			"pitch_deg": 2.0,
+			"fov_deg": 75.0
+		},
+		{
+			"name": "centre_standard",
+			"reason": "Perf point centre_standard (the play centre; the standard point's fixed y 1.7 is inside the Arx hill and the origin inside the Arx_Eagle collider, so 8 m south on the terrain) looking south-south-east away from the sun: Arx, town, Porta Vulcani's two braziers, the south backdrop.",
+			"pos": [0.0, 8.0],
+			"eye_m": 1.7,
+			"yaw_deg": 150.0,
+			"pitch_deg": -8.0,
+			"fov_deg": 75.0
+		},
+		{
+			"name": "market",
+			"reason": "The forum_stall cluster (Oppidum02_Tent_0..5, x 34.5..49.5, z -93.5..-103.5; the A1 Tripo textured stalls) from the south, slightly raised so both rows show.",
+			"pos": [42.0, -78.0],
+			"eye_m": 3.0,
+			"yaw_deg": 0.0,
+			"pitch_deg": -12.0,
+			"fov_deg": 75.0
+		},
+		{
+			"name": "soldier_closeup",
+			"reason": "The real local player pawn at 2.7 m inside Porta Aquilae, lit by the inner brazier pair 8 m north of it: soldier_armor.gdshader instance uniforms (squad_paint, tier_paint) and skin/cloth shading.",
+			"pos": [1.5, -207.2],
+			"eye_m": 1.6,
+			"yaw_deg": 214.3,
+			"pitch_deg": -12.0,
+			"fov_deg": 55.0,
+			"soldier": {"at": [0.0, -205.0], "turn_deg": 30.0}
+		}
+	]
+}

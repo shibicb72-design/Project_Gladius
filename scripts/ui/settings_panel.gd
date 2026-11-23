@@ -39,6 +39,20 @@ var minimap_rotate: bool = true
 ## M2 H1b commit 5 (OQ-COACH): "Replay the coach" sets the profile's coach_done false, so the next real match shows the
 ## first-play coach again. A coach running in this match is not restarted (it shows on the next match).
 var coach_button: Button
+## W1a: the GRAPHICS rows (PC only: built when PlatformServices.is_pc(), so phones and headless runs have none).
+## Quality (Auto / Low / Medium / High) and Frame cap (60 / 120) show; Field of view, Render scale and the 144 /
+## Unlimited caps are built but hidden unless data/graphics_presets.json show_advanced_graphics (OQ-WEB-GFX-ADVANCED).
+## Every change is saved and applied at once (GraphicsPresets.apply_settings; the shadow keys on the next match).
+var graphics_built: bool = false
+var quality_button: Button
+var frame_cap_button: Button
+var fov_button: Button
+var render_scale_label: Label
+var render_scale_slider: HSlider
+var graphics_quality: String = ""
+var frame_cap: int = SaveService.FRAME_CAP_DEFAULT
+var fov: Variant = ""
+var render_scale: float = 1.0
 
 
 func _ready() -> void:
@@ -76,7 +90,112 @@ func _ready() -> void:
 	_refresh_coach_text(SaveService.coach_done(profile.get("coach_done", null)))
 	add_child(MenuStyle.caption("VIBRATION"))
 	haptics_button = _button("Haptics", open_haptics, "vibrate")  # G2f
+	if PlatformServices.new().is_pc():
+		_build_graphics(profile)
 	UiScale.apply_to(self)
+
+
+## W1a: the GRAPHICS caption and rows (see graphics_built).
+func _build_graphics(profile: Dictionary) -> void:
+	graphics_built = true
+	graphics_quality = SaveService.graphics_quality(profile.get("graphics_quality", null))
+	frame_cap = SaveService.frame_cap(profile.get("frame_cap", null))
+	fov = SaveService.fov(profile.get("fov", null))
+	render_scale = SaveService.render_scale(profile.get("render_scale", null))
+	var advanced := show_advanced_graphics()
+	add_child(MenuStyle.caption("GRAPHICS"))
+	quality_button = _button("", cycle_quality, "gear")
+	frame_cap_button = _button("", cycle_frame_cap, "gear")
+	fov_button = _button("", cycle_fov, "crosshair")
+	fov_button.visible = advanced
+	var r: Dictionary = GraphicsPresets.config().get("render_scale", {})
+	render_scale_label = Label.new()
+	render_scale_label.visible = advanced
+	add_child(render_scale_label)
+	render_scale_slider = HSlider.new()
+	render_scale_slider.min_value = float(r.get("min", 0.5))
+	render_scale_slider.max_value = float(r.get("max", 1.0))
+	render_scale_slider.step = float(r.get("step", 0.05))
+	render_scale_slider.custom_minimum_size = Vector2(0, 48.0 * PlatformServices.new().get_dp_scale())
+	render_scale_slider.value = render_scale
+	render_scale_slider.visible = advanced
+	render_scale_slider.value_changed.connect(_on_render_scale_changed)
+	add_child(render_scale_slider)
+	_refresh_graphics_text()
+
+
+## W1a (OQ-WEB-GFX-ADVANCED): data/graphics_presets.json show_advanced_graphics.
+static func show_advanced_graphics() -> bool:
+	return GraphicsPresets.config().get("show_advanced_graphics", false) == true
+
+
+## The frame caps the row cycles through: data frame_caps, plus advanced_frame_caps when the advanced rows show.
+static func frame_cap_choices() -> Array:
+	var cfg := GraphicsPresets.config()
+	var out: Array = []
+	for cap: Variant in Array(cfg.get("frame_caps", [])) + (Array(cfg.get("advanced_frame_caps", [])) if show_advanced_graphics() else []):
+		out.append(int(cap))
+	return out
+
+
+## The Field of view row's choices: "" (Auto), then data/camera.json fov_setting min_deg .. max_deg by step_deg.
+static func fov_choices() -> Array:
+	var r: Dictionary = DataRegistry.new().get_camera_cfg().get("fov_setting", {})
+	var out: Array = [""]
+	var v := float(r.get("min_deg", 60.0))
+	while v <= float(r.get("max_deg", 95.0)) + 0.001:
+		out.append(v)
+		v += maxf(float(r.get("step_deg", 5.0)), 1.0)
+	return out
+
+
+## Quality: Auto -> Low -> Medium -> High -> Auto (data quality_levels).
+func cycle_quality() -> void:
+	var ids := GraphicsPresets.quality_ids()
+	graphics_quality = str(ids[(ids.find(graphics_quality) + 1) % ids.size()])
+	_graphics_changed()
+
+
+func cycle_frame_cap() -> void:
+	var caps := frame_cap_choices()
+	frame_cap = int(caps[(caps.find(frame_cap) + 1) % caps.size()])
+	_graphics_changed()
+
+
+func cycle_fov() -> void:
+	var choices := fov_choices()
+	var at := -1
+	for i in choices.size():
+		if (choices[i] is String and fov is String) or (choices[i] is float and fov is float and is_equal_approx(choices[i], fov)):
+			at = i
+	fov = choices[(at + 1) % choices.size()]
+	_graphics_changed()
+
+
+func _on_render_scale_changed(v: float) -> void:
+	render_scale = v
+	_graphics_changed()
+
+
+## Saves, then applies at once: the preset, frame cap and render scale (GraphicsPresets.apply_settings) and the
+## Field of view on every live camera rig (CameraRig.GROUP).
+func _graphics_changed() -> void:
+	_refresh_graphics_text()
+	persist()
+	GraphicsPresets.new().apply_settings(AppFlow.profile, get_viewport(), true)
+	if is_inside_tree():
+		get_tree().call_group(CameraRig.GROUP, "apply_fov")
+
+
+func _refresh_graphics_text() -> void:
+	var label := "Auto"
+	for level: Variant in GraphicsPresets.config().get("quality_levels", []):
+		if level is Dictionary and str((level as Dictionary).get("id", "")) == graphics_quality:
+			label = str((level as Dictionary).get("label", label))
+	quality_button.text = "Quality: %s" % label
+	frame_cap_button.text = "Frame cap: %s" % ("Unlimited" if frame_cap == 0 else "%d fps" % frame_cap)
+	fov_button.text = "Field of view: %s" % ("Auto" if fov is String else "%d" % roundi(float(fov)))
+	render_scale_label.text = "Render scale: %d%%" % roundi(render_scale * 100.0)
 
 
 ## A list row with its icon (docs/UI_STYLE.md 8).
@@ -281,9 +400,12 @@ func _refresh_sprint_text() -> void:
 
 ## The profile keys this panel owns.
 func fields() -> Dictionary:
-	return {"move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
+	var out := {"move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
 			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos,
 			"left_fire_enabled": left_fire_enabled, "shooting_mode": shooting_mode, "minimap_rotate": minimap_rotate}
+	if graphics_built:  # W1a: only where the GRAPHICS rows exist; elsewhere the stored values are kept
+		out.merge({"graphics_quality": graphics_quality, "frame_cap": frame_cap, "render_scale": render_scale, "fov": fov}, true)
+	return out
 
 
 ## Writes the stored profile + the host screen's extra keys + this panel's keys, then reloads AppFlow.profile.

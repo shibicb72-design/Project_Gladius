@@ -40,6 +40,24 @@ uniform float horizon_haze = 0.0;
 uniform float horizon_haze_width = 0.08;
 uniform vec3 horizon_haze_color : source_color = vec3(0.8, 0.78, 0.74);
 uniform vec3 horizon_haze_sun_color : source_color = vec3(0.95, 0.85, 0.7);
+
+// W1a: the Compatibility renderer (WebGL 2) works in sRGB space: the source_color uniforms above arrive unconverted
+// and COLOR is taken as sRGB (OUTPUT_IS_SRGB). The sky adds small linear energies (stars, the halo's wide term,
+// the moon's glow), which then stayed near black on the web. There, LIN() turns each colour to linear, the sky is
+// mixed exactly as on Mobile, and the result goes back to sRGB at the end. Mobile and Forward+ compile LIN(c) as
+// (c) and write COLOR = color, unchanged.
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+vec3 w1a_to_linear(vec3 c) {
+	return mix(pow((c + vec3(0.055)) * (1.0 / 1.055), vec3(2.4)), c * (1.0 / 12.92), lessThan(c, vec3(0.04045)));
+}
+vec3 w1a_to_srgb(vec3 c) {
+	c = max(c, vec3(0.0));
+	return mix(vec3(1.055) * pow(c, vec3(1.0 / 2.4)) - vec3(0.055), c * 12.92, lessThan(c, vec3(0.0031308)));
+}
+#define LIN(c) w1a_to_linear(c)
+#else
+#define LIN(c) (c)
+#endif
 // M2W1 astraB (optional; 0 = the S1 cloud light). The S1 clouds take the sun's side from the azimuth alone, so every
 // thin cloud in the sun's compass direction is lit at any height: a vertical glow column through the sun. At 1 the
 // clouds take it from the angle to the sun (a round warm area round the sun) and the light is capped at 1.
@@ -55,8 +73,8 @@ void sky() {
 	float towards = dot(dir, sun_dir);
 	float side = pow(clamp(dot(normalize(dir.xz + vec2(0.0001)), normalize(sun_dir.xz + vec2(0.0001))) * 0.5 + 0.5, 0.0, 1.0), sun_spread);
 	float low = pow(1.0 - clamp(up, 0.0, 1.0), horizon_power);
-	vec3 horizon = mix(horizon_color, horizon_sun_color, side);
-	vec3 color = mix(zenith_color, horizon, low);
+	vec3 horizon = mix(LIN(horizon_color), LIN(horizon_sun_color), side);
+	vec3 color = mix(LIN(zenith_color), horizon, low);
 	// Stars before the clouds, so clouds cover them.
 	if (star_energy > 0.0) {
 		vec2 suv = dir.xz / (abs(up) + 0.35) * 1.7;
@@ -64,14 +82,14 @@ void sky() {
 		color += vec3(0.85, 0.9, 1.0) * star * star_energy * smoothstep(0.02, 0.4, up);
 	}
 	float halo = pow(max(towards, 0.0), 48.0) * sun_halo + pow(max(towards, 0.0), 6.0) * sun_halo * sun_halo_wide;
-	color += sun_color * halo;
+	color += LIN(sun_color) * halo;
 	float cloud_side = mix(side, pow(clamp(towards * 0.5 + 0.5, 0.0, 1.0), cloud_sun_spread), cloud_sun_3d);
 	float cloud = 0.0;
 	if (up > 0.0 && cloud2_cover > 0.0) {
 		vec2 uv2 = dir.xz / (up + 0.25) * cloud2_scale * vec2(1.0, cloud2_stretch) + cloud2_offset;
 		float n2 = texture(noise_pack, uv2).g * 0.7 + texture(noise_pack, uv2 * vec2(3.1, 1.3) + 0.53).r * 0.3;
 		float streak = smoothstep(1.0 - cloud2_cover, 1.0 - cloud2_cover + 0.28, n2) * smoothstep(0.03, 0.3, up);
-		vec3 streak_color = mix(cloud2_color * 0.82, cloud2_color, cloud_side);
+		vec3 streak_color = mix(LIN(cloud2_color) * 0.82, LIN(cloud2_color), cloud_side);
 		color = mix(color, mix(streak_color, horizon, low * 0.6), streak * cloud2_opacity);
 	}
 	if (up > 0.0) {
@@ -88,21 +106,25 @@ void sky() {
 			float facing_sun = clamp((n0 - n_sun) * cloud_light_gain + 0.5, 0.0, 1.0);
 			lit = mix(lit, lit * (0.35 + 1.3 * facing_sun), cloud_light_mix);
 		}
-		vec3 cloud_color = mix(cloud_dark_color, cloud_lit_color, lit);
+		vec3 cloud_color = mix(LIN(cloud_dark_color), LIN(cloud_lit_color), lit);
 		// Bases: the thick part of a cloud, seen from below, goes to the base colour.
-		cloud_color = mix(cloud_color, cloud_base_color, core * cloud_base * (1.0 - 0.5 * cloud_side));
+		cloud_color = mix(cloud_color, LIN(cloud_base_color), core * cloud_base * (1.0 - 0.5 * cloud_side));
 		cloud_color = mix(cloud_color, horizon, low * 0.75);
 		color = mix(color, cloud_color, cloud);
 	}
 	if (!AT_CUBEMAP_PASS) {
 		float edge = cos(radians(sun_size_deg));
 		float disc = smoothstep(edge, mix(edge, 1.0, 0.3), towards);
-		color += sun_color * sun_energy * disc * (1.0 - cloud * 0.85);
+		color += LIN(sun_color) * sun_energy * disc * (1.0 - cloud * 0.85);
 	}
-	color = mix(color, ground_color, smoothstep(0.0, -0.12, up));
+	color = mix(color, LIN(ground_color), smoothstep(0.0, -0.12, up));
 	if (horizon_haze > 0.0) {
 		float band = exp(-abs(up) / max(horizon_haze_width, 0.001));
-		color = mix(color, mix(horizon_haze_color, horizon_haze_sun_color, side), band * horizon_haze);
+		color = mix(color, mix(LIN(horizon_haze_color), LIN(horizon_haze_sun_color), side), band * horizon_haze);
 	}
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	COLOR = w1a_to_srgb(color);
+#else
 	COLOR = color;
+#endif
 }

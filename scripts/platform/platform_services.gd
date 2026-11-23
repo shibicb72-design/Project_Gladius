@@ -67,6 +67,22 @@ func is_web() -> bool:
 	return simulate_web or OS.has_feature("web")
 
 
+## Tool/test hook (W1a): makes is_pc() true, also in a headless run, so the PC graphics presets and Settings rows can be
+## exercised in tests. Never set in shipping code.
+static var simulate_pc: bool = false
+
+
+## W1a: true on a PC: a browser (any web export, also a touch laptop or a phone's browser) or a desktop OS. Decides
+## by platform, never by touchscreen. A headless run (tests, tools, a dedicated server) is never a PC, so it keeps
+## the "default" graphics preset and today's Settings rows; simulate_pc forces true.
+func is_pc() -> bool:
+	if simulate_pc:
+		return true
+	if DisplayServer.get_name() == "headless":
+		return false
+	return is_web() or OS.get_name() in ["Windows", "macOS", "Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD"]
+
+
 ## W0: whether this platform can host or join a LAN game (ENet). False in the browser until the relay (slice W2).
 func can_lan() -> bool:
 	return not is_web()
