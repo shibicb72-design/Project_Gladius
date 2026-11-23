@@ -41,7 +41,13 @@ func build(parent: Node, director: MatchDirector, slots: Array, local_peer: int,
 		pawn.class_id = str(s["class_id"])
 		pawn.squad_id = int(s["squad_id"])
 		pawn.name = ("Bot%d" if is_bot else "Player%d") % int(s["player_id"])
-		pawn.set_meta("armour_set", SoldierRig.cosmetics()["bot_armour_set"] if is_bot else SoldierRig.armour_set_id((AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()).get("armour_set")) if i == local_i else "legionary")
+		var armour_set := "legionary"
+		if is_bot:
+			armour_set = SoldierRig.armour_set_id(SoldierRig.cosmetics().get("bot_armour_set"))
+		elif i == local_i:
+			var prof: Dictionary = AppFlow.profile if not AppFlow.profile.is_empty() else SaveService.new().load_profile()
+			armour_set = SoldierRig.armour_set_id(prof.get("armour_set"))
+		pawn.set_meta("armour_set", armour_set)
 		parent.add_child(pawn)
 		director.add_player(int(s["player_id"]), pawn)
 		if is_bot:
