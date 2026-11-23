@@ -12,6 +12,9 @@ const CLASSES: Array[String] = ["hastati", "sagittarii"]
 
 var state := LobbyState.new()
 var match_seed: int = 0
+## W0: Play solo (NetSession.start_offline). The lobby is a local host: is_host() is true, nothing is broadcast and
+## start_match() starts locally without the _start_match RPC. No protocol change: LAN peers never see a solo lobby.
+var solo: bool = false
 
 var _session: NetSession
 
@@ -31,7 +34,7 @@ func local_id() -> int:
 
 func is_host() -> bool:
 	# Unique id 1 is always the server; this also makes an offline (no peer) session a solo host.
-	return _session != null and (_session.is_host or local_id() == 1)
+	return solo or (_session != null and (_session.is_host or local_id() == 1))
 
 
 ## Host only: sets up the lobby and adds the host's own entry.
@@ -74,7 +77,10 @@ func start_match() -> bool:
 	if not is_host() or not state.start():
 		return false
 	match_seed = randi()
-	_start_match.rpc(state.to_dict(), match_seed)
+	if solo:
+		_enter_match(state.to_dict(), match_seed)  # W0: local start, no RPC
+	else:
+		_start_match.rpc(state.to_dict(), match_seed)
 	return true
 
 
@@ -97,6 +103,11 @@ func _sync_state(d: Dictionary) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func _start_match(d: Dictionary, seed_value: int) -> void:
+	_enter_match(d, seed_value)
+
+
+## Every peer (the RPC above) and the solo lobby (start_match, called directly): the match state, then match_starting.
+func _enter_match(d: Dictionary, seed_value: int) -> void:
 	state = LobbyState.from_dict(d)
 	match_seed = seed_value
 	AppFlow.lobby = state
@@ -124,7 +135,7 @@ func _clean_name(player_name: String) -> String:
 
 
 func _broadcast() -> void:
-	if is_host():
+	if is_host() and not solo:  # W0: a solo lobby has nobody to tell
 		_sync_state.rpc(state.to_dict())
 
 

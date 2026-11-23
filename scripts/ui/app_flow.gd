@@ -17,6 +17,12 @@ static var profile: Dictionary = {}
 ## GameHud.bind, which shows the first-play coach when it is set and the profile's coach_done is not. Tests, sims and
 ## capture tools start matches without it (MatchRoot.auto_start / use_map_select do not set it).
 static var coach_route: bool = false
+## W0 (binding fix 1): the explicit "Play solo" flag. Set ONLY by the main menu's Play solo button; cleared by
+## end_session() and by Host / Join. While it is set the lobby is a local host with no network (NetSession.start_offline,
+## no ENet peer, no lobby RPCs) and MatchRoot plays the match offline (networked_match false, no bridge, the tree
+## pauses in the menu). An explicit flag, not a peer test: the lobby always creates a session and the default
+## OfflineMultiplayerPeer reports unique id 1, so sniffing the peer would call solo networked (docs/ARCHITECTURE.md).
+static var solo: bool = false
 
 
 ## Returns the persistent session, creating it under the tree root on first use.
@@ -36,6 +42,7 @@ static func end_session() -> void:
 	lobby = null
 	match_seed = 0
 	coach_route = false
+	solo = false
 
 
 ## M2 H1b commit 5: reads the real-match flag and clears it (one match per lobby start).

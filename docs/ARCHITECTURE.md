@@ -566,6 +566,32 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   MatchDirector is authority with zero local players. Because rules are pure and presentation only
   listens, no rules code changes.
 
+#### W0: Play solo without a network (web milestone, Nov 22 2026)
+- The main menu's first button, **Play solo** (`MainMenu._on_solo`), sets the explicit flag `AppFlow.solo` and opens
+  the same lobby screen. The flag is cleared by `AppFlow.end_session()` (every Back, quit, result-screen Menu and lost
+  host goes through it) and by Host and Join.
+- `Lobby._ready` sees the flag and calls `NetSession.start_offline()`: any network peer is dropped and the session's
+  multiplayer gets an `OfflineMultiplayerPeer` (unique id 1, so the host entry is id 1 as on a real host). No
+  `ENetMultiplayerPeer` is ever created (`host_game` / `join_game` are never called). `NetSession.solo` and
+  `NetLobby.solo` are set with it.
+- The lobby acts as host locally (`Lobby.is_host = session.is_host or solo`): team mode, match length, bot difficulty
+  and Start all show and work, the header says "Solo, offline" instead of IPs, and the client branch (`submit_local`
+  to the host) never runs. `NetLobby` with `solo` is host (`is_host()`), skips every broadcast RPC, and `start_match()`
+  calls the shared `_enter_match` directly instead of `_start_match.rpc` (no protocol change: the RPC still calls the
+  same body on LAN peers).
+- `MatchRoot.begin`: `networked = local_peer != 0 and not solo_match`, where `solo_match` is `AppFlow.solo` or the
+  session's `solo`. Solo therefore takes the lobby branch (roster, the lobby's team mode, length and bot difficulty)
+  with `networked_match == false`, no `NetMatchBridge` wired and the director authoritative; the pause menu pauses the
+  tree as offline always did. Only the flag changes the rule: a Host with no client is still a networked match
+  (tests/test_h1c_cover_button.gd).
+- **Why an explicit flag, not a peer trick:** the lobby always creates a session (`AppFlow.ensure_session`) and the
+  tree's default `OfflineMultiplayerPeer` reports unique id 1, which is exactly what a real host reports. Sniffing the
+  peer would therefore call solo networked (bridge wired, no tree pause), and a "no session" lobby would need a second
+  lobby code path. One flag, set in one place and cleared in the two places that end it, keeps the LAN path unchanged.
+- **Web:** `PlatformServices.is_web()` (`OS.has_feature("web")`, test hook `simulate_web`) and `can_lan()` decide
+  whether Host and Join are enabled. In a browser (no ENet) they are disabled with the note "LAN in the browser comes
+  later" instead of failing; the LAN relay is slice W2. Tests: tests/test_w0_solo.gd.
+
 ### 4.18 Graphics quality
 - Renderer: Mobile (Vulkan) project-wide. Compatibility only as a per-platform override (e.g. web).
 - `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap 60/120, LOD). Applied

@@ -197,7 +197,10 @@ func begin() -> bool:
 	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
 		session = AppFlow.session
 	var local_peer := session.get_unique_id() if session != null else 0
-	var networked := local_peer != 0
+	# W0 (binding fix 1): Play solo is offline by its explicit flag, whatever the peer reports (the default
+	# OfflineMultiplayerPeer says id 1). Only the flag changes the rule: a Host with no client stays networked.
+	var solo_match := AppFlow.solo or (session != null and session.solo)
+	var networked := local_peer != 0 and not solo_match
 	networked_match = networked
 	director.authoritative = not networked or session.is_host
 	if lobby != null:

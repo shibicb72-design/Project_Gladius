@@ -16,6 +16,9 @@ const MATCH_PATH := "res://data/match.json"
 var isolated: bool = false
 var cfg: Dictionary = {}
 var is_host: bool = false
+## W0: a local, offline session (Play solo, AppFlow.solo). No ENet peer; the lobby acts as host without RPCs. Set by
+## start_offline(), cleared by host_game / join_game / leave.
+var solo: bool = false
 var lobby: NetLobby
 var bridge: NetMatchBridge
 
@@ -59,8 +62,21 @@ func get_port() -> int:
 	return int(cfg.get("port", 7777))
 
 
+## W0: Play solo. Drops any network peer and puts an OfflineMultiplayerPeer on this session's multiplayer (unique id 1,
+## so the lobby's host entry is id 1 as on a real host) without creating any ENet peer. is_host stays false: it means
+## "hosts an ENet server". The lobby reads `solo` for its host controls and local start.
+func start_offline() -> void:
+	leave()
+	if _mp != null:
+		_mp.multiplayer_peer = OfflineMultiplayerPeer.new()
+	solo = true
+	if lobby != null:
+		lobby.solo = true
+
+
 ## Returns OK or an Error code.
 func host_game(port: int = -1) -> int:
+	_set_solo(false)
 	_peer = ENetMultiplayerPeer.new()
 	var err := _peer.create_server(port if port > 0 else get_port(), max_clients())
 	if err != OK:
@@ -73,6 +89,7 @@ func host_game(port: int = -1) -> int:
 
 ## Starts connecting; `connected` or `failed` fires later (failure includes the timeout).
 func join_game(address: String, port: int = -1) -> int:
+	_set_solo(false)
 	_peer = ENetMultiplayerPeer.new()
 	var err := _peer.create_client(address, port if port > 0 else get_port())
 	if err != OK:
@@ -92,6 +109,18 @@ func leave() -> void:
 		_mp.multiplayer_peer = null
 	_peer = null
 	is_host = false
+	_set_solo(false)
+
+
+func _set_solo(on: bool) -> void:
+	solo = on
+	if lobby != null:
+		lobby.solo = on
+
+
+## True when this session holds an ENet peer (host or client). Tests use it to check solo never makes one.
+func has_enet_peer() -> bool:
+	return _peer != null or (_mp != null and _mp.multiplayer_peer is ENetMultiplayerPeer)
 
 
 func get_unique_id() -> int:

@@ -1,6 +1,7 @@
 class_name MainMenu
 extends Control
-## Main menu: Host, Join (manual IP, OQ-41), gamertag (OQ-39). Later-milestone entries are shown disabled.
+## Main menu: Play solo (W0, no network), Host, Join (manual IP, OQ-41), gamertag (OQ-39). Later-milestone entries are
+## shown disabled. In a web build Host and Join are disabled with a note (PlatformServices.can_lan()).
 ## Two pages (docs/UI_STYLE.md 5): HOME (logo left, action card right) and SETTINGS (the shared panel in a
 ## centred column under a Back header). Both pages sit on the code-drawn backdrop.
 
@@ -10,6 +11,8 @@ const LATER_ENTRIES: Array[String] = ["Loadout", "Profile", "Shop", "Tutorials"]
 ## the same numbers, so they cannot drift. The boot screen mirrors this layout (scripts/ui/boot.gd).
 const HERO_RATIO := 1.3
 const CARD_RATIO := 1.0
+## W0: the note under Host / Join in a web build (LAN in the browser is slice W2).
+const LAN_LATER_NOTE := "LAN in the browser comes later"
 
 const _SettingsScene := preload("res://scenes/ui/settings_panel.tscn")
 
@@ -28,8 +31,14 @@ var scroll: ScrollContainer
 var name_edit: LineEdit
 var ip_edit: LineEdit
 var status_label: Label
+## W0: the first, largest button: a local match with bots, no network (AppFlow.solo).
+var solo_button: Button
 var host_button: Button
 var join_button: Button
+## W0: shown under Join when LAN is unavailable here (the browser); hidden otherwise.
+var lan_note: Label
+## Test hook (W0): when valid, Play solo calls go_scene.call(scene_path) instead of AppFlow.go.
+var go_scene: Callable
 var settings_button: Button
 ## The settings page, drawn over the home page with its own dimmed backdrop. Built in _ready (Host and Join
 ## persist through the panel), shown by open_settings().
@@ -133,9 +142,15 @@ func _build_card(parent: Control, profile: Dictionary) -> void:
 	name_edit.placeholder_text = "Gamertag"
 	name_edit.text = str(profile["gamertag"])
 	box.add_child(name_edit)
-	host_button = _button(box, "Host", _on_host)
-	MenuStyle.primary(host_button)  # the screen's one crimson control; before add_icon (picks the Icon twin)
-	MenuStyle.add_icon(host_button, "standard")
+	# W0: Play solo is the first and largest button and the screen's one crimson control; Host is a normal button.
+	solo_button = _button(box, "Play solo", _on_solo)
+	MenuStyle.primary(solo_button)  # before add_icon (picks the Icon twin)
+	MenuStyle.add_icon(solo_button, "play")
+	# Wraps rather than pinning its title-size text width: on a near-square canvas (the Fold's inner screen, a square
+	# browser window) the pinned width would push the card past its share and squeeze the hero column. On 16:9 it
+	# stays one line.
+	solo_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	host_button = _button(box, "Host", _on_host, "standard")
 	box.add_child(MenuStyle.caption("HOST IP"))
 	var join_row := HFlowContainer.new()
 	MenuStyle.gap(join_row, 1.5)
@@ -148,6 +163,14 @@ func _build_card(parent: Control, profile: Dictionary) -> void:
 	join_row.add_child(ip_edit)
 	join_button = _button(join_row, "Join", _on_join, "enter")
 	join_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# W0: in the browser there is no ENet, so Host and Join are disabled with a short note instead of failing.
+	lan_note = Label.new()
+	lan_note.name = "LanNote"
+	lan_note.text = LAN_LATER_NOTE
+	lan_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lan_note.theme_type_variation = &"CaptionLabel"
+	box.add_child(lan_note)
+	apply_lan_availability()
 	box.add_child(HSeparator.new())
 	settings_button = _button(box, "Settings", open_settings, "gear")
 	# A grid, not a flow: a flow wraps 1 / 2 / 1. Two columns when two of the widest fit, else one.
@@ -285,7 +308,33 @@ func _save_profile() -> void:
 	settings.persist()
 
 
+## W0: Host and Join enabled only where LAN works (not in the browser); the note shows where it does not.
+## Re-run by tests after flipping PlatformServices.simulate_web.
+func apply_lan_availability() -> void:
+	var lan := PlatformServices.new().can_lan()
+	host_button.disabled = not lan
+	join_button.disabled = not lan
+	ip_edit.editable = lan
+	lan_note.visible = not lan
+
+
+## W0: Play solo. Sets the solo flag and opens the same lobby screen, which goes offline (no ENet peer).
+func _on_solo() -> void:
+	_save_profile()
+	if AppFlow.session != null and is_instance_valid(AppFlow.session):
+		AppFlow.end_session()  # a stale LAN session must not carry into solo
+	AppFlow.solo = true
+	if go_scene.is_valid():
+		go_scene.call(AppFlow.LOBBY_SCENE)
+	else:
+		AppFlow.go(get_tree(), AppFlow.LOBBY_SCENE)
+
+
 func _on_host() -> void:
+	AppFlow.solo = false
+	if not PlatformServices.new().can_lan():
+		status_label.text = LAN_LATER_NOTE
+		return
 	_save_profile()
 	var session := AppFlow.ensure_session(get_tree())
 	var err := session.host_game()
@@ -297,6 +346,10 @@ func _on_host() -> void:
 
 
 func _on_join() -> void:
+	AppFlow.solo = false
+	if not PlatformServices.new().can_lan():
+		status_label.text = LAN_LATER_NOTE
+		return
 	_save_profile()
 	var address := str(AppFlow.profile["last_ip"])
 	if address.is_empty():
