@@ -613,7 +613,9 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
 
 ### 4.17 Networking (host authority)
 - Transport: `ENetMultiplayerPeer` + Godot high-level multiplayer (RPCs, MultiplayerSpawner/
-  Synchronizer). No Android-only APIs, so PC/iOS clients can join later. Config in `net.json`.
+  Synchronizer) is the default everywhere (desktop, tests, sims, tools). In a browser page served by the home-network
+  relay the same session uses `WebRTCMultiplayerPeer` instead (W2, below). The RPCs are the same on both. No
+  Android-only APIs, so PC/iOS clients can join later. Config in `net.json`.
 - Roles: the host is server + a local player (peer 1). Clients:
   - send `InputFrame`s (unreliable_ordered)
   - send fire requests with origin, direction, weapon id and client tick (reliable)
@@ -632,7 +634,7 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   it and broadcasts changes. `match_length` (M2 Z2) is one field of that payload: the host's match length
   id, sent with every sync and with the start, so every peer stretches its own zone clock alike. The zone
   state itself is still not replicated (M3).
-- Discovery: manual IP in milestone 1 (OQ-41). A later UDP-broadcast discoverer plugs into
+- Discovery: manual IP in milestone 1 (OQ-41); in the browser (W2) no IP is typed, the relay's room is the host. A later UDP-broadcast discoverer plugs into
   NetSession, and needs a platform hook for an Android multicast lock if multicast is used.
 - Dedicated server later: the same project runs `--headless` with a server boot scene. Its
   MatchDirector is authority with zero local players. Because rules are pure and presentation only
@@ -661,8 +663,82 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   peer would therefore call solo networked (bridge wired, no tree pause), and a "no session" lobby would need a second
   lobby code path. One flag, set in one place and cleared in the two places that end it, keeps the LAN path unchanged.
 - **Web:** `PlatformServices.is_web()` (`OS.has_feature("web")`, test hook `simulate_web`) and `can_lan()` decide
-  whether Host and Join are enabled. In a browser (no ENet) they are disabled with the note "LAN in the browser comes
-  later" instead of failing; the LAN relay is slice W2. Tests: tests/test_w0_solo.gd.
+  whether Host and Join are enabled. In a browser (no ENet) without the LAN relay they are disabled with the note
+  "LAN in the browser comes later" instead of failing; with the relay (slice W2, next section) they work.
+  Tests: tests/test_w0_solo.gd.
+
+#### W2: LAN in the browser (WebRTC through a home-network relay)
+- **Decision (Shibi, Nov 22 2026):** the PC browser is the only target. Players play solo with bots, or on LAN through
+  a relay that runs only on the home network. Nothing goes online: no internet servers, no relay servers outside the
+  home, no accounts, no analytics.
+- **Transport seam.** `NetSession.transport` is `"enet"` (default) or `"webrtc"`. It is an explicit choice made by the
+  main menu: WebRTC only when the page is in a browser AND the relay answered `/lan.json` (`PlatformServices.uses_relay()`),
+  never `is_web()` alone. Desktop, the headless tests, the sims and the tools stay on ENet. In WebRTC mode the session
+  uses `WebRTCMultiplayerPeer` in server-compatible mode. The hosting browser is peer 1 and the authority, exactly like
+  the ENet host. Every RPC is unchanged (`net_match_bridge.gd` is untouched) and the unreliable and unreliable_ordered
+  modes are kept (snapshots 15 Hz, input 30 Hz, `net.json`).
+- **Why WebRTC and not WebSocket.** A browser cannot open ENet (UDP) sockets. A WebSocket is TCP only: reliable and
+  ordered, so one lost packet stalls everything behind it, and all game traffic would pass through the relay. WebRTC
+  data channels give the unreliable modes directly between the browsers, so the relay carries only signaling.
+- **The relay (`tools/lan/`).** `gladius_lan.mjs` (Node built-ins plus the MIT `ws` package 8.23.0, loaded from
+  `C:\Users\shibi\cc_gladius\webtools`, env `GLADIUS_WEBTOOLS`; never in the repo). It serves the web build and one
+  room. It has two listeners, and the reason is the browser, not taste:
+  - A page on `http://<LAN IP>` is not a secure context. The Godot web export refuses to start there ("Secure Context"
+    check), and its audio needs `AudioWorklet`, which exists only on secure pages [measured, W2 spike, Chrome 157].
+  - So guests use HTTPS on `<bind>:<port>` (default 0.0.0.0:47443) with a self-signed certificate that the relay makes
+    itself with Node built-ins (`self_signed.mjs`, EC P-256, no openssl; stored in `build/lan_cert`, reused while valid).
+    It covers this PC's LAN IPv4 addresses, 127.0.0.1 and localhost.
+  - The host's own browser uses plain `http://127.0.0.1:<host_port>` (default 47480, loopback only; localhost is a
+    secure context, so no warning).
+  - `GET /lan.json` answers `{"lan": true, "proto": 1, "urls": [...], "max_peers": 8}` (`no-store`). A page from any
+    other server gets a 404 or a non-JSON answer there, which means "no LAN".
+  - `/signal` is the WebSocket path. The upgrade is refused (403) unless the `Origin` host:port equals the `Host`
+    header. One room at a time, at most `max_peers` (8) sockets, the host included. The relay assigns the ids: host 1,
+    guests 2 and up (never reused while the room lives).
+  - Messages (text JSON, every field required, extras refused; the table is `tools/lan/lan_protocol.mjs`, mirrored by
+    `scripts/net/net_signaling.gd`): client to relay `host`, `join`, `offer`, `answer`, `candidate`; relay to client
+    `id`, `peer_joined`, forwarded `offer` / `answer` / `candidate` (with `from`), `peer_left`, `room_full`,
+    `host_gone`, `error` (`bad_message`, `too_large`, `no_host`, `host_exists`, `not_in_room`, `bad_target`).
+  - Size cap 16384 bytes per message (`lan_relay.max_message_bytes`). The relay never logs or stores message contents;
+    it only counts connections, drops and forwards.
+- **No internet.** The ICE config is exactly `{"iceServers": []}` (`NetSession.ICE_CONFIG`, asserted in
+  tests/test_w2_signaling.gd). There are no STUN or TURN servers, so only LAN host candidates are used. A repo scan test
+  (same file) fails if any file contains an outside ICE server URL. The relay makes no outbound connection.
+- **Flow.** Host: the menu's Host starts a WebRTC session; the relay answers `id` 1; the session creates the server and
+  emits `host_ready(urls)`; the menu opens the lobby, which shows "Players join at ..." with the relay's join URLs.
+  Guest: Join (no IP typed) opens the socket, sends `join`, gets `id` N, creates the client, makes the connection for
+  peer 1 and sends the `offer` (the guest offers; measured to work in the spike). The host answers, both sides
+  exchange `candidate` messages, and `connected_to_server` fires. `add_peer` is called before the offer / remote
+  description, as Godot needs.
+- **Failures** (`NetSession.last_error`, shown by `MainMenu.lan_error_text`): `relay_unreachable`, `relay_lost`,
+  `bad_relay` give "Relay not reachable"; `host_exists` gives "A game is already hosted"; `room_full` gives "Room full";
+  `no_host` gives "No game is hosted yet"; `host_left` gives "Host left"; `connection_failed` gives "Could not connect";
+  `timeout` gives "Could not connect" when joining and "Relay not reachable" when hosting (`connect_timeout_s`, 5 s).
+- **Host lost.** The relay sends `host_gone` to every guest, which gives a near-instant "Host left". Without it the
+  browsers' own timeout took about 7 s [measured, spike]. A guest that leaves: the relay sends `peer_left` and the host
+  removes the peer at once instead of waiting for that timeout. If the relay itself stops, a running host keeps its
+  connected guests; only new joins need it.
+- **Relay detection.** `PlatformServices.start_relay_probe` asks the page's own origin for `/lan.json` once per page
+  load (an `HTTPRequest`, 5 s timeout). It is asynchronous and injectable (`set_relay_info`); "web without a relay" is
+  the default until an accepted answer (`lan` true, `proto` 1) arrives, and `relay_events.changed` makes the menu
+  re-apply LAN availability. A page from `tools/web/serve.mjs` has no relay, so LAN stays off there.
+- **Debug-only pieces.** `NetDebugPing` is added to every session in every build (so RPC paths match on all peers) but
+  acts only in a debug web build: a guest sends an unreliable ping to the host, counts received snapshots, and prints
+  console markers (`GLADIUS_LAN_SNAPSHOTS`, `GLADIUS_LAN_PING`, `GLADIUS_LAN_HOST_READY`, `_CONNECTED`, `_ERROR`,
+  `_HOST_LOST`, `_PEER_JOINED`, `_PEER_LEFT`). `?autohost=1[&mode=solo|squads]` and `?autojoin=1` (`WebArgs.parse_lan`)
+  let the browser smoke press Host / Join and Start. Release builds ignore them.
+- **Tests.** tests/test_w2_signaling.gd: encode / decode / validate of the protocol, relay URL from the page location,
+  ICE config, the no-outside-server scan. tests/test_w2_session.gd: the transport seam, host, guest, errors, timeouts,
+  host_lost against an in-memory relay with fake peer connections (tests/w2_fakes.gd). tests/test_w2_menu.gd: relay
+  detection, `can_lan` rules, async Host / Join and messages, lobby join URLs, autohost / autojoin. tests/test_w2_debug_ping.gd:
+  the counters, median / max, markers, and a ping round trip over loopback ENet. Node tests in `tools/lan/test/`
+  cover the protocol table, the room, the certificate and the relay over real sockets. **Not covered headless:** real
+  WebRTC (a headless desktop build has no WebRTC library behind the peer connection, so tests use fakes). Only
+  `tools/web/lan_smoke.mjs` (two Chrome windows on one PC) exercises real WebRTC.
+- **Open risks.** Two physical PCs are untested [unknown]. Chrome offers only mDNS (".local") host candidates
+  [measured, this PC], so each PC must be able to resolve the other's name on the LAN; Wi-Fi client isolation or a
+  firewall blocking UDP would stop it. Guest PCs see a certificate warning (OQ-W2-HTTPS). If ICE fails between two
+  PCs there is deliberately no fallback: sending game traffic through the relay is Shibi's decision (OQ-W2-TWO-PC).
 
 ### 4.18 Graphics quality
 - Renderer: Mobile (Vulkan) project-wide. Compatibility only as a per-platform override (e.g. web).
