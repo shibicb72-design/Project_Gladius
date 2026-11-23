@@ -143,3 +143,34 @@ OQ-WEB-GFX-GLOW, OQ-WEB-GFX-DISC (docs/OPEN_QUESTIONS.md).
 Tools: `tools/parity_capture.gd` (Mobile / Compatibility captures and side-by-side sheets; `--left-dir`, `--right`,
 `--env` for before/after and A/B runs) and `tools/compat_probe.gd` (a row of quads per material under ambient, sun,
 omni and sky light, printing each renderer's pixel values).
+
+## PC graphics settings (W1a)
+
+A browser (and a desktop build) is a PC (`PlatformServices.is_pc()`, by platform, never by touchscreen; a headless run
+is not). On a PC Boot picks the saved Quality, or Auto = High ("pc_high", OQ-WEB-GFX-AUTO); anywhere else the
+"default" preset (Low) stays. Settings shows a GRAPHICS section on a PC only: Quality (Auto / Low / Medium / High) and
+Frame cap (60 / 120 fps). Field of view, Render scale (50-100 percent) and the 144 / Unlimited caps are built but hidden
+until `data/graphics_presets.json` `show_advanced_graphics` is true (OQ-WEB-GFX-ADVANCED). Every value is a placeholder
+for Shibi (OQ-WEB-GFX-PRESETS, -SHADOWS, -AA, -FPS, -SCALE; OQ-WEB-FOV; OQ-WEB-FAR).
+
+| Setting / key | Low (default) | Medium (pc_medium) | High (pc_high) | Applies | API |
+|---|---|---|---|---|---|
+| max_fps (preset) | 60 | 0 | 0 | live | Engine.max_fps |
+| frame_cap (profile, PC) | - | 60 default; 60/120 (+144/0) | same | live, replaces max_fps | Engine.max_fps |
+| vsync | (project: on) | on | on | live | DisplayServer.window_set_vsync_mode |
+| msaa_3d | 0 | 2 | 4 | live | Viewport.msaa_3d |
+| anisotropic_level | (project: 4x) | 4 | 8 | live | Viewport.anisotropic_filtering_level |
+| directional_shadow_size | (project: 4096) | 2048 | 4096 | live | RenderingServer.directional_shadow_atlas_set_size |
+| shadow_mode | (art_astra: orthogonal) | pssm2 | pssm4 | next match | DirectionalLight3D.directional_shadow_mode |
+| shadow_max_distance_m | (art_astra: 70) | 120 | 200 | next match | DirectionalLight3D.directional_shadow_max_distance |
+| scale_3d | 1.0 | 1.0 | 1.0 | live | Viewport.scaling_3d_scale |
+| render_scale (profile, PC) | - | 1.0 default; 0.5-1.0 | same | live, times scale_3d | Viewport.scaling_3d_scale |
+| fov (profile, PC) | - | "" (Auto) or 60-95 deg | same | live (CameraRig.GROUP) | CameraRig.base_fov |
+
+In a browser the frame is paced by requestAnimationFrame: vsync cannot be turned off there and whether Engine.max_fps
+caps anything is [unknown]; a later step measures it. Whether the Compatibility renderer honours each value (MSAA,
+anisotropy, PSSM splits, 3D scale) is [unknown] until the parity captures show it.
+
+The rig camera's far plane is `data/camera.json` `far_m` (4000 m, OQ-WEB-FAR): the 1 km map's far hill ring reaches
+3922 m from a ground corner (measured; tests/test_w1a_gfx_settings.gd prints `W1A_FAR`), so it cannot be shorter. Depth
+precision on WebGL 2's 24-bit buffer is set by the near plane (0.05 m), not the far one [inferred].

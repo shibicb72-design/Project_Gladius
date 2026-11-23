@@ -9,6 +9,9 @@ extends Node3D
 ## Path A phase 2: Kenney-style camera knockback on fire (CameraKnockback). It is view only: it turns the rig, but
 ## get_aim_point casts from the un-kicked camera, so shots, Hitscan and the host's aim check never see it.
 
+## W1a: every live rig joins this group, so Settings can re-apply the Field of view at once (apply_fov).
+const GROUP := &"camera_rigs"
+
 @onready var _arm: SpringArm3D = $SpringArm3D
 @onready var _camera: Camera3D = $SpringArm3D/Camera3D
 
@@ -88,6 +91,9 @@ func _ready() -> void:
 	knockback.configure(_cfg)
 	_apply_shoulder()
 	_ensure_aim_ray()
+	# W1a (OQ-WEB-FAR): the far plane from data (camera.json far_m), not the scene's default.
+	_camera.far = float(_cfg["far_m"]["value"])
+	add_to_group(GROUP)
 	get_viewport().size_changed.connect(apply_fov)
 	apply_fov()
 	# The first evaluation snaps, so a rig attached to a walking local pawn starts in first person (no blend).
@@ -467,12 +473,24 @@ func swap_shoulder() -> void:
 	set_shoulder_side("left" if shoulder_side == "right" else "right")
 
 
+## Sets base_fov: the player's Field of view setting on a PC (W1a, saved_fov), else the aspect table. The first-person
+## and aim multipliers apply on top (_apply_zoom). Settings calls it on every rig in GROUP after a change (live).
 func apply_fov() -> void:
 	var size := get_viewport().get_visible_rect().size
 	if size.y <= 0.0:
 		return
-	base_fov = fov_for_aspect(_cfg, size.x / size.y)
+	var chosen := saved_fov(AppFlow.profile, PlatformServices.new().is_pc())
+	base_fov = chosen if chosen > 0.0 else fov_for_aspect(_cfg, size.x / size.y)
 	_apply_zoom()
+
+
+## W1a (OQ-WEB-FOV): the profile's Field of view in degrees on a PC, or -1 for Auto (the aspect table): no setting,
+## an invalid one, or not a PC (headless runs included, PlatformServices.is_pc).
+static func saved_fov(profile: Dictionary, pc: bool) -> float:
+	if not pc:
+		return -1.0
+	var v: Variant = SaveService.fov(profile.get("fov", null))
+	return float(v) if v is float else -1.0
 
 
 ## Aim zoom + over-shoulder pivot: blend FOV and spring_length toward ADS values.

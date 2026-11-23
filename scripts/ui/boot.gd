@@ -1,6 +1,6 @@
 class_name Boot
 extends Control
-## Boot: applies the default graphics preset and the saved profile, shows the logo over the dusk backdrop for
+## Boot: loads the saved profile and applies the graphics preset it and the platform pick (W1a), shows the logo over the dusk backdrop for
 ## `menu_style.boot.hold_s` (OQ-UI-BOOT), then routes to the main menu. A tap skips the hold.
 ## Layout (docs/UI_STYLE.md): hero backdrop full-bleed; the logo sits where the main menu shows it (top of the left
 ## hero column inside the safe margin), so the cut to the menu only adds its card; no other text.
@@ -21,8 +21,11 @@ var _went: bool = false
 
 func _ready() -> void:
 	PlatformServices.new().log_display_info()
-	GraphicsPresets.new().apply("", get_viewport())
 	AppFlow.profile = SaveService.new().load_profile()
+	# W1a: the graphics preset by platform (GraphicsPresets.choose_id): on a PC the saved graphics_quality, else Auto
+	# (data auto_pc, "pc_high"), plus the player's frame cap and render scale; anywhere else, and in every headless run
+	# (PlatformServices.is_pc is false there), today's "default" preset alone.
+	GraphicsPresets.new().apply_settings(AppFlow.profile, get_viewport(), PlatformServices.new().is_pc())
 	theme = MenuStyle.THEME
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	# Nothing here takes the mouse, so a click or tap reaches _unhandled_input and skips the hold.

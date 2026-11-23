@@ -671,8 +671,23 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   (`renderer_block()`, `_apply_renderer_block()`; empty today, OQ-WEB-GFX-PARITY). The colour-space fixes live in the
   shaders behind `#if CURRENT_RENDERER == RENDERER_COMPATIBILITY` (W1A_LIN / W1A_OUT; docs/WEB.md "Look parity").
   tests/test_w1a_renderer_look.gd pins the Mobile look to tests/fixtures/w1a_mobile_look_golden.json.
-- `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap 60/120, LOD). Applied
-  at boot by a small `GraphicsSettings` helper; the profile stores the chosen preset.
+- `graphics_presets.json`: named presets (render scale, shadows, MSAA, fps cap, LOD), read by
+  `GraphicsPresets` (`scripts/systems/graphics_presets.gd`). W1a: quality levels are preset ids (Low = "default",
+  today's preset; Medium = "pc_medium"; High = "pc_high"). One preset is active per process (`GraphicsPresets.active_id`,
+  "" = the file default until set); `get_preset("")` returns it, then the tools' static `overrides` merge on top, so every
+  reader of the art_* / fx_* switches follows the choice. Boot calls `apply_settings(profile, viewport, is_pc)`:
+  `choose_id` = the saved `graphics_quality` on a PC (`PlatformServices.is_pc()`: a browser or a desktop OS, never a
+  headless run), else Auto = data `auto_pc` on a PC, else "default"; then on a PC the player's layer (`frame_cap`
+  replaces max_fps, `render_scale` multiplies scale_3d). LIVE keys (`apply()`): max_fps (Engine.max_fps), vsync
+  (DisplayServer.window_set_vsync_mode), msaa_3d / scale_3d / anisotropic_level (the Viewport), directional_shadow_size
+  (RenderingServer.directional_shadow_atlas_set_size). NEXT MATCH keys: shadow_mode, shadow_max_distance_m (read by
+  `GreyboxArt._apply_environment`). A preset without vsync / atlas / anisotropy (the "default" one) touches none of
+  them, except to put the project's value back after a PC preset (`GraphicsPresets.applied`). The PC-only Settings
+  rows (`SettingsPanel._build_graphics`: Quality, Frame cap; Field of view, Render scale and 144 / Unlimited behind
+  `show_advanced_graphics`) save the profile keys `graphics_quality`, `frame_cap`, `render_scale`, `fov`
+  (`SaveService`) and apply at once; the Field of view reaches every `CameraRig` in `CameraRig.GROUP` (`apply_fov`,
+  replacing base_fov only). The rig camera's far plane is data/camera.json `far_m` (OQ-WEB-FAR).
+  Tests: tests/test_w1a_gfx_settings.gd.
 
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.

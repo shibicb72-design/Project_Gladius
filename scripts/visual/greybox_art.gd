@@ -238,11 +238,14 @@ func _apply_environment(world: WorldEnvironment, variant: String = "") -> void:
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if astra["shadow_mode"] == "orthogonal" else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = float(astra["shadow_max_distance_m"])
 	sun.light_angular_distance = float(astra["light_angular_distance"])
-	# S9: a preset may ask for split shadows and a soft sun (the Forward+ comparison build does); the shadow
-	# distance stays the data's above.
+	# S9: a preset may ask for split shadows and a soft sun (the Forward+ comparison build does). W1a: a preset with
+	# shadow_max_distance_m (the PC presets, OQ-WEB-GFX-SHADOWS) replaces the data's distance above; without it
+	# (the "default" preset) the data's stays.
 	match str(preset.get("shadow_mode", "")):
 		"pssm2": sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 		"pssm4": sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	if preset.has("shadow_max_distance_m"):
+		sun.directional_shadow_max_distance = float(preset["shadow_max_distance_m"])
 	if preset.has("sun_angular_distance"):
 		sun.light_angular_distance = float(preset["sun_angular_distance"])
 	_apply_optional_shadow(sun, astra)
