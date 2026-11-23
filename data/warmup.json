@@ -1,0 +1,51 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-W1C-STEP / OQ-W1C-STAGE / OQ-W1C-SETTLE: the shader warm-up behind the loading overlay (scripts/visual/shader_warmup.gd, W1c; docs/ARCHITECTURE.md 'Staged match open and shader warm-up'). Every number here is a guess for Shibi, not a design value and not a budget. The warm-up DERIVES its items from the built match (every GeometryInstance3D under the MatchRoot, hidden ones included: a draw key is draw kind + vertex format + material key + shadow casting); this file lists only what is ABSENT at match start, plus the stage layout.",
+	"stage": {
+		"_placeholder": true,
+		"_todo": "OQ-W1C-STAGE: where the warm copies stand (high above the map centre, away from every map light), the cell spacing (one cell per light context, so a warm light never reaches the next cell), the size each copy is scaled to, and the warm camera's place behind the row.",
+		"origin_m": [0.0, 420.0, 0.0],
+		"cell_m": 6.0,
+		"copy_size_m": 1.5,
+		"camera_back_m": 14.0,
+		"camera_up_m": 1.5
+	},
+	"lights": {
+		"_placeholder": true,
+		"_todo": "OQ-W1C-STAGE: the warm lights of the light contexts (an omni like the muzzle flash and the braziers, a spot like the searchlights). Their numbers only have to light the copy in their own cell; the look of play does not depend on them.",
+		"omni_range_m": 2.2,
+		"omni_energy": 1.0,
+		"spot_height_m": 3.0,
+		"spot_range_m": 4.5,
+		"spot_angle_deg": 22.0,
+		"spot_energy": 1.0
+	},
+	"_contexts_note": "Light contexts: the Compatibility renderer builds a different program for an object lit by omni and / or spot lights (with or without shadows) than for one lit by the sun only. Each item is copied once per context. A context is used when the match holds a light of that kind (hidden ones too: the first-person muzzle light is an omni without shadows); 'base' (the sun only) always.",
+	"contexts": [
+		{"id": "base", "lights": []},
+		{"id": "omni", "lights": ["omni"]},
+		{"id": "spot", "lights": ["spot"]},
+		{"id": "omni_spot", "lights": ["omni", "spot"]},
+		{"id": "omni_shadow", "lights": ["omni_shadow"]},
+		{"id": "spot_shadow", "lights": ["spot_shadow"]}
+	],
+	"copy_frames": {"_placeholder": true, "_todo": "OQ-W1C-STEP: frames each item's copies stay up (a particle's process shader runs on its first processed frame, its draw shader on the first drawn one). One item STARTS per frame.", "value": 3},
+	"overlay_frames": {"_placeholder": true, "_todo": "OQ-W1C-LOADING: frames the opaque overlay is drawn before the match build starts (at least one, so the page shows it before the long build frame).", "value": 2},
+	"settle_frames": {"_placeholder": true, "_todo": "OQ-W1C-SETTLE: frames after the last warm item, still behind the overlay, before the director starts (the last copies leave, the sky's incremental radiance update and the renderer's first-time work for the match camera's own view land here).", "value": 6},
+	"_listed_note": "Visuals that do not exist yet when the warm-up starts (they appear after the director starts or on events), each made through its own public code path into the warm cell and freed again: no match state, RNG stream, loot, prop, stat, sound or haptic is touched.",
+	"listed": [
+		{"id": "soldier_sets", "kind": "soldier_sets", "_why": "both armour sets (data/cosmetics.json armour_sets), near and far body, squad and tier paint: a set no soldier of this match wears appears in no derived item."},
+		{"id": "corpse", "kind": "corpse", "_why": "the death effect (SoldierModel.make_corpse, as scripts/visual/death_fx.gd)."},
+		{"id": "shot_fx", "kind": "shot_fx", "_why": "a shot's tracer, muzzle flash and impact marker (ShotFx.show_shot) with its impact pool."},
+		{"id": "impacts", "kind": "impacts", "_why": "every impact burst kind of data/art_soldier.json fx.impacts (ShotImpacts.spawn); the pool is made on the first shot."},
+		{"id": "breakable_fx", "kind": "breakable_fx", "_why": "the debris burst of every breakable type of data/props.json (Breakable.break_now on a body outside the tree: no sound, no loot roll)."},
+		{"id": "loot", "kind": "loot", "_why": "the ground-loot models, the glow batch (data/art_loot.json) and the loot field's own box (LootField.drop into a field that never places): the loot field places its items on the first physics tick after the director starts."},
+		{"id": "zone_wall", "kind": "zone_wall", "_why": "the zone wall, the target ring and the beacon (ZoneWall, built after the director starts)."}
+	],
+	"_not_in_match_note": "Shaders that no match draws in 3D; tests/test_w1c_warmup_coverage.gd accepts them as covered. vignette is a canvas_item shader on the look's CanvasLayer, drawn under the opaque overlay while it is up.",
+	"canvas_shaders": ["res://scripts/visual/shaders/vignette.gdshader"],
+	"_not_drawn_note": "Shaders a real match cannot draw today, each with the condition the coverage test re-checks on the built map (it fails, and the shader must then be warmed, once the condition stops holding).",
+	"not_drawn": [
+		{"shader": "res://scripts/visual/shaders/sun_shaft.gdshader", "check": "no_shaft_places", "_why": "MatchLook builds sun shafts only at the map's places (data/art_world_maps.json shafts_at on a terrain map), and every terrain map lists none."}
+	]
+}

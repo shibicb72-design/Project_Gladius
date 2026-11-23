@@ -180,7 +180,7 @@ function threadRole(clock, pid, tid) {
 
 // Pass 2: every duration event overlapping a stall window, clipped into per-stall buckets and names.
 function traceStalls(file, clock, stalls) {
-  const acc = stalls.map(() => ({ buckets: {}, names: {}, via: {}, links: 0, compiles: 0 }));
+  const acc = stalls.map(() => ({ buckets: {}, names: {}, via: {}, links: 0, compiles: 0, longestLinkMs: 0, linkTimes: [] }));
   const windows = stalls.map((s) => [s.startMs, s.endMs]);
   const open = {}; // pid:tid -> stack of B events
   const add = (name, cat, pid, tid, ts, dur) => {
@@ -194,8 +194,11 @@ function traceStalls(file, clock, stalls) {
       const role = threadRole(clock, pid, tid);
       const key = `${role}|${name}`;
       if (a >= w0) {  // counted where it starts
-        if (/DoLinkProgram/.test(name)) acc[i].links += 1;
-        else if (name === 'D3DCompile') acc[i].compiles += 1;
+        if (/DoLinkProgram/.test(name)) {
+          acc[i].links += 1;
+          acc[i].longestLinkMs = Math.max(acc[i].longestLinkMs, dur / 1000);
+          if (acc[i].linkTimes.length < 20) acc[i].linkTimes.push(Number((a / 1000).toFixed(2)));
+        } else if (name === 'D3DCompile') acc[i].compiles += 1;
       }
       acc[i].names[key] = (acc[i].names[key] || 0) + (hi - lo);
       for (const [bucket, re] of BUCKETS) {
@@ -221,7 +224,7 @@ function traceStalls(file, clock, stalls) {
   return acc.map((x) => {
     const buckets = {};
     for (const [k, list] of Object.entries(x.buckets)) buckets[k] = unionMs(list);
-    return { buckets, names: x.names, via: x.via, links: x.links, compiles: x.compiles };
+    return { buckets, names: x.names, via: x.via, links: x.links, compiles: x.compiles, longestLinkMs: x.longestLinkMs, linkTimes: x.linkTimes };
   });
 }
 
@@ -300,9 +303,17 @@ function analyseLevel(entry, tracePath, top) {
   const stalls = w.stalls || [];
   let traced = null;
   let clock = null;
+  let afterLinks = null;
   if (tracePath && fs.existsSync(tracePath)) {
     clock = traceClock(tracePath, w.timing || []);
-    if (clock.offsetMs != null) traced = traceStalls(tracePath, clock, stalls);
+    if (clock.offsetMs != null) {
+      // W1c commit 2: one more window, CAN_MOVE to the end of the trace: every program linked after the player can act,
+      // stall or not.
+      const extra = w.canMovePageS != null ? [{ startMs: w.canMovePageS * 1000, endMs: Number.MAX_SAFE_INTEGER }] : [];
+      const all = traceStalls(tracePath, clock, stalls.concat(extra));
+      traced = all.slice(0, stalls.length);
+      if (extra.length) afterLinks = all[stalls.length];
+    }
   }
   const rows = stalls.map((s, i) => {
     const { phases, frames } = overlapping(w.timing || [], s);
@@ -324,6 +335,8 @@ function analyseLevel(entry, tracePath, top) {
       'Texture uploads have no named event in these categories (a 0 is "not seen", not "none"); their upper bound is the stall minus the named buckets.'
       : tracePath ? `Trace ${tracePath}: ${fs.existsSync(tracePath) ? 'no clock match (no GT events)' : 'missing'}; causes from the game frame lines only.`
         : 'No trace: causes from the game frame lines only.',
+    afterLinks ? `[measured] From CAN_MOVE to the end of the trace: programs linked ${afterLinks.links} (longest link ${fmt(afterLinks.longestLinkMs)} ms` +
+      `${afterLinks.linkTimes.length ? `; at page s ${afterLinks.linkTimes.join(', ')}` : ''}), D3DCompile ${afterLinks.compiles}.` : '',
     '',
     '| # | start s | vs CAN_MOVE s | duration ms | when / phase | cause | evidence |',
     '|---|---|---|---|---|---|---|',

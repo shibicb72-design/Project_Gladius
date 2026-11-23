@@ -790,6 +790,45 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   Chrome launcher, WebGL renderer probe, rAF frame statistics) with `tools/web/smoke.mjs`. docs/WEB.md "Frame-rate
   harness". Tests: tests/test_w1a_perf.gd.
 
+#### W1c: staged match open and shader warm-up (web, solo)
+- Why: the Compatibility renderer (WebGL 2, ANGLE on D3D11) compiles and links a shader program the first time a draw
+  needs it, and the browser's main thread waits for the link; that froze play for 2-18 s on a fresh browser profile
+  (W1c cause table, runs\W1C\W1C_report.md). The fix moves that work, and the other first-time costs, behind an
+  opaque loading screen before the player can act.
+- `MatchRoot.open_path` (`AUTO` / `STAGED` / `SYNC`) and `staged_open_wanted()` (match_root.gd): on the auto_start path
+  only, a match that is NOT networked (`session_facts()`, the same expressions as begin()'s roster, decided before
+  anything is built) opens staged in a web build (`AUTO`) or anywhere with `STAGED` (the headless opt-in of tests).
+  Everything else, every direct begin() call (tests, tools), desktop, Android and LAN (W2) keeps today's begin().
+- begin() is split into its phases `_open_config`, `_open_map_build`, `_open_nav`, `_open_roster`, `_open_bind`,
+  `_open_world`, `_open_start`; begin() calls them in order in one frame, as before (GLADIUS_MATCH_STARTED between
+  roster and bind, CAN_MOVE armed after the start). The staged open (`_begin_staged`, `_open_tick`, driven by an
+  `_OpenDriver` child with PROCESS_MODE_ALWAYS) runs the SAME phases in the same order (same RNG use), one stage per
+  frame, with the tree PAUSED (no pawn moves, falls, thinks or takes input; no physics step; the pause menu is
+  disabled, so Esc cannot unpause): overlay (data/warmup.json overlay_frames, so `scenes/ui/loading_overlay.tscn` is
+  drawn before the long build frame), config, map_build (one chunk; W1c stage B slices it here), nav, roster, bind
+  (the rig camera proves it can be current, then stops drawing), world (+ the seed's look variant applied now through
+  GreyboxArt._apply_environment, which MatchLook would otherwise do on the first frame after the start), warmup_setup,
+  warmup (one item per frame), settle (settle_frames, the rig camera current again), start: `_open_start` (director,
+  zone wall), the overlay and the warm-up go, the tree runs, GLADIUS_MATCH_STARTED, CAN_MOVE armed, `match_opened`.
+  So the carrier, the bots' carrier_t and the zone clocks start only when the player can act.
+- Quit (`quit_to_menu`) or a freed scene (`_exit_tree`) mid-open: `_end_staged` stops the stages, frees the driver,
+  overlay and warm-up and unpauses the tree; nothing awaits, so nothing resumes later.
+- `ShaderWarmup` (scripts/visual/shader_warmup.gd, data/warmup.json; OQ-W1C-STEP, OQ-W1C-STAGE): in the match's own
+  World3D (sun, Environment, shadow mode, MSAA, after the preset and the variant) a warm Camera3D looks at a row of
+  cells 420 m above the map, one per light context (the sun only; plus a warm omni and / or spot when the match holds
+  such lights, hidden ones included: the first-person muzzle light). Items: DERIVED from every GeometryInstance3D under
+  the MatchRoot (hidden ones included) by draw key = draw kind (mesh / skinned / multimesh with its instance format /
+  CPU or GPU particles) + vertex format + material key (shader path, or a BaseMaterial3D / ParticleProcessMaterial's
+  feature flags) + shadow casting + instance transparency; one copy per context per item (skinned: the whole
+  Skeleton3D duplicated without scripts; particles emitting), scaled into its cell, freed after copy_frames. LISTED
+  (absent at start): both armour sets, a corpse, a shot (tracer, flash, impact pool), every impact kind, every
+  breakable's debris (Breakable.break_now on a body outside the tree: no sound, no loot), the loot models, glow and
+  box, the zone wall; each through its own public code path, no match state touched. `warmup_report` keeps the
+  covered keys and the longest step; tests/test_w1c_warmup.gd fails when a built match has a draw key or a .gdshader
+  the warm-up does not cover. HUD and other canvas items draw under the opaque overlay while it is up.
+- Tests: tests/test_w1c_staged_open.gd (paths, pause, progress, LAN, quit / free, staged == begin() state),
+  tests/test_w1c_warmup.gd (keys, stepping, coverage in dusk / night / storm).
+
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.
   `audio.json` maps event ids (announcer lines, music states) to streams. Shibi's Latin announcer

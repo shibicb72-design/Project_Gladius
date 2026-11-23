@@ -362,8 +362,31 @@ elsewhere; no output or RNG change):
   post-draw, with `cpu=` before the draw and `draw=` the renderer's GL calls, where first-use shader compiles and texture
   uploads land) for the first `timing.first_frames` frames after the MatchRoot enters the tree and any frame of at least
   `timing.long_frame_ms` (tools/web/perf_route.json, tool data).
-- `GLADIUS_CAN_MOVE` (debug web build, like `GLADIUS_MATCH_STARTED`, which stays where it is: mid-`begin()`, once the
-  local player exists): once, at the first physics tick after `MatchRoot.begin()` returned a started match
-  (`SceneTree.physics_frame`, armed at the end of begin()). That tick is the first in which MatchRoot._physics_process
-  hands the router's input to the local pawn while the director runs: aboard the carrier the pawn applies look and
-  records Jump as its drop request (Pawn._physics_process, Drop.ABOARD). The W1c DONE criterion counts stalls from it.
+- `GLADIUS_CAN_MOVE` (debug web build, like `GLADIUS_MATCH_STARTED`): once, at the first physics tick after the match
+  started (`SceneTree.physics_frame`, armed once the director runs). That tick is the first in which
+  MatchRoot._physics_process hands the router's input to the local pawn while the director runs: aboard the carrier
+  the pawn applies look and records Jump as its drop request (Pawn._physics_process, Drop.ABOARD). The W1c DONE
+  criterion counts stalls from it.
+
+### Staged open and warm-up (W1c commit 2)
+
+A solo web match opens behind an opaque loading overlay ("Preparing the arena" and a bar; `scenes/ui/loading_overlay.tscn`,
+data/ui.json "loading_overlay", OQ-W1C-LOADING): one build step per frame, then the shader warm-up (data/warmup.json,
+OQ-W1C-STEP), then the director starts (docs/ARCHITECTURE.md "W1c: staged match open and shader warm-up"). LAN
+matches, desktop, Android, tools and the headless suite keep the old one-frame `begin()`.
+
+- Where the markers fire. Staged open (solo, web): `GLADIUS_MATCH_STARTED` at the END of the open, in the same frame
+  as the director's start, after the overlay is removed and the tree runs again; `GLADIUS_CAN_MOVE` at the next physics
+  tick. begin() (LAN, every other caller): `GLADIUS_MATCH_STARTED` mid-begin() once the local player exists, as
+  before, `GLADIUS_CAN_MOVE` at the first physics tick after begin(). So on a solo web match "match started" now means
+  "playable", and the time to it includes the loading screen: `smoke.mjs` (`secondsToMatchStart`, the 5 s screenshot
+  and its input script) and `perf.mjs` (`match start s`, `GLADIUS_PERF_*` after the director runs) keep working
+  unchanged; their match-start seconds are not comparable with runs before W1c commit 2.
+- Timing lines (perf=1): `open.overlay_shown` (frames the overlay was drawn before the build), the `begin.*` phases
+  (one stage per frame), `open.warmup_setup` (items, contexts), one `open.warm_item <ms> item=<id>` per item (the
+  frame in which its copies were first drawn: their programs compile there), `open.warmup <ms> items= derived= listed=
+  longest_ms= longest_item=`, `match_started`, `open.total`, `can_move`. The frame lines carry `pre= phys= proc= tail=`
+  (the cpu split: input, the physics ticks incl. the navigation step, the nodes' _process, the rest before the draw)
+  and `nav=` (Performance.TIME_NAVIGATION_PROCESS); `nav.map_changed` marks a finished navigation map sync.
+- `tools/web/perf_stalls.mjs` with a trace also prints the programs linked from CAN_MOVE to the end of the trace
+  (count, longest link, the first 20 page times) and the D3DCompile calls in that window.

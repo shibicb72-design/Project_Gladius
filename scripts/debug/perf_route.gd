@@ -25,7 +25,9 @@ extends Node
 ##   - "frame": every frame from RenderingServer.frame_post_draw to the next, with cpu= (previous post-draw to this
 ##     frame's pre-draw: scripts, physics, scene changes) and draw= (pre-draw to post-draw: the renderer's GL calls,
 ##     where first-use shader compiles and texture uploads land), for the first perf_route.json timing.first_frames
-##     frames after the MatchRoot enters the tree, and any frame of at least timing.long_frame_ms at any time;
+##     frames after the MatchRoot enters the tree, and any frame of at least timing.long_frame_ms at any time; W1c
+##     commit 2 adds the cpu split pre= / phys= / proc= / tail= (see _on_post_draw) and nav= (the last navigation
+##     step, Performance.TIME_NAVIGATION_PROCESS), and a "nav.map_changed" mark when a navigation map finished a sync;
 ##   - "match_root.added" when the MatchRoot enters the tree (before its _ready / begin), "world_environment.added",
 ##     and "particles.first" the first time each particle node kind (class + scene path / node path, digits folded)
 ##     enters the tree (a GPU particle process shader compiles on its first emit; this marks the add, not the emit).
@@ -80,6 +82,9 @@ var _timing_long_ms: float = 0.0
 var _frames_after_match: int = -1  # -1 until the MatchRoot enters the tree
 var _pre_usec: int = 0
 var _post_usec: int = 0
+var _phys_usec: int = 0
+var _proc_usec: int = 0
+var _last_proc_usec: int = 0
 var _particle_kinds: Dictionary = {}
 var _digits := RegEx.create_from_string("\\d+")
 
@@ -118,6 +123,10 @@ func _ready() -> void:
 	if _PerfMarks.enabled():
 		RenderingServer.frame_pre_draw.connect(_on_pre_draw)
 		RenderingServer.frame_post_draw.connect(_on_post_draw)
+		get_tree().physics_frame.connect(_on_physics_frame)
+		get_tree().process_frame.connect(_on_process_frame)
+		# W1c: when a navigation map finished a sync (the web build syncs on the main thread, inside the physics step).
+		NavigationServer3D.map_changed.connect(func(_map: RID) -> void: _PerfMarks.mark("nav.map_changed"))
 	get_tree().node_added.connect(_on_node_added)
 	print("GLADIUS_PERF_ARMED " + JSON.stringify({"quality": request.get("quality", ""), "seed": request.get("seed", 0),
 			"time_scale": time_scale, "shots": shots, "active_preset": GraphicsPresets.resolved_active_id()}))
@@ -257,7 +266,21 @@ func _on_pre_draw() -> void:
 	_pre_usec = Time.get_ticks_usec()
 
 
-## One GLADIUS_T "frame" line per frame named in the header: total = post-draw to post-draw.
+## W1c: the first physics tick of the frame (SceneTree.physics_frame, before the nodes' _physics_process).
+func _on_physics_frame() -> void:
+	if _phys_usec <= _post_usec:
+		_phys_usec = Time.get_ticks_usec()
+
+
+## W1c: SceneTree.process_frame (after the physics ticks, before the nodes' _process).
+func _on_process_frame() -> void:
+	_proc_usec = Time.get_ticks_usec()
+
+
+## One GLADIUS_T "frame" line per frame named in the header: total = post-draw to post-draw. W1c: cpu split into
+## pre (post-draw to the first physics tick or the process step: input, events), phys (the physics ticks: the nodes'
+## _physics_process, the physics and navigation steps), proc (process_frame to this node's _process, the last one:
+## the nodes' _process) and tail (to pre-draw: deferred calls, scene-tree updates, the renderer's pre-draw sync).
 func _on_post_draw() -> void:
 	var now := Time.get_ticks_usec()
 	if _post_usec > 0:
@@ -265,8 +288,13 @@ func _on_post_draw() -> void:
 		var draw := (now - _pre_usec) / 1000.0 if _pre_usec > _post_usec else 0.0
 		var first := _frames_after_match >= 0 and _frames_after_match < _timing_first_frames
 		if first or (_timing_long_ms > 0.0 and total >= _timing_long_ms):
-			_PerfMarks.emit("frame", total, "after_match=%d cpu=%.1f draw=%.1f phase=%s" % [
-					_frames_after_match, total - draw, draw, Phase.keys()[phase]])
+			var proc_at := _proc_usec if _proc_usec > _post_usec else _pre_usec
+			var phys_at := _phys_usec if _phys_usec > _post_usec else proc_at
+			var last_at := _last_proc_usec if _last_proc_usec > proc_at else proc_at
+			_PerfMarks.emit("frame", total, "after_match=%d cpu=%.1f draw=%.1f phase=%s pre=%.1f phys=%.1f proc=%.1f tail=%.1f nav=%.1f" % [
+					_frames_after_match, total - draw, draw, Phase.keys()[phase], (phys_at - _post_usec) / 1000.0,
+					(proc_at - phys_at) / 1000.0, (last_at - proc_at) / 1000.0, (_pre_usec - last_at) / 1000.0 if _pre_usec > last_at else 0.0,
+					Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS) * 1000.0])
 		if _frames_after_match >= 0:
 			_frames_after_match += 1
 	_post_usec = now
@@ -274,6 +302,7 @@ func _on_post_draw() -> void:
 
 func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
+	_last_proc_usec = now
 	match phase:
 		Phase.WAIT_MATCH:
 			if _match != null and is_instance_valid(_match) and _match.is_inside_tree():
