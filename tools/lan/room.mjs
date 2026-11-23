@@ -136,11 +136,9 @@ export class Room {
     this._changed();
   }
 
-  // Stops the room: the host's relay is going away, so tell guests and close every socket.
+  // Stops the room: closes every socket. No host_gone: the host may still be playing, and joined guests keep their
+  // WebRTC link to it (only new joins need the relay).
   shutdown() {
-    const all = [...this.open];
-    const guests = all.filter((s) => this.peers.has(s) && s !== this.host);
-    for (const g of guests) this._safeSend(g, buildHostGone());
-    for (const s of all) this._safeClose(s);
+    for (const s of [...this.open]) this._safeClose(s);
   }
 }

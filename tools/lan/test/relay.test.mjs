@@ -136,9 +136,13 @@ test('host and a guest exchange an offer over ws on the loopback listener', asyn
   await g2.closed;
 });
 
-test('an oversized frame closes the socket (transport cap)', async () => {
+test('a message over the cap gets too_large and the socket stays open; only a huge frame closes it', async () => {
   const c = await client(`ws://127.0.0.1:${relay.hostPort}/signal`, hostOrigin());
-  c.ws.send('x'.repeat(20000));
+  c.ws.send('x'.repeat(20000)); // over the 16 KB message cap, under the transport cap (4x)
+  assert.deepEqual(await c.next(), { type: 'error', code: 'too_large' });
+  c.send({ type: 'join' });
+  assert.deepEqual(await c.next(), { type: 'error', code: 'no_host' });
+  c.ws.send('x'.repeat(16384 * 4 + 1)); // over the transport cap
   assert.equal(await c.closed, 1009);
 });
 

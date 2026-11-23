@@ -415,7 +415,11 @@ func _on_signal_closed(was_open: bool) -> void:
 			_fail_webrtc("relay_lost" if was_open else "relay_unreachable")
 		# A running host keeps its connected guests; only new joins need the relay.
 	elif _rtc_role == "guest":
-		if _rtc != null:  # had an id: the room (or the relay) is gone
+		if _rtc_joined:
+			# A joined guest keeps playing over WebRTC; only new joins need the relay. If the host is really gone,
+			# the WebRTC peer reports server_disconnected on its own (Chrome's ICE timeout, about 7 s).
+			return
+		if _rtc != null:  # had an id but not joined yet: the room (or the relay) is gone
 			_lose_host("relay_lost")
 		else:
 			_fail_webrtc("relay_lost" if was_open else "relay_unreachable")

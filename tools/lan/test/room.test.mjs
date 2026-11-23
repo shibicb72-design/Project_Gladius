@@ -169,12 +169,13 @@ test('counters: connections and disconnections', () => {
   assert.equal(room.counters.disconnections, 1);
 });
 
-test('shutdown tells guests host_gone and closes every socket', () => {
+test('shutdown closes every socket without host_gone (joined guests keep playing)', () => {
   const { room, conn, say } = setup();
   const h = conn(); say(h, { type: 'host' });
   const g = conn(); say(g, { type: 'join' });
   const idle = conn();
+  const sent = g.got.length;
   room.shutdown();
-  assert.deepEqual(g.last(), { type: 'host_gone' });
+  assert.equal(g.got.length, sent);
   assert.ok(h.closed && g.closed && idle.closed);
 });

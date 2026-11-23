@@ -122,7 +122,7 @@ func _ready() -> void:
 	PlatformServices.start_relay_probe(get_tree())
 	var lost := NetSession.take_lost_notice()
 	if lost != "":
-		status_label.text = MSG_HOST_LEFT
+		status_label.text = lan_error_text(lost, true)
 	if not apply_autosolo(_WebArgs.take_autosolo()):
 		_lan_request = _WebArgs.take_lan()
 		_try_lan_request()

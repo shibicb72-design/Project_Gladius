@@ -82,8 +82,9 @@ node tools/lan/gladius_lan.mjs [build_dir] [--bind <ip>] [--port N] [--host-port
 
 The relay keeps its certificate in `build/lan_cert` and reuses it while it is still valid for this PC's addresses.
 
-**Stopping.** Press Ctrl+C in the relay window. It prints its connection counts and closes. Guests then see "Host left"
-or "Relay not reachable".
+**Stopping.** Press Ctrl+C in the relay window. It prints its connection counts and closes. A match already
+running keeps going: players who have joined stay connected to the host. New players can no longer join, and a player
+who was still joining sees "Relay not reachable".
 
 **Not yet tried on two PCs [unknown].** Everything was tested with two Chrome windows on one PC. Chrome hides IP
 addresses behind names that end in ".local" (mDNS) [measured, this PC], so each PC must be able to find the other by

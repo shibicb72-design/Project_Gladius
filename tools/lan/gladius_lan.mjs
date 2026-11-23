@@ -21,7 +21,6 @@ import { makeSelfSigned } from './self_signed.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const DEFAULT_WEBTOOLS = 'C:\\Users\\shibi\\cc_gladius\\webtools';
-const HEARTBEAT_MS = 20000;
 
 function loadWs() {
   const dir = process.env.GLADIUS_WEBTOOLS || DEFAULT_WEBTOOLS;
@@ -57,24 +56,29 @@ export function relayDefaults() {
     hostPort: lan.host_port ?? 47480,
     maxMessageBytes: lan.max_message_bytes ?? 16384,
     maxPeers: Number.isInteger(match.max_humans) ? match.max_humans : (lan.max_peers ?? 8),
+    heartbeatMs: lan.heartbeat_ms ?? 20000,
+    socketsPerPeer: lan.sockets_per_peer ?? 4,
+    certDays: lan.cert_days ?? 825,
+    certRenewDays: lan.cert_renew_days ?? 7,
   };
 }
 
-// Reuses key.pem + cert.pem in certDir while the certificate is valid for 7 more days and covers every wanted address.
-export function ensureCert(certDir, ips) {
+// Reuses key.pem + cert.pem in certDir while the certificate is valid for renewDays more days and covers every wanted
+// address (net.json lan_relay cert_days / cert_renew_days, OQ-W2-RELAY-LIMITS).
+export function ensureCert(certDir, ips, { days = 825, renewDays = 7 } = {}) {
   const keyFile = path.join(certDir, 'key.pem');
   const certFile = path.join(certDir, 'cert.pem');
   try {
     const keyPem = fs.readFileSync(keyFile, 'utf8');
     const certPem = fs.readFileSync(certFile, 'utf8');
     const x = new crypto.X509Certificate(certPem);
-    const ok = new Date(x.validTo).getTime() - Date.now() > 7 * 24 * 3600 * 1000
+    const ok = new Date(x.validTo).getTime() - Date.now() > renewDays * 24 * 3600 * 1000
       && new Date(x.validFrom).getTime() < Date.now()
       && x.checkHost('localhost') && ips.every((ip) => x.checkIP(ip))
       && x.checkPrivateKey(crypto.createPrivateKey(keyPem));
     if (ok) return { keyPem, certPem, reused: true };
   } catch { /* missing or unreadable: make a new one */ }
-  const made = makeSelfSigned({ ips, dnsNames: ['localhost'], days: 825 });
+  const made = makeSelfSigned({ ips, dnsNames: ['localhost'], days });
   fs.mkdirSync(certDir, { recursive: true });
   fs.writeFileSync(keyFile, made.keyPem, { mode: 0o600 });
   fs.writeFileSync(certFile, made.certPem);
@@ -95,7 +99,7 @@ export async function startRelay(options = {}) {
   const wildcard = bind === '0.0.0.0';
   const joinIps = options.lanIps ?? (wildcard ? lanIPv4s() : [bind]);
   const certIps = [...new Set([...joinIps, ...(wildcard ? lanIPv4s() : []), '127.0.0.1'])];
-  const { keyPem, certPem } = ensureCert(certDir, certIps);
+  const { keyPem, certPem } = ensureCert(certDir, certIps, { days: d.certDays, renewDays: d.certRenewDays });
 
   let urls = [];
   const room = new Room({
@@ -142,7 +146,9 @@ export async function startRelay(options = {}) {
     });
   }
 
-  const wss = new WebSocketServer({ noServer: true, maxPayload: maxMessageBytes });
+  // maxPayload is above the message cap so an oversized message reaches Room, which replies too_large and counts it,
+  // instead of ws closing the socket (review S2).
+  const wss = new WebSocketServer({ noServer: true, maxPayload: maxMessageBytes * 4 });
   const refuseUpgrade = (socket, code, text) => {
     socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
     socket.destroy();
@@ -155,7 +161,7 @@ export async function startRelay(options = {}) {
     try { originHost = new URL(req.headers.origin || '').host.toLowerCase(); } catch { /* no usable Origin */ }
     const host = String(req.headers.host || '').toLowerCase();
     if (originHost === null || originHost !== host) { refuseUpgrade(socket, 403, 'Forbidden'); return; }
-    if (wss.clients.size >= maxPeers * 4) { refuseUpgrade(socket, 503, 'Service Unavailable'); return; }
+    if (wss.clients.size >= maxPeers * d.socketsPerPeer) { refuseUpgrade(socket, 503, 'Service Unavailable'); return; }
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.isAlive = true;
       const sock = {
@@ -204,7 +210,7 @@ export async function startRelay(options = {}) {
       ws.isAlive = false;
       try { ws.ping(); } catch { /* closing */ }
     }
-  }, HEARTBEAT_MS);
+  }, d.heartbeatMs);
   heartbeat.unref();
 
   let closing = null;

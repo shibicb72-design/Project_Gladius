@@ -716,8 +716,10 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   `timeout` gives "Could not connect" when joining and "Relay not reachable" when hosting (`connect_timeout_s`, 5 s).
 - **Host lost.** The relay sends `host_gone` to every guest, which gives a near-instant "Host left". Without it the
   browsers' own timeout took about 7 s [measured, spike]. A guest that leaves: the relay sends `peer_left` and the host
-  removes the peer at once instead of waiting for that timeout. If the relay itself stops, a running host keeps its
-  connected guests; only new joins need it.
+  removes the peer at once instead of waiting for that timeout. If the relay itself stops (Ctrl+C, crash, heartbeat
+  cut), it sends no `host_gone`: a running host keeps its connected guests, and a joined guest ignores its relay socket
+  closing (`NetSession._on_signal_closed`, test `test_webrtc_relay_closes_after_join_keeps_the_guest`). Only new joins
+  need the relay. A guest that has an id but has not joined yet fails with `relay_lost` ("Relay not reachable").
 - **Relay detection.** `PlatformServices.start_relay_probe` asks the page's own origin for `/lan.json` once per page
   load (an `HTTPRequest`, 5 s timeout). It is asynchronous and injectable (`set_relay_info`); "web without a relay" is
   the default until an accepted answer (`lan` true, `proto` 1) arrives, and `relay_events.changed` makes the menu

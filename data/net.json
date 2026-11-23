@@ -24,7 +24,12 @@
     "port": 47443,
     "host_port": 47480,
     "max_message_bytes": 16384,
-    "max_peers": 8
+    "max_peers": 8,
+    "_limits_todo": "OQ-W2-RELAY-LIMITS: heartbeat, socket cap per room slot and certificate life are guesses for Shibi, not design values.",
+    "heartbeat_ms": 20000,
+    "sockets_per_peer": 4,
+    "cert_days": 825,
+    "cert_renew_days": 7
   },
   "_placeholder": true,
   "_todo": "T-01: port 7777, 5 s timeout and 15 Hz snapshots are default placeholders, not design values."

@@ -299,3 +299,36 @@ func test_webrtc_host_gone_two_sessions_host_lost_once() -> void:
 	assert_true(gf.pcs[0].closed, "guest closed its peer connection")
 	assert_eq(hlog.size(), 1, "host side emitted nothing new")
 	await _end([g, h])
+
+
+## Review B1: the relay stopping must not end a running match. A joined guest ignores its relay socket closing; a
+## guest that has an id but has not joined yet still fails with relay_lost.
+func test_webrtc_relay_closes_after_join_keeps_the_guest() -> void:
+	var relay = _Fakes.FakeRelay.new()
+	var hlog: Array = []
+	var glog: Array = []
+	var h := _rtc_session("W2HostR", relay, "h", hlog)
+	var g := _rtc_session("W2GuestR", relay, "g", glog)
+	h.host_game()
+	await _wait_until(func() -> bool: return not hlog.is_empty(), 2.0)
+	g.join_game("")
+	await _wait_until(func() -> bool: return g.get_unique_id() == 2, 2.0)
+	g._on_connected()  # the fake pcs never connect: stand in for SceneMultiplayer connected_to_server
+	assert_eq(glog, [["connected"]], "guest joined")
+	relay.guests[2].drop()  # the relay process dies: the socket closes with no host_gone
+	await _frames(5)
+	assert_eq(glog, [["connected"]], "no host_lost, no failed")
+	assert_true(g.has_network_peer() and g.get_unique_id() == 2, "guest keeps its WebRTC peer")
+	assert_true(not g.rtc_factory.pcs[0].closed, "guest's peer connection stays open")
+
+	# Not joined yet: the relay closing still ends the attempt.
+	var g2log: Array = []
+	var g2 := _rtc_session("W2GuestR2", relay, "x", g2log)
+	g2.join_game("")
+	await _wait_until(func() -> bool: return g2.get_unique_id() == 3, 2.0)
+	relay.guests[3].drop()
+	var ok: bool = await _wait_until(func() -> bool: return not g2log.is_empty(), 2.0)
+	assert_true(ok, "unjoined guest noticed")
+	assert_eq(g2log, [["host_lost", "relay_lost"]], "unjoined guest: relay_lost")
+	assert_true(not g2.has_network_peer(), "unjoined guest torn down")
+	await _end([g2, g, h])
