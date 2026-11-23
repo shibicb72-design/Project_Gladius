@@ -14,6 +14,12 @@
 		"_todo": "OQ-ART-SOLDIER (M2 AN1 commit 6): the third-person soldier's look layer (scripts/visual/soldier_look.gd). data/art_astra.json soldier stays read-only (it is hashed into saved navigation); part_overrides replace keys of its parts by name, parts_add appends parts (their bones: data/anim_third_person.json part_bones), surfaces sets the soldier material's own material classes, gun builds the third-person gun from the first-person part lists. Every number is a trial look, not a design decision. Presentation only: the head hitbox, the capsule, the muzzle and everything a shot reads are unchanged.",
 		"_mesh_source_note": "M2 AN2 item 1 (OQ-ART-SOLDIER): the soldier's mesh comes from this Blender-built .glb (tools/blender/build_soldier.py: SoldierNear and SoldierFar on the data-built 22-bone skeleton, scripts/visual/soldier_rig.gd); an empty string or no key builds it from the parts below instead (the code mesh). The parts stay the data proxy of the mesh: the part boxes bound the .glb's regions (tests/test_soldier_glb.gd) and drive the helmet, hitbox-clearance and foot-slide checks. lod_aabb_grow_m: the near and far body share one culling box, the near mesh's grown by this, so they hand over at gun.far_m from the same centre.",
 		"mesh_source": "res://assets/generated/characters/soldier.glb",
+		"set_budgets": {
+			"_placeholder": true,
+			"_todo": "OQ-A2-BUDGET: Murmillo's PC caps are guesses for Shibi. Total draws include the gun's one surface.",
+			"legionary": {"body_near_triangles": 2550, "body_far_triangles": 1200, "near_draw_calls": 2, "far_draw_calls": 2, "max_influences": 4},
+			"murmillo": {"body_near_triangles": 20000, "body_far_triangles": 4000, "near_draw_calls": 4, "far_draw_calls": 3, "max_influences": 4}
+		},
 		"lod_aabb_grow_m": 0.6,
 		"_cape_downed_note": "M2 AN2 item 1 round 2: the cape's sway value (shader cape_lift) while downed, blended in with the downed pose: negative moves the hem down and toward the body, so it lies along the back in the knee-crawl instead of standing up.",
 		"cape_downed_lift": -1.6,

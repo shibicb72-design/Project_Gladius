@@ -1,6 +1,6 @@
 class_name SoldierModel
 extends Node3D
-## One shared vertex-colour surface, no hitboxes. Only reads pawn velocity.
+## Skinned visuals for the pawn's selected armour set.
 static var _mesh: ArrayMesh
 var skeleton: Skeleton3D
 var armor: MeshInstance3D
@@ -87,7 +87,8 @@ func _ready() -> void:
 	_cfg["parts"] = SoldierLook.parts()
 	_pawn = get_parent() as CharacterBody3D
 	var parts: Array = _cfg["parts"]
-	skeleton = SoldierRig.build(parts, (_pawn.get_node("Head") as Node3D).position)
+	var set_id := SoldierRig.armour_set_id(_pawn.get_meta("armour_set", "legionary"))
+	skeleton = SoldierRig.build(parts, (_pawn.get_node("Head") as Node3D).position, set_id)
 	add_child(skeleton)
 	_mesh = SoldierRig.mesh
 	armor = MeshInstance3D.new()
@@ -97,7 +98,7 @@ func _ready() -> void:
 	armor.skeleton = NodePath("..")
 	skeleton.add_child(armor)
 	# M2 AN2 item 1: the Blender-built body has a far LOD; it takes over from the near one at the gun's far
-	# distance (the same hand-over as the gun). Both instances share the skeleton, the skin and the one material,
+	# distance (the same hand-over as the gun). Both instances share the skeleton and skin,
 	# and one culling box, so the hand-over distance is measured from the same centre.
 	if SoldierRig.mesh_far != null:
 		armor_far = MeshInstance3D.new()

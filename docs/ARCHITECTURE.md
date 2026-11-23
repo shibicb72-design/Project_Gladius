@@ -1495,6 +1495,14 @@ fallback when a `mesh_source` is empty or a clip is missing.
   merged-parts mesh (one LOD). The corpse keeps the near mesh. CX1 opens the lower spaulder lames and weights
   them nearer the cuirass. The cape's hem sits higher and farther behind the hips, with less inward sway while downed.
   The glove-side cuff ring follows the hand and the sleeve-side ring follows the forearm, preserving their cross-sections.
+- **Armour sets (A2).** `data/cosmetics.json` registers the Legionary and the opt-in Murmillo and names their meshes,
+  LOD nodes and material kinds. `SoldierRig.build` caches the remapped meshes by set and rest signature. The Murmillo
+  uses one PBR atlas material per LOD, with squad paint on mask R and tier paint and glow on G. Mask B is reserved for
+  sway. This set has no cape, so the existing cape inputs have no effect. `WorldSurface.adopt` supplies rain to the
+  textured shaders. Both sets use the existing runtime skeleton, gameplay and animation paths. The corpse snapshots
+  the living pawn's near mesh, skin and paint. The Settings armour row saves `armour_set` in the profile and applies
+  on the next local spawn. Missing and invalid ids fall back to Legionary. Lobby bots read the default from cosmetics
+  data, standalone bots use the pawn default, and remote LAN humans appear as Legionaries on other clients.
 - **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json` in the
   order `blender`, `actionforge`, `ual`, `mixamo_local`. `blender` = `soldier_clips.glb` (the CC0 Quaternius
   UAL clips retargeted in Blender onto the soldier rig, feet and loops cleaned, shipped baked: idle, walk, jog,

@@ -237,6 +237,7 @@ func begin() -> bool:
 		local_player = _PawnScene.instantiate()
 		local_player.class_id = offline_class_id(DataRegistry.new(), profile_cfg())
 		local_player.squad_id = 0
+		local_player.set_meta("armour_set", SoldierRig.armour_set_id(profile_cfg().get("armour_set")))
 		add_child(local_player)
 		director.add_player(0, local_player)
 		if fill_bots:

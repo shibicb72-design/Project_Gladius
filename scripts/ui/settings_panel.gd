@@ -53,10 +53,13 @@ var graphics_quality: String = ""
 var frame_cap: int = SaveService.FRAME_CAP_DEFAULT
 var fov: Variant = ""
 var render_scale: float = 1.0
+var armour_button: Button
+var armour_set: String
 
 
 func _ready() -> void:
 	var profile := save.load_profile()
+	armour_set = profile["armour_set"]
 	gyro_mode = SensitivitySettings.from_profile(profile).gyro_mode
 	gyro_enabled = gyro_mode != "off"
 	MenuStyle.gap(self, 1.25)
@@ -92,7 +95,19 @@ func _ready() -> void:
 	haptics_button = _button("Haptics", open_haptics, "vibrate")  # G2f
 	if PlatformServices.new().is_pc():
 		_build_graphics(profile)
+	armour_button = _button(_armour_label(), cycle_armour, "gear")
 	UiScale.apply_to(self)
+
+
+func _armour_label() -> String:
+	return "Armour: %s" % SoldierRig.armour_sets()[armour_set]["label"]
+
+
+func cycle_armour() -> void:
+	var ids := SoldierRig.armour_sets().keys()
+	armour_set = ids[(ids.find(armour_set) + 1) % ids.size()]
+	armour_button.text = _armour_label()
+	persist()
 
 
 ## W1a: the GRAPHICS caption and rows (see graphics_built).
@@ -402,7 +417,8 @@ func _refresh_sprint_text() -> void:
 func fields() -> Dictionary:
 	var out := {"move_stick": move_stick_mode, "vjoy_layout": vjoy_layout,
 			"sprint_sensitivity": sprint_slider.value, "sprint_lock_pos": sprint_lock_pos,
-			"left_fire_enabled": left_fire_enabled, "shooting_mode": shooting_mode, "minimap_rotate": minimap_rotate}
+			"left_fire_enabled": left_fire_enabled, "shooting_mode": shooting_mode, "minimap_rotate": minimap_rotate,
+			"armour_set": armour_set}
 	if graphics_built:  # W1a: only where the GRAPHICS rows exist; elsewhere the stored values are kept
 		out.merge({"graphics_quality": graphics_quality, "frame_cap": frame_cap, "render_scale": render_scale, "fov": fov}, true)
 	return out

@@ -8,14 +8,16 @@ extends RefCounted
 const PARAM := &"squad_paint"
 const TIER_PARAM := &"tier_paint"
 const _SHADER := preload("res://scripts/visual/shaders/soldier_armor.gdshader")
+const _TEXTURED_SHADER := preload("res://scripts/visual/shaders/soldier_textured.gdshader")
 static var _material: ShaderMaterial
+static var _textured: Dictionary = {}
 
 
 static func config() -> Dictionary:
 	return LowpolyKit.config()["soldier"]["squad_colour"]
 
 
-## The one material resource of every soldier and corpse.
+## The shared Legionary material resource.
 static func material() -> ShaderMaterial:
 	if _material == null:
 		_material = ShaderMaterial.new()
@@ -36,6 +38,25 @@ static func material() -> ShaderMaterial:
 		# M2 AN1 commit 6: the soldier's own material classes (data/art_soldier.json soldier.surfaces).
 		SoldierLook.apply_materials(_material)
 	return _material
+
+
+## One shared resource per textured atlas. Squad and tier values still belong to the instance.
+static func set_material(look: Dictionary, lod: String) -> ShaderMaterial:
+	if look["material_kind"] != "textured":
+		return material()
+	var key := String(look["atlas_prefix"]) + lod + "_"
+	if not _textured.has(key):
+		var textured := ShaderMaterial.new()
+		textured.shader = _TEXTURED_SHADER
+		for channel: String in ["albedo", "normal", "orm", "mask"]:
+			textured.set_shader_parameter(channel + "_atlas", load(key + channel + ".png"))
+		WorldSurface.adopt(textured)
+		var style: Dictionary = LowpolyKit.config()["soldier"]["material"]
+		textured.set_shader_parameter(&"rim_color", GreyboxArt.color_value(style["rim_color"]))
+		textured.set_shader_parameter(&"rim", float(style["rim"]))
+		textured.set_shader_parameter(&"rim_power", float(style["rim_power"]))
+		_textured[key] = textured
+	return _textured[key]
 
 
 ## S4: the armor tier a soldier shows (Pawn.armor_tier, read-only): the tier trim's paint and glow, per instance.
