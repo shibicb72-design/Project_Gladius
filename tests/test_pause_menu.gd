@@ -236,7 +236,11 @@ func test_online_overlay_keeps_sim_running_with_zero_input() -> void:
 	await _finish(ctx)
 
 
+## On a touch device (simulated) the gear stays the only way in: Android Back, ui_cancel and Esc are ignored.
+## W0 (binding fix 3): without a touchscreen Esc opens the menu instead (tests/test_w0_input.gd covers that path).
 func test_go_back_does_not_open_menu() -> void:
+	var was_touch := PlatformServices.simulate_touchscreen
+	PlatformServices.simulate_touchscreen = true
 	var ctx := await _new_match(false)
 	var m: MatchRoot = ctx["match"]
 	_root().propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
@@ -247,11 +251,41 @@ func test_go_back_does_not_open_menu() -> void:
 	_push(cancel)
 	var key := InputEventKey.new()
 	key.keycode = KEY_ESCAPE
+	key.physical_keycode = KEY_ESCAPE  # W0: matches the "pause" action, which a touch device still ignores
 	key.pressed = true
 	_push(key)
+	key = key.duplicate() as InputEventKey
+	key.pressed = false
+	_push(key)
 	await _frames(2)
-	assert_true(not m.pause_menu.is_open, "Back / ui_cancel never open the menu")
+	assert_true(not m.pause_menu.is_open, "Back / ui_cancel / Esc never open the menu on a touch device")
 	assert_true(not _tree().paused, "tree not paused by Back")
+	PlatformServices.simulate_touchscreen = was_touch
+	await _finish(ctx)
+
+
+## W0: without a touchscreen (the headless default) Esc opens the menu and pauses the offline tree; Esc again resumes.
+func test_esc_opens_and_closes_the_menu_without_a_touchscreen() -> void:
+	var ctx := await _new_match(false)
+	var m: MatchRoot = ctx["match"]
+	var fake := [Input.MOUSE_MODE_VISIBLE]
+	m.pause_menu.capture.get_mode = func() -> int: return fake[0]
+	m.pause_menu.capture.set_mode = func(v: int) -> void: fake[0] = v
+	assert_true(m.pause_menu.pc_controls(), "headless: no touchscreen, PC controls")
+	for pressed in [true, false]:
+		var key := InputEventKey.new()
+		key.physical_keycode = KEY_ESCAPE
+		key.pressed = pressed
+		_push(key)
+	assert_true(m.pause_menu.is_open and m.menu_open, "Esc opens the menu on PC")
+	assert_true(_tree().paused, "offline: the tree pauses")
+	for pressed in [true, false]:
+		var key := InputEventKey.new()
+		key.physical_keycode = KEY_ESCAPE
+		key.pressed = pressed
+		_push(key)
+	assert_true(not m.pause_menu.is_open and not _tree().paused, "Esc again resumes")
+	assert_eq(fake[0], Input.MOUSE_MODE_VISIBLE, "resume does not recapture")
 	await _finish(ctx)
 
 

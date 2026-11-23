@@ -78,7 +78,10 @@ func _ready() -> void:
 	router.action_triggered.connect(_on_action_triggered)
 	router.action_released.connect(_on_action_released)
 	router.action_look_changed.connect(_on_action_look_changed)
-	router.add_provider(KeyboardMouseProvider.new())
+	var kbm := KeyboardMouseProvider.new()
+	if pause_menu != null:
+		kbm.get_mouse_mode = func() -> int: return pause_menu.capture.mode()  # W0: one mouse mode seam (fix 13)
+	router.add_provider(kbm)
 	var gamepad := GamepadProvider.new()
 	gamepad.configure(DataRegistry.new().load_file("res://data/input.json"))
 	router.add_provider(gamepad)

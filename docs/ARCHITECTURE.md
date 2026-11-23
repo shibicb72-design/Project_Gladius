@@ -341,6 +341,61 @@ android/              debug.keystore (shared debug key only)
 - Remapping (later) edits InputMap events and saves them to the profile. Gyro settings (toggle,
   sensitivity, ADS-only, recenter, Off/ADS/Always) live in `input.json` defaults + the profile.
 
+#### W0: PC keyboard and mouse (web milestone, Nov 22 2026)
+Key map (project.godot [input]; every key is a physical keycode, so it sits in the same place on any layout; the
+key map itself is a guess for Shibi, OQ-WEB-KEYS):
+
+| Action | Keys / buttons | Path |
+|---|---|---|
+| move_forward / move_left / move_back / move_right | W / A / S / D | polled (`Input.get_vector`) |
+| look | mouse motion while captured (arrows still bound to look_*) | `KeyboardMouseProvider.get_look`, Camera / ADS tables |
+| fire | left mouse button | polled bit |
+| aim | right mouse button | polled bit (Aim tap toggle as before) |
+| sprint (new action) | Shift (hold) | `KeyboardMouseProvider.is_sprinting()` -> `InputFrame.sprint`; no new BUTTONS bit |
+| jump | Space | polled bit |
+| crouch | C, Ctrl | press path (`PRESS_ACTIONS`, router latch) |
+| prone | Z | polled bit only: bound, no behaviour (pawn.gd is read-only in W0) |
+| interact | E (press and release) | press path + `action_released` (revive hold ends on release) |
+| cover | F | press path (`NON_FRAME_ACTIONS`) |
+| swap_shoulder | V | polled LOCAL_BUTTONS bit (view only) |
+| reload | R | polled bit |
+| swap_weapon | Q, 1, 2, mouse wheel up / down | keys polled; the wheel through the router latch (`MOUSE_LATCH_ACTIONS`); each is a toggle, no slot select |
+| pause | Esc | MouseCapture / PauseMenu (below) |
+
+- Shift and Ctrl bindings leave the key location unspecified (Left Shift / Left Ctrl are the intended keys; the right
+  ones also match), so a browser that reports no key location never loses sprint or crouch.
+- Sprint in cover: the pawn exits cover on the rising edge of `InputFrame.sprint` (pawn.gd, the touch Sprint lock's
+  path), so a Shift press in cover leaves cover and sprints, exactly as the lock does. A Shift already held when cover
+  starts has no edge and does not exit (as a lock already on at entry). No tunable (OQ-WEB-SPRINT-COVER).
+- Mouse look: `KeyboardMouseProvider.mouse_sensitivity` comes from data/input.json `sensitivity.mouse_look`
+  (placeholder, OQ-36; replaced the hard-coded 0.002 rad per pixel), then the router's Camera / ADS percent tables
+  scale it like every "camera" provider. The in-match Settings -> Sensitivity screen's Camera and ADS tables are
+  therefore the mouse sensitivity setting; there is no separate mouse row.
+- Conflicts: no physical key, mouse button, pad button or pad axis direction is in two gameplay actions
+  (tests/test_w0_input.gd); the engine's ui_* actions are excluded (ui_cancel = Esc, ui_accept = Space, ui_ arrows).
+- Browser hazard (not fixable in the page): Ctrl is also the browser's shortcut key; Ctrl+W / Ctrl+T / Ctrl+N
+  cannot be blocked by a page, so crouching on Ctrl while pressing W can close the tab. C is the safe crouch key.
+
+Mouse capture state machine (`MouseCapture`, scripts/input/mouse_capture.gd; owned and driven by `PauseMenu`, which
+runs with PROCESS_MODE_ALWAYS; active only while `PlatformServices.is_touch_device()` is false):
+
+| State | Event | Next | Effect |
+|---|---|---|---|
+| FREE | left click in the match (not the gear) | CAPTURED once the mode reads captured | `set_mode(CAPTURED)`; a refused request stays FREE and the next click asks again |
+| CAPTURED | Esc (desktop: the key arrives) | MENU | release, open the menu |
+| CAPTURED | capture lost (mode no longer captured, no key event: the browser ate Esc, or the tab lost focus) | MENU | open the menu (polled once per frame) |
+| any | menu opened (gear included) | MENU | release |
+| MENU | Esc (no Sensitivity / Layout / Haptics screen open) or Resume | FREE | close; never recaptures by itself |
+| FREE | the next click | CAPTURED | recapture (Chrome refuses an immediate re-lock after Esc) |
+| any | PauseMenu leaves the tree (quit, end screen) | FREE | release |
+
+- Seam (binding fix 13): every mouse mode read and write goes through `MouseCapture.get_mode` / `set_mode`
+  (defaults: `Input.mouse_mode`), and MatchRoot points `KeyboardMouseProvider.get_mouse_mode` at it, so the captured
+  check for mouse look and the state machine read one mode. Headless ignores mouse mode changes; tests fake the seam.
+- Pausing stays MatchRoot's: offline and solo the open menu pauses the tree, online it only zeroes the frame.
+- Touch devices: unchanged. Android Back, ui_cancel and Esc never open the menu; the gear is the only way in.
+- The first click that captures also fires (the fire action is polled from Input), a known W0 behaviour.
+
 ### 4.14 Platform layer
 - `PlatformServices` (`scripts/platform/platform_services.gd`) picks an implementation with an
   `OS.get_name()` switch: Android, desktop (Windows/Linux/macOS), iOS, Web, and a null fallback.

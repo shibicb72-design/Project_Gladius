@@ -268,6 +268,23 @@ func test_solo_lobby_hosts_locally_and_starts_an_offline_match() -> void:
 	assert_true(_tree().paused, "solo: the pause menu pauses the tree")
 	m.pause_menu.close()
 	assert_true(not _tree().paused, "closing the menu unpauses")
+	# W0 (PC, no touchscreen): Esc pauses the tree in solo too, and Esc again resumes (mouse mode faked, fix 13).
+	var mode := [Input.MOUSE_MODE_CAPTURED]
+	m.pause_menu.capture.get_mode = func() -> int: return mode[0]
+	m.pause_menu.capture.set_mode = func(v: int) -> void: mode[0] = v
+	for pressed in [true, false]:
+		var esc := InputEventKey.new()
+		esc.physical_keycode = KEY_ESCAPE
+		esc.pressed = pressed
+		_root().push_input(esc, true)
+	assert_true(m.menu_open and _tree().paused, "solo: Esc opens the menu and pauses the tree")
+	assert_eq(mode[0], Input.MOUSE_MODE_VISIBLE, "solo: Esc released the mouse")
+	for pressed in [true, false]:
+		var esc := InputEventKey.new()
+		esc.physical_keycode = KEY_ESCAPE
+		esc.pressed = pressed
+		_root().push_input(esc, true)
+	assert_true(not m.menu_open and not _tree().paused, "solo: Esc again resumes")
 	# Quit to the menu: no peer to touch; ending the session clears the flag.
 	m.quit_to_menu()
 	assert_eq(back, [AppFlow.MENU_SCENE], "quit goes to the menu")
