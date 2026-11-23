@@ -12,8 +12,10 @@ const REST_TOLERANCE_M := 0.001
 const PROXY_TOLERANCE_M := 0.02  # how far a part-box face may sit from the mesh region it stands for
 
 
-func _pawn() -> Pawn:
+func _pawn(set_id: String = "legionary") -> Pawn:
 	var pawn: Pawn = load("res://scenes/player/pawn.tscn").instantiate()
+	if set_id != "legionary":
+		pawn.set_meta("armour_set", set_id)
 	(Engine.get_main_loop() as SceneTree).root.add_child(pawn)
 	pawn.set_physics_process(false)
 	(pawn.get_node("SoldierModel") as SoldierModel).set_process(false)
@@ -27,6 +29,13 @@ func _body() -> Dictionary:
 func test_glb_armature_equals_the_runtime_skeleton() -> void:
 	var source := SoldierRig.mesh_source()
 	assert_true(source.ends_with("soldier.glb"), "data/art_soldier.json soldier.mesh_source names the Blender soldier: %s" % source)
+	_check_armature(source, "legionary")
+	for set_id: String in SoldierRig.armour_sets():
+		if set_id != "legionary":
+			_check_armature(SoldierRig.armour_sets()[set_id]["glb"], set_id)
+
+
+func _check_armature(source: String, set_id: String) -> void:
 	var packed := load(source) as PackedScene
 	assert_true(packed != null, "the soldier .glb imports as a scene")
 	if packed == null:
@@ -35,7 +44,7 @@ func test_glb_armature_equals_the_runtime_skeleton() -> void:
 	var skeletons := scene.find_children("*", "Skeleton3D", true, false)
 	assert_eq(skeletons.size(), 1, "one armature")
 	assert_eq(scene.find_children("*", "AnimationPlayer", true, false).size(), 0, "no animation in the soldier file (clips come separately)")
-	var pawn := _pawn()
+	var pawn := _pawn(set_id)
 	var model := pawn.get_node("SoldierModel") as SoldierModel
 	var ours := model.skeleton
 	var theirs := skeletons[0] as Skeleton3D
@@ -199,7 +208,12 @@ func _dominant(mesh: ArrayMesh) -> PackedInt32Array:
 
 
 func test_mesh_is_honest_about_the_head_hitbox_in_the_bind_pose() -> void:
-	var pawn := _pawn()
+	for set_id: String in SoldierRig.armour_sets():
+		_check_head_hitbox(set_id)
+
+
+func _check_head_hitbox(set_id: String) -> void:
+	var pawn := _pawn(set_id)
 	var model := pawn.get_node("SoldierModel") as SoldierModel
 	var centre := (pawn.get_node("Head") as Node3D).position
 	var radius := Checks.head_radius(pawn)
@@ -259,11 +273,19 @@ func test_mesh_is_honest_about_the_head_hitbox_in_the_bind_pose() -> void:
 
 
 func test_part_boxes_are_a_truthful_proxy_of_the_helmet_and_the_boots() -> void:
-	var pawn := _pawn()
-	var model := pawn.get_node("SoldierModel") as SoldierModel
+	for set_id: String in SoldierRig.armour_sets():
+		var pawn := _pawn(set_id)
+		var model := pawn.get_node("SoldierModel") as SoldierModel
+		_check_proxies(model, model.armor.mesh as ArrayMesh)
+		if set_id != "legionary":
+			_check_proxies(model, model.armor_far.mesh as ArrayMesh)
+		pawn.free()
+
+
+func _check_proxies(model: SoldierModel, body: ArrayMesh) -> void:
 	var names: Array = model.get_meta("parts")
-	var vertices: PackedVector3Array = (model.armor.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var dominant := _dominant(model.armor.mesh as ArrayMesh)
+	var vertices: PackedVector3Array = body.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var dominant := _dominant(body)
 	var regions := {
 		"helmet": [model.skeleton.find_bone("Head")],
 		"left boot": [model.skeleton.find_bone("LeftFoot"), model.skeleton.find_bone("LeftToes")],
@@ -290,4 +312,3 @@ func test_part_boxes_are_a_truthful_proxy_of_the_helmet_and_the_boots() -> void:
 			worst = maxf(worst, absf(parts.end[axis] - mesh.end[axis]))
 		assert_true(worst <= PROXY_TOLERANCE_M, "%s: the part boxes bound the mesh region within %.2f m (worst face %.3f m; parts %s, mesh %s)" % [region, PROXY_TOLERANCE_M, worst, parts, mesh])
 		print("SOLDIER_GLB proxy %s parts=%s mesh=%s worst_face_m=%.3f" % [region, parts, mesh, worst])
-	pawn.free()

@@ -13,7 +13,24 @@ static var mesh: ArrayMesh
 static var mesh_far: ArrayMesh
 static var skin: Skin
 static var _rest_bounds: Array[AABB] = []
-static var _by_rests: Dictionary = {}  # rest signature -> [near ArrayMesh, far ArrayMesh or null, Skin]
+static var _by_rests: Dictionary = {}  # set and rest signature -> [near ArrayMesh, far ArrayMesh or null, Skin]
+static var _cosmetics: Dictionary = {}
+
+
+static func cosmetics() -> Dictionary:
+	if _cosmetics.is_empty():
+		_cosmetics = DataRegistry.new().load_file("res://data/cosmetics.json")
+	return _cosmetics
+
+
+static func armour_sets() -> Dictionary:
+	return cosmetics()["armour_sets"]
+
+
+static func armour_set_id(value: Variant = null) -> String:
+	if value is String and armour_sets().has(value):
+		return value
+	return cosmetics()["default_armour_set"]
 
 
 static var _config: Dictionary = {}
@@ -65,7 +82,7 @@ static func mesh_source() -> String:
 	return String(SoldierLook.config().get("mesh_source", ""))
 
 
-static func build(parts: Array, head_at: Vector3) -> Skeleton3D:
+static func build(parts: Array, head_at: Vector3, set_id: String = "legionary") -> Skeleton3D:
 	var skeleton := Skeleton3D.new()
 	skeleton.name = "Skeleton3D"
 	var cfg := config()
@@ -91,10 +108,14 @@ static func build(parts: Array, head_at: Vector3) -> Skeleton3D:
 			rest = (global_rest[bone["parent"]] as Transform3D).affine_inverse() * rest
 		skeleton.set_bone_rest(index, rest)
 	skeleton.reset_bone_poses()
-	var source := mesh_source()
+	set_id = armour_set_id(set_id)
+	var look: Dictionary = armour_sets()[set_id]
+	var source: String = mesh_source() if set_id == "legionary" else look["glb"]
 	var key := source + "|" + str(parts.size()) + "|" + _signature(skeleton)
+	if set_id != "legionary":
+		key = set_id + "|" + key
 	if not _by_rests.has(key):
-		var built := _glb_meshes(source, skeleton) if source != "" else []
+		var built := _glb_meshes(source, skeleton, look) if source != "" else []
 		if built.is_empty():
 			var indices := PackedInt32Array()
 			for part: Dictionary in parts:
@@ -121,21 +142,23 @@ static func _signature(skeleton: Skeleton3D) -> String:
 ## [near, far] from the Blender-built .glb, their bone indices remapped by bone NAME onto `skeleton` (bind i = bone
 ## i, the skin create_skin_from_rest_transforms() makes), the imported material replaced by the one soldier material.
 ## Empty when the file or its meshes are missing (the caller falls back to the code-built mesh).
-static func _glb_meshes(path: String, skeleton: Skeleton3D) -> Array:
+static func _glb_meshes(path: String, skeleton: Skeleton3D, look: Dictionary) -> Array:
 	var packed := load(path) as PackedScene
 	if packed == null:
 		push_error("SoldierRig: mesh_source %s does not load" % path)
 		return []
 	var scene := packed.instantiate()
 	var result: Array = []
-	for mesh_name: String in ["SoldierNear", "SoldierFar"]:
+	for lod: String in ["near", "far"]:
+		var mesh_name: String = look[lod + "_node"]
 		var instance := scene.find_child(mesh_name, true, false) as MeshInstance3D
 		if instance == null or instance.mesh == null or instance.skin == null:
 			push_error("SoldierRig: %s has no skinned mesh %s" % [path, mesh_name])
 			scene.free()
 			return []
 		var source_skeleton := instance.get_node_or_null(instance.skeleton) as Skeleton3D
-		result.append(_remapped(instance.mesh as ArrayMesh, instance.skin, source_skeleton, skeleton, mesh_name))
+		var material := SoldierSquadColour.set_material(look, lod)
+		result.append(_remapped(instance.mesh as ArrayMesh, instance.skin, source_skeleton, skeleton, mesh_name, material))
 		if result[-1] == null:
 			scene.free()
 			return []
@@ -143,7 +166,7 @@ static func _glb_meshes(path: String, skeleton: Skeleton3D) -> Array:
 	return result
 
 
-static func _remapped(source: ArrayMesh, source_skin: Skin, source_skeleton: Skeleton3D, skeleton: Skeleton3D, mesh_name: String) -> ArrayMesh:
+static func _remapped(source: ArrayMesh, source_skin: Skin, source_skeleton: Skeleton3D, skeleton: Skeleton3D, mesh_name: String, material: ShaderMaterial) -> ArrayMesh:
 	var bind_to_bone := PackedInt32Array()
 	for k in source_skin.get_bind_count():
 		var bone_name := String(source_skin.get_bind_name(k))
@@ -154,15 +177,16 @@ static func _remapped(source: ArrayMesh, source_skin: Skin, source_skeleton: Ske
 			push_error("SoldierRig: %s binds %s, a bone the soldier skeleton lacks" % [mesh_name, bone_name])
 			return null
 		bind_to_bone.append(bone)
-	var arrays := source.surface_get_arrays(0)
-	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
-	for i in bones.size():
-		bones[i] = bind_to_bone[bones[i]]
-	arrays[Mesh.ARRAY_BONES] = bones
 	var result := ArrayMesh.new()
 	result.resource_name = mesh_name
-	result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	result.surface_set_material(0, SoldierSquadColour.material())
+	for surface in source.get_surface_count():
+		var arrays := source.surface_get_arrays(surface)
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+		for i in bones.size():
+			bones[i] = bind_to_bone[bones[i]]
+		arrays[Mesh.ARRAY_BONES] = bones
+		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		result.surface_set_material(surface, material)
 	return result
 
 

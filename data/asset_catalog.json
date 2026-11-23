@@ -1395,6 +1395,69 @@
 			"sha256": "705a8bb1479724922a2c82d7c29d1b0e6f38db34bf1f87de2ff6ea23e52bc2dd"
 		},
 		{
+			"path": "res://assets/generated/characters/gladiator.glb",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 979056,
+			"sha256": "eeaf7490b3770eb4053ff4665632a148af565c184eae7163d98e358bf4128fa0"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_far_albedo.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 149114,
+			"sha256": "a6cf4779006c5d0f88b2d101abb5770427db212f1631cb9b50ecafcb73644a73"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_far_mask.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 42042,
+			"sha256": "850b5f9cf5ac661facc32f8829fd71855bf1d8e147f284915f9c3f53cf7dfbf5"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_far_normal.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 87129,
+			"sha256": "115e2b0f3dea8a68014b35b7cc11ca774fde7992f5450a16339cb0bfcd2c6f82"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_far_orm.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 118816,
+			"sha256": "03df181f869173f07e381a9d067644134d2a3917aaac6ae58b105a8ac49a8ad6"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_near_albedo.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 1722268,
+			"sha256": "b8a7560e7a0f56e03b326dd6dd34b21ee55530cb18c1b9d3338ab1bebb11c63c"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_near_mask.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 161501,
+			"sha256": "5ac9826cc61d714e6e2f8e9be9b09ff857a8d4991604d8843ec3a3e370687834"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_near_normal.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 962347,
+			"sha256": "a476f379323d36aa70e0a7315eda5e08eaf575a4aaf5f385e0afc47fa5769789"
+		},
+		{
+			"path": "res://assets/generated/characters/gladiator_near_orm.png",
+			"made_by": "tools/blender/build_gladiator.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 440950,
+			"sha256": "7e7545b05fb15078f38f995ab132f58406b1816f0b3ae12f8c2b2549022830b7"
+		},
+		{
 			"path": "res://assets/generated/characters/pipeline_proof.glb",
 			"made_by": "tools/blender/build_pipeline_proof.py",
 			"licence": "generated in this project (no source material)",

@@ -1,0 +1,54 @@
+{
+	"_placeholder": true,
+	"_todo": "OQ-A2-SET and OQ-A2-WARDROBE: both appearances, the free whole-set selection and the shop metadata are guesses for Shibi.",
+	"default_armour_set": "legionary",
+	"bot_armour_set": "legionary",
+	"armour_sets": {
+		"legionary": {
+			"label": "Legionary",
+			"glb": "res://assets/generated/characters/soldier.glb",
+			"near_node": "SoldierNear",
+			"far_node": "SoldierFar",
+			"material_kind": "vertex_colour",
+			"budgets": "legionary",
+			"slot": "whole_set",
+			"rarity": "common",
+			"price": 0
+		},
+		"murmillo": {
+			"label": "Murmillo",
+			"glb": "res://assets/generated/characters/gladiator.glb",
+			"near_node": "GladiatorNear",
+			"far_node": "GladiatorFar",
+			"material_kind": "textured",
+			"budgets": "murmillo",
+			"slot": "whole_set",
+			"rarity": "common",
+			"price": 0,
+			"_note": "R: squad plume, loincloth and sash. G: tier trim. B: reserved for sway. Murmillo has no cape, so cape_lift and cape_downed_lift have no effect.",
+			"atlas_prefix": "res://assets/generated/characters/gladiator_",
+			"texture_sizes": {
+				"near": {"albedo": 2048, "normal": 2048, "orm": 1024, "mask": 1024},
+				"far": {"albedo": 512, "normal": 512, "orm": 512, "mask": 512}
+			},
+			"build": {
+				"_placeholder": true,
+				"_todo": "OQ-A2-SET: silhouette tessellation, finish and palette guesses for Shibi. Each palette entry is RGB, roughness, metalness, finish and paint channel.",
+				"segments": {"near": [40, 28, 20], "far": [20, 16, 10]},
+				"palette": {
+					"skin": [[0.59, 0.33, 0.22], 0.68, 0.0, "skin", ""],
+					"steel": [[0.35, 0.39, 0.41], 0.42, 0.78, "metal", ""],
+					"bronze": [[0.53, 0.35, 0.16], 0.47, 0.73, "metal", ""],
+					"trim": [[0.68, 0.47, 0.23], 0.38, 0.74, "metal", "tier"],
+					"grille": [[0.09, 0.068, 0.053], 0.74, 0.12, "leather", ""],
+					"leather": [[0.25, 0.125, 0.071], 0.7, 0.0, "leather", ""],
+					"sole": [[0.13, 0.092, 0.063], 0.82, 0.0, "leather", ""],
+					"cloth": [[0.69, 0.62, 0.54], 0.85, 0.0, "cloth", "squad"],
+					"sash": [[0.82, 0.74, 0.61], 0.79, 0.0, "cloth", "squad"],
+					"plume": [[0.78, 0.71, 0.60], 0.82, 0.0, "hair", "squad"],
+					"linen": [[0.65, 0.56, 0.43], 0.88, 0.0, "cloth", ""]
+				}
+			}
+		}
+	}
+}
