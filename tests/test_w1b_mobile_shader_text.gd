@@ -11,10 +11,11 @@ func test_mobile_shader_text_matches_base() -> void:
 	var current := ShaderText.snapshot()
 	for file: String in parsed:
 		assert_true(current.get(file) == parsed[file], "%s Mobile source matches base" % file)
+	# Shaders added after the base belong to other slices and have no base text to keep.
+	# A new include could change a base shader's Mobile build, so it must stay Mobile-empty.
 	for file: String in current:
-		if not parsed.has(file):
-			assert_true(file.ends_with(".gdshaderinc") and current[file].is_empty(),
-				"%s adds no Mobile source" % file)
+		if not parsed.has(file) and file.ends_with(".gdshaderinc"):
+			assert_true(current[file].is_empty(), "%s adds no Mobile source" % file)
 
 
 func test_mobile_shader_normalizer_keeps_else_and_expands_nested_identity_calls() -> void:
