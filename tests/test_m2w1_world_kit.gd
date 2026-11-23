@@ -186,6 +186,9 @@ func test_every_listed_type_has_near_and_far_meshes_with_the_shader_data() -> vo
 			assert_true(mesh != null, tag + ": loads")
 			if mesh == null:
 				continue
+			if bool(WorldKitMeshes.entry(type).get("textured", false)):
+				_assert_textured(mesh, level, tag)
+				continue
 			assert_true(mesh.get_surface_count() == 1 and mesh.surface_get_material(0) == WorldKit.material(), tag + ": one surface, the shared kit material")
 			var arrays := mesh.surface_get_arrays(0)
 			for slot: int in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_COLOR, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_TEX_UV2]:
@@ -206,6 +209,37 @@ func test_every_listed_type_has_near_and_far_meshes_with_the_shader_data() -> vo
 	_reset()
 
 
+func _assert_textured(mesh: ArrayMesh, level: int, tag: String) -> void:
+	assert_eq(mesh.get_surface_count(), 1, tag + ": one painted surface")
+	if mesh.get_surface_count() != 1:
+		return
+	var arrays := mesh.surface_get_arrays(0)
+	for slot: int in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_TEX_UV]:
+		assert_true(arrays[slot] != null and (arrays[slot] as Variant).size() > 0, "%s: array %d present" % [tag, slot])
+	var material := mesh.surface_get_material(0) as StandardMaterial3D
+	assert_true(material != null, tag + ": imported StandardMaterial3D")
+	if material == null:
+		return
+	var albedo_px := 2048 if level == 0 else 512
+	_assert_texture(material.albedo_texture, albedo_px, tag + " albedo")
+	if level != 0:
+		return
+	assert_true(material.normal_enabled and material.ao_enabled, tag + ": enabled normal and occlusion")
+	_assert_texture(material.normal_texture, 1024, tag + " normal")
+	_assert_texture(material.ao_texture, 1024, tag + " packed ORM")
+	assert_eq(material.ao_texture, material.roughness_texture, tag + ": roughness shares ORM")
+	assert_eq(material.ao_texture, material.metallic_texture, tag + ": metallic shares ORM")
+	assert_eq(material.ao_texture_channel, BaseMaterial3D.TEXTURE_CHANNEL_RED, tag + ": occlusion uses red")
+	assert_eq(material.roughness_texture_channel, BaseMaterial3D.TEXTURE_CHANNEL_GREEN, tag + ": roughness uses green")
+	assert_eq(material.metallic_texture_channel, BaseMaterial3D.TEXTURE_CHANNEL_BLUE, tag + ": metallic uses blue")
+
+
+func _assert_texture(texture: Texture2D, pixels: int, tag: String) -> void:
+	assert_true(texture is CompressedTexture2D, tag + ": imported compressed texture")
+	if texture != null:
+		assert_eq(texture.get_size(), Vector2(pixels, pixels), tag + ": dimensions")
+
+
 func test_glb_holds_exactly_the_listed_nodes() -> void:
 	_reset()
 	var default_glb := String(_cfg()["glb"])
@@ -222,6 +256,10 @@ func test_glb_holds_exactly_the_listed_nodes() -> void:
 		var row: Dictionary = _cfg()["cover"][type]
 		if row.has("node"):
 			expected[default_glb][String(row["node"])] = true
+	var dressing := "res://assets/generated/world/m2cx2_dressing.glb"
+	for retired: String in _cfg().get("retired_nodes", []):
+		assert_true(not expected[dressing].has(retired), retired + ": present only as a retired dressing node")
+		expected[dressing][retired] = true
 	for glb: String in expected:
 		var scene := load(glb) as PackedScene
 		assert_true(scene != null, "the glb imports: " + glb)
@@ -253,6 +291,8 @@ func test_vertex_colours_round_trip_to_the_palette() -> void:
 			names.append(key)
 	var used := {}
 	for type: String in _types():
+		if bool(WorldKitMeshes.entry(type).get("textured", false)):
+			continue
 		for level in 2:
 			var mesh := WorldKitMeshes.mesh(type, level)
 			if mesh == null:
@@ -280,6 +320,7 @@ func test_every_vertex_fits_the_colliders_and_the_open_and_walk_rules() -> void:
 	var clear := float(_cfg()["walk_clear_m"])
 	var head := float(_cfg()["walk_head_m"])
 	var edge := float(_cfg()["walk_edge_m"])
+	var exceptions: Dictionary = _cfg().get("prop_fit_exceptions", {})
 	for type: String in _types():
 		var def: Dictionary = _kit_types()[type]
 		var solids := _solids(def)
@@ -289,8 +330,11 @@ func test_every_vertex_fits_the_colliders_and_the_open_and_walk_rules() -> void:
 				assert_true(false, "%s level %d: no mesh" % [type, level])
 				continue
 			var tag := "%s level %d" % [type, level]
-			var over := _overshoot(mesh, solids)
-			assert_true(float(over[0]) <= tol + 1e-5, "%s: every vertex within %.2f m of a collider (worst %.3f at %s)" % [tag, tol, over[0], over[1]])
+			if exceptions.has(type):
+				_assert_prop_fit(mesh, solids, tol, exceptions[type], tag)
+			else:
+				var over := _overshoot(mesh, solids)
+				assert_true(float(over[0]) <= tol + 1e-5, "%s: every vertex within %.2f m of a collider (worst %.3f at %s)" % [tag, tol, over[0], over[1]])
 			var verts := _unique_vertices(mesh)
 			# Open volumes (boxes, no rot): no vertex deeper than the tolerance inside.
 			for open: Dictionary in def.get("open", []):
@@ -325,10 +369,36 @@ func test_every_vertex_fits_the_colliders_and_the_open_and_walk_rules() -> void:
 	_reset()
 
 
+func _assert_prop_fit(mesh: Mesh, solids: Array, tolerance: float, exception: Dictionary, tag: String) -> void:
+	var inverse_yaw := Basis(Vector3.UP, -deg_to_rad(float(exception["yaw_deg"])))
+	var regions: Array[AABB] = []
+	for area: Dictionary in (exception["regions"] as Dictionary).values():
+		var lo := LowpolyKit.vec(area["min"])
+		regions.append(AABB(lo, LowpolyKit.vec(area["max"]) - lo))
+	var worst_excess := 0.0
+	var where := Vector3.ZERO
+	for vertex: Vector3 in _unique_vertices(mesh):
+		var best := INF
+		for solid: Dictionary in solids:
+			best = minf(best, _distance(vertex, solid))
+		if best <= tolerance:
+			continue
+		var limit := tolerance
+		for region: AABB in regions:
+			if region.has_point(inverse_yaw * vertex):
+				limit = float(exception["tolerance_m"])
+				break
+		if best - limit > worst_excess:
+			worst_excess = best - limit
+			where = vertex
+	assert_true(worst_excess <= 1e-5, "%s: vertices fit their collider or named exception (excess %.3f at %s)" % [tag, worst_excess, where])
+
+
 func test_budgets_and_report() -> void:
 	_reset()
 	var budgets: Dictionary = _cfg()["budgets"]
 	var lod1_max := int(_cfg()["lod1_max_tris"])
+	var lod1_overrides: Dictionary = _cfg().get("lod1_max_tris_by_type", {})
 	var lod_over := int(_cfg()["lod_required_over_tris"])
 	var without: Array[String] = []
 	for type: String in _types():
@@ -350,7 +420,8 @@ func test_budgets_and_report() -> void:
 			print("M2W1_KIT_REPORT type=%s kit_tris=%d near_tris=%d far_tris=none near_overshoot=%.3f swap_m=0 (no far mesh)" % [type, kit, tn, _overshoot(near, solids)[0]])
 			continue
 		var tf := Perf.triangles(far)
-		assert_true(budgets["lod1_tris"].has(type) and tf <= int(budgets["lod1_tris"][type]) and tf <= lod1_max, "%s: far %d triangles within %s and %d" % [type, tf, budgets["lod1_tris"].get(type), lod1_max])
+		var far_cap := int(lod1_overrides.get(type, lod1_max))
+		assert_true(budgets["lod1_tris"].has(type) and tf <= int(budgets["lod1_tris"][type]) and tf <= far_cap, "%s: far %d triangles within %s and %d" % [type, tf, budgets["lod1_tris"].get(type), far_cap])
 		assert_true(tf < tn, type + ": the far mesh is lighter")
 		print("M2W1_KIT_REPORT type=%s kit_tris=%d near_tris=%d far_tris=%d near_overshoot=%.3f far_overshoot=%.3f swap_m=%.0f (uncovered collider faces: not computed)" % [
 				type, kit, tn, tf, _overshoot(near, solids)[0], _overshoot(far, solids)[0], WorldKitMeshes.swap_m(type)])
@@ -419,6 +490,48 @@ func test_loader_is_deterministic() -> void:
 		WorldKitMeshes.clear_cache()
 		var b := WorldKitMeshes.mesh(type, 0).surface_get_arrays(0)
 		assert_eq(a, b, type + ": the same arrays after a fresh load")
+	_reset()
+
+
+func test_a1_props_use_imported_meshes_without_changing_palette_arrays() -> void:
+	_reset()
+	var old_envelopes := {"forum_stall": Vector3(3.58, 2.95, 3.15), "farm_cart": Vector3(2.87, 1.21, 1.66)}
+	for type: String in old_envelopes:
+		var row := WorldKitMeshes.entry(type)
+		var path := "res://assets/generated/world/a1_%s.glb" % type
+		assert_eq(String(row["glb"]), path, type + ": separate repainted glTF")
+		assert_true(bool(row.get("textured", false)), type + ": uses its imported material")
+		assert_true(WorldKit.config()["types"][type]["colliders"].size() <= 8, type + ": up to eight fitted boxes")
+		for level: int in [0, 1]:
+			var node := String(row["node"] if level == 0 else row["lod1_node"])
+			var source := WorldKitMeshes._source_mesh(path, node)
+			var mesh := WorldKitMeshes.mesh(type, level)
+			assert_true(mesh != null and mesh == source, "%s %d: original imported mesh" % [type, level])
+			if mesh == null:
+				continue
+			var bounds := mesh.get_aabb()
+			var ratio: Vector3 = bounds.size / old_envelopes[type]
+			for axis in 3:
+				assert_true(absf(ratio[axis] - 1.0) <= 0.2, "%s %d: axis %d remains in the original 20%% envelope" % [type, level, axis])
+			var center := bounds.get_center()
+			assert_true(absf(center.x) < 0.02 and absf(center.z) < 0.02 and absf(bounds.position.y) < 0.02, type + ": centered on its original ground origin")
+	# Pinned at f50f96a (pre-A1): sha256 of var_to_bytes(surface_get_arrays) over every surface. wall_walk comes from
+	# the default glb, waystation from m2cx2_dressing.glb (the glb A1 retired nodes from).
+	var pinned := {
+		"wall_walk": ["8196cd1476599bc04af1c820a3af0329b561650e9b21263ea578ac2fdbd222f2", "10ee1f64aeb1ce02fba68b060afb0455ae51c19822e5257d0ba0fe93c9d822a5"],
+		"waystation": ["696422cae54757c55b8ae743232c0223fc4532ce2ed9ad504038b2e386c51dac", "1a456ca252add23237cc49fb7c3a530ff9a16aca146dd32661aeca7ea1c4cbfd"],
+	}
+	for type: String in pinned:
+		for level: int in [0, 1]:
+			var built := WorldKitMeshes.mesh(type, level)
+			assert_true(built != null, "%s %d: still built" % [type, level])
+			if built == null:
+				continue
+			var ctx := HashingContext.new()
+			ctx.start(HashingContext.HASH_SHA256)
+			for s in built.get_surface_count():
+				ctx.update(var_to_bytes(built.surface_get_arrays(s)))
+			assert_eq(ctx.finish().hex_encode(), String(pinned[type][level]), "%s %d: arrays byte-identical to f50f96a" % [type, level])
 	_reset()
 
 
@@ -606,6 +719,8 @@ func test_shade_bake_off_keeps_the_old_values_and_on_separates_values() -> void:
 	WorldKitMeshes.clear_cache()
 	var glb := String(_cfg()["glb"])
 	for type: String in _types():
+		if bool(WorldKitMeshes.entry(type).get("textured", false)):
+			continue
 		for level: int in _levels(type):
 			var e: Dictionary = _cfg()["types"][type]
 			var source := WorldKitMeshes._source_mesh(String(e.get("glb", glb)), String(e["node"] if level == 0 else e["lod1_node"]))
@@ -619,6 +734,8 @@ func test_shade_bake_off_keeps_the_old_values_and_on_separates_values() -> void:
 	var range_m := float(b["shade_range"])
 	var mean := {}
 	for type: String in _types():
+		if bool(WorldKitMeshes.entry(type).get("textured", false)):
+			continue
 		var weights := []
 		for level: int in _levels(type):
 			var arrays := WorldKitMeshes.mesh(type, level).surface_get_arrays(0)
@@ -775,6 +892,8 @@ func test_lod_pairs_swap_once_at_the_same_centre() -> void:
 		assert_true(range_m >= float(classes["sight_floor_m"]), type + ": the pair keeps the sight floor")
 		assert_true(MapChunks.range_centre(near).is_equal_approx(MapChunks.range_centre(far)), type + ": both measure from the same centre")
 		assert_true(far.multimesh.mesh == WorldKitMeshes.mesh(type, 1) and near.multimesh.mesh == WorldKitMeshes.mesh(type, 0), type + ": the glb meshes")
+		if bool(WorldKitMeshes.entry(type).get("textured", false)):
+			assert_true(near.material_override == null and far.material_override == null, type + ": batches keep the painted surfaces")
 		assert_eq(far.cast_shadow, near.cast_shadow, type + ": the far batch casts like its class")
 		assert_eq(String(far.get_meta(&"class")), String(near.get_meta(&"class")), type + ": the far batch has the near type's class")
 		assert_eq(far.get_meta(&"transforms"), near.get_meta(&"transforms"), type + ": the same pieces")

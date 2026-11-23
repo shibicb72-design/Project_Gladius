@@ -1,6 +1,16 @@
 {
-    "_note":  "M2 AN2: which committed script under tools/blender/ wrote each generated .glb, and the data/asset_catalog.json id of its CC0 source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
+    "_note":  "M2 AN2: which committed script under tools/blender/ wrote each generated asset, and the data/asset_catalog.json id of its source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
     "files":  {
+                  "res://assets/generated/world/a1_forum_stall.glb": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
+                  "res://assets/generated/world/a1/forum_stall_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
+                  "res://assets/generated/world/a1/forum_stall_normal.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
+                  "res://assets/generated/world/a1/forum_stall_orm.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
+                  "res://assets/generated/world/a1/forum_stall_lod1_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
+                  "res://assets/generated/world/a1_farm_cart.glb": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
+                  "res://assets/generated/world/a1/farm_cart_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
+                  "res://assets/generated/world/a1/farm_cart_normal.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
+                  "res://assets/generated/world/a1/farm_cart_orm.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
+                  "res://assets/generated/world/a1/farm_cart_lod1_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
                   "res://assets/generated/characters/pipeline_proof.glb":  {
                                                                                "made_by":  "tools/blender/build_pipeline_proof.py",
                                                                                "derived_from":  ""

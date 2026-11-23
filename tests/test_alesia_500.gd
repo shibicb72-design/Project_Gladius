@@ -17,6 +17,7 @@ const _Builder := preload("res://scripts/visual/astra_map.gd")
 const _Contact := preload("res://tests/test_ground_contact.gd")
 const _Snap := preload("res://tools/m2w1_collider_snapshot.gd")
 const _Sight := preload("res://tools/sight_lines.gd")
+const _Perf := preload("res://tests/test_astra_perf.gd")
 const PlaceMap := preload("res://scripts/visual/place_map.gd")
 
 static var _built: Node3D
@@ -148,6 +149,25 @@ func test_counts_and_the_collider_snapshot() -> void:
 	print("ALESIA_500_COUNTS cover=", builder.cover_bodies.size(), " ring=", builder.ring_bodies.size(), " decor=", decor, " decor_bodies=", builder.decor_bodies.size(),
 		" structures=", builder.structure_bodies.size(), " rings=", rings, " cover_wall=", walls, " chests=", builder.chest_bodies.size(), " doors=", builder.door_bodies.size(),
 		" ladders=", builder.ladders.size(), " collider_shapes=", (now["entries"] as Array).size(), " entries_sha256=", now["entries_sha256"])
+
+
+func test_a1_market_near_meshes_fit_the_structure_budget() -> void:
+	var counts := {"forum_stall": 0, "farm_cart": 0}
+	for piece: Dictionary in DataRegistry.parse_quiet(String(_def()["structure_data"]))["pieces"]:
+		var type := String(piece["type"])
+		if counts.has(type):
+			counts[type] += 1
+	assert_eq(counts, {"forum_stall": 6, "farm_cart": 3}, "the nine A1 placements retain their original counts")
+	var triangles := 0
+	for type: String in counts:
+		var row := WorldKitMeshes.entry(type)
+		var near := WorldKitMeshes.mesh(type, 0)
+		assert_true(near != null and near == WorldKitMeshes._source_mesh(String(row["glb"]), String(row["node"])), type + ": the near mesh is the A1 glTF mesh, not a fallback")
+		triangles += int(counts[type]) * _Perf.triangles(near)
+	assert_true(triangles > 200000 and triangles <= 240000, "the nine A1 near meshes total %d triangles, within the 240,000 A1 caps" % triangles)
+	var cap := int(WorldKitMeshes.config()["budgets"]["visible_structure_tris"])
+	# Six stalls × 30,000 + three carts × 20,000 = 240,000 at the caps, within 400,000.
+	assert_true(triangles > 0 and triangles <= cap, "all nine near meshes use %d of %d visible structure triangles" % [triangles, cap])
 
 
 ## The saved 500 m mesh on the one built map's Nav region.

@@ -127,6 +127,13 @@
 			{"name": "6_on_the_ground", "at_s": 40.0}
 		]
 	},
+	"a1_market": [
+		{"name": "market_three_quarter", "cam": [45, -87], "eye_m": 3.8, "look": [43, 1.1, -99], "fov": 57},
+		{"name": "forum_stall_near", "cam": [45.5, -90.5], "eye_m": 2.5, "look": [49.5, 1.7, -93.5], "fov": 49},
+		{"name": "forum_stall_far", "cam": [45.5, -90.5], "eye_m": 2.5, "look": [49.5, 1.7, -93.5], "fov": 49, "force_lod": "forum_stall"},
+		{"name": "farm_cart_near", "cam": [82.5, -136], "eye_m": 2.2, "look": [86, 0.65, -132.5], "fov": 39},
+		{"name": "farm_cart_far", "cam": [82.5, -136], "eye_m": 2.2, "look": [86, 0.65, -132.5], "fov": 39, "force_lod": "farm_cart"}
+	],
 	"wall_closeup": {
 		"bearing_start_deg": 15,
 		"bearing_step_deg": 30,

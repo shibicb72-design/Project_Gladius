@@ -79,6 +79,9 @@ static func mesh(type: String, level: int) -> ArrayMesh:
 		var source := _source_mesh(glb, node_name)
 		if source == null:
 			_report("WorldKitMeshes: %s: no mesh node %s in %s; its kit look stays" % [type, node_name, glb])
+		elif bool(e.get("textured", false)):
+			# Imported surfaces carry their own UVs, tangents and PBR materials.
+			made = source as ArrayMesh
 		else:
 			made = rebuild(source, kit_custom(type), type if bake_enabled() else "")
 			made.resource_name = "M2W1_" + node_name
