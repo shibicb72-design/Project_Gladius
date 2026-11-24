@@ -1981,7 +1981,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
 - Scene tests instantiate scenes under the runner's root, step physics frames, and free them.
 - Every rules system gets tests in the story that introduces it: damage, KotH scoring, spawns, then
   later economy, streaks and progression.
-- CI (`.github/workflows/android.yml`) runs import → tests → debug export → artifact upload.
+- CI (`.github/workflows/web.yml`) runs two jobs: import → web debug export → artifact upload, and import → tests. It publishes nothing.
 
 ## 6. How to add things (data only)
 

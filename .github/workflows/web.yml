@@ -1,0 +1,108 @@
+name: Web build
+
+on:
+  push:
+    branches: [main, opus/web]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Builds the browser game and keeps it as a download. Nothing is published or hosted.
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - &godot-cache
+        name: Cache Godot downloads
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: godot-dl
+          key: godot-4.7.2-stable
+
+      - &godot-download
+        name: Download Godot and export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p godot-dl
+          cd godot-dl
+          base="https://github.com/godotengine/godot/releases/download/4.7.2-stable"
+          curl -fsSLO "$base/Godot_v4.7.2-stable_linux.x86_64.zip"
+          curl -fsSLO "$base/Godot_v4.7.2-stable_export_templates.tpz"
+          curl -fsSLO "$base/SHA512-SUMS.txt"
+
+      - &godot-verify
+        name: Verify checksums
+        working-directory: godot-dl
+        run: |
+          grep -E "Godot_v4\.7\.2-stable_(linux\.x86_64\.zip|export_templates\.tpz)$" SHA512-SUMS.txt > wanted.txt
+          test "$(wc -l < wanted.txt)" -eq 2
+          sha512sum -c wanted.txt
+
+      # .gdignore: the import must not scan the archives.
+      - &godot-install
+        name: Install Godot and the web templates
+        run: |
+          touch godot-dl/.gdignore
+          cd godot-dl
+          unzip -q -o "Godot_v4.7.2-stable_linux.x86_64.zip" -d "$RUNNER_TEMP/godot"
+          mkdir -p "$HOME/.local/bin"
+          mv "$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64" "$HOME/.local/bin/godot"
+          chmod +x "$HOME/.local/bin/godot"
+          tpl="$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          mkdir -p "$tpl"
+          unzip -q -o -j "Godot_v4.7.2-stable_export_templates.tpz" \
+            "templates/web_nothreads_*.zip" templates/version.txt -d "$tpl"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Twice, as the local gate does: the first pass of a clean tree registers classes.
+      - &godot-import
+        name: Import project
+        run: |
+          godot --headless --path . --import
+          godot --headless --path . --import
+
+      - name: Export the web build
+        run: |
+          mkdir -p build/web
+          godot --headless --path . --export-debug "Web" build/web/index.html
+
+      - name: Check the web build
+        run: |
+          for f in index.html index.js index.wasm index.pck; do test -s "build/web/$f"; done
+          ls -l build/web
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gladius-web
+          path: build/web
+          if-no-files-found: error
+          retention-days: 14
+
+  # Separate from the build: a failing test turns the run red but does not hide the build.
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - *godot-cache
+      - *godot-download
+      - *godot-verify
+      - *godot-install
+      - *godot-import
+
+      - name: Run tests
+        run: godot --headless --path . --script res://tests/run_tests.gd
