@@ -25,6 +25,12 @@
 // times of GLADIUS_MATCH_STARTED and GLADIUS_CAN_MOVE, every rAF gap over 250 ms from page load (before / after
 // CAN_MOVE), median and 1 percent low after CAN_MOVE, the markers and the parsed GLADIUS_T lines; tools/web/
 // perf_stalls.mjs turns that and the trace into the stall table.
+// W1c fix pass 1: "w1c.action" = the action step after the probe (perf_route.json "action": switch weapon, fire, swing
+// through the player's input actions): every rAF gap over 250 ms inside GLADIUS_T action.start .. action.end with the
+// actions it overlaps, and the longest frame in that window (also under 250 ms), apart from the stalls of the route.
+// --warm-skip=<kind>[,<kind>...] adds warm_skip= to the page URL: the shader warm-up leaves those data/warmup.json
+// "listed" kinds out (debug web + perf=1 only; scripts/debug/perf_marks.gd warm_skip): the "before" of a warm entry
+// on the same commit.
 // Exit code: 0 only when every requested level produced a result (shots: every variant a PNG); 1 otherwise; 2 bad
 // arguments / missing build; 3 the overall hard timeout fired. Chrome and the server are always closed.
 // Every number is "[measured] this PC, Chrome <version>, not a performance claim".
@@ -58,7 +64,7 @@ function parseArgs(argv) {
   const out = {
     levels: null, variants: null, seconds: null, out: path.join('build', 'perf', 'perf.json'), shots: '', shotView: '',
     size: { width: 1280, height: 720 }, build: 'build/web', webtools: DEFAULT_WEBTOOLS, chrome: DEFAULT_CHROME,
-    profileDir: '', profileName: 'warm', cold: false, keepProfiles: false, trace: '',
+    profileDir: '', profileName: 'warm', cold: false, keepProfiles: false, trace: '', warmSkip: '',
   };
   for (const a of argv) {
     if (a === '--cold') { out.cold = true; continue; }
@@ -69,6 +75,10 @@ function parseArgs(argv) {
     if (k === 'profile-dir') out.profileDir = v;
     else if (k === 'profile-name') out.profileName = v;
     else if (k === 'trace') out.trace = v;
+    else if (k === 'warm-skip') {
+      if (!/^[a-z_]+(,[a-z_]+)*$/.test(v)) throw new Error('--warm-skip: comma-separated data/warmup.json listed kinds');
+      out.warmSkip = v;
+    }
     else if (k === 'levels') out.levels = v.split(',').map((s) => s.trim()).filter(Boolean);
     else if (k === 'seconds') out.seconds = Number(v);
     else if (k === 'out') out.out = v;
@@ -137,6 +147,7 @@ async function main() {
     routeSeconds: args.seconds,
     routeTotalS: route.total_s,
     seed: route.seed,
+    warmSkip: args.warmSkip || null,
     levels: [],
     shots: [],
     failures: [],
@@ -280,7 +291,8 @@ async function main() {
       log(`${level}: own Chrome launch, ${report.profile.mode} profile ${l.profile.dir}${l.profile.existedBefore ? ' (reused)' : ' (new)'}`);
     }
     const cfg = { route, seconds: args.seconds, shots: false };
-    const query = `autosolo=1&length=${MATCH_LENGTH}&wait=0&perf=1&quality=${encodeURIComponent(level)}&seed=${route.seed}`;
+    const query = `autosolo=1&length=${MATCH_LENGTH}&wait=0&perf=1&quality=${encodeURIComponent(level)}&seed=${route.seed}` +
+      (args.warmSkip ? `&warm_skip=${args.warmSkip}` : '');
     const tracePath = traceFileFor(level);
     let run;
     try {
@@ -351,6 +363,8 @@ async function main() {
         entry.w1c = stallAnalysis(pg, entry.game);
         const s = entry.w1c.stallSummary;
         log(`${level}: CAN_MOVE at ${entry.w1c.canMovePageS ?? '?'} s (page clock); rAF gaps > ${FREEZE_MS} ms: ${s.beforeCanMove} before, ${s.afterCanMove} after (longest after ${s.longestAfterMs ?? '-'} ms)`);
+        const act = entry.w1c.action;
+        log(`${level}: action step ${act?.ran ? `ran: ${act.stallCount} gaps > ${FREEZE_MS} ms (longest ${act.longestStallMs ?? '-'}), longest frame ${act.longestFrame?.ms ?? '-'} ms` : `did not run (${act?.skipped ?? 'no marks'})`}`);
       } catch (e) {
         entry.w1cError = String(e?.message || e);
       }
@@ -517,6 +531,10 @@ function stallAnalysis(pg, game) {
   const markers = lines.filter(([, s]) => !s.startsWith('GLADIUS_T '))
     .map(([t, s]) => ({ pageMs: r1(t), text: s.length > 120 ? s.slice(0, 120) + ' ...' : s }));
   const f = pg.frames || [];
+  // W1c fix pass 1: the action step after the probe (from its camera mark on) is its own phase, reported in
+  // `action` and kept out of the after-CAN_MOVE count, so the route's numbers stay comparable with earlier runs.
+  const actionAt = timing.find((t) => t.label === 'action.camera' || t.label === 'action.skipped');
+  const actionMs = actionAt ? actionAt.pageMs : null;
   const stalls = [];
   for (let i = 1; i < f.length; i++) {
     const dt = f[i] - f[i - 1];
@@ -526,13 +544,14 @@ function stallAnalysis(pg, game) {
     stalls.push({
       startMs: r1(f[i - 1]), endMs: r1(f[i]), ms: Math.round(dt),
       sinceCanMoveMs: canMoveMs != null ? Math.round(f[i - 1] - canMoveMs) : null,
-      phase: probeMs != null && f[i - 1] >= probeMs ? 'probe' : routeStartMs != null && f[i - 1] >= routeStartMs ? 'route'
-        : matchStartedMs != null && f[i] > matchStartedMs ? 'match start .. route' : 'boot / menu / match build',
+      phase: actionMs != null && f[i] > actionMs ? 'action' : probeMs != null && f[i - 1] >= probeMs ? 'probe'
+        : routeStartMs != null && f[i - 1] >= routeStartMs ? 'route'
+          : matchStartedMs != null && f[i] > matchStartedMs ? 'match start .. route' : 'boot / menu / match build',
       when,
     });
   }
   const before = stalls.filter((s) => s.when === 'before_can_move');
-  const after = stalls.filter((s) => s.when === 'after_can_move' || s.when === 'spans_can_move');
+  const after = stalls.filter((s) => (s.when === 'after_can_move' || s.when === 'spans_can_move') && s.phase !== 'action');
   const longest = (list) => (list.length ? Math.max(...list.map((s) => s.ms)) : null);
   const end = probeMs ?? (f.length ? f[f.length - 1] : 0);
   const win = canMoveMs != null ? f.filter((x) => x >= canMoveMs && x <= end) : [];
@@ -544,6 +563,7 @@ function stallAnalysis(pg, game) {
     stats.onePercentLowMs = r1(d.slice(0, n).reduce((s, v) => s + v, 0) / n);
   }
   return {
+    action: actionWindow(f, timing, game),
     clock: 'page clock: ms since performance.timeOrigin of the game document (about the navigation start); GLADIUS_* times are when the game called console.*, GLADIUS_T pageMs the end of the span',
     pageOrigin: pg.origin,
     matchStartedPageS: matchStartedMs != null ? r1(matchStartedMs / 1000) : null,
@@ -554,12 +574,65 @@ function stallAnalysis(pg, game) {
       thresholdMs: FREEZE_MS, total: stalls.length, beforeCanMove: before.length, afterCanMove: after.length,
       spanningCanMove: stalls.filter((s) => s.when === 'spans_can_move').length,
       longestBeforeMs: longest(before), longestAfterMs: longest(after),
-      note: 'afterCanMove counts gaps that end after GLADIUS_CAN_MOVE (a gap spanning it is the player\'s first frame stalling)',
+      actionPhase: stalls.filter((s) => s.phase === 'action').length,
+      note: 'afterCanMove counts gaps that end after GLADIUS_CAN_MOVE (a gap spanning it is the player\'s first frame stalling), up to the action step (its gaps: actionPhase and `action`)',
     },
     afterCanMove: stats ? { window: 'GLADIUS_CAN_MOVE .. frame-cap probe start (or the last frame)', ...stats } : null,
     stalls,
     markers,
     timing,
+  };
+}
+
+// W1c fix pass 1: the action step (scripts/debug/perf_route.gd, after the probe): the rAF gaps inside GLADIUS_T
+// action.start .. action.end, each with the actions (switch / fire / swing : weapon id) whose span it overlaps (an
+// action's span runs from its press mark to the next mark), the longest frame in the window (also under 250 ms) and
+// per action; plus the camera settle before it (action.camera .. action.start: the match camera drawn again after the
+// route camera), reported apart. Page clock as stallAnalysis.
+function actionWindow(f, timing, game) {
+  const r1 = (v) => Number(Number(v).toFixed(1));
+  const at = (label) => { const t = timing.find((x) => x.label === label); return t ? t.pageMs : null; };
+  const cam = at('action.camera');
+  const start = at('action.start');
+  const end = at('action.end');
+  const skipped = timing.find((x) => x.label === 'action.skipped');
+  if (start == null || end == null) {
+    return { ran: false, skipped: skipped ? (skipped.extra.why || 'yes') : (game?.action?.skipped ?? null), game: game?.action ?? null };
+  }
+  const marks = timing.filter((x) => /^action\.(switch|fire|swing)$/.test(x.label));
+  const spans = marks.map((m, i) => ({ action: m.label.slice('action.'.length), weapon: m.extra.weapon || '', fromMs: m.pageMs,
+    toMs: i + 1 < marks.length ? marks[i + 1].pageMs : end }));
+  const gapsIn = (a, b) => {
+    const out = [];
+    for (let i = 1; i < f.length; i++) {
+      if (f[i] <= a || f[i - 1] >= b) continue;
+      out.push({ startMs: r1(f[i - 1]), endMs: r1(f[i]), ms: Math.round(f[i] - f[i - 1]) });
+    }
+    return out;
+  };
+  const longestOf = (list) => list.reduce((m, g) => (m && m.ms >= g.ms ? m : g), null);
+  const overlaps = (g) => spans.filter((s) => g.startMs < s.toMs && g.endMs > s.fromMs).map((s) => `${s.action}:${s.weapon}`);
+  const inWin = gapsIn(start, end);
+  const stalls = inWin.filter((g) => g.ms > FREEZE_MS).map((g) => ({ ...g, actions: overlaps(g) }));
+  const longest = longestOf(inWin);
+  const camGaps = cam != null ? gapsIn(cam, start) : [];
+  return {
+    ran: true,
+    window: 'GLADIUS_T action.start .. action.end (page clock ms)',
+    startPageS: r1(start / 1000), endPageS: r1(end / 1000), frames: inWin.length,
+    thresholdMs: FREEZE_MS, stallCount: stalls.length, longestStallMs: stalls.length ? Math.max(...stalls.map((s) => s.ms)) : null,
+    stalls,
+    longestFrame: longest ? { ...longest, actions: overlaps(longest) } : null,
+    perAction: spans.map((s) => {
+      const g = gapsIn(s.fromMs, s.toMs);
+      const l = longestOf(g);
+      return { ...s, frames: g.length, longestFrameMs: l ? l.ms : null, stalls: g.filter((x) => x.ms > FREEZE_MS).length };
+    }),
+    cameraSettle: cam != null ? {
+      window: 'action.camera .. action.start: the match camera drawn again after the route camera (not part of the action window)',
+      longestFrameMs: longestOf(camGaps)?.ms ?? null, stalls: camGaps.filter((x) => x.ms > FREEZE_MS).length,
+    } : null,
+    game: game?.action ?? null,
   };
 }
 
@@ -590,6 +663,20 @@ function markdownTable(report) {
     rows.push(`| ${e.level} | ${e.profile ? e.profile.existedBefore : '-'} | ${w.matchStartedPageS ?? '-'} | ${w.canMovePageS ?? '-'} | ` +
       `${s.beforeCanMove} (${s.longestBeforeMs ?? '-'}) | ${s.afterCanMove} (${s.longestAfterMs ?? '-'}) | ${a.medianFrameMs ?? '-'} | ` +
       `${a.onePercentLowMs ?? '-'} (${a.onePercentLowFps ?? '-'}) | ${e.trace ? path.basename(e.trace) : '-'} |`);
+  }
+  // W1c fix pass 1: the action step after the probe (switch / fire / swing through the input actions).
+  rows.push('', `W1c action step (after the probe; rAF gaps > ${FREEZE_MS} ms inside action.start .. action.end; warm_skip: ${report.warmSkip ?? '-'})`, '',
+    '| level | ran | stalls in window (longest ms) | longest frame ms (actions) | per action: longest frame ms | camera settle longest ms | pawn before |',
+    '|---|---|---|---|---|---|---|');
+  for (const e of report.levels) {
+    const x = e.w1c?.action;
+    if (!x) { rows.push(`| ${e.level} | - | - | - | - | - | - |`); continue; }
+    const sb = x.game?.state_before || {};
+    const pawn = sb.pawn ? `${sb.life} ${sb.drop} hp ${sb.health} shown ${sb.shown}` : '-';
+    if (!x.ran) { rows.push(`| ${e.level} | no: ${x.skipped ?? '?'} | - | - | - | - | ${pawn} |`); continue; }
+    const per = x.perAction.map((p) => `${p.action}:${p.weapon} ${p.longestFrameMs ?? '-'}`).join('; ');
+    rows.push(`| ${e.level} | yes | ${x.stallCount} (${x.longestStallMs ?? '-'}) | ${x.longestFrame?.ms ?? '-'} (${(x.longestFrame?.actions || []).join(', ')}) | ` +
+      `${per} | ${x.cameraSettle?.longestFrameMs ?? '-'} | ${pawn} |`);
   }
   return rows.join('\n');
 }

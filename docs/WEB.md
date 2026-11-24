@@ -348,6 +348,24 @@ node tools/web/perf_stalls.mjs <dir>/cold.json [--trace=<file>] [--level=<id>] [
   maps the trace's user-timing events `GT:<label>` to the `GLADIUS_T` page times (median). The cause column is a rule
   over those buckets, so it is [inferred from trace]; without a trace it falls back to the game's frame line (cpu vs
   draw) and says so.
+- W1c fix pass 1, the ACTION step (tools/web/perf_route.json "action", tool data): after the frame-cap probe the
+  game's PerfRoute makes the match camera current again (the first-person view model draws through it), waits
+  `settle_frames`, then runs `steps` (switch, fire, switch, fire) through the player's own InputMap actions
+  (`Input.action_press` of `swap_weapon` / `fire`, read by the keyboard-and-mouse provider like a key or click): a
+  switch to the other weapon (the view model builds it on that first show), a fire with it (the blade: a swing), a
+  switch back and a shot. GLADIUS_T marks `action.camera`, `action.start`, `action.switch` / `action.swing` /
+  `action.fire` (weapon=, at the press), `action.end`; `action.skipped why=` when the pawn is not alive, still
+  dropping, has fewer than two weapons or the camera cannot be made current (the route does not protect the pawn
+  from the bots). `GLADIUS_PERF_DONE` carries `action` (the pawn's state before and after, each step's frames, shots
+  and switches). perf.mjs reports it as `w1c.action`: every rAF gap over 250 ms inside action.start .. action.end
+  with the actions it overlaps (an action's span runs from its press to the next mark), the longest frame in the
+  window (also under 250 ms) and per action, and the camera settle before it apart; its gaps are phase "action" and
+  are NOT in the after-CAN_MOVE count (`stallSummary.actionPhase`), so the route's numbers stay comparable. A third
+  markdown table on stdout and a section per level in perf_stalls.mjs show it.
+- `--warm-skip=<kind>[,<kind>...]` (perf.mjs) adds `warm_skip=` to the URL: the warm-up leaves those data/warmup.json
+  "listed" kinds out (debug web build + perf=1 only; scripts/debug/perf_marks.gd warm_skip; GLADIUS_T
+  `open.warmup_skip kinds=`): a "before" number for a warm entry measured on the same commit, e.g.
+  `--warm-skip=view_weapons,swing_bar`.
 
 Game side (debug web build + `?perf=1` only: the PerfRoute gate; `scripts/debug/perf_marks.gd`, a cached no-op
 elsewhere; no output or RNG change):
@@ -399,7 +417,10 @@ matches, desktop, Android, tools and the headless suite keep the old one-frame `
   (one stage per frame; W1c stage B: the map_build stage takes several frames, its `map.<step>` lines carry
   `slice=`, see above, and `begin.map_build` is only the `add_child(map)`), `open.warmup_setup` (items, contexts), one `open.warm_item <ms> item=<id>` per item (the
   frame in which its copies were first drawn: their programs compile there), `open.warmup <ms> items= derived= listed=
-  longest_ms= longest_item=`, `match_started`, `open.total`, `can_move`. The frame lines carry `pre= phys= proc= tail=`
+  longest_ms= longest_item= failed= inert= skipped=` (fix pass 1: failed = items whose copy drew nothing or lacked a key
+  of its source, each also a console warning; inert = kinds that make nothing headless, 0 in a browser; skipped = the
+  warm_skip kinds or `-`), `match_started`, `open.total`, `can_move`. Since fix pass 1 the listed items include
+  `listed:view_weapons:<weapon id>` (every weapon the data can put in a hand) and `listed:swing_bar`. The frame lines carry `pre= phys= proc= tail=`
   (the cpu split: input, the physics ticks incl. the navigation step, the nodes' _process, the rest before the draw)
   and `nav=` (Performance.TIME_NAVIGATION_PROCESS); `nav.map_changed` marks a finished navigation map sync.
 - `tools/web/perf_stalls.mjs` with a trace also prints the programs linked from CAN_MOVE to the end of the trace
@@ -432,8 +453,12 @@ second run of that level on one reused profile. Stalls = rAF gaps over 250 ms.
 | High | warm | after | 13.8 | 9 (2,581 ms) | 0 | 17.6 | 38.3 |
 | High | warm | after, repeat | 13.7 | 8 (2,796 ms) | 0 | 17.6 | 37.9 |
 
+- Chrome versions in this table: every "before" row is Chrome 157.0.8103.80, every "after" row Chrome 158.0.8127.37
+  (Chrome updated itself between them; see above). These rows predate W1c fix pass 1 (view weapons, swing bar and the
+  action step).
 - CAN_MOVE is seconds on the page clock from page load. Before, the match was "playable" early but froze for a total of
-  30 s or more afterwards on a cold profile; after, the same compile time is spent behind the loading overlay.
+  30 s or more afterwards on a cold profile; after, that compile time is spent behind the loading overlay [inferred:
+  the before and after totals of program compile time were not measured against each other].
 - Loading (open.total, overlay up): 54.0 to 57.9 s cold (warm-up 47.7 to 51.4 s of it), 8.8 to 9.4 s warm (warm-up 3.0
   to 3.1 s).
 - The stalls before CAN_MOVE are frames in which the loading overlay is not redrawn: the engine boot (2.5 to 2.8 s
@@ -443,6 +468,7 @@ second run of that level on one reused profile. Stalls = rAF gaps over 250 ms.
   CAN_MOVE: some programs differ per level.
 - The frame right after the tree unpauses measured 204 to 251 ms in earlier runs (once over 250 ms on a reused
   profile); in the 11 final runs no gap over 250 ms was recorded after CAN_MOVE.
-- Not measured in the browser: fights, deaths and breakables during a whole match, LAN matches (not staged,
-  OQ-W1C-LAN), other PCs and browsers. Shibi's own play test is the final check.
+- Not measured in the browser: fights, deaths and breakables during a whole match, a pickup and the other class's gun
+  (the action step of fix pass 1 measures one first switch, swing, switch back and shot with the class the autosolo
+  match gives), LAN matches (not staged, OQ-W1C-LAN), other PCs and browsers. Shibi's own play test is the final check.
 - Evidence: runs\W1C\before and runs\W1C\after (perf JSON and *_stalls.md per run).

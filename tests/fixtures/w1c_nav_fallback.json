@@ -1,0 +1,16 @@
+{
+	"id": "w1c_nav_fallback",
+	"name": "Alesia (section), W1c test fixture without a saved navmesh",
+	"scene": "res://scenes/maps/alesia_section.tscn",
+	"modes": ["br"],
+	"landmarks": "res://data/maps/alesia_landmarks.json",
+	"spawns": {
+		"spot_0": [40.0, 0.1, 0.0],
+		"spot_1": [20.0, 0.1, 34.64],
+		"spot_2": [-20.0, 0.1, 34.64],
+		"spot_3": [-40.0, 0.1, 0.0],
+		"spot_4": [-20.0, 0.1, -34.64],
+		"spot_5": [20.0, 0.1, -34.64]
+	},
+	"_note": "Test fixture (tests/test_w1c_nav_place.gd): data/maps/alesia_section.json's content; the test copies it to a temporary res://data/maps/ file (map paths must live there) that has no saved navigation mesh in data/maps/nav/, so MatchRoot._open_nav takes the bake fallback, and removes the copy afterwards (as tests/test_saved_nav.gd does). Not a map of the game."
+}

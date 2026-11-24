@@ -869,16 +869,45 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   Skeleton3D duplicated without scripts; particles emitting), scaled into its cell, freed after copy_frames. LISTED
   (absent at start): both armour sets, a corpse, a shot (tracer, flash, impact pool), every impact kind, every
   breakable's debris (Breakable.break_now on a body outside the tree: no sound, no loot), the loot models, glow and
-  box, the zone wall; each through its own public code path, no match state touched. `warmup_report` keeps the
-  covered keys and the longest step; tests/test_w1c_warmup.gd fails when a built match has a draw key or a .gdshader
-  the warm-up does not cover. HUD and other canvas items draw under the opaque overlay while it is up.
+  box, the zone wall, every VIEW WEAPON (fix pass 1: `view_weapons`, the ids derived at runtime by
+  `ShaderWarmup.view_weapon_ids()` from every class's loadout slots, the loot weapons and the start kit, each with a
+  weapon def; each built through `ViewRig.build_weapon` as ViewModel._build_weapon builds it on a first show: mesh,
+  Cell, Charge, both skinned arms, red dot, shadows off, default layer; the view model uses no second camera, layer or
+  FOV trick) and the SWING BAR (`swing_bar`: SwingVisual.play with a melee def from the data, default shadow casting);
+  each through its own public code path, no match state touched (tests: shown weapon, loadout, ammo, health,
+  armour, sounds, the pawn's signals and seeded RNGs unchanged; the engine's particle nodes do draw from the GLOBAL
+  RNG when they emit, as every live particle node does in play). A view weapon's meshes come from ViewMesh / ViewHands'
+  static caches (the .glb read, the per-vertex view-stream loops), which this first build fills: the match's view
+  model's first show of that weapon reads the same mesh objects (test), so only the node assembly is left for it.
+  COVERAGE is what was drawn (fix pass 1): an item's keys are collected from the copy step() made in the first cell,
+  never from the source at setup; a derived copy lacking a key of its source, or any item with no geometry, is
+  "failed" in `check()` (kept in `warmup_report["check"]`: ok / failed / inert / pending / missing_required /
+  skipped) and push_warning()s (`quiet`: tests that provoke it on purpose); `headless_inert` kinds (breakable debris:
+  Breakable._spawn_fx makes nothing headless) are "inert" headless and drawn only in the browser. `REQUIRED_LISTED`
+  names the kinds every match needs; a missing one warns at setup. Debug web + ?perf=1 only: `warm_skip=<kinds>`
+  (PerfMarks.warm_skip, perf.mjs --warm-skip) leaves listed kinds out, for a "before" number on the same commit.
+  `warmup_report` keeps the covered keys and the longest step; tests/test_w1c_warmup.gd fails when a built match has
+  a draw key or a .gdshader the warm-up does not cover. HUD and other canvas items draw under the opaque overlay while
+  it is up.
 - Tests: tests/test_w1c_staged_open.gd (paths, pause, progress, LAN, quit / free, staged == begin() state),
   tests/test_w1c_warmup.gd (keys, stepping, coverage in dusk / night / storm), tests/test_w1c_sliced_build.gd (the world
   hash of tests/world_hash.gd equal through begin() and the sliced staged open on alesia_500 and alesia_section,
   more than one slice, no later stage during the build, the bar moving; a negative self-check; quit / free mid-build),
   tests/test_w1c_open_failures.gd (a failing stage, the abort guard and an erroring build step end the open cleanly; Esc
   while loading; a second staged match; nav sync and roster in different frames; the `_apply_environment(world,
-  variant)` seam on the real match scene; `_apply_look_variant` warns when it is missing).
+  variant)` seam on the real match scene; `_apply_look_variant` warns when it is missing),
+  tests/test_w1c_warmup_items.gd (fix pass 1: every required listed kind is in data/warmup.json and a config without
+  one is reported; the view weapons are the data's weapon set; a copy that is never made or draws another program is
+  reported failed and its keys stay uncovered; on a staged alesia_500 open every item drew its keys and only the
+  breakable debris is inert headless; the warm view weapons' meshes are the ones a first show gets, and the match
+  state is unchanged), tests/test_w1c_nav_place.gd (the bake fallback leaves the next instance of the map scene
+  unbaked; the queued place map equals stamping at once, and the match's own, on alesia_500).
+- Not covered by the warm-up [inferred]: HUD parts hidden during loading (kill feed, hit markers), the pause menu, end
+  screen and settings canvases; a Quality change mid-match; the sun shaft shader (no map lists shaft places; the
+  coverage test re-checks it); spot-light and shadowed-light combinations on maps without such lights. Measured in the
+  browser only through the perf route's action step (a first switch to the blade, a swing, a switch back, a shot,
+  with the class the autosolo match gave in the fix pass 1 runs, the Hastati): a pickup, the other class's gun, fights, deaths and
+  breakables over a whole match are not.
 
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.

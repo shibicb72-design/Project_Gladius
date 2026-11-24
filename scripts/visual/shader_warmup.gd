@@ -16,20 +16,38 @@ extends Node3D
 ## shadow casting; instance transparency). One item per source with a key no earlier item had; a skinned mesh is copied
 ## with its whole Skeleton3D. LISTED in data/warmup.json "listed": what is absent at match start, made through its own
 ## public code path (SoldierRig.build, SoldierModel.make_corpse, ShotFx.show_shot, ShotImpacts.spawn,
-## Breakable.break_now outside the tree, LootLook's model meshes, ZoneWall.bind), so its particles really emit.
+## Breakable.break_now outside the tree, LootLook's model meshes, ZoneWall.bind, ViewRig.build_weapon for every view
+## weapon the data can put in a hand, SwingVisual.play), so its particles really emit.
 ## Nothing here touches match state: copies have no colliders, sounds, lights of their own, animation players or
 ## scripts (Node.duplicate(0)), and the SoldierRig statics a build changes are put back.
-## Headless (no GL) the same item list, stepping and progress run; nothing is drawn.
+## COVERAGE is what was drawn: an item's keys are collected from the copy step() made (never from the source), so an
+## item whose copy has no geometry, or lacks a key its source has, leaves those keys uncovered, is reported by
+## check() and warns (push_warning; `quiet` in tests). Headless (no GL) the same item list, stepping, copies and
+## coverage run; nothing is drawn, and the kinds that make nothing headless by design (headless_inert) are reported
+## "inert" instead.
 
 const PATH := "res://data/warmup.json"
+const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
+## The listed kinds every match needs (the visuals absent at match start; tests/test_w1c_warmup.gd keeps its own copy
+## of this list and fails when data/warmup.json lacks one). A missing one warns at setup.
+const REQUIRED_LISTED: Array[String] = ["soldier_sets", "corpse", "shot_fx", "impacts", "breakable_fx", "loot",
+		"zone_wall", "view_weapons", "swing_bar"]
 static var _registry := DataRegistry.new()
 static var _primitive_formats: Dictionary = {}
 
 var cfg: Dictionary = {}
-## Every item: {"id", "source": "derived" | "listed", "node" (derived) or "kind" + "arg" (listed), "keys"}.
+## Every item: {"id", "source": "derived" | "listed", "node" (derived) or "kind" + "arg" (listed), "expected" (derived:
+## the source's keys), "keys" (what its copy drew, filled by step()), "status" ("pending", "ok", "failed", "inert"),
+## "why"}.
 var items: Array[Dictionary] = []
-## Draw key -> id of the item that warms it (derived keys at setup, listed keys when the item is made).
+## Draw key -> id of the item whose COPY drew it (filled by step(), never at setup).
 var covered: Dictionary = {}
+## Tests only: an item that drew nothing (or a missing required entry) is still reported by check(), but without a
+## push_warning, so a test that provokes it adds no WARNING line to the suite log. Real runs warn.
+var quiet: bool = false
+## The listed kinds left out on request (debug web build + ?perf=1&warm_skip=<kind,...> only, PerfMarks.warm_skip:
+## the harness's "before" runs); empty everywhere else.
+var skipped: PackedStringArray = PackedStringArray()
 ## The light contexts in use (data/warmup.json "contexts" whose light kinds the match holds).
 var contexts: Array[Dictionary] = []
 ## Items started so far.
@@ -217,12 +235,55 @@ static func uncovered(root: Node, covered_keys: Dictionary) -> PackedStringArray
 
 ## ---- The warm-up ----
 
+## The kinds of `required` that `cfg`'s "listed" lacks ([] = all there).
+static func missing_required(cfg_in: Dictionary, required: Array[String] = REQUIRED_LISTED) -> PackedStringArray:
+	var have := {}
+	for entry: Variant in cfg_in.get("listed", []):
+		if entry is Dictionary:
+			have[String((entry as Dictionary).get("kind", ""))] = true
+	var out := PackedStringArray()
+	for kind in required:
+		if not have.has(kind):
+			out.append(kind)
+	return out
+
+
+## Every weapon id a match can put in the local player's hand, DERIVED from the data: every class's loadout slots
+## (data/loadouts.json), the loot weapons and the start kit (data/loot.json), each with a weapon def (data/stats.json).
+## Sorted. The first-person view model builds each on first show.
+static func view_weapon_ids() -> PackedStringArray:
+	var reg := DataRegistry.new()
+	var ids := {}
+	for cls: Variant in (reg.load_file(DataRegistry.LOADOUTS_PATH).get("classes", {}) as Dictionary).values():
+		for slot in Loadout.SLOT_NAMES:
+			ids[str((cls as Dictionary).get(slot, ""))] = true
+	var loot := reg.load_file(MatchDirector.LOOT_PATH)
+	for it: Variant in (loot.get("items", {}) as Dictionary).values():
+		if String((it as Dictionary).get("kind", "")) == "weapon":
+			ids[str((it as Dictionary).get("weapon", ""))] = true
+	for slot in Loadout.SLOT_NAMES:
+		ids[str((loot.get("start_kit", {}) as Dictionary).get(slot, ""))] = true
+	var out := PackedStringArray()
+	for id: String in ids:
+		if id != "" and reg.get_weapon_def(id) != null:
+			out.append(id)
+	out.sort()
+	return out
+
+
+## True for a listed kind that makes no geometry headless BY DESIGN (Breakable._spawn_fx returns at once there,
+## breakable.gd); its draw is checked only in the browser.
+static func headless_inert(kind: String) -> bool:
+	return kind == "breakable_fx" and DisplayServer.get_name() == "headless"
+
+
 ## Builds the item list from `match_root` (this node must already be its child), the cells and the warm camera
-## (near / far / fov from `template`, the match camera), and makes the warm camera current.
-func setup(match_root: Node, template: Camera3D) -> void:
+## (near / far / fov from `template`, the match camera), and makes the warm camera current. `config_in` replaces
+## data/warmup.json (tests).
+func setup(match_root: Node, template: Camera3D, config_in: Dictionary = {}) -> void:
 	_match = match_root
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	cfg = config()
+	cfg = config_in if not config_in.is_empty() else config()
 	var lights := light_kinds(match_root)
 	contexts.clear()
 	for c: Dictionary in cfg.get("contexts", []):
@@ -237,14 +298,53 @@ func setup(match_root: Node, template: Camera3D) -> void:
 	for key: String in found:
 		var src := _source_of(found[key] as GeometryInstance3D)
 		if not by_source.has(src):
-			var item := {"id": "derived:" + str(match_root.get_path_to(src)), "source": "derived", "node": src, "keys": PackedStringArray()}
+			var item := {"id": "derived:" + str(match_root.get_path_to(src)), "source": "derived", "node": src,
+					"expected": PackedStringArray(), "keys": PackedStringArray(), "status": "pending", "why": ""}
 			by_source[src] = item
 			items.append(item)
-		(by_source[src]["keys"] as PackedStringArray).append(key)
-		covered[key] = by_source[src]["id"]
+		var expected: PackedStringArray = by_source[src]["expected"]  # a packed array is a value: append, then store back
+		expected.append(key)
+		by_source[src]["expected"] = expected
+	var skip := _PerfMarks.warm_skip()
 	for entry: Dictionary in cfg.get("listed", []):
+		var kind := String(entry.get("kind", ""))
+		if skip.has(kind):
+			skipped.append(kind)
+			continue
 		_expand_listed(entry)
+	for kind in missing_required(cfg):
+		if not skipped.has(kind):
+			_warn("the required listed entry '%s' is missing (data/warmup.json \"listed\")" % kind)
+	if not skipped.is_empty():
+		_PerfMarks.mark("open.warmup_skip", "kinds=" + ",".join(skipped))
 	_build_stage(template)
+
+
+func _warn(text: String) -> void:
+	if not quiet:
+		push_warning("ShaderWarmup: " + text)
+
+
+## What the warm-up drew, once done (or so far): {"ok": [ids], "failed": [{"id", "why"}], "inert": [ids], "pending": [ids],
+## "missing_required": [kinds], "skipped": [kinds], "items": n}. Failed = an item whose copy had no geometry, or (derived)
+## lacked a key its source has; its keys are not in `covered`.
+func check() -> Dictionary:
+	var failed: Array = []
+	var inert: Array = []
+	var pending: Array = []
+	var ok: Array = []
+	for item in items:
+		match String(item["status"]):
+			"ok":
+				ok.append(item["id"])
+			"failed":
+				failed.append({"id": item["id"], "why": item["why"]})
+			"inert":
+				inert.append(item["id"])
+			"pending":
+				pending.append(item["id"])
+	return {"ok": ok, "failed": failed, "inert": inert, "pending": pending, "missing_required": missing_required(cfg),
+			"skipped": skipped.duplicate(), "items": items.size()}
 
 
 func progress() -> float:
@@ -273,17 +373,44 @@ func step() -> bool:
 		var holder := Node3D.new()
 		holder.name = "Item%d" % index
 		_cells[c].add_child(holder)
-		_fill(item, holder)
+		var why := _fill(item, holder)
 		nodes.append(holder)
-		if c == 0 and item["source"] == "listed":
-			var keys := {}
-			collect(holder, keys)
-			for k: String in keys:
-				(item["keys"] as PackedStringArray).append(k)
-				if not covered.has(k):
-					covered[k] = item["id"]
+		if c == 0:
+			_check_item(item, holder, why)
 	_live.append({"nodes": nodes, "left": maxi(1, int(_num(cfg.get("copy_frames", 1))))})
 	return false
+
+
+## Coverage from what the copy drew: the draw keys under `holder` (the first cell's copy) are the item's keys and go
+## into `covered`. No geometry (or, derived, a key of the source missing from the copy): the item failed and warns,
+## except a kind that is headless_inert (reported "inert").
+func _check_item(item: Dictionary, holder: Node3D, why: String) -> void:
+	var keys := {}
+	collect(holder, keys)
+	var got := PackedStringArray()
+	for k: String in keys:
+		got.append(k)
+		if not covered.has(k):
+			covered[k] = item["id"]
+	item["keys"] = got
+	if got.is_empty():
+		if item["source"] == "listed" and headless_inert(String(item["kind"])):
+			item["status"] = "inert"
+			item["why"] = "headless: makes no geometry by design; drawn only in the browser"
+			return
+		item["status"] = "failed"
+		item["why"] = why if why != "" else "its copy has no geometry"
+	elif item["source"] == "derived":
+		var lacking := PackedStringArray()
+		for k: String in item["expected"]:
+			if not keys.has(k):
+				lacking.append(k)
+		item["status"] = "ok" if lacking.is_empty() else "failed"
+		item["why"] = "" if lacking.is_empty() else "its copy lacks %s" % "; ".join(lacking)
+	else:
+		item["status"] = "ok"
+	if item["status"] == "failed":
+		_warn("item %s drew nothing it should: %s" % [item["id"], item["why"]])
 
 
 func current_item_id() -> String:
@@ -349,22 +476,28 @@ func _source_of(gi: GeometryInstance3D) -> Node:
 	return gi
 
 
-func _fill(item: Dictionary, holder: Node3D) -> void:
+## Makes the item's copy under `holder`. Returns why nothing could be made ("" when it was made or tried).
+func _fill(item: Dictionary, holder: Node3D) -> String:
 	if item["source"] == "derived":
 		var src: Node = item["node"]
 		if src == null or not is_instance_valid(src):
-			return
+			return "its source node is gone"
 		var copy := _copy_of(src)
-		if copy != null:
-			holder.add_child(copy)
-			_prepare(copy)
-			_fit(holder, copy)
-		return
+		if copy == null:
+			return "no copy could be made of " + src.get_class()
+		holder.add_child(copy)
+		_prepare(copy)
+		_fit(holder, copy)
+		return ""
 	match String(item["kind"]):
 		"soldier_set":
-			_make_soldier(holder, String(item["arg"]))
+			return _make_soldier(holder, String(item["arg"]))
 		"corpse":
-			_make_corpse(holder)
+			return _make_corpse(holder)
+		"view_weapon":
+			return _make_view_weapon(holder, String(item["arg"]))
+		"swing_bar":
+			return _make_swing_bar(holder)
 		"shot_fx":
 			var host := Node3D.new()
 			host.name = "ShotHost"
@@ -421,6 +554,7 @@ func _fill(item: Dictionary, holder: Node3D) -> void:
 			wall.process_mode = Node.PROCESS_MODE_DISABLED  # its refresh would hide it again (no zone before the start)
 			wall.visible = true
 			_fit(holder, wall)
+	return ""
 
 
 func _expand_listed(entry: Dictionary) -> void:
@@ -450,12 +584,18 @@ func _expand_listed(entry: Dictionary) -> void:
 				items.append(_listed(id + ":box", "loot_box", String(loot_items.keys()[0])))
 		"zone_wall":
 			items.append(_listed(id, "zone_wall", ""))
+		"view_weapons":
+			for weapon_id in view_weapon_ids():
+				items.append(_listed(id + ":" + weapon_id, "view_weapon", weapon_id))
+		"swing_bar":
+			items.append(_listed(id, "swing_bar", ""))
 		_:
-			push_warning("ShaderWarmup: unknown listed kind '%s' (data/warmup.json)" % entry.get("kind", ""))
+			_warn("unknown listed kind '%s' (data/warmup.json)" % entry.get("kind", ""))
 
 
 static func _listed(id: String, kind: String, arg: String) -> Dictionary:
-	return {"id": "listed:" + id, "source": "listed", "kind": kind, "arg": arg, "keys": PackedStringArray()}
+	return {"id": "listed:" + id, "source": "listed", "kind": kind, "arg": arg, "keys": PackedStringArray(),
+			"status": "pending", "why": ""}
 
 
 ## A visual-only copy: a geometry node with the same mesh, materials, instance format and shadow casting, or for a
@@ -597,10 +737,10 @@ func _local_pawn() -> Node3D:
 	return pawn as Node3D if pawn is Node3D and is_instance_valid(pawn) else null
 
 
-func _make_soldier(holder: Node3D, set_id: String) -> void:
+func _make_soldier(holder: Node3D, set_id: String) -> String:
 	var pawn := _local_pawn()
 	if pawn == null or pawn.get_node_or_null("Head") == null:
-		return
+		return "no local pawn with a Head to build the soldier set '%s' on" % set_id
 	var saved: Array = [SoldierRig.mesh, SoldierRig.mesh_far, SoldierRig.skin]
 	var skeleton := SoldierRig.build(SoldierLook.parts(), (pawn.get_node("Head") as Node3D).position, set_id)
 	for m: ArrayMesh in [SoldierRig.mesh, SoldierRig.mesh_far]:
@@ -618,18 +758,68 @@ func _make_soldier(holder: Node3D, set_id: String) -> void:
 	SoldierRig.skin = saved[2]
 	holder.add_child(skeleton)
 	_fit(holder, skeleton)
+	return ""
 
 
-func _make_corpse(holder: Node3D) -> void:
+func _make_corpse(holder: Node3D) -> String:
 	var pawn := _local_pawn()
 	var model := pawn.get_node_or_null("SoldierModel") as SoldierModel if pawn != null else null
 	if model == null:
-		return
+		return "no local pawn with a SoldierModel to make the corpse from"
 	var saved: Array = [SoldierRig.mesh, SoldierRig.mesh_far, SoldierRig.skin]
 	var corpse := model.make_corpse()
 	SoldierRig.mesh = saved[0]
 	SoldierRig.mesh_far = saved[1]
 	SoldierRig.skin = saved[2]
+	if corpse == null:
+		return "SoldierModel.make_corpse returned nothing"
 	holder.add_child(corpse)
 	_prepare(corpse)
 	_fit(holder, corpse)
+	return ""
+
+
+## data/camera.json first_person.view_model entry `key`, unwrapped from its {"value"} block (as ViewModel reads it).
+static func _vm_entry(vm: Dictionary, key: String) -> Variant:
+	var e: Variant = vm.get(key)
+	return (e as Dictionary)["value"] if e is Dictionary and (e as Dictionary).has("value") else e
+
+
+## One first-person weapon as the view model builds it on first show (ViewModel._build_weapon: ViewRig.build_weapon
+## with the weapon's camera.json hold entry, the default gun or blade as fallback, the red dot's size and colour):
+## the weapon mesh, its Cell and Charge, both skinned arms and the red dot, with their own materials, shadows off and
+## the default layer, as the view model draws them (no second camera, no SubViewport, no layer or FOV trick:
+## view_model.gd header). The meshes come from ViewMesh / ViewHands' static caches, which this first build fills
+## (the .glb read and the per-vertex view-stream loops): the match's ViewModel later reads the same meshes.
+func _make_view_weapon(holder: Node3D, weapon_id: String) -> String:
+	var def := DataRegistry.new().get_weapon_def(weapon_id)
+	if def == null:
+		return "no weapon def for '%s'" % weapon_id
+	var vm: Dictionary = (DataRegistry.new().get_camera_cfg().get("first_person", {}) as Dictionary).get("view_model", {})
+	var all: Dictionary = vm.get("weapons", {})
+	var fallback := String(vm.get("default_melee" if def.is_melee() else "default_gun", ""))
+	var wc: Dictionary = all.get(weapon_id, all.get(fallback, {}))
+	if wc.is_empty():
+		return "no camera.json view_model entry for '%s'" % weapon_id
+	var node := ViewRig.build_weapon(weapon_id, wc, fallback, float(_vm_entry(vm, "dot_radius_m")),
+			ViewFx.color_of(_vm_entry(vm, "dot_color")))
+	holder.add_child(node)
+	_prepare(node)
+	_fit(holder, node)
+	return ""
+
+
+## The melee swing's glowing bar (SwingVisual.play, as Pawn.melee_swing spawns it): an unshaded emissive box with the
+## default shadow casting (the red dot has the same flags with shadows off: another draw). The bar frees itself after
+## the swing (its own tween), or with the holder.
+func _make_swing_bar(holder: Node3D) -> String:
+	var reg := DataRegistry.new()
+	for weapon_id in view_weapon_ids():
+		var def := reg.get_weapon_def(weapon_id)
+		if def != null and def.is_melee():
+			var bar := SwingVisual.new()
+			holder.add_child(bar)
+			bar.play(def)
+			_fit(holder, bar)
+			return ""
+	return "no melee weapon in the data to swing"

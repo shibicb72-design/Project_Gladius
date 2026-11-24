@@ -31,6 +31,19 @@ extends Node
 ##   - "match_root.added" when the MatchRoot enters the tree (before its _ready / begin), "world_environment.added",
 ##     and "particles.first" the first time each particle node kind (class + scene path / node path, digits folded)
 ##     enters the tree (a GPU particle process shader compiles on its first emit; this marks the add, not the emit).
+## W1c fix pass 1, the ACTION step (perf_route.json "action"; after the frame-cap probe, so the route's and the probe's
+## numbers are unchanged): the match camera is made current again (CameraRig.ensure_current: the first-person view
+## model draws through it) and, after action.settle_frames, the steps run through the SAME input actions a player
+## presses (Input.action_press / action_release of the InputMap actions "swap_weapon" and "fire", read by the
+## keyboard-and-mouse provider and the InputRouter like a real key or click; no pawn internals are touched): "switch"
+## (the next filled slot: the view model builds and shows it on that first switch) and "fire" (one press: a shot with a
+## gun, a swing with the blade; labelled swing then). Each step holds its press hold_frames frames and then waits
+## until the view model shows the active weapon and no switch runs, plus wait_frames. GLADIUS_T marks: action.camera
+## (the rig camera back), action.start, one action.switch / action.fire / action.swing per step (at its press, with
+## weapon=), action.end; action.skipped (why=) when the local pawn is not alive, still dropping, unarmed, or the camera
+## cannot be made current. The pawn's state before and after and the steps go into GLADIUS_PERF_DONE "action".
+## Nothing here protects the pawn: the 17 bots of the autosolo match can shoot it while the route flies (the route
+## does not move or shield it), so a run whose pawn is down at the step reports action.skipped instead of numbers.
 
 const ROUTE_RES := "res://tools/web/perf_route.json"
 const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
@@ -40,7 +53,7 @@ const SLOW_MS := 33.0
 ## skipping views. Tool constant, not a budget.
 const MAX_STEP_S := 0.1
 
-enum Phase { WAIT_MATCH, WARMUP, ROUTE, PROBE, DONE, FAILED }
+enum Phase { WAIT_MATCH, WARMUP, ROUTE, PROBE, ACTION, DONE, FAILED }
 
 ## The URL request ({"quality", "seed"}) and the route config (perf_route.json plus the harness's "seconds"/"shots").
 var request: Dictionary = {}
@@ -87,6 +100,17 @@ var _proc_usec: int = 0
 var _last_proc_usec: int = 0
 var _particle_kinds: Dictionary = {}
 var _digits := RegEx.create_from_string("\\d+")
+## W1c fix pass 1: the action step (perf_route.json "action"; {} = off).
+var _action_cfg: Dictionary = {}
+var _act_steps: Array = []
+var _act_i: int = -1
+var _act_stage: String = ""  # "settle", "hold", "wait"
+var _act_frames: int = 0
+var _act_pressed: String = ""
+var _act_pawn: Pawn
+var _act_counts: Dictionary = {"fired": 0, "switched": 0}
+var _act_log: Array = []
+var _act_result: Dictionary = {}
 
 
 ## Called by Boot before the node enters the tree: keeps the request and applies its quality (if any) to `viewport`.
@@ -120,6 +144,7 @@ func _ready() -> void:
 	var timing: Dictionary = route.get("timing", {}) if route.get("timing") is Dictionary else {}
 	_timing_first_frames = maxi(0, int(timing.get("first_frames", 0)))
 	_timing_long_ms = maxf(0.0, float(timing.get("long_frame_ms", 0.0)))
+	_action_cfg = route.get("action", {}) if route.get("action") is Dictionary and bool(route["action"].get("enabled", false)) else {}
 	if _PerfMarks.enabled():
 		RenderingServer.frame_pre_draw.connect(_on_pre_draw)
 		RenderingServer.frame_post_draw.connect(_on_post_draw)
@@ -318,6 +343,8 @@ func _process(_delta: float) -> void:
 			_route_frame(now)
 		Phase.PROBE:
 			_probe_frame(now)
+		Phase.ACTION:
+			_action_frame()
 
 
 func _ground(x: float, z: float) -> float:
@@ -488,7 +515,136 @@ func _probe_frame(now: int) -> void:
 		_probe_start(now)
 		return
 	Engine.max_fps = _saved_fps
+	if _action_cfg.is_empty():
+		_finish()
+	else:
+		_action_start()
+
+
+## ---- W1c fix pass 1: the action step (see the header) ----
+
+func _act_num(key: String, fallback: int) -> int:
+	return maxi(0, int(_action_cfg.get(key, fallback)))
+
+
+func _act_vm() -> ViewModel:
+	var rig := _act_pawn.get_node_or_null("CameraRig") as CameraRig if is_instance_valid(_act_pawn) else null
+	return rig.get_view_model() if rig != null else null
+
+
+## The local pawn's state as the action step sees it (life, drop, health, weapons, the view model's shown weapon).
+func _pawn_state(pawn: Pawn) -> Dictionary:
+	if pawn == null or not is_instance_valid(pawn):
+		return {"pawn": false}
+	var slots: Array = []
+	if pawn.loadout != null:
+		for w: Weapon in pawn.loadout.slots:
+			slots.append({"id": w.def.id, "melee": w.def.is_melee(), "mag": w.ammo_in_mag, "reserve": w.reserve} if w != null else null)
+	var rig := pawn.get_node_or_null("CameraRig") as CameraRig
+	var vm := rig.get_view_model() if rig != null else null
+	return {
+		"pawn": true, "alive": pawn.is_alive(), "life": Pawn.Life.keys()[pawn.life], "drop": Pawn.Drop.keys()[pawn.drop_state],
+		"health": snappedf(pawn.bridge.state.health, 0.1) if pawn.bridge != null and pawn.bridge.state != null else -1.0,
+		"shield": snappedf(pawn.bridge.state.shield, 0.1) if pawn.bridge != null and pawn.bridge.state != null else -1.0,
+		"active": pawn.loadout.active if pawn.loadout != null else -1, "slots": slots,
+		"shown": vm.get_shown_weapon_id() if vm != null else "", "first_person": rig.get_first_person_weight() if rig != null else -1.0,
+		"menu_open": bool(_match.get("menu_open")) if _match != null else false,
+	}
+
+
+func _action_skip(why: String) -> void:
+	_act_result["skipped"] = why
+	_PerfMarks.mark("action.skipped", "why=" + why.replace(" ", "_"))
 	_finish()
+
+
+func _action_start() -> void:
+	phase = Phase.ACTION
+	if not _match_ok():
+		return
+	_act_pawn = _match.get("local_player") as Pawn
+	_act_result = {"state_before": _pawn_state(_act_pawn), "steps": []}
+	var filled := 0
+	if _act_pawn != null and _act_pawn.loadout != null:
+		for w: Weapon in _act_pawn.loadout.slots:
+			filled += 1 if w != null else 0
+	if _act_pawn == null or not _act_pawn.is_alive():
+		_action_skip("the local pawn is not alive")
+		return
+	if _act_pawn.drop_state != Pawn.Drop.NONE:
+		_action_skip("the local pawn is still dropping")
+		return
+	if filled < 2:
+		_action_skip("fewer than two weapons to switch between")
+		return
+	var rig := _act_pawn.get_node_or_null("CameraRig") as CameraRig
+	if rig == null or not rig.ensure_current():
+		_action_skip("the match camera cannot be made current")
+		return
+	_act_pawn.fired.connect(func() -> void: _act_counts["fired"] += 1)
+	_act_pawn.weapon_switched.connect(func(_slot: int) -> void: _act_counts["switched"] += 1)
+	_act_steps = (_action_cfg.get("steps", []) as Array).duplicate()
+	_act_i = -1
+	_act_stage = "settle"
+	_act_frames = 0
+	_PerfMarks.mark("action.camera")
+
+
+func _action_frame() -> void:
+	if not _match_ok():
+		return
+	_act_frames += 1
+	match _act_stage:
+		"settle":
+			if _act_frames >= _act_num("settle_frames", 60):
+				_act_result["page_start_ms"] = page_epoch_ms()
+				_PerfMarks.mark("action.start", "steps=" + ",".join(PackedStringArray(_act_steps)))
+				_action_next()
+		"hold":
+			if _act_frames >= maxi(1, _act_num("hold_frames", 3)):
+				Input.action_release(_act_pressed)
+				_act_pressed = ""
+				_act_stage = "wait"
+				_act_frames = 0
+		"wait":
+			var vm := _act_vm()
+			var w := _act_pawn.loadout.get_active() if is_instance_valid(_act_pawn) and _act_pawn.loadout != null else null
+			var shown := vm != null and w != null and vm.get_shown_weapon_id() == w.def.id and not vm.is_swapping()
+			var log_entry: Dictionary = _act_log[-1]
+			if shown and not log_entry.has("shown_after_frames"):
+				log_entry["shown_after_frames"] = _act_frames
+			var settled := shown and _act_frames >= int(log_entry.get("shown_after_frames", 0)) + _act_num("wait_frames", 60)
+			if settled or _act_frames >= _act_num("max_wait_frames", 600):
+				log_entry["frames"] = _act_frames
+				log_entry["fired"] = _act_counts["fired"]
+				log_entry["switched"] = _act_counts["switched"]
+				log_entry["timed_out"] = not settled
+				_action_next()
+
+
+## Starts the next step (presses its action), or ends the step list.
+func _action_next() -> void:
+	_act_i += 1
+	_act_frames = 0
+	if _act_i >= _act_steps.size() or not is_instance_valid(_act_pawn) or not _act_pawn.is_alive():
+		if _act_i < _act_steps.size():
+			_act_result["stopped"] = "the local pawn is not alive any more"
+		_act_result["page_end_ms"] = page_epoch_ms()
+		_PerfMarks.mark("action.end", "fired=%d switched=%d" % [_act_counts["fired"], _act_counts["switched"]])
+		_finish()
+		return
+	var step := String(_act_steps[_act_i])
+	var w := _act_pawn.loadout.get_active() if _act_pawn.loadout != null else null
+	var action := "swap_weapon" if step == "switch" else "fire"
+	var label := "switch" if step == "switch" else ("swing" if w != null and w.def.is_melee() else "fire")
+	_act_counts = {"fired": 0, "switched": 0}
+	var entry := {"step": step, "label": label, "from": w.def.id if w != null else "", "page_ms": page_epoch_ms()}
+	_act_log.append(entry)
+	(_act_result["steps"] as Array).append(entry)
+	_PerfMarks.mark("action." + label, "weapon=%s step=%d" % [entry["from"], _act_i])
+	Input.action_press(action)
+	_act_pressed = action
+	_act_stage = "hold"
 
 
 func _finish() -> void:
@@ -511,6 +667,9 @@ func _finish() -> void:
 	result["clock"] = "Time.get_ticks_usec between consecutive _process calls of PerfRoute (real time); a delta counts for the segment the camera was in while that frame rendered"
 	result["route_clock"] = "real time, at most %.2f s per frame (a freeze stalls the camera; it does not skip views)" % MAX_STEP_S
 	result["route_wall_s"] = snappedf(_route_wall_s, 0.01)
+	if not _action_cfg.is_empty():
+		_act_result["state_after"] = _pawn_state(_act_pawn)
+		result["action"] = _act_result
 	phase = Phase.DONE
 	_publish("GLADIUS_PERF_DONE")
 

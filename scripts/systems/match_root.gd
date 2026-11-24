@@ -643,10 +643,13 @@ func _end_warmup() -> void:
 	warmup_report["derived"] = _open_warmup.items.filter(func(i: Dictionary) -> bool: return i["source"] == "derived").size()
 	warmup_report["listed"] = _open_warmup.items.size() - int(warmup_report["derived"])
 	warmup_report["progress"] = _open_warmup.progress()
+	warmup_report["check"] = _open_warmup.check()  # fix pass 1 (B2): what the copies drew (failed / inert / skipped)
 	if _PerfMarks.enabled():
-		_PerfMarks.emit("open.warmup", float(warmup_report["total_ms"]), "items=%d derived=%d listed=%d longest_ms=%.1f longest_item=%s" % [
+		var chk: Dictionary = warmup_report["check"]
+		_PerfMarks.emit("open.warmup", float(warmup_report["total_ms"]), "items=%d derived=%d listed=%d longest_ms=%.1f longest_item=%s failed=%d inert=%d skipped=%s" % [
 				int(warmup_report["items"]), int(warmup_report["derived"]), int(warmup_report["listed"]),
-				float(warmup_report["longest_ms"]), String(warmup_report["longest_item"]).replace(" ", "_")])
+				float(warmup_report["longest_ms"]), String(warmup_report["longest_item"]).replace(" ", "_"),
+				(chk["failed"] as Array).size(), (chk["inert"] as Array).size(), ",".join(chk["skipped"]) if not (chk["skipped"] as PackedStringArray).is_empty() else "-"])
 	_restore_match_camera()
 	remove_child(_open_warmup)
 	_open_warmup.queue_free()

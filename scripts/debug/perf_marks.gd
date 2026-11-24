@@ -90,6 +90,20 @@ static func arm_can_move(tree: SceneTree) -> void:
 			mark("can_move"), CONNECT_ONE_SHOT)
 
 
+## W1c fix pass 1, measurement only: the data/warmup.json "listed" kinds the shader warm-up leaves out, from the URL's
+## warm_skip=<kind>[,<kind>...] (tools/web/perf.mjs --warm-skip=...: the "before" number of a warm entry, measured on
+## the same commit). Only where enabled() (debug web build + ?perf=1); [] everywhere else, so release builds, desktop,
+## Android, plain debug web runs and the headless suite always warm every entry.
+static func warm_skip() -> PackedStringArray:
+	var out := PackedStringArray()
+	if not enabled():
+		return out
+	for kind in str(_WebArgs.query_pairs(_WebArgs.read_query()).get("warm_skip", "")).split(",", false):
+		if kind.strip_edges() != "":
+			out.append(kind.strip_edges())
+	return out
+
+
 ## Test hook: forget the decided state.
 static func reset_for_tests() -> void:
 	_state = -1

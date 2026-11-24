@@ -72,6 +72,7 @@ func test_items_steps_and_progress() -> void:
 	root.add_child(hidden)
 	_tree().root.add_child(root)
 	var w := ShaderWarmup.new()
+	w.quiet = true  # no pawn or director here: the soldier and corpse items cannot be made (reported, not warned)
 	root.add_child(w)
 	w.setup(root, null)
 	var derived := w.items.filter(func(i: Dictionary) -> bool: return i["source"] == "derived")
@@ -80,15 +81,30 @@ func test_items_steps_and_progress() -> void:
 	assert_eq(w.contexts.size(), 1, "no omni or spot light in the scene: the sun-only context")
 	assert_true(w.camera != null and w.camera.is_current(), "the warm camera is current")
 	assert_eq(w.progress(), 0.0, "nothing started")
+	assert_true(w.covered.is_empty(), "nothing is covered before a copy is drawn")
+	var copy_frames := int(ShaderWarmup._num(w.cfg["copy_frames"]))
 	var steps := 0
 	var cells_max := 0
 	while not w.step() and steps < 500:
 		steps += 1
 		assert_eq(w.index, mini(steps, w.items.size()), "one item starts per step")
+		var live := 0
+		for h in (w.get_node("Cell_base") as Node).get_children():
+			if String(h.name).begins_with("Item") and not h.is_queued_for_deletion():
+				live += 1
+		cells_max = maxi(cells_max, live)
 		await _tree().process_frame
 	assert_true(w.done, "done")
 	assert_eq(w.progress(), 1.0, "progress 100 percent")
 	assert_true(steps >= w.items.size(), "at least one frame per item (%d steps, %d items)" % [steps, w.items.size()])
+	assert_true(cells_max >= 1 and cells_max <= copy_frames, "a cell holds at most copy_frames (%d) items' copies at once (%d)" % [copy_frames, cells_max])
+	var chk := w.check()
+	for item: Dictionary in derived:
+		assert_eq(item["status"], "ok", "%s: its copy drew its keys" % item["id"])
+		for k: String in item["expected"]:
+			assert_true(w.covered.has(k), "%s: covered from the copy" % k)
+	var failed_ids: Array = (chk["failed"] as Array).map(func(f: Dictionary) -> String: return String(f["id"]))
+	assert_true(failed_ids.has("listed:corpse"), "without a local pawn the corpse is reported failed: %s" % str(failed_ids))
 	await _frames(1)
 	var left := 0
 	for cell in w.get_children():

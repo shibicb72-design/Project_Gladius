@@ -341,6 +341,23 @@ function analyseLevel(entry, tracePath, top) {
     '| # | start s | vs CAN_MOVE s | duration ms | when / phase | cause | evidence |',
     '|---|---|---|---|---|---|---|',
   ].join('\n');
+  // W1c fix pass 1: the action step after the probe (perf.mjs w1c.action), apart from the route's stalls.
+  const a = w.action;
+  if (a) {
+    rows.push('', `### ${entry.level}: action step (after the probe; phase "action" above)`, '');
+    if (!a.ran) {
+      rows.push(`[measured] did not run: ${a.skipped ?? 'no action marks (an older build or perf_route.json without "action")'}.`);
+    } else {
+      const sb = a.game?.state_before || {};
+      rows.push(`[measured] window ${a.startPageS} .. ${a.endPageS} s (page clock), ${a.frames} frames; rAF gaps > ${a.thresholdMs} ms: ${a.stallCount}` +
+        ` (longest ${a.longestStallMs ?? '-'} ms); longest frame ${a.longestFrame?.ms ?? '-'} ms (${(a.longestFrame?.actions || []).join(', ') || '-'});` +
+        ` camera settle before it: longest frame ${a.cameraSettle?.longestFrameMs ?? '-'} ms, ${a.cameraSettle?.stalls ?? '-'} gaps > ${a.thresholdMs} ms.` +
+        ` Pawn before: ${sb.pawn ? `${sb.life}, ${sb.drop}, health ${sb.health}, shown ${sb.shown}` : '-'}.`, '',
+        '| action | weapon | from s | frames | longest frame ms | gaps > 250 ms |', '|---|---|---|---|---|---|');
+      for (const p of a.perAction) rows.push(`| ${p.action} | ${p.weapon} | ${(p.fromMs / 1000).toFixed(2)} | ${p.frames} | ${p.longestFrameMs ?? '-'} | ${p.stalls} |`);
+      for (const s of a.stalls) rows.push(`gap ${s.ms} ms at ${(s.startMs / 1000).toFixed(2)} s overlaps ${s.actions.join(', ') || '-'}`);
+    }
+  }
   return { header, rows, clock };
 }
 

@@ -42,7 +42,9 @@
 		{"id": "impacts", "kind": "impacts", "_why": "every impact burst kind of data/art_soldier.json fx.impacts (ShotImpacts.spawn); the pool is made on the first shot."},
 		{"id": "breakable_fx", "kind": "breakable_fx", "_why": "the debris burst of every breakable type of data/props.json (Breakable.break_now on a body outside the tree: no sound, no loot roll)."},
 		{"id": "loot", "kind": "loot", "_why": "the ground-loot models, the glow batch (data/art_loot.json) and the loot field's own box (LootField.drop into a field that never places): the loot field places its items on the first physics tick after the director starts."},
-		{"id": "zone_wall", "kind": "zone_wall", "_why": "the zone wall, the target ring and the beacon (ZoneWall, built after the director starts)."}
+		{"id": "zone_wall", "kind": "zone_wall", "_why": "the zone wall, the target ring and the beacon (ZoneWall, built after the director starts)."},
+		{"id": "view_weapons", "kind": "view_weapons", "_why": "every first-person weapon a match can put in the local player's hand: the ids are DERIVED at runtime (ShaderWarmup.view_weapon_ids: every class's loadout slots in data/loadouts.json, the loot weapons and the start kit of data/loot.json, each with a data/stats.json weapon def). The view model builds a weapon only on its first show (switch, pickup); each is built here through ViewRig.build_weapon with its arms and red dot, which also fills the static mesh caches the match's view model reads then."},
+		{"id": "swing_bar", "kind": "swing_bar", "_why": "the melee swing's glowing bar (SwingVisual.play, spawned per swing by Pawn.melee_swing): unshaded, emissive, default shadow casting (the red dot has the same flags with shadows off: another draw)."}
 	],
 	"_not_in_match_note": "Shaders that no match draws in 3D; tests/test_w1c_warmup.gd accepts them as covered. vignette is a canvas_item shader on the look's CanvasLayer, drawn under the opaque overlay while it is up.",
 	"canvas_shaders": ["res://scripts/visual/shaders/vignette.gdshader"],
