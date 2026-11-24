@@ -11,10 +11,10 @@ permissions:
 
 concurrency:
   group: web-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Builds the browser game and keeps it as a download. Nothing is published or hosted.
+  # No Pages and no deployment. While the repo is public, any signed-in GitHub user can download the artifact.
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -66,11 +66,11 @@ jobs:
             "templates/web_nothreads_*.zip" templates/version.txt -d "$tpl"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Twice, as the local gate does: the first pass of a clean tree registers classes.
+      # Twice: the first import of a clean tree can crash on exit (docs/engine-reference); the second must pass.
       - &godot-import
         name: Import project
         run: |
-          godot --headless --path . --import
+          godot --headless --path . --import || echo "first import exited $?"
           godot --headless --path . --import
 
       - name: Export the web build
