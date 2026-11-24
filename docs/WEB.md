@@ -472,3 +472,32 @@ second run of that level on one reused profile. Stalls = rAF gaps over 250 ms.
   (the action step of fix pass 1 measures one first switch, swing, switch back and shot with the class the autosolo
   match gives), LAN matches (not staged, OQ-W1C-LAN), other PCs and browsers. Shibi's own play test is the final check.
 - Evidence: runs\W1C\before and runs\W1C\after (perf JSON and *_stalls.md per run).
+
+### W1c fix pass 1 results
+
+All numbers [measured] on this PC (RTX 3080 via ANGLE/D3D11, 1280x720, about 57 Hz), Chrome 158.0.8127.37, debug Web
+build of commit a4b1263, 60 s route, quiet PC. Not a performance claim. The warm-up now also lists every view weapon
+(ids derived from the loadout, loot and weapon data: gladius_lux, pilum_br, sagittarii_rifle today) and the swing bar: 51
+items, was 47. After the route a debug-only action step switches weapon, swings the melee once, switches back and fires
+once.
+
+| Run | CAN_MOVE s | Stalls before CAN_MOVE (longest) | Stalls after CAN_MOVE | Median ms after | 1% low ms after | Action step: gaps over 250 ms | Action step: longest frame | Loading s (warm-up s) |
+|---|---|---|---|---|---|---|---|---|
+| High, cold, run 1 | 64.4 | 29 (9,468 ms) | 0 | 17.6 | 38.2 | 0 | 89 ms (fire) | 56.4 (50.3) |
+| High, cold, run 2 | 65.3 | 29 (8,538 ms) | 0 | 17.6 | 39.8 | 0 | 88 ms (fire) | 57.9 (51.9) |
+| High, cold, run 3 | 67.0 | 29 (10,105 ms) | 0 | 17.6 | 39.2 | 0 | 89 ms (fire) | 59.5 (53.8) |
+| Low (default), cold | 60.3 | 29 (8,164 ms) | 0 | 17.6 | 39.2 | 0 | 93 ms (fire) | 52.5 (46.6) |
+| High, warm | 14.7 | 9 (2,833 ms) | 0 | 17.6 | 38.6 | 0 | 70 ms (fire) | 9.8 (3.4) |
+
+- Switch and swing frames were 36 to 40 ms in these runs; the first shot was the longest frame of the action step.
+- Before number for the action step: the same commit with the new entries skipped (`--warm-skip=view_weapons,swing_bar`),
+  one run each: cold High 0 gaps over 250 ms, longest frame 195 ms (fire); warm High 0 gaps, longest 89 ms. With the
+  entries, the earlier single runs gave 70 ms cold and 88 ms warm. So on this PC the first switch, swing and shot did not
+  stall over 250 ms with or without the new entries; the cold first shot was shorter with them (one run each, so the size
+  of the difference is [inferred]).
+- Only the Hastati loadout ran in the browser (pilum_br and gladius_lux). The rifle and a weapon pickup were not measured
+  in the browser [unknown].
+- Loading did not grow measurably: 56.4 to 59.5 s cold at High (was 57.9 s at b8c99de), 9.8 s warm (was 9.1 s).
+- The base commit 8d6237f could not be measured with the action step in this slice (no branch switching); the
+  skipped-entries run stands in for it.
+- Evidence: runs\W1C\final (final runs) and runs\W1C\work\fix1 (the skipped-entries runs).
