@@ -55,8 +55,11 @@ static func mark(label: String, extra: String = "") -> void:
 	emit(label, -1.0, extra)
 
 
-## Prints one line; dur_ms < 0 means a mark. Callers check enabled() first (start/done/mark do).
+## Prints one line; dur_ms < 0 means a mark. Does nothing unless enabled() (callers that build `extra` in a loop
+## still check enabled() first, so the string is not built for nothing).
 static func emit(label: String, dur_ms: float, extra: String = "") -> void:
+	if not enabled():
+		return
 	var page := _page_stamp(label, dur_ms)
 	var dur := "-" if dur_ms < 0.0 else "%.1f" % dur_ms
 	print("%s %s %d %s page=%.1f%s" % [PREFIX, label, Time.get_ticks_msec(), dur, page, (" " + extra) if extra != "" else ""])

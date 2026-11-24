@@ -161,7 +161,9 @@ browser (`OS.is_debug_build()` and the `web` feature tag). Release builds and ev
 | `autojoin=1` | W2: on a relay page, the main menu presses Join, trying again every second (up to 120 times) while no game is hosted yet. |
 
 Console markers for automation, all printed only in a debug web build (`WebArgs.debug_marker`): `GLADIUS_MATCH_STARTED`
-(MatchRoot.begin, once the local player exists), `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
+(MatchRoot.begin, once the local player exists; W1c: on a solo web match, which opens staged, at the END of the
+loading screen, so "match started" includes the whole loading time: about 11 s on a warm and 65-76 s on a fresh
+browser profile on the W1c PC [measured, not a performance claim]; see "Staged open and warm-up"), `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
 `GLADIUS_PAUSE_CLOSED` and `GLADIUS_PAUSE_PATH key|capture_lost` (which MouseCapture path opened the menu)
 (`WebArgs.debug_marker`). W2 adds the `GLADIUS_LAN_*` markers from `scripts/net/net_debug_ping.gd` (snapshots, ping,
 host ready, connected, error, host lost, peer joined / left), also debug web builds only.
@@ -386,7 +388,12 @@ matches, desktop, Android, tools and the headless suite keep the old one-frame `
   before, `GLADIUS_CAN_MOVE` at the first physics tick after begin(). So on a solo web match "match started" now means
   "playable", and the time to it includes the loading screen: `smoke.mjs` (`secondsToMatchStart`, the 5 s screenshot
   and its input script) and `perf.mjs` (`match start s`, `GLADIUS_PERF_*` after the director runs) keep working
-  unchanged; their match-start seconds are not comparable with runs before W1c commit 2.
+  unchanged; their match-start seconds are not comparable with runs before W1c commit 2. Their wait for the marker
+  (`MATCH_TIMEOUT_MS`, 300 s from the lobby in smoke.mjs; lan_smoke.mjs the same, its matches are not staged) is
+  about four times the slowest fresh-profile open measured (about 76 s).
+- A staged open that fails (a stage returns false, or a stage, a build step or a warm-up step is aborted by a script
+  error) ends the loading screen, logs the reason as an error and never prints `GLADIUS_MATCH_STARTED`: smoke.mjs then
+  fails on the missing marker and the Godot error.
 - Timing lines (perf=1): `open.overlay_shown` (frames the overlay was drawn before the build), the `begin.*` phases
   (one stage per frame; W1c stage B: the map_build stage takes several frames, its `map.<step>` lines carry
   `slice=`, see above, and `begin.map_build` is only the `add_child(map)`), `open.warmup_setup` (items, contexts), one `open.warm_item <ms> item=<id>` per item (the

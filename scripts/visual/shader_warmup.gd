@@ -53,7 +53,7 @@ static func _num(block: Variant) -> float:
 	return float((block as Dictionary).get("value", 0.0)) if block is Dictionary else float(block)
 
 
-## ---- Keys (pure; tests/test_w1c_warmup_coverage.gd) ----
+## ---- Keys (pure; tests/test_w1c_warmup.gd) ----
 
 ## The flags of a generated material (BaseMaterial3D, ParticleProcessMaterial) or node: every stored bool and int
 ## property plus whether each texture slot is set. Those select the generated shader; colours and numbers do not.

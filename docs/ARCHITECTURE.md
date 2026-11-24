@@ -805,7 +805,9 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   `_OpenDriver` child with PROCESS_MODE_ALWAYS) runs the SAME phases in the same order (same RNG use), one stage per
   frame, with the tree PAUSED (no pawn moves, falls, thinks or takes input; no physics step; the pause menu is
   disabled, so Esc cannot unpause): overlay (data/warmup.json overlay_frames, so `scenes/ui/loading_overlay.tscn` is
-  drawn before the long build frame), config, map_build (frame-sliced, W1c stage B: see below), nav, roster, bind
+  drawn before the long build frame), config, map_build (frame-sliced, W1c stage B: see below), nav, nav_sync
+  (data/warmup.json nav_sync_frames, OQ-W1C-STAGE: the engine's navigation map sync, which runs in the frame after the
+  navmesh is assigned, also while paused, gets that frame to itself; nothing of the match runs then), roster, bind
   (the rig camera proves it can be current, then stops drawing), world (+ the seed's look variant applied now through
   GreyboxArt._apply_environment, which MatchLook would otherwise do on the first frame after the start), warmup_setup,
   warmup (one item per frame), settle (settle_frames, the rig camera current again), start: `_open_start` (director,
@@ -813,6 +815,18 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   So the carrier, the bots' carrier_t and the zone clocks start only when the player can act.
 - Quit (`quit_to_menu`) or a freed scene (`_exit_tree`) mid-open: `_end_staged` stops the stages, frees the driver,
   overlay and warm-up and unpauses the tree; nothing awaits, so nothing resumes later.
+- Failure: a stage that returns false (config, roster, bind, the director's start) goes through `_open_fail`:
+  `_end_staged` (tree running, overlay gone, pause menu back), the reason in `last_open_error` and pushed as an error,
+  `match_opened(false)` once. Abort guard: GDScript aborts a function on a script error without an exception, so
+  `_open_tick` names the running stage in `_open_in_stage` before its body and clears it only at the body's end; a
+  tick that finds it still set fails the open naming the stage (instead of re-running, say, the roster every frame
+  with the tree paused). An error inside a callee does not abort `_open_tick`: the callee returns its type's default
+  (verified on 4.7.2), so an aborted `_open_roster()` reads as false and fails cleanly, but an aborted `build_step()`
+  reads as "not done yet" and would re-run its step every frame. So the open counts the script errors logged while it
+  runs (`_OpenErrorWatch`, an `OS.add_logger` Logger, removed by `_end_staged`): a build step or a warm-up step that
+  is not done AND logged a script error (the warm-up: without starting a new item) fails the open naming the step; a
+  warm-up item whose copy errors does not stall it (step() counts the item before filling its copies) and the open
+  goes on. `quiet_open_errors` (tests only) keeps the reason without the error line.
 - Sliced map build (W1c stage B; scripts/visual/astra_map.gd "the build as an ordered list of steps"): ArtBuilder's
   old _ready body is an ordered list of step functions: data, cover_meshes (resumable by cover type), terrain_heights
   (chunk grid + MapTerrain), cover_pieces, breakables, walls, world_kit (resumable by piece:
@@ -843,8 +857,8 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   the builder holds no timer, signal or await, so nothing runs later; the half-built map is freed with the match.
 - Not sliced (measured on this PC, Chrome 157, warm profile; not a performance claim): WorldClutter.populate (about
   0.6 s, one call, read-only file), Backdrop.build (about 0.33 s, read-only), the navigation map sync in the frame
-  after the saved navmesh is assigned plus begin.roster in the same frame (about 0.9 + 0.75 s, engine and read-only
-  bots), the boot of the engine, and the warm-up items (stage A).
+  after the saved navmesh is assigned and begin.roster (about 0.9 and 0.75 s, engine and read-only bots; since the
+  review fix they are separate frames, the nav_sync stage), the boot of the engine, and the warm-up items (stage A).
 - `ShaderWarmup` (scripts/visual/shader_warmup.gd, data/warmup.json; OQ-W1C-STEP, OQ-W1C-STAGE): in the match's own
   World3D (sun, Environment, shadow mode, MSAA, after the preset and the variant) a warm Camera3D looks at a row of
   cells 420 m above the map, one per light context (the sun only; plus a warm omni and / or spot when the match holds
@@ -861,7 +875,10 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
 - Tests: tests/test_w1c_staged_open.gd (paths, pause, progress, LAN, quit / free, staged == begin() state),
   tests/test_w1c_warmup.gd (keys, stepping, coverage in dusk / night / storm), tests/test_w1c_sliced_build.gd (the world
   hash of tests/world_hash.gd equal through begin() and the sliced staged open on alesia_500 and alesia_section,
-  more than one slice, no later stage during the build, the bar moving; a negative self-check; quit / free mid-build).
+  more than one slice, no later stage during the build, the bar moving; a negative self-check; quit / free mid-build),
+  tests/test_w1c_open_failures.gd (a failing stage, the abort guard and an erroring build step end the open cleanly; Esc
+  while loading; a second staged match; nav sync and roster in different frames; the `_apply_environment(world,
+  variant)` seam on the real match scene; `_apply_look_variant` warns when it is missing).
 
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.

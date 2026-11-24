@@ -273,6 +273,10 @@ func _open_nav() -> void:
 			nav.navigation_mesh = saved
 		else:
 			print("MatchRoot.begin: saved navigation for %s is missing or stale (%s); baking at match start" % [map_path, MapNav.last_reasons[0] if not MapNav.last_reasons.is_empty() else "unknown"])
+			# Bake into a copy: the scene's own mesh is a sub-resource shared by every instance through the resource
+			# cache, and bake_navigation_mesh fills it in place (the next match's map would start with these polygons).
+			if nav.navigation_mesh != null:
+				nav.navigation_mesh = nav.navigation_mesh.duplicate() as NavigationMesh
 			nav.bake_navigation_mesh(false)
 			nav_bakes += 1
 	_PerfMarks.done("begin.nav", t, "bakes=%d" % nav_bakes)
@@ -425,11 +429,17 @@ func _open_start() -> bool:
 ## pawn moves, falls or thinks, no physics step, no director clock (the director starts last). Only the driver below,
 ## the overlay and the warm-up's own copies run (PROCESS_MODE_ALWAYS). The pause menu is off meanwhile. One stage per
 ## frame: overlay (overlay_frames, so the overlay is drawn before the long build frame), config, map_build, nav,
-## roster, bind, world (+ the look variant of the seed, as MatchLook would apply it on the first frame after the start),
-## warmup_setup, warmup (one item per frame), settle (settle_frames, the match camera current), start.
-const _OPEN_STAGES: Array[String] = ["overlay", "config", "map_build", "nav", "roster", "bind", "world", "warmup_setup",
-		"warmup", "settle", "start"]
+## nav_sync (nav_sync_frames: the engine's navigation map sync gets its own frame), roster, bind, world (+ the look
+## variant of the seed, as MatchLook would apply it on the first frame after the start), warmup_setup, warmup (one item
+## per frame), settle (settle_frames, the match camera current), start.
+const _OPEN_STAGES: Array[String] = ["overlay", "config", "map_build", "nav", "nav_sync", "roster", "bind", "world",
+		"warmup_setup", "warmup", "settle", "start"]
+## W1c: why the last staged open failed ("" when it did not); the same text is pushed as an error unless
+## quiet_open_errors (tests only: a failure test then adds no ERROR line to the suite log).
+var last_open_error: String = ""
+var quiet_open_errors: bool = false
 var _open_stage: int = 0
+var _open_in_stage: String = ""  # the abort guard of _open_tick
 var _open_frames: int = 0
 var _open_driver: Node
 var _open_warmup: ShaderWarmup
@@ -448,6 +458,21 @@ class _OpenDriver extends Node:
 			target.call("_open_tick")
 
 
+## Counts the script errors logged while the staged open runs (OS.add_logger). An aborted function returns its type's
+## default to the caller, which goes on (a `-> bool` build_step() then reads as "not done yet"), so a stage that would
+## only run again is told from a slow one by the errors it logged.
+class _OpenErrorWatch extends Logger:
+	var script_errors: int = 0
+
+	func _log_error(_function: String, _file: String, _line: int, _code: String, _rationale: String, _editor_notify: bool,
+			error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_SCRIPT:
+			script_errors += 1
+
+
+var _open_watch: _OpenErrorWatch
+
+
 func _begin_staged() -> void:
 	opening = true
 	_open_t0 = _PerfMarks.start()
@@ -464,6 +489,10 @@ func _begin_staged() -> void:
 	add_child(_open_driver)
 	_open_stage = 0
 	_open_frames = 0
+	_open_in_stage = ""
+	last_open_error = ""
+	_open_watch = _OpenErrorWatch.new()
+	OS.add_logger(_open_watch)
 
 
 static func _warm_num(key: String) -> int:
@@ -472,17 +501,30 @@ static func _warm_num(key: String) -> int:
 
 
 ## One stage of the staged open (see _OPEN_STAGES).
+## Abort guard: GDScript aborts a function on a script error (no exception), so a stage body that errors would leave
+## _open_stage where it was and run again every frame, the tree paused and the overlay up for good. _open_in_stage
+## names the stage while its body runs and is cleared only once the body got to its end; a tick that finds it still
+## set knows the previous tick was aborted and ends the open as a failed one. An error inside a callee does not abort
+## this function (the callee returns its type's default); where that would make a stage run its work again (a build
+## step, a warm-up step) the script errors the stage logged (_open_watch) end the open instead. A one-shot stage that
+## logged an error goes on, as begin() would.
 func _open_tick() -> void:
 	if not opening:
 		return
+	if _open_in_stage != "":
+		_open_fail("MatchRoot: the staged open's '%s' stage aborted (script error); match did not start" % _open_in_stage)
+		return
 	var stage := _OPEN_STAGES[_open_stage]
+	_open_in_stage = stage
+	var errors_before := _open_watch.script_errors if _open_watch != null else 0
 	var ok := true
+	var wait := false  # the stage needs more frames (the guard is cleared, the stage stays)
 	match stage:
 		"overlay":
 			_open_frames += 1
-			if _open_frames < maxi(1, _warm_num("overlay_frames")):
-				return
-			_PerfMarks.mark("open.overlay_shown", "frames=%d" % _open_frames)
+			wait = _open_frames < maxi(1, _warm_num("overlay_frames"))
+			if not wait:
+				_PerfMarks.mark("open.overlay_shown", "frames=%d" % _open_frames)
 		"config":
 			ok = _open_config()
 			if ok and _open_builder != null and "sliced" in _open_builder:
@@ -492,11 +534,22 @@ func _open_tick() -> void:
 		"map_build":
 			if map.get_parent() == null:
 				_open_map_build()  # the builder readies without building when sliced
-			if _open_builder != null and _open_builder.has_method("build_step") and not bool(_open_builder.call("build_step")):
-				_show_progress()
-				return  # the next frame runs the next slice; the nav stage starts only after the whole build
+			if _open_builder != null and _open_builder.has_method("build_step"):
+				var built: Variant = _open_builder.call("build_step")
+				wait = not (built is bool and bool(built))  # the next frame runs the next slice; nav starts after the build
+				if wait and _open_errored(errors_before):
+					# A step aborted by a script error returns false ("not done") and would only run again next frame.
+					var label: Variant = _open_builder.call("build_step_label") if _open_builder.has_method("build_step_label") else "?"
+					_open_fail("MatchRoot: the staged open's map build step '%s' hit a script error; match did not start" % str(label))
+					return
 		"nav":
 			_open_nav()
+		"nav_sync":
+			# The engine syncs the navigation map in the frame after the navmesh is assigned (about 0.9 s on the web,
+			# main thread; it runs while paused): the roster gets a frame of its own after it (data/warmup.json
+			# nav_sync_frames, OQ-W1C-STAGE). Nothing of the match runs meanwhile (paused), so no state changes.
+			_open_frames += 1
+			wait = _open_frames < _warm_num("nav_sync_frames")
 		"roster":
 			ok = _open_roster()
 		"bind":
@@ -522,25 +575,51 @@ func _open_tick() -> void:
 			_PerfMarks.done("open.warmup_setup", t, "items=%d contexts=%d" % [_open_warmup.items.size(), _open_warmup.contexts.size()])
 		"warmup":
 			_warm_frame()
-			if not _open_warmup.step():
-				_show_progress()
+			var at := _open_warmup.index
+			var stepped: Variant = _open_warmup.step()
+			wait = not (stepped is bool and bool(stepped))
+			if wait and _open_warmup.index == at and _open_errored(errors_before):
+				# step() hit a script error before it started an item: it would only do so again. (An item whose copy
+				# errors does not stall the open: step() counts the item before it fills the copies, so it goes on.)
+				_open_fail("MatchRoot: the staged open's warm-up step hit a script error at item %d; match did not start" % at)
 				return
-			_end_warmup()
+			if not wait:
+				_end_warmup()
 		"settle":
 			_open_frames += 1
-			if _open_frames < _warm_num("settle_frames"):
-				return
+			wait = _open_frames < _warm_num("settle_frames")
 		"start":
 			_finish_staged()
+			_open_in_stage = ""
+			if opening:  # _finish_staged() did not get to its end: never start the director a second time
+				_open_fail("MatchRoot: the staged open's 'start' stage aborted (script error); match state unknown")
 			return
+	_open_in_stage = ""
 	if not ok:
-		_end_staged()
-		push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
-		match_opened.emit(false)
+		_open_fail("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
+		return
+	if wait:
+		_show_progress()
 		return
 	_open_stage += 1
 	_open_frames = 0
 	_show_progress()
+
+
+## True when a script error was logged since `errors_before` (_open_watch.script_errors).
+func _open_errored(errors_before: int) -> bool:
+	return _open_watch != null and _open_watch.script_errors != errors_before
+
+
+## A staged open that cannot go on: the open ends (tree running, overlay gone, pause menu back), the reason is kept in
+## last_open_error and pushed as an error, and match_opened(false) is emitted once. quiet_open_errors (tests only)
+## keeps the reason without the error line, so a failure test adds no ERROR line to the suite log.
+func _open_fail(reason: String) -> void:
+	_end_staged()
+	last_open_error = reason
+	if not quiet_open_errors:
+		push_error(reason)
+	match_opened.emit(false)
 
 
 ## The frame time since the last warm-up tick belongs to the item started then (its first draw compiles its programs).
@@ -606,26 +685,32 @@ func _show_progress() -> void:
 ## The look variant this seed shows, applied now (behind the overlay) instead of on the first frame after the
 ## director starts (MatchLook._process then finds it already shown). Re-applied even when it is the base variant, so
 ## the look's parts that wait for the map builder (the sun shafts) are built now, not after the start.
+## Not silent when the seam is gone (no WorldEnvironment, or GreyboxArt._apply_environment renamed): the early look
+## is then skipped with a warning (MatchLook still applies it on the first frame after the start);
+## tests/test_w1c_staged_open.gd pins the method on the real match scene.
 func _apply_look_variant() -> void:
 	var world := get_node_or_null("WorldEnvironment")
 	if world != null and world.has_method("_apply_environment"):
 		world.call("_apply_environment", world, MatchLook.variant_for_seed(_open_seed))
+	else:
+		push_warning("MatchRoot: no WorldEnvironment with _apply_environment(world, variant); the look variant is applied only after the start")
 
 
 func _finish_staged() -> void:
 	var started := _open_start()
 	var cam_ok := _restore_match_camera()
-	_end_staged()
 	if not started:
-		push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
-	elif not cam_ok:
+		_open_fail("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
+		_PerfMarks.done("open.total", _open_t0)
+		return
+	_end_staged()
+	if not cam_ok:
 		push_error("MatchRoot: CameraRig is not current after the warm-up")
-	if started:
-		_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W1c staged open: the match is playable from here (docs/WEB.md)
-		_PerfMarks.mark("match_started")
-		_PerfMarks.arm_can_move(get_tree())  # GLADIUS_CAN_MOVE at the next physics tick (the tree is running again)
+	_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W1c staged open: the match is playable from here (docs/WEB.md)
+	_PerfMarks.mark("match_started")
+	_PerfMarks.arm_can_move(get_tree())  # GLADIUS_CAN_MOVE at the next physics tick (the tree is running again)
 	_PerfMarks.done("open.total", _open_t0)
-	match_opened.emit(started)
+	match_opened.emit(true)
 
 
 ## Ends the staged open (finished, failed or cancelled): the warm-up's copies, the driver and the overlay go, the
@@ -634,6 +719,10 @@ func _end_staged() -> void:
 	if not opening:
 		return
 	opening = false
+	_open_in_stage = ""
+	if _open_watch != null:
+		OS.remove_logger(_open_watch)
+	_open_watch = null
 	if _open_warmup != null and is_instance_valid(_open_warmup):
 		_open_warmup.queue_free()
 	_open_warmup = null

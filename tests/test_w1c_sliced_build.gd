@@ -59,10 +59,13 @@ func _free(m: MatchRoot, s: NetSession) -> void:
 	await _frames(1)
 
 
-## Polygons of the map's navigation mesh (0 = the scene's empty one: the nav stage has not run).
-func _nav_polygons(m: MatchRoot) -> int:
+## The map's navigation mesh (null without a Nav region). The nav stage always assigns a mesh of its own (the saved
+## mesh, a new instance, or a bake into a copy), so "still the mesh the map was instanced with" proves the nav stage
+## has not run. Not "0 polygons": the scene's own mesh is a sub-resource shared through the resource cache, and an
+## earlier test that baked a map instance in place leaves its polygons there (full suite).
+func _nav_mesh(m: MatchRoot) -> NavigationMesh:
 	var nav := m.map.get_node_or_null("Nav") as NavigationRegion3D
-	return nav.navigation_mesh.get_polygon_count() if nav != null and nav.navigation_mesh != null else 0
+	return nav.navigation_mesh if nav != null else null
 
 
 func _builder(m: MatchRoot) -> Node:
@@ -74,7 +77,7 @@ func _builder(m: MatchRoot) -> Node:
 func _open_and_hash(map: String, path: MatchRoot.OpenPath, tag: String, detail: Array = []) -> Dictionary:
 	var s := _solo_session("W1cSliced%s%d" % [tag, path])
 	var m := _new_match(s, path, map)
-	var out := {"frames_building": 0, "slices": 0, "stage_ok": true, "progress_back": false, "progress_moved": false}
+	var out := {"frames_building": 0, "slices": 0, "stage_ok": true, "stage_why": "", "progress_back": false, "progress_moved": false}
 	var captured := {}
 	m.match_opened.connect(func(_ok: bool) -> void: captured["world"] = _WorldHash.compute(m, detail))
 	_root().add_child(m)
@@ -88,13 +91,28 @@ func _open_and_hash(map: String, path: MatchRoot.OpenPath, tag: String, detail: 
 	var last := -1.0
 	var first_build_progress := -1.0
 	var n := 0
+	var built_mesh: NavigationMesh = null  # the map's mesh on the first build frame (the map entered the tree then)
+	var built_polygons := -1
 	while m.opening and n < MAX_FRAMES:
 		var b := _builder(m)
 		if b != null and b.is_inside_tree() and not bool(b.call("build_done")):
 			out["frames_building"] = int(out["frames_building"]) + 1
-			# Nothing after the build may start while it runs: the stage stays map_build, no navigation, no pawn.
-			out["stage_ok"] = bool(out["stage_ok"]) and m._open_stage == map_stage and m.local_player == null and m.bots.is_empty() \
-					and _nav_polygons(m) == 0
+			if int(out["frames_building"]) == 1:
+				built_mesh = _nav_mesh(m)
+				built_polygons = built_mesh.get_polygon_count() if built_mesh != null else -1
+			# Nothing after the build may start while it runs: the stage stays map_build, no navigation, no pawn: the map's
+			# navigation mesh is still the one it had when it entered the tree (see _nav_mesh).
+			var mesh := _nav_mesh(m)
+			var why := ""
+			if m._open_stage != map_stage:
+				why = "stage %s" % MatchRoot._OPEN_STAGES[m._open_stage]
+			elif m.local_player != null or not m.bots.is_empty():
+				why = "a pawn exists"
+			elif mesh == null or mesh != built_mesh or mesh.get_polygon_count() != built_polygons:
+				why = "the navigation mesh changed"
+			if why != "" and bool(out["stage_ok"]):
+				out["stage_ok"] = false
+				out["stage_why"] = "%s on build frame %d" % [why, int(out["frames_building"])]
 			if m.loading_overlay != null:
 				var p := m.loading_overlay.progress()
 				if first_build_progress < 0.0:
@@ -107,6 +125,9 @@ func _open_and_hash(map: String, path: MatchRoot.OpenPath, tag: String, detail: 
 		await _tree().process_frame
 		n += 1
 	out["opened"] = not m.opening and m.director.running
+	# The mesh check above means something only when the nav stage does swap the mesh (and the swapped one is a real one).
+	var final_mesh := _nav_mesh(m)
+	out["nav_swapped"] = built_mesh != null and final_mesh != null and final_mesh != built_mesh and final_mesh.get_polygon_count() > 0
 	out["slices"] = int(_builder(m).get("build_slices"))
 	out["done"] = bool(_builder(m).call("build_done"))
 	out["last_progress"] = last
@@ -140,7 +161,8 @@ func _compare(map: String, tag: String) -> void:
 	assert_true(bool(sliced["done"]), "%s: the sliced build finished" % tag)
 	assert_true(int(sliced["slices"]) > 1 and int(sliced["frames_building"]) > 1,
 			"%s: the sliced build took more than one slice and frame (%d slices, %d frames)" % [tag, int(sliced["slices"]), int(sliced["frames_building"])])
-	assert_true(bool(sliced["stage_ok"]), "%s: no later stage ran while the map was building" % tag)
+	assert_true(bool(sliced["stage_ok"]), "%s: no later stage ran while the map was building (%s)" % [tag, sliced["stage_why"]])
+	assert_true(bool(sliced["nav_swapped"]), "%s: the nav stage, after the build, gave the map a navigation mesh of its own" % tag)
 	assert_true(bool(sliced["progress_moved"]), "%s: the bar moved during the build" % tag)
 	assert_true(not bool(sliced["progress_back"]), "%s: the bar never went back" % tag)
 	assert_true(float(sliced["last_progress"]) >= 0.99, "%s: the bar reached its end (%.2f)" % [tag, float(sliced["last_progress"])])
