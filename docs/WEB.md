@@ -162,8 +162,9 @@ browser (`OS.is_debug_build()` and the `web` feature tag). Release builds and ev
 
 Console markers for automation, all printed only in a debug web build (`WebArgs.debug_marker`): `GLADIUS_MATCH_STARTED`
 (MatchRoot.begin, once the local player exists; W1c: on a solo web match, which opens staged, at the END of the
-loading screen, so "match started" includes the whole loading time: about 11 s on a warm and 65-76 s on a fresh
-browser profile on the W1c PC [measured, not a performance claim]; see "Staged open and warm-up"), `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
+loading screen, so "match started" includes the whole loading time: about 9 s on a warm and 54-58 s on a fresh
+browser profile on the W1c PC [measured, Chrome 158, not a performance claim; an earlier Chrome 157 run gave about
+11 s warm and 65-76 s cold]; see "W1c measured results (Nov 23 2026)" and "Staged open and warm-up"), `GLADIUS_MENU_READY`, `GLADIUS_LOBBY_READY`, `GLADIUS_PAUSE_OPENED`,
 `GLADIUS_PAUSE_CLOSED` and `GLADIUS_PAUSE_PATH key|capture_lost` (which MouseCapture path opened the menu)
 (`WebArgs.debug_marker`). W2 adds the `GLADIUS_LAN_*` markers from `scripts/net/net_debug_ping.gd` (snapshots, ping,
 host ready, connected, error, host lost, peer joined / left), also debug web builds only.
@@ -390,7 +391,7 @@ matches, desktop, Android, tools and the headless suite keep the old one-frame `
   and its input script) and `perf.mjs` (`match start s`, `GLADIUS_PERF_*` after the director runs) keep working
   unchanged; their match-start seconds are not comparable with runs before W1c commit 2. Their wait for the marker
   (`MATCH_TIMEOUT_MS`, 300 s from the lobby in smoke.mjs; lan_smoke.mjs the same, its matches are not staged) is
-  about four times the slowest fresh-profile open measured (about 76 s).
+  about four times the slowest fresh-profile open measured (about 76 s, Chrome 157; 54 to 58 s on Chrome 158).
 - A staged open that fails (a stage returns false, or a stage, a build step or a warm-up step is aborted by a script
   error) ends the loading screen, logs the reason as an error and never prints `GLADIUS_MATCH_STARTED`: smoke.mjs then
   fails on the missing marker and the Godot error.
@@ -403,3 +404,45 @@ matches, desktop, Android, tools and the headless suite keep the old one-frame `
   and `nav=` (Performance.TIME_NAVIGATION_PROCESS); `nav.map_changed` marks a finished navigation map sync.
 - `tools/web/perf_stalls.mjs` with a trace also prints the programs linked from CAN_MOVE to the end of the trace
   (count, longest link, the first 20 page times) and the D3DCompile calls in that window.
+
+### W1c measured results (Nov 23 2026)
+
+All numbers [measured] on this PC (RTX 3080 via ANGLE/D3D11, 1280x720, about 57 Hz), debug Web build, route and seed of
+tools/web/perf_route.json, 60 s route, one run each unless noted. Not a performance claim. "Before" = base 8d6237f plus
+the measurement commit, Chrome 157.0.8103.80. "After" = commit b8c99de, Chrome 158.0.8127.37 (Chrome updated itself
+during the slice; after-runs on Chrome 157 at the warm-up commit gave the same result: 0 stalls after GLADIUS_CAN_MOVE,
+CAN_MOVE at about 75 s cold and 15.5 s warm at High). "Cold" = a fresh Chrome profile with
+--disable-gpu-shader-disk-cache; the GPU driver's own cache survives, so cold is partly cold [inferred]. "Warm" = the
+second run of that level on one reused profile. Stalls = rAF gaps over 250 ms.
+
+| Level | Profile | | CAN_MOVE s | Stalls before CAN_MOVE (longest) | Stalls after CAN_MOVE (longest) | Median ms after | 1% low ms after |
+|---|---|---|---|---|---|---|---|
+| Low (default) | cold | before | 29.9 | 3 (20,693 ms) | 9 (14,526 ms) | 18.0 | 1652.7 |
+| Low (default) | cold | after | 64.0 | 30 (9,567 ms) | 0 | 17.6 | 37.3 |
+| Medium | cold | before | 34.9 | 3 (23,146 ms) | 8 (18,299 ms) | 35.0 | 2089.0 |
+| Medium | cold | after | 61.5 | 30 (8,223 ms) | 0 | 17.6 | 39.1 |
+| High | cold | before | 27.7 | 3 (18,056 ms) | 8 (12,129 ms) | 17.6 | 865.3 |
+| High | cold | after | 65.3 | 29 (8,796 ms) | 0 | 17.6 | 38.3 |
+| High | cold | after, repeat | 63.2 | 29 (8,980 ms) | 0 | 17.6 | 39.1 |
+| Low (default) | warm | before | 12.9 | 3 (8,269 ms) | 5 (2,386 ms) | 18.1 | 206.1 |
+| Low (default) | warm | after | 13.2 | 8 (2,499 ms) | 0 | 17.6 | 38.6 |
+| Medium | warm | before | 10.9 | 3 (6,854 ms) | 6 (2,317 ms) | 17.8 | 182.2 |
+| Medium | warm | after | 14.1 | 8 (2,710 ms) | 0 | 17.6 | 38.2 |
+| High | warm | before | 12.2 | 3 (7,504 ms) | 2 (1,250 ms) | 17.8 | 88.6 |
+| High | warm | after | 13.8 | 9 (2,581 ms) | 0 | 17.6 | 38.3 |
+| High | warm | after, repeat | 13.7 | 8 (2,796 ms) | 0 | 17.6 | 37.9 |
+
+- CAN_MOVE is seconds on the page clock from page load. Before, the match was "playable" early but froze for a total of
+  30 s or more afterwards on a cold profile; after, the same compile time is spent behind the loading overlay.
+- Loading (open.total, overlay up): 54.0 to 57.9 s cold (warm-up 47.7 to 51.4 s of it), 8.8 to 9.4 s warm (warm-up 3.0
+  to 3.1 s).
+- The stalls before CAN_MOVE are frames in which the loading overlay is not redrawn: the engine boot (2.5 to 2.8 s
+  warm), single warm-up items while their programs compile (longest 8.2 to 9.6 s cold), the navigation map sync (about
+  0.9 s), the roster (about 0.75 s), the clutter (about 0.55 to 0.62 s) and the backdrop (about 0.32 s).
+- The first run of another Quality level on a profile primed at High took 19.4 s (Low) and 20.1 s (Medium) to
+  CAN_MOVE: some programs differ per level.
+- The frame right after the tree unpauses measured 204 to 251 ms in earlier runs (once over 250 ms on a reused
+  profile); in the 11 final runs no gap over 250 ms was recorded after CAN_MOVE.
+- Not measured in the browser: fights, deaths and breakables during a whole match, LAN matches (not staged,
+  OQ-W1C-LAN), other PCs and browsers. Shibi's own play test is the final check.
+- Evidence: runs\W1C\before and runs\W1C\after (perf JSON and *_stalls.md per run).
