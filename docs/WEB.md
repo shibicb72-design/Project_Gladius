@@ -409,7 +409,7 @@ matches, desktop, Android, tools and the headless suite keep the old one-frame `
   and its input script) and `perf.mjs` (`match start s`, `GLADIUS_PERF_*` after the director runs) keep working
   unchanged; their match-start seconds are not comparable with runs before W1c commit 2. Their wait for the marker
   (`MATCH_TIMEOUT_MS`, 300 s from the lobby in smoke.mjs; lan_smoke.mjs the same, its matches are not staged) is
-  about four times the slowest fresh-profile open measured (about 76 s, Chrome 157; 54 to 58 s on Chrome 158).
+  about four times the slowest fresh-profile open measured (about 76 s, Chrome 157; 52.5 to 59.5 s on Chrome 158).
 - A staged open that fails (a stage returns false, or a stage, a build step or a warm-up step is aborted by a script
   error) ends the loading screen, logs the reason as an error and never prints `GLADIUS_MATCH_STARTED`: smoke.mjs then
   fails on the missing marker and the Godot error.
@@ -497,7 +497,10 @@ once.
   of the difference is [inferred]).
 - Only the Hastati loadout ran in the browser (pilum_br and gladius_lux). The rifle and a weapon pickup were not measured
   in the browser [unknown].
-- Loading did not grow measurably: 56.4 to 59.5 s cold at High (was 57.9 s at b8c99de), 9.8 s warm (was 9.1 s).
+- Loading at High, cold: 55.2 to 59.5 s in four runs (55.7 and 57.9 s in two runs at b8c99de): within the run-to-run
+  spread. Warm: 9.8 s in one run (8.9 and 9.1 s in two runs at b8c99de), about 0.7 to 0.9 s longer.
+- A sixth run in runs\W1Cinal, the one that primed the warm profile (High, fresh profile): CAN_MOVE 62.3 s, 30 stalls
+  before CAN_MOVE (longest 8,458 ms), 0 after; action step 0 gaps over 250 ms, longest frame 107 ms (second switch to shot).
 - The base commit 8d6237f could not be measured with the action step in this slice (no branch switching); the
   skipped-entries run stands in for it.
 - Evidence: runs\W1C\final (final runs) and runs\W1C\work\fix1 (the skipped-entries runs).
