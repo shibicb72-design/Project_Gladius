@@ -20,7 +20,10 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
   along the ground), contact.corpse_first_budget_ms 16 ms for building the first corpse of an armour set (headless,
   dev PC, Legionary / Murmillo: 19 / 43 ms before the per-set precache, 3.6 / 6.4 ms after; tests/test_a3_corpse_cost.gd), and in
   death.settle the Blender hip settle of the death clip (hips: from_s 1.3, to_s 1.8, rest_m 0.007, near_m 0.13,
-  max_deg 25) and crossfade_keys_hz 120 (the corpse's leg keys over the crossfade).
+  max_deg 25) and crossfade_keys_hz 120 (the corpse's leg keys over the crossfade). Known limits, not fixed in this
+  pass: the settled Murmillo corpse lies face down with the upper back and the helmet off the floor (the death clip
+  was grounded on the Legionary mesh, and chest and head are not in the contact probe); the death's shins stay raised
+  from the knee; the Murmillo's knees sit 1.3-1.7 cm into the floor while downed (inside the 3 cm target).
 - **OQ-A3-HITDIR: how is a flinch matched to the shot that caused it?** Placeholder now: a shown rifle shot whose end
   lies within 1.0 m of the victim's body axis (feet to head hitbox), or a simulated melee swing whose origin lies within
   3.0 m of the victim, seen within 0.5 s before the victim's shield + health drop, gives the flinch its side (front,
@@ -32,6 +35,8 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
 - **OQ-A2-SET: first armour set and artwork.** Placeholder now is the Murmillo, with a bronze crested grille helmet,
   sword-arm manica, left greave, balteus, and a wrapped cloth subligaculum. Its appearance is a guess for Shibi.
+  Known art limit (A3 fix pass 1, not contact): the greave studs float off the greave and the ankle hoop stands off
+  the ankle.
 - **OQ-A2-BUDGET: PC armour budgets.** Placeholder now is 20,000 near and 4,000 far body triangles, with four near and
   three far total draws including the weapon. These are guesses for Shibi in `data/art_soldier.json`.
 - **OQ-A2-WARDROBE: armour selection.** Placeholder now is a free whole-set choice in Settings for the local
