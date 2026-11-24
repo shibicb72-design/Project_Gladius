@@ -7,6 +7,21 @@ A placeholder is never a design value.
 
 Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
+## Animation pass (A3)
+
+- **OQ-A3-CONTACT: how close to the ground must the downed crawl and the corpse be?** Placeholder now: the lowest
+  skinned vertex of a planted hand or knee, and of a settled corpse's heels, hips and hands, within 3 cm of a flat
+  floor, and no part more than 3 cm below it (`data/anim_third_person.json` contact). The downed crawl now plants both
+  hands (crawl.hands), with the knees lowered and the back arched so straight arms reach (head about 0.93 m, inside
+  poses.downed head_tolerance_m); the corpse settles its hands by the arms (death.settle). All guesses for Shibi
+  (A3 item 1, tests/test_a3_contact.gd).
+- **OQ-A3-HITDIR: how is a flinch matched to the shot that caused it?** Placeholder now: a shown rifle shot whose end
+  lies within 1.0 m of the victim's body axis (feet to head hitbox), or a simulated melee swing whose origin lies within
+  3.0 m of the victim, seen within 0.5 s before the victim's shield + health drop, gives the flinch its side (front,
+  back, left, right by quadrant in the victim's frame); no match plays the front flinch, which is always the case for a
+  remote human's melee seen on the host and for every melee hit seen on a LAN replica (`data/anim_third_person.json`
+  gait.hit_dir, `scripts/visual/soldier_hit_side.gd`). All guesses for Shibi (A3 item 3, tests/test_a3_hit_side.gd).
+
 ## Web gladiator art (A2)
 
 - **OQ-A2-SET: first armour set and artwork.** Placeholder now is the Murmillo, with a bronze crested grille helmet,

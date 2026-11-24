@@ -39,7 +39,12 @@
 	},
 	"death": {
 		"_clip_note": "M2 AN1 commit 4: with the library death clip (anim_sources death, UAL Death01) the corpse plays it instead of the end rotations, after blend_s of crossfade from the last pose, the upper arms keeping arm_follow of the clip's turn from rest (the fall flings them past the helmet); DeathFx skips the outer topple. The end rotations stay the fallback.",
-		"blend_s": 0.12, "arm_follow": 0.7
+		"blend_s": 0.12, "arm_follow": 0.7,
+		"settle": {
+			"_placeholder": true,
+			"_todo": "OQ-A3-CONTACT (A3 item 1, a guess for Shibi): the corpse settles each hand onto the floor (scripts/visual/soldier_corpse.gd _settle_hands: a two-bone arm solve per clip frame, never the root or the body). A hand below the floor is lifted onto it in every frame; a hand above it is lowered by smoothstep(from_s, full_s) of the clip time (Death01 lands at about 1.5 s and stops moving at about 1.8 s).",
+			"hands": true, "from_s": 1.2, "full_s": 1.7
+		}
 	},
 	"poses": {
 		"blade": {
@@ -49,7 +54,9 @@
 		"swing": {
 			"_clip_note": "M2 AN1 commit 4: with the library swing (anim_sources blade_swing, UAL Sword_Attack) the clip from clip_from_s to clip_to_s plays over s on clip_bones (its fast cut, 0.31-0.51 s of the clip, lands in the strike window), fading in over fade_in of the swing; raised/struck stay the fallback.",
 			"clip_from_s": 0.26, "clip_to_s": 1.25, "fade_in": 0.08,
-			"clip_bones": ["Spine", "Chest", "RightUpperArm", "RightForeArm", "RightHand", "LeftUpperArm", "LeftForeArm", "LeftHand"]
+			"clip_bones": ["Spine", "Chest", "RightUpperArm", "RightForeArm", "RightHand", "LeftUpperArm", "LeftForeArm", "LeftHand"],
+			"_clips_note": "A3 item 2: the alternating slash set (anim_sources blade_swing_a / blade_swing_b, soldier_a3.glb, 20 frames each, authored at twice the swing time): each plays its whole length (clip_from_s .. clip_to_s) over s on clip_bones; the blade's fastest travel lies at 0.275 of the clip, inside strike_from .. strike_to. The top-level clip_from_s / clip_to_s above stay for the blade_swing fallback. Presentation only.",
+			"clips": {"blade_swing_a": {"clip_from_s": 0.0, "clip_to_s": 0.6667}, "blade_swing_b": {"clip_from_s": 0.0, "clip_to_s": 0.6667}}
 		},
 		"revive": {
 			"_clip_note": "M2 AN1 commit 4: with the library reviver clip (anim_sources revive, UAL Fixing_Kneeling) the whole body plays it: the kneel-down once, then clip_loop_from_s..clip_loop_to_s (kneeling, both hands working low) loops; the head rides the chest. body_pitch_deg, body_offset_m and bones stay the fallback. M2 AN2 item 2: 1.4..3.3 s (was 0.9..4.1: its two ends differed by 79 degrees at the right hand, 35 here) and tools/blender/build_soldier_clips.py bakes the clip with this loop closed (the frames before clip_loop_to_s blend into clip_loop_from_s).",
@@ -77,6 +84,11 @@
 		"neck_drop_max_m": 0.1,
 		"upper_keeps_lower": ["Spine"],
 		"hit": {"fade_in_s": 0.03, "fade_out_s": 0.12, "bones": ["Spine", "Chest", "LeftUpperArm", "RightUpperArm"], "scale": 1.6, "min_drop": 0.5, "head_drop": 40.0},
+		"hit_dir": {
+			"_placeholder": true,
+			"_todo": "OQ-A3-HITDIR (A3 item 3, guesses for Shibi): which side a flinch comes from (scripts/visual/soldier_hit_side.gd, visuals only). A shown rifle shot (ShotFx.shot_shown, every peer) whose end lies within match_m of the victim's body axis (feet to head hitbox), or a simulated melee swing (Pawn.shot) whose origin lies within melee_match_m of the victim, is matched to the victim's next shield + health drop seen within window_s of it; no match plays the front flinch.",
+			"match_m": 1.0, "melee_match_m": 3.0, "window_s": 0.5
+		},
 		"air": {"min_vertical_mps": 1.5, "min_s": 0.1}
 	},
 	"head": {
@@ -110,10 +122,20 @@
 	"crawl": {
 		"_placeholder": true,
 		"_todo": "OQ-ANIM (M2 AN1 commit 4): the code-built downed knee-crawl (scripts/visual/soldier_crawl.gd; the UAL has no crawl). step_m: how far a planted knee travels under the body per stance (a cycle covers 2 x step_m of ground); lift_m: swing knee lift; knee_height_m: the knee joint's height when it rests on the ground; pelvis_pitch_deg: forward lean of the pelvis (its roll is derived: the swing side hikes until its knee clears the ground); body_back_m: hips offset along +Z; shin_rise_deg: shins laid back on the ground; foot_point_deg: toes pointed (about the foot's X); settle_cycles_s: how fast the cycle settles to both knees down when the pawn stops. Presentation trials, not design values.",
-		"step_m": 0.16, "lift_m": 0.05, "knee_height_m": 0.06, "pelvis_pitch_deg": 40.0,
-		"body_back_m": 0.05, "shin_rise_deg": 6.0, "foot_point_deg": -80.0, "settle_cycles_s": 1.5,
-		"_arms_note": "The arm opposite the advancing knee reaches forward, with its elbow following the shoulder. The upper-body motion fades out at rest. Presentation trial.",
+		"step_m": 0.16, "lift_m": 0.05, "knee_height_m": 0.035, "pelvis_pitch_deg": 55.0,
+		"body_back_m": 0.05, "shin_rise_deg": 8.0, "foot_point_deg": -80.0, "settle_cycles_s": 1.5,
+		"_a3_contact_note": "A3 item 1 (OQ-A3-CONTACT, guesses for Shibi): knee_height_m 0.06 -> 0.035 puts the lower knee's lowest vertex on the floor for both armour sets (it sat 3.7-5.4 cm up on the Legionary); pelvis_pitch_deg 40 -> 55 with poses.downed Chest -6 -> 19 (the upper back arched up again) lowers the shoulders about 12 cm so straight arms reach the floor while the head stays near poses.downed.head_height_m. hands: both hands plant (the gun is slung while downed); see soldier_crawl.gd _plant_hand. width_m / ahead_m: the hands' ground point in the pawn frame (under the shoulders), floor_m: the hand bone's height with the glove's lowest point on the floor in the planted orientation hand_deg (Euler degrees, the right hand; the left mirrored), lift_m: the swing hand's lift, pole: where the elbows point (pawn frame, x mirrored for the left), counter_roll: the share of the pelvis roll the spine takes back (the hiking side's shoulder otherwise lifts out of its planted hand's reach). shin_rise_deg 6 -> 8: with the lower knees the heels sank 3.5 cm in the corpse's crossfade from the downed pose. plant false restores the old arm swing (arms).",
+		"hands": {"plant": true, "width_m": 0.4, "ahead_m": -0.33, "floor_m": 0.049, "lift_m": 0.06, "hand_deg": [0.0, 0.0, 0.0], "pole": [0.4, 0.0, 1.0], "counter_roll": 1.0},
+		"_arms_note": "The arm opposite the advancing knee reaches forward, with its elbow following the shoulder. The upper-body motion fades out at rest. Presentation trial. Used only when hands.plant is false.",
 		"arms": {"reach_deg": 16.0, "elbow_deg": 10.0, "clearance_deg": 5.0, "full_mps": 0.85, "ease_s": 0.1}
+	},
+	"contact": {
+		"_placeholder": true,
+		"_todo": "OQ-A3-CONTACT (A3 item 1): ground contact of the downed crawl and the death, a guess for Shibi. contact_tolerance_m: how far the lowest skinned vertex of a part that should rest on the ground may sit above it, and how far any measured part may sink below it (tests/test_a3_contact.gd, a flat floor at the pawn's y, sampled at sample_hz). knee_radius_m: which thigh and shin vertices count as the knee (within this distance of the knee joint, the LowerLeg bone's rest origin). death_settled_s: from this collapse time on (crossfade included; the 2.4 s Death01 clip stops moving at about 1.9 s) the corpse counts as settled and heels, hips and hands must rest on the ground. Measurement definitions, presentation only.",
+		"contact_tolerance_m": 0.03,
+		"knee_radius_m": 0.08,
+		"sample_hz": 30.0,
+		"death_settled_s": 2.0
 	},
 	"cover": {
 		"_placeholder": true,
@@ -133,7 +155,9 @@
 			"fade_s": 0.1,
 			"full_body": ["chest_open", "pickup_ground", "ladder_top"],
 			"upper_bones": ["Spine", "Chest", "Head", "LeftUpperArm", "LeftForeArm", "LeftHand", "LeftFingers"],
-			"hide_gun": ["chest_open", "ladder_top", "ladder_up", "ladder_down"]
+			"hide_gun": ["chest_open", "ladder_top", "ladder_up", "ladder_down"],
+			"_victory_note": "A3 item 4: the victory (anim_sources victory, soldier_a3.glb) owns victory_bones only (both arms: the clip's weapon hand goes up, so the aim layer's right arm is overridden too; never the Hips, legs, Neck or Head, so the legs keep the locomotion and the helmet stays on the head block's limits); it fades in over fade_s and holds its last frame (the arm raised) until the end screen.",
+			"victory_bones": ["Spine", "Chest", "LeftUpperArm", "LeftForeArm", "LeftHand", "LeftFingers", "RightUpperArm", "RightForeArm", "RightHand", "RightFingers"]
 		},
 		"cover": {"crouch_hips_y_m": 0.36}
 	}

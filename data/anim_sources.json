@@ -100,6 +100,35 @@
 			"mixamo_local": [],
 			"procedural": false
 		},
+		"hit_front": {
+			"_note": "A3 item 3: directional flinches (tools/blender/a3_clips.py), named by where the hit CAME FROM; SoldierAnimation feeds them to the hit layer's hit_which inputs front/back/left/right (head keeps hit_head). A side whose slot does not resolve plays hit_chest.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_a3.glb", "clip": "hit_front", "rig": "soldier", "loop": false}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"hit_back": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_a3.glb", "clip": "hit_back", "rig": "soldier", "loop": false}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"hit_left": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_a3.glb", "clip": "hit_left", "rig": "soldier", "loop": false}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"hit_right": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_a3.glb", "clip": "hit_right", "rig": "soldier", "loop": false}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
 		"death": {
 			"blender": [{"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Death01", "rig": "soldier", "loop": false, "root_motion": true}],
 			"actionforge": [],
@@ -120,6 +149,21 @@
 			"ual": [{"path": "res://assets/third_party/quaternius_ual/UAL1_Standard.glb", "clip": "Sword_Attack", "rig": "ual", "loop": false}],
 			"mixamo_local": [],
 			"procedural": true
+		},
+		"blade_swing_a": {
+			"_note": "A3 item 2: the alternating slash set (tools/blender/a3_clips.py): SoldierPose plays a, b, a, b on one pawn's consecutive melee shots, each clip whole (data/anim_third_person.json poses.swing.clips) over poses.swing.s. A slot that does not resolve plays blade_swing.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_a3.glb", "clip": "blade_swing_a", "rig": "soldier", "loop": false}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
+		},
+		"blade_swing_b": {
+			"blender": [{"path": "res://assets/generated/characters/soldier_a3.glb", "clip": "blade_swing_b", "rig": "soldier", "loop": false}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
+			"procedural": false
 		},
 		"cover_crouch_idle": {
 			"blender": [{"path": "res://assets/generated/characters/soldier_clips.glb", "clip": "Crouch_Idle", "rig": "soldier"}],
@@ -298,6 +342,14 @@
 		},
 		"pickup_ground": {
 			"blender": [{"path": "res://assets/generated/characters/soldier_keyed.glb", "clip": "pickup_ground", "rig": "soldier", "loop": false}],
+			"procedural": false
+		},
+		"victory": {
+			"_note": "A3 item 4: the winner's cheer (tools/blender/a3_clips.py). SoldierModel plays it on MatchDirector.match_over on every living pawn of the winning squad, upper body only (data/anim_third_person.json keyed.actions.victory_bones), and holds its last frame. No fallback: without the clip nothing plays.",
+			"blender": [{"path": "res://assets/generated/characters/soldier_a3.glb", "clip": "victory", "rig": "soldier", "loop": false}],
+			"actionforge": [],
+			"ual": [],
+			"mixamo_local": [],
 			"procedural": false
 		},
 		"cover_slide_l": {

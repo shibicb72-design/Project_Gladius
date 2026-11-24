@@ -49,11 +49,11 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 			cycles[clip] = float(gait["cycle_m"]) * float((gait_cfg.get("cycle_scale", {}) as Dictionary).get(clip, 1.0))
 		library.add_animation(clip, resolved)
 	var extras: Dictionary = {}
-	for clip in ["jump_air", "hit_chest", "hit_head"]:
+	for clip in ["jump_air", "hit_chest", "hit_head"] + HIT_SIDE_SLOTS:
 		var resolved := clips.resolve(clip, null, skeleton)
 		if resolved != null:
 			extras[clip] = resolved
-	for clip in ["hit_chest", "hit_head"]:
+	for clip in ["hit_chest", "hit_head"] + HIT_SIDE_SLOTS:
 		if extras.has(clip):
 			library.add_animation(clip, _shared_additive(extras[clip]))
 	if extras.has("jump_air"):
@@ -175,15 +175,17 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 		hit.filter_enabled = true
 		for bone: String in gait_cfg["hit"]["bones"]:
 			hit.set_filter_path(NodePath("Skeleton3D:" + bone), true)
+		# A3 item 3: the flinch by where the hit came from (front, back, left, right; SoldierHitSide picks it), plus
+		# the head clip for a big drop. A side whose directional slot does not resolve plays hit_chest.
 		var which := AnimationNodeTransition.new()
-		which.input_count = 2
-		which.set_input_name(0, "chest")
-		which.set_input_name(1, "head")
-		graph.add_node(&"hit_chest", _node("hit_chest"))
-		graph.add_node(&"hit_head", _node("hit_head" if extras.has("hit_head") else "hit_chest"))
+		which.input_count = HIT_INPUTS.size()
 		graph.add_node(&"hit_which", which)
-		graph.connect_node(&"hit_which", 0, &"hit_chest")
-		graph.connect_node(&"hit_which", 1, &"hit_head")
+		for i in HIT_INPUTS.size():
+			var input := HIT_INPUTS[i]
+			var slot := "hit_" + input
+			which.set_input_name(i, input)
+			graph.add_node(StringName(slot), _node(slot if extras.has(slot) else "hit_chest"))
+			graph.connect_node(&"hit_which", i, StringName(slot))
 		graph.add_node(&"hit", hit)
 		graph.connect_node(&"hit", 0, &"fire")
 		graph.connect_node(&"hit", 1, &"hit_which")
@@ -206,10 +208,15 @@ static func build(skeleton: Skeleton3D, sprint: float, reload_s: float, sources:
 
 ## M2 AN1: library slots used outside the graph (SoldierCorpse, SoldierPose, CoverAnim), baked with the graph.
 ## M2 AN2 items 3/5: the keyed clips (soldier_keyed.glb) CoverAnim and SoldierModel's action layer use.
-const SHARED_SLOTS: Array[String] = ["death", "revive", "blade_swing", "cover_crouch_idle", "cover_crouch_move",
+## A3: blade_swing stays the fallback of the alternating slash set (blade_swing_a / _b); victory is SoldierModel's.
+const SHARED_SLOTS: Array[String] = ["death", "revive", "blade_swing", "blade_swing_a", "blade_swing_b",
+	"cover_crouch_idle", "cover_crouch_move",
 	"cover_idle_l", "cover_idle_r", "cover_idle_l_crouch", "cover_idle_r_crouch", "peek_left", "peek_right",
 	"cover_enter", "cover_exit", "cover_enter_l", "cover_exit_l", "cover_rise",
-	"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground"]
+	"ladder_up", "ladder_down", "ladder_top", "door_open", "chest_open", "pickup_ground", "victory"]
+## A3 item 3: the hit layer's hit_which inputs (each plays the slot "hit_<input>") and the directional slots.
+const HIT_INPUTS: Array[String] = ["front", "back", "left", "right", "head"]
+const HIT_SIDE_SLOTS: Array[String] = ["hit_front", "hit_back", "hit_left", "hit_right"]
 static var _additive: Dictionary = {}
 
 

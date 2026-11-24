@@ -1,6 +1,6 @@
 {
-    "_note":  "M2 AN2: which committed script under tools/blender/ wrote each generated asset, and the data/asset_catalog.json id of its source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
-    "files":  {
+	"_note": "M2 AN2: which committed script under tools/blender/ wrote each generated .glb, and the data/asset_catalog.json id of its CC0 source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
+	"files": {
                   "res://assets/generated/characters/gladiator.glb": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
                   "res://assets/generated/characters/gladiator_far_albedo.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
                   "res://assets/generated/characters/gladiator_far_mask.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
@@ -10,87 +10,121 @@
                   "res://assets/generated/characters/gladiator_near_mask.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
                   "res://assets/generated/characters/gladiator_near_normal.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
                   "res://assets/generated/characters/gladiator_near_orm.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/world/a1_forum_stall.glb": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
-                  "res://assets/generated/world/a1/forum_stall_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
-                  "res://assets/generated/world/a1/forum_stall_normal.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
-                  "res://assets/generated/world/a1/forum_stall_orm.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
-                  "res://assets/generated/world/a1/forum_stall_lod1_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_forum_stall_reduced"},
-                  "res://assets/generated/world/a1_farm_cart.glb": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
-                  "res://assets/generated/world/a1/farm_cart_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
-                  "res://assets/generated/world/a1/farm_cart_normal.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
-                  "res://assets/generated/world/a1/farm_cart_orm.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
-                  "res://assets/generated/world/a1/farm_cart_lod1_albedo.png": {"made_by": "tools/blender/a1_tripo_props.py", "derived_from": "tripo_farm_cart_reduced"},
-                  "res://assets/generated/characters/pipeline_proof.glb":  {
-                                                                               "made_by":  "tools/blender/build_pipeline_proof.py",
-                                                                               "derived_from":  ""
-                                                                           },
-                  "res://assets/generated/characters/soldier.glb":  {
-                                                                        "made_by":  "tools/blender/build_soldier.py",
-                                                                        "derived_from":  ""
-                                                                    },
-                  "res://assets/generated/characters/soldier_clips.glb":  {
-                                                                              "made_by":  "tools/blender/build_soldier_clips.py",
-                                                                              "derived_from":  "quaternius_ual_standard_glb"
-                                                                          },
-                  "res://assets/generated/characters/soldier_directional.glb":  {
-                                                                               "made_by":  "tools/blender/build_soldier_directional.py",
-                                                                               "derived_from":  ""
-                                                                           },
-                  "res://assets/generated/characters/soldier_keyed.glb":  {
-                                                                              "made_by":  "tools/blender/build_soldier_keyed.py",
-                                                                              "derived_from":  ""
-                                                                          },
-                  "res://assets/generated/characters/soldier_rifle.glb":  {
-                                                                              "made_by":  "tools/blender/build_soldier_rifle.py",
-                                                                              "derived_from":  ""
-                                                                          },
-                  "res://assets/generated/characters/view_arms.glb":  {
-                                                                          "made_by":  "tools/blender/build_view_arms.py",
-                                                                          "derived_from":  ""
-                                                                      },
-                  "res://assets/generated/characters/view_clips_gladius_lux.glb":  {
-                                                                                       "made_by":  "tools/blender/build_view_clips.py",
-                                                                                       "derived_from":  ""
-                                                                                   },
-                  "res://assets/generated/characters/view_clips_pilum_br.glb":  {
-                                                                                    "made_by":  "tools/blender/build_view_clips.py",
-                                                                                    "derived_from":  ""
-                                                                                },
-                  "res://assets/generated/characters/view_clips_sagittarii_rifle.glb":  {
-                                                                                            "made_by":  "tools/blender/build_view_clips.py",
-                                                                                            "derived_from":  ""
-                                                                                        },
-                  "res://assets/generated/weapons/gladius_lux.glb":  {
-                                                                         "made_by":  "tools/blender/build_weapons.py",
-                                                                         "derived_from":  ""
-                                                                     },
-                  "res://assets/generated/weapons/pilum_br.glb":  {
-                                                                      "made_by":  "tools/blender/build_weapons.py",
-                                                                      "derived_from":  ""
-                                                                  },
-                  "res://assets/generated/weapons/sagittarii_rifle.glb":  {
-                                                                              "made_by":  "tools/blender/build_weapons.py",
-                                                                              "derived_from":  ""
-                                                                          },
-                  "res://assets/generated/world/m2cx2_town.glb": {
-                      "made_by": "tools/blender/m2cx2_town.py",
-                      "derived_from": ""
-                  },
-                  "res://assets/generated/world/m2cx2_landmarks.glb": {
-                      "made_by": "tools/blender/m2cx2_landmarks.py",
-                      "derived_from": ""
-                  },
-                  "res://assets/generated/world/m2cx2_dressing.glb": {
-                      "made_by": "tools/blender/m2cx2_dressing.py",
-                      "derived_from": ""
-                  },
-                  "res://assets/generated/world/m2w1_world_kit.glb":  {
-                                                                          "made_by":  "tools/blender/m2w1_world_kit.py",
-                                                                          "derived_from":  ""
-                                                                      },
-                  "res://assets/generated/world/m2w1_clutter.glb":  {
-                                                                        "made_by":  "tools/blender/m2w1_clutter.py",
-                                                                        "derived_from":  ""
-                                                                    }
-              }
+		"res://assets/generated/characters/pipeline_proof.glb": {
+			"made_by": "tools/blender/build_pipeline_proof.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier.glb": {
+			"made_by": "tools/blender/build_soldier.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier_a3.glb": {
+			"made_by": "tools/blender/a3_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier_clips.glb": {
+			"made_by": "tools/blender/build_soldier_clips.py",
+			"derived_from": "quaternius_ual_standard_glb"
+		},
+		"res://assets/generated/characters/soldier_directional.glb": {
+			"made_by": "tools/blender/build_soldier_directional.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier_keyed.glb": {
+			"made_by": "tools/blender/build_soldier_keyed.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/soldier_rifle.glb": {
+			"made_by": "tools/blender/build_soldier_rifle.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_arms.glb": {
+			"made_by": "tools/blender/build_view_arms.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_gladius_lux.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_pilum_br.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/characters/view_clips_sagittarii_rifle.glb": {
+			"made_by": "tools/blender/build_view_clips.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/gladius_lux.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/pilum_br.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/weapons/sagittarii_rifle.glb": {
+			"made_by": "tools/blender/build_weapons.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/world/a1/farm_cart_albedo.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced"
+		},
+		"res://assets/generated/world/a1/farm_cart_lod1_albedo.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced"
+		},
+		"res://assets/generated/world/a1/farm_cart_normal.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced"
+		},
+		"res://assets/generated/world/a1/farm_cart_orm.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced"
+		},
+		"res://assets/generated/world/a1/forum_stall_albedo.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced"
+		},
+		"res://assets/generated/world/a1/forum_stall_lod1_albedo.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced"
+		},
+		"res://assets/generated/world/a1/forum_stall_normal.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced"
+		},
+		"res://assets/generated/world/a1/forum_stall_orm.png": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced"
+		},
+		"res://assets/generated/world/a1_farm_cart.glb": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_farm_cart_reduced"
+		},
+		"res://assets/generated/world/a1_forum_stall.glb": {
+			"made_by": "tools/blender/a1_tripo_props.py",
+			"derived_from": "tripo_forum_stall_reduced"
+		},
+		"res://assets/generated/world/m2cx2_dressing.glb": {
+			"made_by": "tools/blender/m2cx2_dressing.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/world/m2cx2_landmarks.glb": {
+			"made_by": "tools/blender/m2cx2_landmarks.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/world/m2cx2_town.glb": {
+			"made_by": "tools/blender/m2cx2_town.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/world/m2w1_clutter.glb": {
+			"made_by": "tools/blender/m2w1_clutter.py",
+			"derived_from": ""
+		},
+		"res://assets/generated/world/m2w1_world_kit.glb": {
+			"made_by": "tools/blender/m2w1_world_kit.py",
+			"derived_from": ""
+		}
+	}
 }

@@ -1472,12 +1472,19 @@
 			"sha256": "90bf11207ca4689484cc8c221250b47a669c7fda7b65bd3ab6375cd5419466d4"
 		},
 		{
+			"path": "res://assets/generated/characters/soldier_a3.glb",
+			"made_by": "tools/blender/a3_clips.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 177344,
+			"sha256": "6a4e3e6c40e022c9363b1ec28a75baf886ce10764986ecc91bd5965bfc5ff1fc"
+		},
+		{
 			"path": "res://assets/generated/characters/soldier_clips.glb",
 			"made_by": "tools/blender/build_soldier_clips.py",
 			"derived_from": "quaternius_ual_standard_glb",
 			"licence": "derived in this project from Quaternius Universal Animation Library Standard (data/asset_catalog.json assets id quaternius_ual_standard_glb, CC0-1.0)",
 			"bytes": 771152,
-			"sha256": "8ac1d5c18f7b862cfe75a78cf590c6dd0f1d4f2215ae3d237cfe30df35c2dc4d"
+			"sha256": "1ae08ad973e6b99fb00d3227abf6cf48f7f2b073303a1e1dca15c05b6033e38c"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_directional.glb",
@@ -1707,5 +1714,5 @@
 			"sha256": "b5b17d2a394bb3ae899fbb46f494b0c2c96f874fa217ecd58e21fbf66b2c2100"
 		}
 	],
-	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that catalogued asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
+	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that CC0 asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 }
