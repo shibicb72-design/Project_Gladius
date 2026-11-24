@@ -1497,15 +1497,15 @@
 			"path": "res://assets/generated/characters/soldier_keyed.glb",
 			"made_by": "tools/blender/build_soldier_keyed.py",
 			"licence": "generated in this project (no source material)",
-			"bytes": 769616,
-			"sha256": "3fcecf808f4da89e26ff786ad2e290c98ca4a8441b26e028043669b53305a788"
+			"bytes": 768772,
+			"sha256": "d793f5659ce1370c47fba2471aa3230650d37323b4780dd87ea1974eeabbf77f"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_rifle.glb",
 			"made_by": "tools/blender/build_soldier_rifle.py",
 			"licence": "generated in this project (no source material)",
 			"bytes": 56828,
-			"sha256": "b77bea05aba7d519837ddf3a5ecb57735b04dd052c6841d025a68411ac829169"
+			"sha256": "2ae6d9df605e69ff72ef922afa8d8f0d62ac31814e2df00e41b1df6e819d9ba4"
 		},
 		{
 			"path": "res://assets/generated/characters/view_arms.glb",
@@ -1714,5 +1714,5 @@
 			"sha256": "b5b17d2a394bb3ae899fbb46f494b0c2c96f874fa217ecd58e21fbf66b2c2100"
 		}
 	],
-	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that CC0 asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
+	"_generated_note": "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that catalogued asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 }

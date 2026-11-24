@@ -932,7 +932,13 @@ class MeshCheck:
 # legs are re-solved onto their ankles and the feet keep their orientation. rest_m is not 0 because the Murmillo's
 # pelvis sits about 1.5 cm lower in the same pose (A3 contact table): the one clip serves both sets inside the 3 cm
 # target (OQ-A3-CONTACT). Only the clips named here change; every other clip is baked exactly as before.
-HIP_SETTLE = {"Death01": {"from_s": 1.3, "to_s": 1.8, "rest_m": 0.007, "near_m": 0.13}}
+# Fix pass 1: the numbers (from_s, to_s, rest_m, near_m, max_deg) are data now: data/anim_third_person.json
+# death.settle.hips (placeholders, OQ-A3-CONTACT), read through soldier_data.config(); this tuple only names the clips.
+HIP_SETTLE = ("Death01",)
+
+
+def hip_settle_cfg():
+    return soldier_data.config()["death"]["settle"]["hips"]
 
 
 def settle_hips(check: "MeshCheck", rig: Rig, frames, opt):
@@ -981,7 +987,7 @@ def settle_hips(check: "MeshCheck", rig: Rig, frames, opt):
         theta, cur, miss = 0.0, fr, 0.0
         for _i in range(6):
             theta += (low(cur) - target) / flat
-            theta = max(0.0, min(math.radians(25.0), theta))
+            theta = max(0.0, min(math.radians(float(opt["max_deg"])), theta))
             cur, miss = hinged(fr, theta)
         frames[f] = cur
         rep["max_deg"] = max(rep["max_deg"], math.degrees(theta))
@@ -1190,7 +1196,7 @@ def main():
             if loop:
                 frames[n] = copy_frame(frames[0])
         if check is not None and spec["name"] in HIP_SETTLE:
-            rep["hip_settle"] = settle_hips(check, rig, frames, HIP_SETTLE[spec["name"]])
+            rep["hip_settle"] = settle_hips(check, rig, frames, hip_settle_cfg())
         if loop:
             # first == last per bone by construction; the step into the seam against the largest other step
             first_last = seam(frames, 0, n)

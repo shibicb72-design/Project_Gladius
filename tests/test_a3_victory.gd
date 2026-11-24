@@ -77,6 +77,49 @@ func test_only_living_winners_cheer_on_match_over() -> void:
 	world.free()
 
 
+## Fix pass 1 (S7): a winner on a ladder when the match ends cheers once the climb ends (the climb owns the action
+## layer meanwhile); one who is downed before the climb ends does not.
+func test_a_winner_on_a_ladder_cheers_when_the_climb_ends() -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var world := Node3D.new()
+	tree.root.add_child(world)
+	var director := MatchDirector.new()
+	director.name = "Director"
+	world.add_child(director)
+	var climber := _pawn(world, 1, Vector3(0, 0, 0))
+	var downed := _pawn(world, 1, Vector3(3, 0, 0))
+	await tree.process_frame
+	var models: Array[SoldierModel] = [climber.get_node("SoldierModel") as SoldierModel, downed.get_node("SoldierModel") as SoldierModel]
+	for pawn: Pawn in [climber, downed]:
+		pawn.climbing = true
+	for i in 30:
+		for model in models:
+			model.drive_actions(DT)
+	assert_true(models[0].climb_weight >= 1.0, "climbing shown")
+	director.match_over.emit({"winner": 1, "draw": false, "placements": {}, "kills": {}, "scores": {}})
+	for i in 10:
+		for model in models:
+			model.drive_actions(DT)
+	assert_eq(models[0].action_name, "", "no cheer while still on the ladder")
+	assert_true(is_equal_approx(models[0].pose.action_weight, 1.0) and models[0].climb_clip != "", "the climb keeps the action layer")
+	# The climb ends (the pawn stays where it is: no top step); one of the two was downed on the ladder first.
+	downed.life = Pawn.Life.DOWNED
+	for pawn: Pawn in [climber, downed]:
+		pawn.climbing = false
+	var started := -1
+	for i in 60:
+		for model in models:
+			model.drive_actions(DT)
+		if started < 0 and models[0].action_name == SoldierModel.VICTORY:
+			started = i
+	print("A3_VICTORY_LADDER cheer_started_frame=%d climb_weight=%.2f" % [started, models[0].climb_weight])
+	assert_true(started >= 0, "the winner cheers once off the ladder")
+	assert_eq(models[0].climb_weight, 0.0, "the climb has faded out")
+	assert_true(models[0].pose.action_clip == models[0]._action_clips[SoldierModel.VICTORY], "the cheer is on the action layer")
+	assert_eq(models[1].action_name, "", "a winner downed before the climb ended does not cheer")
+	world.free()
+
+
 func _spawn() -> Dictionary:
 	var tree: SceneTree = Engine.get_main_loop()
 	var pawn := _pawn(tree.root, 1, Vector3.ZERO)

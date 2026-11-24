@@ -63,6 +63,9 @@ var _last_hp := -1.0
 var hit_side := "front"  # A3 item 3: the side of the last flinch requested (tests, captures)
 ## A3 item 4: the winner's cheer on the action layer (action_name VICTORY, held on its last frame); play_victory.
 const VICTORY := "victory"
+var _victory_pending := false  # A3 fix pass 1 (S7): won while climbing; cheer once the climb ends
+const CORPSE_WARM_FRAMES := 6 # A3 fix pass 1 (S1): drawn frames before the corpse hand settle is precomputed
+var _corpse_warm_frames := 0
 var _director: MatchDirector
 ## M2 AN2 items 3/5: keyed whole-body clips (assets/generated/characters/soldier_keyed.glb) played through SoldierPose.
 ## Climbing (pawn.climbing, read-only): ladder_up / ladder_down at the time the feet's height on the ladder gives, the
@@ -118,6 +121,9 @@ func _ready() -> void:
 		armor_far.visibility_range_begin = far_m
 		skeleton.add_child(armor_far)
 	local_part_bounds = SoldierRig.part_local_bounds(parts, skeleton)
+	# A3 fix pass 1 (S1): the corpse's per-set work (vertex sets, sampled death clip) once per armour set, now rather
+	# than on the set's first death mid-match (cached per mesh: later soldiers of the set skip it).
+	SoldierCorpse.precache(skeleton, armor.mesh, armor.skin)
 	pose_cache.resize(skeleton.get_bone_count())
 	_cache_pose()
 	skeleton.skeleton_updated.connect(_cache_pose)
@@ -202,6 +208,12 @@ func posed_bounds(out: Array[AABB]) -> void:
 func _cache_pose() -> void:
 	for i in pose_cache.size():
 		pose_cache[i] = skeleton.get_bone_global_pose(i)
+	if _corpse_warm_frames < CORPSE_WARM_FRAMES:
+		# A3 fix pass 1 (S1): once the living pose is drawn (the aim layer has set the shoulders), the set's corpse hand
+		# settle is computed here rather than on the set's first death (once per armour set: SoldierCorpse caches it).
+		_corpse_warm_frames += 1
+		if _corpse_warm_frames == CORPSE_WARM_FRAMES:
+			SoldierCorpse.precache_settle(self)
 	if _was_climbing and climb_weight > 0.0:
 		_climb_skeleton_world = skeleton.global_transform
 		_climb_pose_drawn = true
@@ -605,6 +617,12 @@ func play_victory(winner: int, draw: bool = false) -> bool:
 		return false
 	if pawn.squad_id != winner or not pawn.is_alive() or pawn.is_downed():
 		return false
+	if pawn.climbing or climb_weight > 0.0 or action_name == "ladder_top":
+		# A3 fix pass 1 (S7): the climb owns the action layer; the cheer starts once the climb (and its top step) ends,
+		# if the soldier is still alive and standing then (drive_actions).
+		_victory_pending = true
+		return true
+	_victory_pending = false
 	action_name = VICTORY
 	action_s = 0.0
 	action_count += 1
@@ -703,6 +721,13 @@ func drive_actions(delta: float) -> void:
 		action_s += delta
 		if not _action_clips.has(action_name) or action_s >= (_action_clips[action_name] as Animation).length:
 			action_name = ""
+	if _victory_pending and not pawn.climbing and climb_weight <= 0.0 and action_name.is_empty():
+		# A3 fix pass 1 (S7): the match ended while this winner climbed; the climb is over now.
+		_victory_pending = false
+		if pawn.is_alive() and not pawn.is_downed():
+			action_name = VICTORY
+			action_s = 0.0
+			action_count += 1
 	if climb_weight > 0.0:
 		climb_clip = "ladder_up" if _climb_up or not _action_clips.has("ladder_down") else "ladder_down"
 		var clip := _action_clips[climb_clip] as Animation

@@ -12,12 +12,16 @@ extends "res://tests/test_case.gd"
 ## (x stats.json sprint_speed_multiplier, 1.89 m/s, the most sprint_factor can carry into the down: Pawn eases it
 ## back to 1 while not alive). Tolerance tol = data/anim_third_person.json contact.contact_tolerance_m (OQ-A3-CONTACT).
 ##   1. No sinking: in EVERY frame, every part's lowest vertex >= -tol.
-##   2. Knees: in every frame the LOWER of the two knees <= tol (one knee is always planted; the swing knee lifts).
+##   2. Knees: in every frame the LOWER of the two knees <= tol (one knee is always planted; the swing knee lifts);
+##      standing still, BOTH knees <= tol in every frame (fix pass 1).
 ##   3. Hands: both hands are crawl hands (the gun is slung while downed: SoldierModel hides it at
 ##      gun.hide_downed_weight; a blade, if active, stays in the right hand, but the default loadout is the rifle). A
 ##      hand counts as planted while SoldierCrawl says so (hand_planted: its stance half of the cycle, the diagonal
-##      partner of the opposite knee, and both while still); a planted hand <= tol. Heels and hips are not planted
-##      in the knee-crawl (the toes point back, the pelvis rides the thighs): only rule 1 applies to them.
+##      partner of the opposite knee, and both while still); a planted hand <= tol in each planted frame. Fix pass 1:
+##      still, both hands are planted in ALL frames; crawling, each hand in contact.hand_planted_share of them; across
+##      each continuous planted span the hand bone travels at most contact.hand_slide_max_m in world space
+##      (A3_CONTACT_SLIDE). Heels and hips are not planted in the knee-crawl (the toes point back, the pelvis rides the
+##      thighs): only rule 1 applies to them.
 ## Death (SoldierCorpse.authored_collapse, from a standing soldier and from a downed one): every 30 Hz frame of the
 ## whole collapse (blend_s crossfade + the 2.4 s Death01 clip) plus the final pose held HELD_S later.
 ##   1. No sinking: every frame, every part >= -tol (the downed-to-standing crossfade included: the corpse keys the
@@ -105,6 +109,9 @@ func downed_samples(set_id: String, speed: float) -> Array:
 		low["planted_l"] = _planted(model.crawl, "Left")
 		low["planted_r"] = _planted(model.crawl, "Right")
 		low["head_m"] = model.pose_cache[model.skeleton.find_bone("Head")].origin.y
+		# Fix pass 1 (S2): the hand bones in world space, for the planted-hand slide.
+		low["hand_world_l"] = model.skeleton.global_transform * model.pose_cache[model.skeleton.find_bone("LeftHand")].origin
+		low["hand_world_r"] = model.skeleton.global_transform * model.pose_cache[model.skeleton.find_bone("RightHand")].origin
 		out.append(low)
 	pawn.free()
 	return out
@@ -137,14 +144,49 @@ func death_samples(set_id: String, from_downed: bool) -> Dictionary:
 	for t: float in times:
 		player.seek(t, true)
 		frames.append(probe.lowest_of(rig, pawn.global_position.y))
-	var root := corpse.global_transform
+	var stray := _stray_tracks(player.get_animation(&"collapse"), rig)
 	corpse.free()
 	pawn.free()
-	return {"times": times, "frames": frames, "root": root, "placed": pawn_placed(root)}
+	return {"times": times, "frames": frames, "stray_tracks": stray}
 
 
-func pawn_placed(root: Transform3D) -> bool:
-	return root.origin.y == 0.0 and root.basis.is_equal_approx(Basis.IDENTITY)
+## Fix pass 1 (S2, replaces the old `placed` check, which compared a transform the test had just written): the floor
+## the probe measures from is the corpse root's y (where DeathFx puts it), so the collapse must animate bones only.
+## The tracks of `animation` that are not a bone of `rig` (a track on the root, the Skeleton3D node or any other
+## property would move the body off the measured floor).
+func _stray_tracks(animation: Animation, rig: Skeleton3D) -> Array[String]:
+	var out: Array[String] = []
+	for track in animation.get_track_count():
+		var path := animation.track_get_path(track)
+		var kind := animation.track_get_type(track)
+		var bone_track := String(path.get_concatenated_names()) == "Skeleton3D" and path.get_subname_count() == 1 \
+				and rig.find_bone(String(path.get_subname(0))) >= 0 and (kind == Animation.TYPE_ROTATION_3D or kind == Animation.TYPE_POSITION_3D)
+		if not bone_track:
+			out.append("%s (type %d)" % [path, kind])
+	return out
+
+
+## Fix pass 1 (S2): per continuous planted span (consecutive samples with the hand planted), the hand bone's largest
+## world-space distance from where it stood at the span's first sample; returns the largest over all spans (m), the
+## span count and the largest horizontal (xz) part of it. A span still open at the last sample counts too.
+func _hand_slide(frames: Array, side: String) -> Vector3:
+	var worst := 0.0
+	var worst_flat := 0.0
+	var spans := 0
+	var start := Vector3.ZERO
+	var inside := false
+	for f: Dictionary in frames:
+		if not bool(f["planted_" + side]):
+			inside = false
+			continue
+		var at: Vector3 = f["hand_world_" + side]
+		if not inside:
+			inside = true
+			spans += 1
+			start = at
+		worst = maxf(worst, at.distance_to(start))
+		worst_flat = maxf(worst_flat, Vector2(at.x - start.x, at.z - start.z).length())
+	return Vector3(worst, spans, worst_flat)
 
 
 func _stats(frames: Array, part: String, from_index: int = 0) -> Vector2:
@@ -175,11 +217,13 @@ func test_downed_crawl_hands_and_knees_on_the_ground() -> void:
 		for state: String in ["downed_still", "downed_crawl", "downed_fast"]:
 			var frames := await downed_samples(set_id, float(speeds[state]))
 			var worst_knee := -INF
+			var worst_upper_knee := -INF
 			var worst_hand := {"l": -INF, "r": -INF}
 			var planted := {"l": 0, "r": 0}
 			var head := Vector2(INF, -INF)
 			for f: Dictionary in frames:
 				worst_knee = maxf(worst_knee, minf(f["knee_l"], f["knee_r"]))
+				worst_upper_knee = maxf(worst_upper_knee, maxf(f["knee_l"], f["knee_r"]))
 				head = Vector2(minf(head.x, f["head_m"]), maxf(head.y, f["head_m"]))
 				for s in ["l", "r"]:
 					if f["planted_" + s]:
@@ -192,11 +236,24 @@ func test_downed_crawl_hands_and_knees_on_the_ground() -> void:
 					extra = " planted_max_cm=%.1f planted_frames=%d" % [float(worst_hand[part.right(1)]) * 100.0, planted[part.right(1)]]
 				print("A3_CONTACT set=%s state=%s part=%s min_cm=%.1f max_cm=%.1f%s" % [set_id, state, part, st.x * 100.0, st.y * 100.0, extra])
 				assert_true(st.x >= -tol, "%s %s: %s never sinks (lowest %.1f cm, limit -%.1f)" % [set_id, state, part, st.x * 100.0, tol * 100.0])
-			print("A3_CONTACT set=%s state=%s lower_knee_max_cm=%.1f head_m=%.3f..%.3f speed_mps=%.2f samples=%d" % [set_id, state, worst_knee * 100.0, head.x, head.y, speeds[state], frames.size()])
+			print("A3_CONTACT set=%s state=%s lower_knee_max_cm=%.2f upper_knee_max_cm=%.2f head_m=%.3f..%.3f speed_mps=%.2f samples=%d" % [set_id, state, worst_knee * 100.0, worst_upper_knee * 100.0, head.x, head.y, speeds[state], frames.size()])
 			assert_true(worst_knee <= tol, "%s %s: the lower knee is on the ground in every frame (worst %.1f cm)" % [set_id, state, worst_knee * 100.0])
+			var still: bool = state == "downed_still"
+			if still:
+				# Fix pass 1 (S2): standing still, BOTH knees are down in every frame.
+				assert_true(worst_upper_knee <= tol, "%s %s: both knees on the ground in every frame (higher knee worst %.1f cm)" % [set_id, state, worst_upper_knee * 100.0])
+			var share: Array = _cfg()["hand_planted_share"]
 			for s in ["l", "r"]:
-				assert_true(int(planted[s]) > 0, "%s %s: hand_%s is planted in some frames" % [set_id, state, s])
-				assert_true(float(worst_hand[s]) <= tol, "%s %s: planted hand_%s on the ground (worst %.1f cm)" % [set_id, state, s, float(worst_hand[s]) * 100.0])
+				var frac := float(planted[s]) / float(frames.size())
+				if still:
+					assert_eq(int(planted[s]), frames.size(), "%s %s: hand_%s planted in every frame (%d of %d)" % [set_id, state, s, planted[s], frames.size()])
+				else:
+					assert_true(frac >= float(share[0]) and frac <= float(share[1]), "%s %s: hand_%s planted in %.0f %% of the frames (band %.0f-%.0f %%)" % [set_id, state, s, frac * 100.0, float(share[0]) * 100.0, float(share[1]) * 100.0])
+				# worst_hand covers EVERY planted frame (the max over them).
+				assert_true(float(worst_hand[s]) <= tol, "%s %s: planted hand_%s on the ground in each planted frame (worst %.1f cm)" % [set_id, state, s, float(worst_hand[s]) * 100.0])
+				var slide := _hand_slide(frames, s)
+				print("A3_CONTACT_SLIDE set=%s state=%s hand=%s max_cm=%.2f horizontal_max_cm=%.2f spans=%d planted_pct=%.0f" % [set_id, state, s, slide.x * 100.0, slide.z * 100.0, int(slide.y), frac * 100.0])
+				assert_true(slide.x <= float(_cfg()["hand_slide_max_m"]), "%s %s: planted hand_%s stands still (slides %.1f cm, limit %.1f)" % [set_id, state, s, slide.x * 100.0, float(_cfg()["hand_slide_max_m"]) * 100.0])
 
 
 func test_death_settles_heels_hips_and_hands_on_the_ground() -> void:
@@ -208,7 +265,7 @@ func test_death_settles_heels_hips_and_hands_on_the_ground() -> void:
 			var death := await death_samples(set_id, from_downed)
 			var frames: Array = death["frames"]
 			var times: Array = death["times"]
-			assert_true(bool(death["placed"]), "%s: the corpse root stays where DeathFx put it" % state)
+			assert_eq(death["stray_tracks"], [] as Array[String], "%s %s: the collapse animates the corpse's bones only (its root stays on the measured floor)" % [set_id, state])
 			var settled := times.size() - 1
 			for i in times.size():
 				if float(times[i]) >= settled_s:

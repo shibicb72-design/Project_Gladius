@@ -48,7 +48,9 @@ func _run() -> void:
 			await _hit(set_id)
 		if _want("victory"):
 			await _victory(set_id)
-	if _want("crouch"):
+		if _want("revive"):
+			await _revive(set_id)
+	if _want("crouch") or _want("crouch_run"):
 		await _crouch("murmillo")
 	if _want("headgear"):
 		await _headgear("murmillo")
@@ -268,26 +270,48 @@ func _crouch(set_id: String) -> void:
 	await _end()
 
 
-## grip_<set>: the left hand on the foregrip, aiming (default weapon): left-front close, left side, from above/left, front.
+## grip_<set>: the left hand on the foregrip, aiming, per long gun (rows: pilum_br, then sagittarii_rifle): left-front
+## close, left side, from above/left, from below/left-front. Fix pass 1 (B3): the camera looks at a point fixed on the
+## shown gun (GRIP_LOOK_M in the RifleModel's frame, under the handguard; the gun hangs on the right hand), not at the
+## left hand, so pictures before and after a change of the left-hand data share the same camera.
+const GRIP_LOOK_M := Vector3(0.0, 0.06, -0.31)
+
+
 func _grip(set_id: String) -> void:
 	await _begin()
 	var pawn := _pawn(set_id)
-	await _ticks(pawn, 60)
 	var model := _model(pawn)
-	var hand := _bone(model, "LeftHand")
-	print("A3_CAPTURE grip set=%s weapon=%s left_hand=%s" % [set_id, pawn.loadout.get_active().def.id, hand])
-	var tiles: Array = [
-		await _snap(hand, Vector3(-0.8, 0.25, -0.8), 22.0),
-		await _snap(hand, Vector3(-1.1, 0.1, 0.0), 22.0),
-		await _snap(hand, Vector3(-0.4, 0.9, -0.2), 22.0),
-		await _snap(hand, Vector3(0.0, 0.15, -1.1), 22.0)]
-	# The same two close views with the Sagittarii rifle (the other long gun).
-	pawn.loadout.slots[pawn.loadout.active] = Weapon.new(DataRegistry.new().get_weapon_def("sagittarii_rifle"))
-	await _ticks(pawn, 40)
-	hand = _bone(model, "LeftHand")
-	tiles.append(await _snap(hand, Vector3(-0.8, 0.25, -0.8), 22.0))
-	tiles.append(await _snap(hand, Vector3(-1.1, 0.1, 0.0), 22.0))
+	var tiles: Array = []
+	for gun in ["pilum_br", "sagittarii_rifle"]:
+		pawn.loadout.slots[pawn.loadout.active] = Weapon.new(DataRegistry.new().get_weapon_def(gun))
+		await _ticks(pawn, 60)
+		var look := model.rifle.global_transform * GRIP_LOOK_M
+		print("A3_CAPTURE grip set=%s weapon=%s look=%s left_hand=%s" % [set_id, gun, look, _bone(model, "LeftHand")])
+		tiles.append(await _snap(look, Vector3(-0.8, 0.25, -0.8), 22.0))
+		tiles.append(await _snap(look, Vector3(-1.1, 0.1, 0.0), 22.0))
+		tiles.append(await _snap(look, Vector3(-0.4, 0.9, -0.2), 22.0))
+		tiles.append(await _snap(look, Vector3(-0.6, -0.45, -0.7), 22.0))
 	_save("grip_%s" % set_id, tiles, 2)
+	await _end()
+
+
+## revive_<set>_side / _front: the reviver's working pose (SoldierPose "revive" forced, as the pose test does), 8 samples
+## 0.4 s apart from 0.4 s. Works on any commit that has pose.force (so the A3 base too).
+func _revive(set_id: String) -> void:
+	await _begin()
+	var pawn := _pawn(set_id)
+	var model := _model(pawn)
+	await _ticks(pawn, 30)
+	model.pose.force["revive"] = 1.0
+	var side: Array = []
+	var front: Array = []
+	var focus := Vector3(0, 0.6, 0)
+	for k in 8:
+		await _ticks(pawn, 24)
+		side.append(await _snap(focus, Vector3(3.4, 0.3, 0), 30.0))
+		front.append(await _snap(focus, Vector3(0.0, 0.5, -3.4), 30.0))
+	_save("revive_%s_side" % set_id, side, 4)
+	_save("revive_%s_front" % set_id, front, 4)
 	await _end()
 
 

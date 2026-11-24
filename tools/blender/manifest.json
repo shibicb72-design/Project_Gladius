@@ -1,15 +1,51 @@
 {
-	"_note": "M2 AN2: which committed script under tools/blender/ wrote each generated .glb, and the data/asset_catalog.json id of its CC0 source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
+	"_note": "M2 AN2: which committed script under tools/blender/ wrote each generated asset, and the data/asset_catalog.json id of its source if it has one. Each script updates its own rows; tools/asset_hashes.gd reads this file.",
 	"files": {
-                  "res://assets/generated/characters/gladiator.glb": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_far_albedo.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_far_mask.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_far_normal.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_far_orm.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_near_albedo.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_near_mask.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_near_normal.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
-                  "res://assets/generated/characters/gladiator_near_orm.png": {"made_by": "tools/blender/build_gladiator.py", "derived_from": "", "provenance": "AI-free, made in Blender by GPT-6.2 Sol"},
+		"res://assets/generated/characters/gladiator.glb": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_far_albedo.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_far_mask.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_far_normal.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_far_orm.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_near_albedo.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_near_mask.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_near_normal.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
+		"res://assets/generated/characters/gladiator_near_orm.png": {
+			"made_by": "tools/blender/build_gladiator.py",
+			"derived_from": "",
+			"provenance": "AI-free, made in Blender by GPT-6.2 Sol"
+		},
 		"res://assets/generated/characters/pipeline_proof.glb": {
 			"made_by": "tools/blender/build_pipeline_proof.py",
 			"derived_from": ""

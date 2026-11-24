@@ -16,14 +16,78 @@ extends RefCounted
 ## after the crossfade come from the clip alone, so the result is cached per mesh and clip.
 static var _settle_cache := {}
 static var _hand_sets := {}
+## Fix pass 1 (S1): the death clip's sampled bone globals per collapse frame (clip and rests only, never the living
+## pose), per clip, skeleton rests and frame count.
+static var _clip_globals := {}
+
+
+## Fix pass 1 (S1): the per-set work of a death that does not depend on the last living pose, done when the set's
+## soldier model is built (SoldierModel) so the first death does not pay it mid-match: the armour mesh's hand and foot
+## vertex sets and the death clip's sampled globals. Cached per mesh / clip, so later models of the set cost nothing.
+static func precache(skeleton: Skeleton3D, mesh: Mesh, skin: Skin) -> void:
+	if skeleton == null or mesh == null or skin == null:
+		return
+	_limb_verts(mesh, skin, skeleton, HAND_PARTS)
+	_limb_verts(mesh, skin, skeleton, FOOT_PARTS)
+	var death := SoldierAnimation.shared("death", skeleton)
+	if death != null:
+		_death_globals(death, skeleton, _frame_count(death))
+
+
+## Fix pass 1 (S1): the per-frame hand settle, cached per mesh and clip by the first collapse. It reads the clip and
+## the bones' unkeyed offsets of the snapshot (the aim layer keys the shoulders off their rest), so it is filled from
+## the model's drawn living pose a few frames after the model of the set first animates (SoldierModel._cache_pose),
+## the same pose a first death would snapshot, instead of on that death.
+static func precache_settle(model: SoldierModel) -> void:
+	var mesh := model.armor.mesh if model.armor != null else null
+	var skin := model.armor.skin if model.armor != null else null
+	var skeleton := model.skeleton
+	if mesh == null or skin == null or not bool((SoldierRig.config()["death"].get("settle", {}) as Dictionary).get("hands", false)):
+		return
+	var death := SoldierAnimation.shared("death", skeleton)
+	if death == null or _settle_cache.has("%d|%d" % [mesh.get_instance_id(), death.get_instance_id()]):
+		return
+	authored_collapse(skeleton, _snapshot(model), death, mesh, skin)
+
+
+## The model's drawn pose as local bone transforms (what SoldierCorpse.build snapshots).
+static func _snapshot(model: SoldierModel) -> Array[Transform3D]:
+	var out: Array[Transform3D] = []
+	for i in model.skeleton.get_bone_count():
+		var parent := model.skeleton.get_bone_parent(i)
+		out.append(model.pose_cache[i] if parent < 0 else model.pose_cache[parent].affine_inverse() * model.pose_cache[i])
+	return out
+
+
+## Fix pass 1 (S1): whether the hand settle of this mesh and the death clip is already computed (tests).
+static func has_settle(mesh: Mesh, death: Animation) -> bool:
+	return _settle_cache.has("%d|%d" % [mesh.get_instance_id(), death.get_instance_id()]) \
+			and (_settle_cache["%d|%d" % [mesh.get_instance_id(), death.get_instance_id()]] as Array).size() == _frame_count(death) + 1
+
+
+static func _frame_count(death: Animation) -> int:
+	return ceili(death.length * float(SoldierRig.config()["retarget"]["sample_hz"]))
+
+
+static func _death_globals(death: Animation, skeleton: Skeleton3D, count: int) -> Array:
+	var rests: Array[Transform3D] = []
+	for i in skeleton.get_bone_count():
+		rests.append(skeleton.get_bone_rest(i))
+	var key := "%d|%d|%d" % [death.get_instance_id(), rests.hash(), count]
+	if not _clip_globals.has(key):
+		var frames: Array = []
+		for k in count + 1:
+			frames.append(AnimRetarget.sample_globals(death, skeleton, death.length * float(k) / count))
+		_clip_globals[key] = frames
+	return _clip_globals[key]
 
 
 static func authored_collapse(skeleton: Skeleton3D, snapshot: Array[Transform3D], death: Animation, mesh: Mesh = null, skin: Skin = null) -> Animation:
 	var blend := float(SoldierRig.config()["death"]["blend_s"])
 	var animation := Animation.new()
 	animation.length = blend + death.length
-	var hz := float(SoldierRig.config()["retarget"]["sample_hz"])
-	var count := ceili(death.length * hz)
+	var count := _frame_count(death)
+	var sampled := _death_globals(death, skeleton, count)
 	var chest := skeleton.find_bone("Chest")
 	var neck := skeleton.find_bone("Neck")
 	var hips := skeleton.find_bone("Hips")
@@ -61,7 +125,7 @@ static func authored_collapse(skeleton: Skeleton3D, snapshot: Array[Transform3D]
 	locals.resize(skeleton.get_bone_count())
 	for k in count + 1:
 		var t := death.length * float(k) / count
-		var globals := AnimRetarget.sample_globals(death, skeleton, t)
+		var globals: Array[Transform3D] = sampled[k]
 		var carried := globals[chest] * neck_from_chest
 		for i in skeleton.get_bone_count():
 			var parent := skeleton.get_bone_parent(i)
@@ -95,17 +159,14 @@ static func authored_collapse(skeleton: Skeleton3D, snapshot: Array[Transform3D]
 ## A3 item 1: the crossfade's feet. Over the first blend_s every bone slerps from the snapshot to the clip's first
 ## frame; dying from the downed crawl (toes back, knee on the floor) into the clip's STANDING first frame swings the
 ## shin down through the floor (a heel 3.4 cm under it, measured by tests/test_a3_contact.gd). So the crossfade is
-## sampled at CROSSFADE_KEYS_HZ with the interpolation the player uses (rotation slerp, position lerp) and, in any
-## sample where a foot's lowest skinned vertex (Foot and Toes vertices) is under the floor (y 0, the corpse root),
-## the leg is re-solved (UpperLeg/LowerLeg two-bone, the knee kept in its plane, the foot's orientation kept) to lift
-## it onto the floor. Only the six leg bones get these extra keys; never the root or the body. A foot on or above the
-## floor gets the plain interpolated key, so nothing else changes.
-const CROSSFADE_KEYS_HZ := 120.0
-
-
+## sampled at death.settle.crossfade_keys_hz (OQ-A3-CONTACT) with the interpolation the player uses (rotation slerp,
+## position lerp) and, in any sample where a foot's lowest skinned vertex (Foot and Toes vertices) is under the floor
+## (y 0, the corpse root), the leg is re-solved (UpperLeg/LowerLeg two-bone, the knee kept in its plane, the foot's
+## orientation kept) to lift it onto the floor. Only the six leg bones get these extra keys; never the root or the
+## body. A foot on or above the floor gets the plain interpolated key, so nothing else changes.
 static func _key_crossfade_feet(animation: Animation, skeleton: Skeleton3D, snapshot: Array[Transform3D], first: Array[Transform3D], rotations: Array, blend: float, mesh: Mesh, skin: Skin) -> void:
-	var sets := _limb_verts(mesh, skin, skeleton, ["Foot", "Toes"])
-	var steps := ceili(blend * CROSSFADE_KEYS_HZ)
+	var sets := _limb_verts(mesh, skin, skeleton, FOOT_PARTS)
+	var steps := ceili(blend * float(SoldierRig.config()["death"]["settle"]["crossfade_keys_hz"]))
 	var legs := {}
 	for side in ["Left", "Right"]:
 		legs[side] = [skeleton.find_bone(side + "UpperLeg"), skeleton.find_bone(side + "LowerLeg"), skeleton.find_bone(side + "Foot")]
@@ -152,7 +213,7 @@ static func _settle_hands(skeleton: Skeleton3D, locals: Array[Transform3D], mesh
 	for i in locals.size():
 		var parent := skeleton.get_bone_parent(i)
 		globals[i] = locals[i] if parent < 0 else globals[parent] * locals[i]
-	var sets := _limb_verts(mesh, skin, skeleton, ["Hand", "Fingers"])
+	var sets := _limb_verts(mesh, skin, skeleton, HAND_PARTS)
 	var lower := smoothstep(float(settle["from_s"]), float(settle["full_s"]), t)
 	var out := {}
 	for side in ["Left", "Right"]:
@@ -230,6 +291,18 @@ static func _limb_verts(mesh: Mesh, skin: Skin, skeleton: Skeleton3D, suffixes: 
 				(out[side] as Array).append([vertices[v], binds, w])
 	_hand_sets[key] = out
 	return out
+
+const HAND_PARTS: Array = ["Hand", "Fingers"]
+const FOOT_PARTS: Array = ["Foot", "Toes"]
+
+
+## Fix pass 1 (S1): whether this mesh's hand and foot vertex sets are already read (tests/test_a3_corpse_cost.gd).
+static func has_limb_verts(mesh: Mesh) -> bool:
+	for parts: Array in [HAND_PARTS, FOOT_PARTS]:
+		if not _hand_sets.has("%d|%s" % [mesh.get_instance_id(), "|".join(PackedStringArray(parts))]):
+			return false
+	return true
+
 
 static func build(model: SoldierModel) -> Node3D:
 	var corpse := Node3D.new()

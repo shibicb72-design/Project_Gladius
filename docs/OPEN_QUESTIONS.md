@@ -14,7 +14,13 @@ Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
   floor, and no part more than 3 cm below it (`data/anim_third_person.json` contact). The downed crawl now plants both
   hands (crawl.hands), with the knees lowered and the back arched so straight arms reach (head about 0.93 m, inside
   poses.downed head_tolerance_m); the corpse settles its hands by the arms (death.settle). All guesses for Shibi
-  (A3 item 1, tests/test_a3_contact.gd).
+  (A3 item 1, tests/test_a3_contact.gd). Fix pass 1 added more guesses under the same id: each crawl hand planted in
+  35-65 % of the frames while moving (all frames while still), a planted hand bone moving at most 3 cm in world space
+  per planted span (measured 1.4-1.6 cm, nearly all of it the hand rising where the arm runs out of reach; 0.15 cm
+  along the ground), contact.corpse_first_budget_ms 16 ms for building the first corpse of an armour set (headless,
+  dev PC, Legionary / Murmillo: 19 / 43 ms before the per-set precache, 3.6 / 6.4 ms after; tests/test_a3_corpse_cost.gd), and in
+  death.settle the Blender hip settle of the death clip (hips: from_s 1.3, to_s 1.8, rest_m 0.007, near_m 0.13,
+  max_deg 25) and crossfade_keys_hz 120 (the corpse's leg keys over the crossfade).
 - **OQ-A3-HITDIR: how is a flinch matched to the shot that caused it?** Placeholder now: a shown rifle shot whose end
   lies within 1.0 m of the victim's body axis (feet to head hitbox), or a simulated melee swing whose origin lies within
   3.0 m of the victim, seen within 0.5 s before the victim's shield + health drop, gives the flinch its side (front,
