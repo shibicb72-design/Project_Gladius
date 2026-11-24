@@ -30,8 +30,23 @@ export async function removeProfile(profileDir) {
   }
 }
 
-// The installed Chrome, headed, temporary profile, background throttling off (W0's flags).
-export function launchChrome(puppeteer, { chrome, profileDir, viewport }) {
+// W1c: a FRESH profile directory under `root` (cold runs: one per level; perf.mjs --profile-dir --cold), or the named
+// reused one (warm runs: created on first use, never emptied). Returns { dir, existedBefore }.
+export function freshProfileDir(root, prefix) {
+  fs.mkdirSync(root, { recursive: true });
+  return { dir: fs.mkdtempSync(path.join(root, prefix)), existedBefore: false };
+}
+
+export function namedProfileDir(root, name) {
+  const dir = path.join(root, name);
+  const existedBefore = fs.existsSync(dir) && fs.readdirSync(dir).length > 0;
+  fs.mkdirSync(dir, { recursive: true });
+  return { dir, existedBefore };
+}
+
+// The installed Chrome, headed, temporary profile, background throttling off (W0's flags). `extraArgs` (W1c) are
+// appended (perf.mjs --cold adds --disable-gpu-shader-disk-cache); smoke.mjs passes none.
+export function launchChrome(puppeteer, { chrome, profileDir, viewport, extraArgs = [] }) {
   return puppeteer.launch({
     executablePath: chrome,
     headless: false,
@@ -45,6 +60,7 @@ export function launchChrome(puppeteer, { chrome, profileDir, viewport }) {
       '--disable-background-timer-throttling',
       '--disable-renderer-backgrounding',
       '--disable-backgrounding-occluded-windows',
+      ...extraArgs,
     ],
   });
 }

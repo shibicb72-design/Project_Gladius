@@ -430,5 +430,19 @@
 		"_todo": "OQ-BR-SPECTATE: follow-camera offset after elimination is a placeholder.",
 		"offset_m": [0.6, 2.0, 4.0],
 		"look_height_m": 1.4
+	},
+	"loading_overlay": {
+		"_placeholder": true,
+		"_todo": "OQ-W1C-LOADING (W1c): the opaque screen while a real solo match opens (map build, shader warm-up; scenes/ui/loading_overlay.tscn). A placeholder UI choice, not DESIGN.md's warm-up lobby: text, colours, sizes and the layer are guesses for Shibi. progress_build_share is the part of the bar the build steps fill before the warm-up takes the rest.",
+		"text": "Preparing the arena",
+		"layer": 100,
+		"background_color": [0.05, 0.045, 0.04, 1.0],
+		"text_color": [0.92, 0.88, 0.8, 1.0],
+		"font_size_px": 28,
+		"bar_size_px": [420, 12],
+		"gap_px": 18,
+		"progress_build_share": 0.3,
+		"_progress_map_share_note": "OQ-W1C-LOADING (W1c stage B): the part of the build share the map build's steps fill (the other stages before the warm-up share the rest equally). A guess for Shibi.",
+		"progress_map_share": 0.6
 	}
 }

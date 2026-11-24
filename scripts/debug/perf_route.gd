@@ -21,15 +21,39 @@ extends Node
 ## the current camera once and this node takes it back (camera_retakes counts it).
 ## Console markers: GLADIUS_PERF_ARMED, GLADIUS_PERF_ROUTE_START <json>, GLADIUS_PERF_VIEW <name> (a hold begins),
 ## GLADIUS_PERF_PROBE <cap>, GLADIUS_PERF_DONE <json>, GLADIUS_PERF_ERROR <text>.
+## W1c step 1 (measurement only): GLADIUS_T timing lines (scripts/debug/perf_marks.gd, same gate as this node):
+##   - "frame": every frame from RenderingServer.frame_post_draw to the next, with cpu= (previous post-draw to this
+##     frame's pre-draw: scripts, physics, scene changes) and draw= (pre-draw to post-draw: the renderer's GL calls,
+##     where first-use shader compiles and texture uploads land), for the first perf_route.json timing.first_frames
+##     frames after the MatchRoot enters the tree, and any frame of at least timing.long_frame_ms at any time; W1c
+##     commit 2 adds the cpu split pre= / phys= / proc= / tail= (see _on_post_draw) and nav= (the last navigation
+##     step, Performance.TIME_NAVIGATION_PROCESS), and a "nav.map_changed" mark when a navigation map finished a sync;
+##   - "match_root.added" when the MatchRoot enters the tree (before its _ready / begin), "world_environment.added",
+##     and "particles.first" the first time each particle node kind (class + scene path / node path, digits folded)
+##     enters the tree (a GPU particle process shader compiles on its first emit; this marks the add, not the emit).
+## W1c fix pass 1, the ACTION step (perf_route.json "action"; after the frame-cap probe, so the route's and the probe's
+## numbers are unchanged): the match camera is made current again (CameraRig.ensure_current: the first-person view
+## model draws through it) and, after action.settle_frames, the steps run through the SAME input actions a player
+## presses (Input.action_press / action_release of the InputMap actions "swap_weapon" and "fire", read by the
+## keyboard-and-mouse provider and the InputRouter like a real key or click; no pawn internals are touched): "switch"
+## (the next filled slot: the view model builds and shows it on that first switch) and "fire" (one press: a shot with a
+## gun, a swing with the blade; labelled swing then). Each step holds its press hold_frames frames and then waits
+## until the view model shows the active weapon and no switch runs, plus wait_frames. GLADIUS_T marks: action.camera
+## (the rig camera back), action.start, one action.switch / action.fire / action.swing per step (at its press, with
+## weapon=), action.end; action.skipped (why=) when the local pawn is not alive, still dropping, unarmed, or the camera
+## cannot be made current. The pawn's state before and after and the steps go into GLADIUS_PERF_DONE "action".
+## Nothing here protects the pawn: the 17 bots of the autosolo match can shoot it while the route flies (the route
+## does not move or shield it), so a run whose pawn is down at the step reports action.skipped instead of numbers.
 
 const ROUTE_RES := "res://tools/web/perf_route.json"
+const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
 const FREEZE_MS := 250.0
 const SLOW_MS := 33.0
 ## The most one frame advances the route clock (seconds): a freeze longer than this stalls the camera instead of
 ## skipping views. Tool constant, not a budget.
 const MAX_STEP_S := 0.1
 
-enum Phase { WAIT_MATCH, WARMUP, ROUTE, PROBE, DONE, FAILED }
+enum Phase { WAIT_MATCH, WARMUP, ROUTE, PROBE, ACTION, DONE, FAILED }
 
 ## The URL request ({"quality", "seed"}) and the route config (perf_route.json plus the harness's "seconds"/"shots").
 var request: Dictionary = {}
@@ -65,6 +89,28 @@ var _probe_i: int = 0
 var _probe_t0: int = 0
 var _probe_deltas: Array = []
 var _probe_out: Array = []
+## W1c timing (perf_route.json "timing"; 0 = off).
+var _timing_first_frames: int = 0
+var _timing_long_ms: float = 0.0
+var _frames_after_match: int = -1  # -1 until the MatchRoot enters the tree
+var _pre_usec: int = 0
+var _post_usec: int = 0
+var _phys_usec: int = 0
+var _proc_usec: int = 0
+var _last_proc_usec: int = 0
+var _particle_kinds: Dictionary = {}
+var _digits := RegEx.create_from_string("\\d+")
+## W1c fix pass 1: the action step (perf_route.json "action"; {} = off).
+var _action_cfg: Dictionary = {}
+var _act_steps: Array = []
+var _act_i: int = -1
+var _act_stage: String = ""  # "settle", "hold", "wait"
+var _act_frames: int = 0
+var _act_pressed: String = ""
+var _act_pawn: Pawn
+var _act_counts: Dictionary = {"fired": 0, "switched": 0}
+var _act_log: Array = []
+var _act_result: Dictionary = {}
 
 
 ## Called by Boot before the node enters the tree: keeps the request and applies its quality (if any) to `viewport`.
@@ -95,6 +141,17 @@ func _ready() -> void:
 	var probe: Dictionary = route.get("probe", {})
 	_probe_caps = probe.get("caps", [30, 60, 0])
 	_segments = timeline(route["views"], time_scale)
+	var timing: Dictionary = route.get("timing", {}) if route.get("timing") is Dictionary else {}
+	_timing_first_frames = maxi(0, int(timing.get("first_frames", 0)))
+	_timing_long_ms = maxf(0.0, float(timing.get("long_frame_ms", 0.0)))
+	_action_cfg = route.get("action", {}) if route.get("action") is Dictionary and bool(route["action"].get("enabled", false)) else {}
+	if _PerfMarks.enabled():
+		RenderingServer.frame_pre_draw.connect(_on_pre_draw)
+		RenderingServer.frame_post_draw.connect(_on_post_draw)
+		get_tree().physics_frame.connect(_on_physics_frame)
+		get_tree().process_frame.connect(_on_process_frame)
+		# W1c: when a navigation map finished a sync (the web build syncs on the main thread, inside the physics step).
+		NavigationServer3D.map_changed.connect(func(_map: RID) -> void: _PerfMarks.mark("nav.map_changed"))
 	get_tree().node_added.connect(_on_node_added)
 	print("GLADIUS_PERF_ARMED " + JSON.stringify({"quality": request.get("quality", ""), "seed": request.get("seed", 0),
 			"time_scale": time_scale, "shots": shots, "active_preset": GraphicsPresets.resolved_active_id()}))
@@ -199,6 +256,8 @@ static func frame_stats(deltas: Array) -> Dictionary:
 
 
 func _on_node_added(node: Node) -> void:
+	if _PerfMarks.enabled():
+		_time_node(node)
 	if _match != null or not (node is MatchRoot):
 		return
 	_match = node
@@ -207,8 +266,68 @@ func _on_node_added(node: Node) -> void:
 		AppFlow.match_seed = seed_value  # read by MatchRoot.begin (match_root.gd ~:261), which runs in this node's _ready
 
 
+## W1c timing: marks for the nodes named in the header (only while GLADIUS_T timing is on).
+func _time_node(node: Node) -> void:
+	if node is MatchRoot:
+		if _frames_after_match < 0:
+			_frames_after_match = 0
+		_PerfMarks.mark("match_root.added")
+	elif node is WorldEnvironment:
+		_PerfMarks.mark("world_environment.added")
+	elif node is GPUParticles3D or node is CPUParticles3D or node is GPUParticles2D or node is CPUParticles2D:
+		var where := node.scene_file_path
+		if where == "" and node.owner != null:
+			where = node.owner.scene_file_path + ":" + str(node.owner.get_path_to(node))
+		if where == "":
+			var parent := node.get_parent()
+			where = (str(parent.name) + "/" if parent != null else "") + str(node.name)
+		var kind := node.get_class() + " " + _digits.sub(where, "#", true)
+		if not _particle_kinds.has(kind):
+			_particle_kinds[kind] = true
+			_PerfMarks.mark("particles.first", "kind=" + kind.replace(" ", "_"))
+
+
+func _on_pre_draw() -> void:
+	_pre_usec = Time.get_ticks_usec()
+
+
+## W1c: the first physics tick of the frame (SceneTree.physics_frame, before the nodes' _physics_process).
+func _on_physics_frame() -> void:
+	if _phys_usec <= _post_usec:
+		_phys_usec = Time.get_ticks_usec()
+
+
+## W1c: SceneTree.process_frame (after the physics ticks, before the nodes' _process).
+func _on_process_frame() -> void:
+	_proc_usec = Time.get_ticks_usec()
+
+
+## One GLADIUS_T "frame" line per frame named in the header: total = post-draw to post-draw. W1c: cpu split into
+## pre (post-draw to the first physics tick or the process step: input, events), phys (the physics ticks: the nodes'
+## _physics_process, the physics and navigation steps), proc (process_frame to this node's _process, the last one:
+## the nodes' _process) and tail (to pre-draw: deferred calls, scene-tree updates, the renderer's pre-draw sync).
+func _on_post_draw() -> void:
+	var now := Time.get_ticks_usec()
+	if _post_usec > 0:
+		var total := (now - _post_usec) / 1000.0
+		var draw := (now - _pre_usec) / 1000.0 if _pre_usec > _post_usec else 0.0
+		var first := _frames_after_match >= 0 and _frames_after_match < _timing_first_frames
+		if first or (_timing_long_ms > 0.0 and total >= _timing_long_ms):
+			var proc_at := _proc_usec if _proc_usec > _post_usec else _pre_usec
+			var phys_at := _phys_usec if _phys_usec > _post_usec else proc_at
+			var last_at := _last_proc_usec if _last_proc_usec > proc_at else proc_at
+			_PerfMarks.emit("frame", total, "after_match=%d cpu=%.1f draw=%.1f phase=%s pre=%.1f phys=%.1f proc=%.1f tail=%.1f nav=%.1f" % [
+					_frames_after_match, total - draw, draw, Phase.keys()[phase], (phys_at - _post_usec) / 1000.0,
+					(proc_at - phys_at) / 1000.0, (last_at - proc_at) / 1000.0, (_pre_usec - last_at) / 1000.0 if _pre_usec > last_at else 0.0,
+					Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS) * 1000.0])
+		if _frames_after_match >= 0:
+			_frames_after_match += 1
+	_post_usec = now
+
+
 func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
+	_last_proc_usec = now
 	match phase:
 		Phase.WAIT_MATCH:
 			if _match != null and is_instance_valid(_match) and _match.is_inside_tree():
@@ -224,6 +343,8 @@ func _process(_delta: float) -> void:
 			_route_frame(now)
 		Phase.PROBE:
 			_probe_frame(now)
+		Phase.ACTION:
+			_action_frame()
 
 
 func _ground(x: float, z: float) -> float:
@@ -394,7 +515,136 @@ func _probe_frame(now: int) -> void:
 		_probe_start(now)
 		return
 	Engine.max_fps = _saved_fps
+	if _action_cfg.is_empty():
+		_finish()
+	else:
+		_action_start()
+
+
+## ---- W1c fix pass 1: the action step (see the header) ----
+
+func _act_num(key: String, fallback: int) -> int:
+	return maxi(0, int(_action_cfg.get(key, fallback)))
+
+
+func _act_vm() -> ViewModel:
+	var rig := _act_pawn.get_node_or_null("CameraRig") as CameraRig if is_instance_valid(_act_pawn) else null
+	return rig.get_view_model() if rig != null else null
+
+
+## The local pawn's state as the action step sees it (life, drop, health, weapons, the view model's shown weapon).
+func _pawn_state(pawn: Pawn) -> Dictionary:
+	if pawn == null or not is_instance_valid(pawn):
+		return {"pawn": false}
+	var slots: Array = []
+	if pawn.loadout != null:
+		for w: Weapon in pawn.loadout.slots:
+			slots.append({"id": w.def.id, "melee": w.def.is_melee(), "mag": w.ammo_in_mag, "reserve": w.reserve} if w != null else null)
+	var rig := pawn.get_node_or_null("CameraRig") as CameraRig
+	var vm := rig.get_view_model() if rig != null else null
+	return {
+		"pawn": true, "alive": pawn.is_alive(), "life": Pawn.Life.keys()[pawn.life], "drop": Pawn.Drop.keys()[pawn.drop_state],
+		"health": snappedf(pawn.bridge.state.health, 0.1) if pawn.bridge != null and pawn.bridge.state != null else -1.0,
+		"shield": snappedf(pawn.bridge.state.shield, 0.1) if pawn.bridge != null and pawn.bridge.state != null else -1.0,
+		"active": pawn.loadout.active if pawn.loadout != null else -1, "slots": slots,
+		"shown": vm.get_shown_weapon_id() if vm != null else "", "first_person": rig.get_first_person_weight() if rig != null else -1.0,
+		"menu_open": bool(_match.get("menu_open")) if _match != null else false,
+	}
+
+
+func _action_skip(why: String) -> void:
+	_act_result["skipped"] = why
+	_PerfMarks.mark("action.skipped", "why=" + why.replace(" ", "_"))
 	_finish()
+
+
+func _action_start() -> void:
+	phase = Phase.ACTION
+	if not _match_ok():
+		return
+	_act_pawn = _match.get("local_player") as Pawn
+	_act_result = {"state_before": _pawn_state(_act_pawn), "steps": []}
+	var filled := 0
+	if _act_pawn != null and _act_pawn.loadout != null:
+		for w: Weapon in _act_pawn.loadout.slots:
+			filled += 1 if w != null else 0
+	if _act_pawn == null or not _act_pawn.is_alive():
+		_action_skip("the local pawn is not alive")
+		return
+	if _act_pawn.drop_state != Pawn.Drop.NONE:
+		_action_skip("the local pawn is still dropping")
+		return
+	if filled < 2:
+		_action_skip("fewer than two weapons to switch between")
+		return
+	var rig := _act_pawn.get_node_or_null("CameraRig") as CameraRig
+	if rig == null or not rig.ensure_current():
+		_action_skip("the match camera cannot be made current")
+		return
+	_act_pawn.fired.connect(func() -> void: _act_counts["fired"] += 1)
+	_act_pawn.weapon_switched.connect(func(_slot: int) -> void: _act_counts["switched"] += 1)
+	_act_steps = (_action_cfg.get("steps", []) as Array).duplicate()
+	_act_i = -1
+	_act_stage = "settle"
+	_act_frames = 0
+	_PerfMarks.mark("action.camera")
+
+
+func _action_frame() -> void:
+	if not _match_ok():
+		return
+	_act_frames += 1
+	match _act_stage:
+		"settle":
+			if _act_frames >= _act_num("settle_frames", 60):
+				_act_result["page_start_ms"] = page_epoch_ms()
+				_PerfMarks.mark("action.start", "steps=" + ",".join(PackedStringArray(_act_steps)))
+				_action_next()
+		"hold":
+			if _act_frames >= maxi(1, _act_num("hold_frames", 3)):
+				Input.action_release(_act_pressed)
+				_act_pressed = ""
+				_act_stage = "wait"
+				_act_frames = 0
+		"wait":
+			var vm := _act_vm()
+			var w := _act_pawn.loadout.get_active() if is_instance_valid(_act_pawn) and _act_pawn.loadout != null else null
+			var shown := vm != null and w != null and vm.get_shown_weapon_id() == w.def.id and not vm.is_swapping()
+			var log_entry: Dictionary = _act_log[-1]
+			if shown and not log_entry.has("shown_after_frames"):
+				log_entry["shown_after_frames"] = _act_frames
+			var settled := shown and _act_frames >= int(log_entry.get("shown_after_frames", 0)) + _act_num("wait_frames", 60)
+			if settled or _act_frames >= _act_num("max_wait_frames", 600):
+				log_entry["frames"] = _act_frames
+				log_entry["fired"] = _act_counts["fired"]
+				log_entry["switched"] = _act_counts["switched"]
+				log_entry["timed_out"] = not settled
+				_action_next()
+
+
+## Starts the next step (presses its action), or ends the step list.
+func _action_next() -> void:
+	_act_i += 1
+	_act_frames = 0
+	if _act_i >= _act_steps.size() or not is_instance_valid(_act_pawn) or not _act_pawn.is_alive():
+		if _act_i < _act_steps.size():
+			_act_result["stopped"] = "the local pawn is not alive any more"
+		_act_result["page_end_ms"] = page_epoch_ms()
+		_PerfMarks.mark("action.end", "fired=%d switched=%d" % [_act_counts["fired"], _act_counts["switched"]])
+		_finish()
+		return
+	var step := String(_act_steps[_act_i])
+	var w := _act_pawn.loadout.get_active() if _act_pawn.loadout != null else null
+	var action := "swap_weapon" if step == "switch" else "fire"
+	var label := "switch" if step == "switch" else ("swing" if w != null and w.def.is_melee() else "fire")
+	_act_counts = {"fired": 0, "switched": 0}
+	var entry := {"step": step, "label": label, "from": w.def.id if w != null else "", "page_ms": page_epoch_ms()}
+	_act_log.append(entry)
+	(_act_result["steps"] as Array).append(entry)
+	_PerfMarks.mark("action." + label, "weapon=%s step=%d" % [entry["from"], _act_i])
+	Input.action_press(action)
+	_act_pressed = action
+	_act_stage = "hold"
 
 
 func _finish() -> void:
@@ -417,6 +667,9 @@ func _finish() -> void:
 	result["clock"] = "Time.get_ticks_usec between consecutive _process calls of PerfRoute (real time); a delta counts for the segment the camera was in while that frame rendered"
 	result["route_clock"] = "real time, at most %.2f s per frame (a freeze stalls the camera; it does not skip views)" % MAX_STEP_S
 	result["route_wall_s"] = snappedf(_route_wall_s, 0.01)
+	if not _action_cfg.is_empty():
+		_act_result["state_after"] = _pawn_state(_act_pawn)
+		result["action"] = _act_result
 	phase = Phase.DONE
 	_publish("GLADIUS_PERF_DONE")
 

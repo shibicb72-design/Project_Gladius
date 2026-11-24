@@ -790,6 +790,125 @@ New scripts (all in `scripts/ui/`, each with a `.uid`), numbers in `data/ui.json
   Chrome launcher, WebGL renderer probe, rAF frame statistics) with `tools/web/smoke.mjs`. docs/WEB.md "Frame-rate
   harness". Tests: tests/test_w1a_perf.gd.
 
+#### W1c: staged match open and shader warm-up (web, solo)
+- Why: the Compatibility renderer (WebGL 2, ANGLE on D3D11) compiles and links a shader program the first time a draw
+  needs it, and the browser's main thread waits for the link; that froze play for 2-18 s on a fresh browser profile
+  (W1c cause table, runs\W1C\W1C_report.md). The fix moves that work, and the other first-time costs, behind an
+  opaque loading screen before the player can act.
+- `MatchRoot.open_path` (`AUTO` / `STAGED` / `SYNC`) and `staged_open_wanted()` (match_root.gd): on the auto_start path
+  only, a match that is NOT networked (`session_facts()`, the same expressions as begin()'s roster, decided before
+  anything is built) opens staged in a web build (`AUTO`) or anywhere with `STAGED` (the headless opt-in of tests).
+  Everything else, every direct begin() call (tests, tools), desktop, Android and LAN (W2) keeps today's begin().
+- begin() is split into its phases `_open_config`, `_open_map_build`, `_open_nav`, `_open_roster`, `_open_bind`,
+  `_open_world`, `_open_start`; begin() calls them in order in one frame, as before (GLADIUS_MATCH_STARTED between
+  roster and bind, CAN_MOVE armed after the start). The staged open (`_begin_staged`, `_open_tick`, driven by an
+  `_OpenDriver` child with PROCESS_MODE_ALWAYS) runs the SAME phases in the same order (same RNG use), one stage per
+  frame, with the tree PAUSED (no pawn moves, falls, thinks or takes input; no physics step; the pause menu is
+  disabled, so Esc cannot unpause): overlay (data/warmup.json overlay_frames, so `scenes/ui/loading_overlay.tscn` is
+  drawn before the long build frame), config, map_build (frame-sliced, W1c stage B: see below), nav, nav_sync
+  (data/warmup.json nav_sync_frames, OQ-W1C-STAGE: the engine's navigation map sync, which runs in the frame after the
+  navmesh is assigned, also while paused, gets that frame to itself; nothing of the match runs then), roster, bind
+  (the rig camera proves it can be current, then stops drawing), world (+ the seed's look variant applied now through
+  GreyboxArt._apply_environment, which MatchLook would otherwise do on the first frame after the start), warmup_setup,
+  warmup (one item per frame), settle (settle_frames, the rig camera current again), start: `_open_start` (director,
+  zone wall), the overlay and the warm-up go, the tree runs, GLADIUS_MATCH_STARTED, CAN_MOVE armed, `match_opened`.
+  So the carrier, the bots' carrier_t and the zone clocks start only when the player can act.
+- Quit (`quit_to_menu`) or a freed scene (`_exit_tree`) mid-open: `_end_staged` stops the stages, frees the driver,
+  overlay and warm-up and unpauses the tree; nothing awaits, so nothing resumes later.
+- Failure: a stage that returns false (config, roster, bind, the director's start) goes through `_open_fail`:
+  `_end_staged` (tree running, overlay gone, pause menu back), the reason in `last_open_error` and pushed as an error,
+  `match_opened(false)` once. Abort guard: GDScript aborts a function on a script error without an exception, so
+  `_open_tick` names the running stage in `_open_in_stage` before its body and clears it only at the body's end; a
+  tick that finds it still set fails the open naming the stage (instead of re-running, say, the roster every frame
+  with the tree paused). An error inside a callee does not abort `_open_tick`: the callee returns its type's default
+  (verified on 4.7.2), so an aborted `_open_roster()` reads as false and fails cleanly, but an aborted `build_step()`
+  reads as "not done yet" and would re-run its step every frame. So the open counts the script errors logged while it
+  runs (`_OpenErrorWatch`, an `OS.add_logger` Logger, removed by `_end_staged`): a build step or a warm-up step that
+  is not done AND logged a script error (the warm-up: without starting a new item) fails the open naming the step; a
+  warm-up item whose copy errors does not stall it (step() counts the item before filling its copies) and the open
+  goes on. `quiet_open_errors` (tests only) keeps the reason without the error line.
+- Sliced map build (W1c stage B; scripts/visual/astra_map.gd "the build as an ordered list of steps"): ArtBuilder's
+  old _ready body is an ordered list of step functions: data, cover_meshes (resumable by cover type), terrain_heights
+  (chunk grid + MapTerrain), cover_pieces, breakables, walls, world_kit (resumable by piece:
+  `WorldKit.populate_one`, the loop body of `WorldKit.populate`), ring, decor, chests_doors_ladders, paint_ground,
+  place_map / place_map_bodies / place_map_tracks / place_map_noise (`PlaceMap.begin_build` + `build_phase(0..3)`,
+  the phases of `PlaceMap.build`, then the gate approaches and the soil colour), place_map_stamps (resumable:
+  `PlaceMap.flush`), clutter, place_contact (resumable flush, then the texture), chunks_build, terrain_build
+  (resumable by terrain cell: `_terrain_setup` + `_terrain_cell`, the old nested loop's order), backdrop, ambient.
+  _ready runs them all at once unless `sliced` was set before the node entered the tree; only the staged open sets
+  it (its config stage, with `slice_budget_ms` = data/warmup.json `build_slice_ms`, OQ-W1C-SLICE), and its map_build
+  stage then calls `build_step()` once per frame until it returns true; nav and every later stage start only then.
+  A build_step stops starting items once the budget is spent; clutter and backdrop (they cannot be split inside the
+  fences) start a slice of their own. Both paths run the same functions on the same items in the same order, so the
+  bodies (Jolt bodies too) are made and added in the same order and no RNG stream is used differently (the builders
+  draw no RNG; Backdrop and WorldAmbient use their own local, seeded RNGs inside one call each).
+- The place map's pixel work is queued while the builder builds (`PlaceMap.deferred`: stamp_box / stamp_disc /
+  bake_noise record their computed values in call order in a PackedFloat64Array, 64-bit, so every value is exact)
+  and `flush(deadline)` runs it in that order with the same arithmetic; the builder uses that on both paths
+  (sync: flush with no deadline) and switches `deferred` off once the texture is made. Nothing reads the place map
+  while work is queued (the clutter runs after the stamps' flush). `PlaceMap.build()` called directly (tests, tools)
+  still stamps at once.
+- What a half-built map means: while `sliced` and not `build_done()`, ArtBuilder's fields describe a partial map, and
+  the map root (greybox_art.gd) and its siblings have already run _ready (their _ready only reads scene-authored Nav
+  children, which the build does not change). Nothing reads the builder before build_done(): the staged open's later
+  stages wait for it, and every other reader (MatchLook's shafts, MatchAudio, PerfRoute) runs in _process, which the
+  paused tree does not call. Progress: `build_progress()` (steps done + the running step's share) moves the bar
+  through data/ui.json `progress_map_share` of the build part. Quit or free mid-build: no more build_step() calls;
+  the builder holds no timer, signal or await, so nothing runs later; the half-built map is freed with the match.
+- Not sliced (measured on this PC, Chrome 157, warm profile; not a performance claim): WorldClutter.populate (about
+  0.6 s, one call, read-only file), Backdrop.build (about 0.33 s, read-only), the navigation map sync in the frame
+  after the saved navmesh is assigned and begin.roster (about 0.9 and 0.75 s, engine and read-only bots; since the
+  review fix they are separate frames, the nav_sync stage), the boot of the engine, and the warm-up items (stage A).
+- `ShaderWarmup` (scripts/visual/shader_warmup.gd, data/warmup.json; OQ-W1C-STEP, OQ-W1C-STAGE): in the match's own
+  World3D (sun, Environment, shadow mode, MSAA, after the preset and the variant) a warm Camera3D looks at a row of
+  cells 420 m above the map, one per light context (the sun only; plus a warm omni and / or spot when the match holds
+  such lights, hidden ones included: the first-person muzzle light). Items: DERIVED from every GeometryInstance3D under
+  the MatchRoot (hidden ones included) by draw key = draw kind (mesh / skinned / multimesh with its instance format /
+  CPU or GPU particles) + vertex format + material key (shader path, or a BaseMaterial3D / ParticleProcessMaterial's
+  feature flags) + shadow casting + instance transparency; one copy per context per item (skinned: the whole
+  Skeleton3D duplicated without scripts; particles emitting), scaled into its cell, freed after copy_frames. LISTED
+  (absent at start): both armour sets, a corpse, a shot (tracer, flash, impact pool), every impact kind, every
+  breakable's debris (Breakable.break_now on a body outside the tree: no sound, no loot), the loot models, glow and
+  box, the zone wall, every VIEW WEAPON (fix pass 1: `view_weapons`, the ids derived at runtime by
+  `ShaderWarmup.view_weapon_ids()` from every class's loadout slots, the loot weapons and the start kit, each with a
+  weapon def; each built through `ViewRig.build_weapon` as ViewModel._build_weapon builds it on a first show: mesh,
+  Cell, Charge, both skinned arms, red dot, shadows off, default layer; the view model uses no second camera, layer or
+  FOV trick) and the SWING BAR (`swing_bar`: SwingVisual.play with a melee def from the data, default shadow casting);
+  each through its own public code path, no match state touched (tests: shown weapon, loadout, ammo, health,
+  armour, sounds, the pawn's signals and seeded RNGs unchanged; the engine's particle nodes do draw from the GLOBAL
+  RNG when they emit, as every live particle node does in play). A view weapon's meshes come from ViewMesh / ViewHands'
+  static caches (the .glb read, the per-vertex view-stream loops), which this first build fills: the match's view
+  model's first show of that weapon reads the same mesh objects (test), so only the node assembly is left for it.
+  COVERAGE is what was drawn (fix pass 1): an item's keys are collected from the copy step() made in the first cell,
+  never from the source at setup; a derived copy lacking a key of its source, or any item with no geometry, is
+  "failed" in `check()` (kept in `warmup_report["check"]`: ok / failed / inert / pending / missing_required /
+  skipped) and push_warning()s (`quiet`: tests that provoke it on purpose); `headless_inert` kinds (breakable debris:
+  Breakable._spawn_fx makes nothing headless) are "inert" headless and drawn only in the browser. `REQUIRED_LISTED`
+  names the kinds every match needs; a missing one warns at setup. Debug web + ?perf=1 only: `warm_skip=<kinds>`
+  (PerfMarks.warm_skip, perf.mjs --warm-skip) leaves listed kinds out, for a "before" number on the same commit.
+  `warmup_report` keeps the covered keys and the longest step; tests/test_w1c_warmup.gd fails when a built match has
+  a draw key or a .gdshader the warm-up does not cover. HUD and other canvas items draw under the opaque overlay while
+  it is up.
+- Tests: tests/test_w1c_staged_open.gd (paths, pause, progress, LAN, quit / free, staged == begin() state),
+  tests/test_w1c_warmup.gd (keys, stepping, coverage in dusk / night / storm), tests/test_w1c_sliced_build.gd (the world
+  hash of tests/world_hash.gd equal through begin() and the sliced staged open on alesia_500 and alesia_section,
+  more than one slice, no later stage during the build, the bar moving; a negative self-check; quit / free mid-build),
+  tests/test_w1c_open_failures.gd (a failing stage, the abort guard and an erroring build step end the open cleanly; Esc
+  while loading; a second staged match; nav sync and roster in different frames; the `_apply_environment(world,
+  variant)` seam on the real match scene; `_apply_look_variant` warns when it is missing),
+  tests/test_w1c_warmup_items.gd (fix pass 1: every required listed kind is in data/warmup.json and a config without
+  one is reported; the view weapons are the data's weapon set; a copy that is never made or draws another program is
+  reported failed and its keys stay uncovered; on a staged alesia_500 open every item drew its keys and only the
+  breakable debris is inert headless; the warm view weapons' meshes are the ones a first show gets, and the match
+  state is unchanged), tests/test_w1c_nav_place.gd (the bake fallback leaves the next instance of the map scene
+  unbaked; the queued place map equals stamping at once, and the match's own, on alesia_500).
+- Not covered by the warm-up [inferred]: HUD parts hidden during loading (kill feed, hit markers), the pause menu, end
+  screen and settings canvases; a Quality change mid-match; the sun shaft shader (no map lists shaft places; the
+  coverage test re-checks it); spot-light and shadowed-light combinations on maps without such lights. Measured in the
+  browser only through the perf route's action step (a first switch to the blade, a swing, a switch back, a shot,
+  with the class the autosolo match gave in the fix pass 1 runs, the Hastati): a pickup, the other class's gun, fights, deaths and
+  breakables over a whole match are not.
+
 ### 4.19 Audio
 - Status (M2A1, Nov 10 2026): sound effects and ambience play; music and the announcer are empty slots.
   `audio.json` maps event ids (announcer lines, music states) to streams. Shibi's Latin announcer

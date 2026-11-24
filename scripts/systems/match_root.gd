@@ -13,6 +13,24 @@ const MAP_OVERRIDE_PATH := "user://map_select_override"
 const _PawnScene := preload("res://scenes/player/pawn.tscn")
 const _RigScene := preload("res://scenes/player/camera_rig.tscn")
 const _WebArgs := preload("res://scripts/platform/web_args.gd")
+## W1c step 1: debug-only phase timing (debug web build + ?perf=1; a cached no-op everywhere else).
+const _PerfMarks := preload("res://scripts/debug/perf_marks.gd")
+const _OverlayScene := preload("res://scenes/ui/loading_overlay.tscn")
+
+## W1c: how an auto_start match opens (docs/ARCHITECTURE.md "Staged match open and shader warm-up"). AUTO: the staged
+## open (loading overlay, one build step per frame, shader warm-up, then the director) in a web build when the match is
+## not networked, begin() everywhere else (desktop, Android, headless tests, tools, LAN); STAGED: the staged open for
+## a non-networked match on any platform (the headless opt-in of tests); SYNC: always begin(). begin() itself never
+## changes: every caller that calls it gets today's synchronous open.
+enum OpenPath { AUTO, STAGED, SYNC }
+var open_path: OpenPath = OpenPath.AUTO
+## W1c: true while the staged open runs (tree paused, overlay up, the director not started).
+var opening: bool = false
+## W1c: emitted once when a staged open ends; `started` as begin()'s return value.
+signal match_opened(started: bool)
+## W1c: the last staged open's warm-up numbers (tests and the perf marks read it; {} before one ran).
+var warmup_report: Dictionary = {}
+var loading_overlay: LoadingOverlay
 
 ## Tests turn this off to override director config before calling begin().
 @export var auto_start: bool = true
@@ -106,9 +124,12 @@ func _ready() -> void:
 		drop_from_sky = true  # real matches (menu / lobby) open with the carrier; tests opt in
 		ground_loot = true
 		use_map_select = true
-		var started: bool = begin()
-		if not started:
-			push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
+		if not staged_open_wanted():
+			var started: bool = begin()
+			if not started:
+				push_error("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
+		else:
+			_begin_staged()  # W1c: begin()'s phases one per frame behind the overlay, plus the warm-up
 
 
 ## Re-reads the profile's sensitivity settings into the router (tables, inversion) and the gyro provider (mode).
@@ -146,7 +167,59 @@ static func _check_map(wanted: String, source: String) -> Dictionary:
 
 
 ## Loads the map and starts the match. Returns false if the data is unusable.
+## W1c: the phases below are shared with the staged open (_open_tick), which runs them in the same order (and so with
+## the same RNG use), one per frame, with the shader warm-up between _open_world and _open_start.
 func begin() -> bool:
+	var t_begin := _PerfMarks.start()  # W1c: GLADIUS_T timing spans in these phases (debug web + perf=1 only)
+	if not _open_config():
+		return false
+	_open_map_build()
+	_open_nav()
+	if not _open_roster():
+		return false
+	_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W0: the browser smoke test waits for this line (debug web build only; docs/WEB.md)
+	_PerfMarks.mark("match_started")
+	if not _open_bind():
+		return false
+	_open_world()
+	var started := _open_start()
+	if started:
+		_PerfMarks.arm_can_move(get_tree())  # W1c: GLADIUS_CAN_MOVE at the first physics tick after this (debug web only)
+	_PerfMarks.done("begin.total", t_begin)
+	return started
+
+
+## ---- begin()'s phases (W1c: also the staged open's) ----
+## Per-match values the phases hand on.
+var _open_lobby: LobbyState
+var _open_builder: Node
+var _open_xforms: Dictionary = {}
+var _open_seed: int = 0
+
+
+## The session facts the roster uses (the same expressions everywhere, W0 binding fix 1): {"session", "local_peer",
+## "networked"}. W0: Play solo is offline by its explicit flag, whatever the peer reports (the default
+## OfflineMultiplayerPeer says id 1). Only the flag changes the rule: a Host with no client stays networked.
+func session_facts() -> Dictionary:
+	var session := session_override
+	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
+		session = AppFlow.session
+	var local_peer := session.get_unique_id() if session != null else 0
+	var solo_match := AppFlow.solo or (session != null and session.solo)
+	return {"session": session, "local_peer": local_peer, "networked": local_peer != 0 and not solo_match}
+
+
+## W1c (binding fixes 5, 16, 19): the staged open is for a match that is not networked, decided from the session
+## before anything is built, so a LAN match (W2) always takes begin().
+func staged_open_wanted() -> bool:
+	if open_path == OpenPath.SYNC or (open_path == OpenPath.AUTO and not OS.has_feature("web")):
+		return false
+	return not bool(session_facts()["networked"])
+
+
+## Config, map selection, the map scene instanced (not yet in the tree). False when the scene is unusable.
+func _open_config() -> bool:
+	var t := _PerfMarks.start()
 	# P0c: temporary Fold presentation diagnostic. Magenta clear splits "world not drawing" from the engine default gray.
 	RenderingServer.set_default_clear_color(Color(1, 0, 1))
 	if get_node_or_null("PerfLog") == null and PerfLog.wanted():  # M2 P0: phone frame-time log, off by default
@@ -163,16 +236,35 @@ func begin() -> bool:
 	if director.mode_cfg.is_empty():
 		director.load_config(map_path, lobby.match_length if lobby != null else "")
 	map_def = DataRegistry.new().load_file(map_path)
+	_PerfMarks.done("begin.config", t)
+	t = _PerfMarks.start()
 	var scene: PackedScene = load(str(map_def.get("scene", ""))) as PackedScene
+	_PerfMarks.done("begin.scene_load", t)
 	if scene == null:
 		push_error("MatchRoot.begin: map scene is null (path '%s' from %s)" % [str(map_def.get("scene", "")), map_path])
 		return false
+	t = _PerfMarks.start()
 	map = scene.instantiate()
+	_PerfMarks.done("begin.instantiate", t)
 	var builder := map.get_node_or_null("ArtBuilder")
 	if builder != null and "map_json" in builder:
 		builder.set("map_json", map_path)  # before add_child: the builder reads it in _ready
-	add_child(map)
+	_open_lobby = lobby
+	_open_builder = builder
+	return true
+
+
+## The map build: one synchronous chunk (W1c stage B slices it inside the staged open).
+func _open_map_build() -> void:
+	var t := _PerfMarks.start()
+	add_child(map)  # the whole map build (ArtBuilder._ready, scripts/visual/astra_map.gd: its own map.* spans)
+	_PerfMarks.done("begin.map_build", t)
 	print("MatchRoot.begin: map load OK, scene non-null")
+
+
+## The saved navigation mesh (or a bake).
+func _open_nav() -> void:
+	var t := _PerfMarks.start()
 	var nav := map.get_node_or_null("Nav") as NavigationRegion3D
 	if bake_navmesh and nav != null:
 		# M2P1B: the saved mesh (tools/bake_nav.gd) when its manifest matches the data; else bake as before.
@@ -181,9 +273,19 @@ func begin() -> bool:
 			nav.navigation_mesh = saved
 		else:
 			print("MatchRoot.begin: saved navigation for %s is missing or stale (%s); baking at match start" % [map_path, MapNav.last_reasons[0] if not MapNav.last_reasons.is_empty() else "unknown"])
+			# Bake into a copy: the scene's own mesh is a sub-resource shared by every instance through the resource
+			# cache, and bake_navigation_mesh fills it in place (the next match's map would start with these polygons).
+			if nav.navigation_mesh != null:
+				nav.navigation_mesh = nav.navigation_mesh.duplicate() as NavigationMesh
 			nav.bake_navigation_mesh(false)
 			nav_bakes += 1
+	_PerfMarks.done("begin.nav", t, "bakes=%d" % nav_bakes)
 
+
+## Spawn transforms, the session rule, the roster (lobby) or the offline player and bots. False without a local pawn.
+func _open_roster() -> bool:
+	var t := _PerfMarks.start()
+	var lobby := _open_lobby
 	# Spawns face the zone start center (br.json zone.start_center, x/z).
 	var zc: Array = director.mode_cfg.get("zone", {}).get("start_center", [0, 0])
 	var center := Vector3(float(zc[0]), 0.0, float(zc[1]))
@@ -196,15 +298,13 @@ func begin() -> bool:
 		if to_center.length() < 0.01:
 			to_center = Vector3.FORWARD
 		xforms[spot_id] = Transform3D(Basis.looking_at(to_center.normalized()), pos)
+	_open_xforms = xforms
 
-	var session := session_override
-	if session == null and AppFlow.session != null and is_instance_valid(AppFlow.session):
-		session = AppFlow.session
-	var local_peer := session.get_unique_id() if session != null else 0
-	# W0 (binding fix 1): Play solo is offline by its explicit flag, whatever the peer reports (the default
-	# OfflineMultiplayerPeer says id 1). Only the flag changes the rule: a Host with no client stays networked.
-	var solo_match := AppFlow.solo or (session != null and session.solo)
-	var networked := local_peer != 0 and not solo_match
+	# W0 (binding fix 1): the solo flag rule, session_facts().
+	var facts := session_facts()
+	var session: NetSession = facts["session"]
+	var local_peer: int = facts["local_peer"]
+	var networked: bool = facts["networked"]
 	networked_match = networked
 	director.authoritative = not networked or session.is_host
 	if lobby != null:
@@ -242,26 +342,43 @@ func begin() -> bool:
 		director.add_player(0, local_player)
 		if fill_bots:
 			bots = BotSpawner.spawn_bots(self, director, {0: 1})
+	_PerfMarks.done("begin.roster", t, "bots=%d" % bots.size())
 	if local_player == null:
 		push_error("MatchRoot.begin: local_player is null; no pawn or CameraRig attached")
 		return false
-	_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W0: the browser smoke test waits for this line (debug web build only; docs/WEB.md)
+	return true
+
+
+## The HUD and the camera rig. False when the rig's camera does not become current.
+func _open_bind() -> bool:
+	var t := _PerfMarks.start()
 	hud.bind(director, local_player)
 	if roster != null and roster.bridge != null: hud.bind_kill_bridge(roster.bridge)
 	HapticsEvents.bind_pawn(local_player)
+	_PerfMarks.done("begin.hud_bind", t)
+	t = _PerfMarks.start()
 	var rig := _RigScene.instantiate()
 	rig.name = "CameraRig"
 	local_player.add_child(rig)
 	# Path A / P0c: fail closed if the third-person camera never becomes current (tps-demo make_current pattern).
 	var cam_ok := rig is CameraRig and (rig as CameraRig).ensure_current()
+	_PerfMarks.done("begin.camera_rig", t)
 	print("MatchRoot.begin: local_player=%s CameraRig=%s camera_current=%s" % [
 			local_player != null, rig != null, cam_ok])
 	if not cam_ok:
 		push_error("MatchRoot.begin: CameraRig failed to become current; match did not start")
 		return false
+	return true
+
+
+## The match seed, the ground loot and the world props (their seeded state).
+func _open_world() -> void:
+	var builder := _open_builder
 	var seed_value := seed_override if seed_override != 0 else AppFlow.match_seed
 	if seed_value == 0:
 		seed_value = randi()
+	_open_seed = seed_value
+	var t := _PerfMarks.start()
 	if ground_loot:
 		loot = LootField.new()
 		loot.name = "Loot"
@@ -277,6 +394,8 @@ func begin() -> bool:
 		loot.setup(loot_cfg, seed_value, director.mode_cfg.get("zone", {}), landmarks, ground_height)
 		add_child(loot)
 		director.loot = loot
+	_PerfMarks.done("begin.loot", t)
+	t = _PerfMarks.start()
 	# M2 L1b: every match gets its WorldProps (empty on maps without breakables): the breakables' state and their
 	# seeded loot roll on the authority (host or offline); a client applies the host's states (commit 5).
 	world_props = WorldProps.new()
@@ -285,15 +404,341 @@ func begin() -> bool:
 	world_props.collect(map)
 	add_child(world_props)
 	director.props = world_props
+	_PerfMarks.done("begin.world_props", t)
+
+
+## The director starts (carrier, zone and match clocks from here) and the zone wall is built.
+func _open_start() -> bool:
+	var t := _PerfMarks.start()
 	var use_drop := drop_from_sky and bool(director.mode_cfg.get("drop", {}).get("enabled", false))
-	var started := director.start(xforms, seed_value, use_drop)
+	var started := director.start(_open_xforms, _open_seed, use_drop)
+	_PerfMarks.done("begin.director_start", t)
+	t = _PerfMarks.start()
 	if started:
 		director.player_eliminated.connect(_on_player_eliminated)
 		zone_wall = ZoneWall.new()
 		zone_wall.name = "ZoneWall"
 		zone_wall.bind(director, DataRegistry.new().load_file(UI_PATH).get("zone_wall", {}))
 		add_child(zone_wall)
+	_PerfMarks.done("begin.zone_wall", t)
 	return started
+
+
+## ---- W1c: the staged open (auto_start, not networked; staged_open_wanted) ----
+## The tree is paused from the first frame to the end, so nothing simulates while the match is built and warmed: no
+## pawn moves, falls or thinks, no physics step, no director clock (the director starts last). Only the driver below,
+## the overlay and the warm-up's own copies run (PROCESS_MODE_ALWAYS). The pause menu is off meanwhile. One stage per
+## frame: overlay (overlay_frames, so the overlay is drawn before the long build frame), config, map_build, nav,
+## nav_sync (nav_sync_frames: the engine's navigation map sync gets its own frame), roster, bind, world (+ the look
+## variant of the seed, as MatchLook would apply it on the first frame after the start), warmup_setup, warmup (one item
+## per frame), settle (settle_frames, the match camera current), start.
+const _OPEN_STAGES: Array[String] = ["overlay", "config", "map_build", "nav", "nav_sync", "roster", "bind", "world",
+		"warmup_setup", "warmup", "settle", "start"]
+## W1c: why the last staged open failed ("" when it did not); the same text is pushed as an error unless
+## quiet_open_errors (tests only: a failure test then adds no ERROR line to the suite log).
+var last_open_error: String = ""
+var quiet_open_errors: bool = false
+var _open_stage: int = 0
+var _open_in_stage: String = ""  # the abort guard of _open_tick
+var _open_frames: int = 0
+var _open_driver: Node
+var _open_warmup: ShaderWarmup
+var _open_pause_mode: int = Node.PROCESS_MODE_ALWAYS
+var _open_t0: int = 0
+var _open_last_usec: int = 0
+var _open_warm_t0: int = 0
+
+
+## Calls MatchRoot._open_tick every frame, also while the tree is paused.
+class _OpenDriver extends Node:
+	var target: Node
+
+	func _process(_delta: float) -> void:
+		if is_instance_valid(target):
+			target.call("_open_tick")
+
+
+## Counts the script errors logged while the staged open runs (OS.add_logger). An aborted function returns its type's
+## default to the caller, which goes on (a `-> bool` build_step() then reads as "not done yet"), so a stage that would
+## only run again is told from a slow one by the errors it logged.
+class _OpenErrorWatch extends Logger:
+	var script_errors: int = 0
+
+	func _log_error(_function: String, _file: String, _line: int, _code: String, _rationale: String, _editor_notify: bool,
+			error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_SCRIPT:
+			script_errors += 1
+
+
+var _open_watch: _OpenErrorWatch
+
+
+func _begin_staged() -> void:
+	opening = true
+	_open_t0 = _PerfMarks.start()
+	loading_overlay = _OverlayScene.instantiate()
+	add_child(loading_overlay)
+	if pause_menu != null:
+		_open_pause_mode = pause_menu.process_mode
+		pause_menu.process_mode = Node.PROCESS_MODE_DISABLED  # no Esc / gear while loading (it would unpause on close)
+	get_tree().paused = true
+	_open_driver = _OpenDriver.new()
+	_open_driver.name = "OpenDriver"
+	_open_driver.target = self
+	_open_driver.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_open_driver)
+	_open_stage = 0
+	_open_frames = 0
+	_open_in_stage = ""
+	last_open_error = ""
+	_open_watch = _OpenErrorWatch.new()
+	OS.add_logger(_open_watch)
+
+
+static func _warm_num(key: String) -> int:
+	var v: Variant = ShaderWarmup.config().get(key, {})
+	return int((v as Dictionary).get("value", 0)) if v is Dictionary else int(v)
+
+
+## One stage of the staged open (see _OPEN_STAGES).
+## Abort guard: GDScript aborts a function on a script error (no exception), so a stage body that errors would leave
+## _open_stage where it was and run again every frame, the tree paused and the overlay up for good. _open_in_stage
+## names the stage while its body runs and is cleared only once the body got to its end; a tick that finds it still
+## set knows the previous tick was aborted and ends the open as a failed one. An error inside a callee does not abort
+## this function (the callee returns its type's default); where that would make a stage run its work again (a build
+## step, a warm-up step) the script errors the stage logged (_open_watch) end the open instead. A one-shot stage that
+## logged an error goes on, as begin() would.
+func _open_tick() -> void:
+	if not opening:
+		return
+	if _open_in_stage != "":
+		_open_fail("MatchRoot: the staged open's '%s' stage aborted (script error); match did not start" % _open_in_stage)
+		return
+	var stage := _OPEN_STAGES[_open_stage]
+	_open_in_stage = stage
+	var errors_before := _open_watch.script_errors if _open_watch != null else 0
+	var ok := true
+	var wait := false  # the stage needs more frames (the guard is cleared, the stage stays)
+	match stage:
+		"overlay":
+			_open_frames += 1
+			wait = _open_frames < maxi(1, _warm_num("overlay_frames"))
+			if not wait:
+				_PerfMarks.mark("open.overlay_shown", "frames=%d" % _open_frames)
+		"config":
+			ok = _open_config()
+			if ok and _open_builder != null and "sliced" in _open_builder:
+				# W1c stage B: the builder's steps run from the map_build stage, a budget per frame (same map).
+				_open_builder.set("sliced", true)
+				_open_builder.set("slice_budget_ms", _warm_num("build_slice_ms"))
+		"map_build":
+			if map.get_parent() == null:
+				_open_map_build()  # the builder readies without building when sliced
+			if _open_builder != null and _open_builder.has_method("build_step"):
+				var built: Variant = _open_builder.call("build_step")
+				wait = not (built is bool and bool(built))  # the next frame runs the next slice; nav starts after the build
+				if wait and _open_errored(errors_before):
+					# A step aborted by a script error returns false ("not done") and would only run again next frame.
+					var label: Variant = _open_builder.call("build_step_label") if _open_builder.has_method("build_step_label") else "?"
+					_open_fail("MatchRoot: the staged open's map build step '%s' hit a script error; match did not start" % str(label))
+					return
+		"nav":
+			_open_nav()
+		"nav_sync":
+			# The engine syncs the navigation map in the frame after the navmesh is assigned (about 0.9 s on the web,
+			# main thread; it runs while paused): the roster gets a frame of its own after it (data/warmup.json
+			# nav_sync_frames, OQ-W1C-STAGE). Nothing of the match runs meanwhile (paused), so no state changes.
+			_open_frames += 1
+			wait = _open_frames < _warm_num("nav_sync_frames")
+		"roster":
+			ok = _open_roster()
+		"bind":
+			ok = _open_bind()
+			if ok:
+				# The rig's camera proved it can be current (begin()'s check); it draws again from the settle stage on, so
+				# the world's programs are compiled by the warm-up's items (the bar moves) and not by one long first view.
+				(local_player.get_node("CameraRig") as CameraRig).get_camera().clear_current(false)
+		"world":
+			_open_world()
+			_apply_look_variant()
+		"warmup_setup":
+			var t := _PerfMarks.start()
+			_open_warmup = ShaderWarmup.new()
+			_open_warmup.name = "ShaderWarmup"
+			add_child(_open_warmup)
+			var rig := local_player.get_node_or_null("CameraRig") as CameraRig
+			_open_warmup.setup(self, rig.get_camera() if rig != null else get_viewport().get_camera_3d())
+			_open_warm_t0 = Time.get_ticks_usec()
+			_open_last_usec = 0
+			warmup_report = {"items": _open_warmup.items.size(), "contexts": _open_warmup.contexts.map(func(c: Dictionary) -> String: return String(c["id"])),
+					"longest_ms": 0.0, "longest_item": "", "frames": 0}
+			_PerfMarks.done("open.warmup_setup", t, "items=%d contexts=%d" % [_open_warmup.items.size(), _open_warmup.contexts.size()])
+		"warmup":
+			_warm_frame()
+			var at := _open_warmup.index
+			var stepped: Variant = _open_warmup.step()
+			wait = not (stepped is bool and bool(stepped))
+			if wait and _open_warmup.index == at and _open_errored(errors_before):
+				# step() hit a script error before it started an item: it would only do so again. (An item whose copy
+				# errors does not stall the open: step() counts the item before it fills the copies, so it goes on.)
+				_open_fail("MatchRoot: the staged open's warm-up step hit a script error at item %d; match did not start" % at)
+				return
+			if not wait:
+				_end_warmup()
+		"settle":
+			_open_frames += 1
+			wait = _open_frames < _warm_num("settle_frames")
+		"start":
+			_finish_staged()
+			_open_in_stage = ""
+			if opening:  # _finish_staged() did not get to its end: never start the director a second time
+				_open_fail("MatchRoot: the staged open's 'start' stage aborted (script error); match state unknown")
+			return
+	_open_in_stage = ""
+	if not ok:
+		_open_fail("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
+		return
+	if wait:
+		_show_progress()
+		return
+	_open_stage += 1
+	_open_frames = 0
+	_show_progress()
+
+
+## True when a script error was logged since `errors_before` (_open_watch.script_errors).
+func _open_errored(errors_before: int) -> bool:
+	return _open_watch != null and _open_watch.script_errors != errors_before
+
+
+## A staged open that cannot go on: the open ends (tree running, overlay gone, pause menu back), the reason is kept in
+## last_open_error and pushed as an error, and match_opened(false) is emitted once. quiet_open_errors (tests only)
+## keeps the reason without the error line, so a failure test adds no ERROR line to the suite log.
+func _open_fail(reason: String) -> void:
+	_end_staged()
+	last_open_error = reason
+	if not quiet_open_errors:
+		push_error(reason)
+	match_opened.emit(false)
+
+
+## The frame time since the last warm-up tick belongs to the item started then (its first draw compiles its programs).
+func _warm_frame() -> void:
+	var now := Time.get_ticks_usec()
+	if _open_last_usec > 0:
+		var ms := (now - _open_last_usec) / 1000.0
+		var id := _open_warmup.current_item_id()
+		if ms > float(warmup_report["longest_ms"]):
+			warmup_report["longest_ms"] = ms
+			warmup_report["longest_item"] = id
+		if _PerfMarks.enabled() and id != "":
+			_PerfMarks.emit("open.warm_item", ms, "item=%s" % id.replace(" ", "_"))
+	warmup_report["frames"] = int(warmup_report["frames"]) + 1
+	_open_last_usec = now
+
+
+func _end_warmup() -> void:
+	warmup_report["total_ms"] = (Time.get_ticks_usec() - _open_warm_t0) / 1000.0
+	warmup_report["covered"] = _open_warmup.covered.duplicate()
+	warmup_report["derived"] = _open_warmup.items.filter(func(i: Dictionary) -> bool: return i["source"] == "derived").size()
+	warmup_report["listed"] = _open_warmup.items.size() - int(warmup_report["derived"])
+	warmup_report["progress"] = _open_warmup.progress()
+	warmup_report["check"] = _open_warmup.check()  # fix pass 1 (B2): what the copies drew (failed / inert / skipped)
+	if _PerfMarks.enabled():
+		var chk: Dictionary = warmup_report["check"]
+		_PerfMarks.emit("open.warmup", float(warmup_report["total_ms"]), "items=%d derived=%d listed=%d longest_ms=%.1f longest_item=%s failed=%d inert=%d skipped=%s" % [
+				int(warmup_report["items"]), int(warmup_report["derived"]), int(warmup_report["listed"]),
+				float(warmup_report["longest_ms"]), String(warmup_report["longest_item"]).replace(" ", "_"),
+				(chk["failed"] as Array).size(), (chk["inert"] as Array).size(), ",".join(chk["skipped"]) if not (chk["skipped"] as PackedStringArray).is_empty() else "-"])
+	_restore_match_camera()
+	remove_child(_open_warmup)
+	_open_warmup.queue_free()
+	_open_warmup = null
+
+
+func _restore_match_camera() -> bool:
+	var rig := local_player.get_node_or_null("CameraRig") as CameraRig if local_player != null else null
+	return rig != null and rig.ensure_current()
+
+
+func _show_progress() -> void:
+	if loading_overlay == null:
+		return
+	var cfg := LoadingOverlay.config()
+	var share := clampf(float(cfg.get("progress_build_share", 0.0)), 0.0, 1.0)
+	var warm_at := _OPEN_STAGES.find("warmup")
+	var p := 0.0
+	if _open_stage < warm_at:
+		# W1c stage B: the map build fills progress_map_share of the build part (its steps move it), the other stages
+		# before the warm-up share the rest equally.
+		var map_at := _OPEN_STAGES.find("map_build")
+		var map_share := clampf(float(cfg.get("progress_map_share", 1.0 / float(warm_at))), 0.0, 1.0)
+		var other := (1.0 - map_share) / float(warm_at - 1)
+		var done := other * float(mini(_open_stage, map_at)) + (map_share + other * float(_open_stage - map_at - 1) if _open_stage > map_at else 0.0)
+		if _open_stage == map_at and _open_builder != null and _open_builder.has_method("build_progress"):
+			done += map_share * clampf(float(_open_builder.call("build_progress")), 0.0, 1.0)
+		p = share * done
+	elif _open_stage == warm_at and _open_warmup != null:
+		p = share + (1.0 - share) * _open_warmup.progress()
+	else:
+		p = 1.0
+	loading_overlay.set_progress(p)
+
+
+## The look variant this seed shows, applied now (behind the overlay) instead of on the first frame after the
+## director starts (MatchLook._process then finds it already shown). Re-applied even when it is the base variant, so
+## the look's parts that wait for the map builder (the sun shafts) are built now, not after the start.
+## Not silent when the seam is gone (no WorldEnvironment, or GreyboxArt._apply_environment renamed): the early look
+## is then skipped with a warning (MatchLook still applies it on the first frame after the start);
+## tests/test_w1c_staged_open.gd pins the method on the real match scene.
+func _apply_look_variant() -> void:
+	var world := get_node_or_null("WorldEnvironment")
+	if world != null and world.has_method("_apply_environment"):
+		world.call("_apply_environment", world, MatchLook.variant_for_seed(_open_seed))
+	else:
+		push_warning("MatchRoot: no WorldEnvironment with _apply_environment(world, variant); the look variant is applied only after the start")
+
+
+func _finish_staged() -> void:
+	var started := _open_start()
+	var cam_ok := _restore_match_camera()
+	if not started:
+		_open_fail("MatchRoot: begin() failed (map scene / match data unusable); match did not start")
+		_PerfMarks.done("open.total", _open_t0)
+		return
+	_end_staged()
+	if not cam_ok:
+		push_error("MatchRoot: CameraRig is not current after the warm-up")
+	_WebArgs.debug_marker("GLADIUS_MATCH_STARTED")  # W1c staged open: the match is playable from here (docs/WEB.md)
+	_PerfMarks.mark("match_started")
+	_PerfMarks.arm_can_move(get_tree())  # GLADIUS_CAN_MOVE at the next physics tick (the tree is running again)
+	_PerfMarks.done("open.total", _open_t0)
+	match_opened.emit(true)
+
+
+## Ends the staged open (finished, failed or cancelled): the warm-up's copies, the driver and the overlay go, the
+## pause menu comes back and the tree runs again.
+func _end_staged() -> void:
+	if not opening:
+		return
+	opening = false
+	_open_in_stage = ""
+	if _open_watch != null:
+		OS.remove_logger(_open_watch)
+	_open_watch = null
+	if _open_warmup != null and is_instance_valid(_open_warmup):
+		_open_warmup.queue_free()
+	_open_warmup = null
+	if _open_driver != null and is_instance_valid(_open_driver):
+		_open_driver.queue_free()
+	_open_driver = null
+	if loading_overlay != null and is_instance_valid(loading_overlay):
+		loading_overlay.queue_free()
+	loading_overlay = null
+	if pause_menu != null and is_instance_valid(pause_menu):
+		pause_menu.process_mode = _open_pause_mode as Node.ProcessMode
+	if is_inside_tree():
+		get_tree().paused = false
 
 
 func _local_id() -> int:
@@ -344,6 +789,7 @@ func profile_cfg() -> Dictionary:
 
 
 func _exit_tree() -> void:
+	_end_staged()  # W1c: freed mid-open (scene change): the tree must not stay paused
 	if roster != null:
 		roster.detach_bridge()
 	if menu_open and not networked_match and is_inside_tree():
@@ -395,11 +841,12 @@ func _on_menu_opened() -> void:
 func _on_menu_closed() -> void:
 	menu_open = false
 	_touch_hud.set_suspended(false)
-	get_tree().paused = false
+	get_tree().paused = opening  # W1c: a staged open keeps the tree paused until it ends
 
 
 ## Quit confirmed in the menu: leave the match for the main menu (same exit as a lost host).
 func quit_to_menu() -> void:
+	_end_staged()  # W1c: quitting mid-open stops it (no stage runs after this)
 	if menu_open:
 		pause_menu.close()
 	get_tree().paused = false

@@ -5,7 +5,11 @@
 	"seed": 20261123,
 	"variant_seeds": {"dusk": 20261123, "storm": 20261122, "night": 20261124},
 	"warmup_frames": 60,
+	"_timing_note": "W1c step 1 (measurement only; TOOL DATA, not a budget): scripts/debug/perf_route.gd prints a GLADIUS_T frame line (cpu / draw split) for each of the first first_frames frames after the MatchRoot enters the tree, and for any frame of at least long_frame_ms at any time (debug web build + perf=1 only; docs/WEB.md \"Stall timing (W1c)\").",
+	"timing": {"first_frames": 240, "long_frame_ms": 100},
 	"probe": {"caps": [30, 60, 0], "settle_s": 0.5, "seconds": 5.0},
+	"_action_note": "W1c fix pass 1 (measurement only; TOOL DATA, not a budget): after the frame-cap probe, scripts/debug/perf_route.gd makes the match camera current again, waits settle_frames, then runs steps through the player's own input actions (switch = swap_weapon, fire = fire; a fire with the blade is a swing): each press is held hold_frames frames, then the step waits until the view model shows the active weapon (no switch running) plus wait_frames (at most max_wait_frames). GLADIUS_T marks action.camera / action.start / action.switch / action.fire / action.swing / action.end; tools/web/perf.mjs reports the rAF gaps inside action.start .. action.end separately (docs/WEB.md 'Stall timing (W1c)').",
+	"action": {"enabled": true, "settle_frames": 60, "hold_frames": 3, "wait_frames": 60, "max_wait_frames": 600, "steps": ["switch", "fire", "switch", "fire"]},
 	"shot_view": "porta_aquilae",
 	"views": [
 		{
