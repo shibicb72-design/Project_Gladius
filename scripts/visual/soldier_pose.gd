@@ -31,6 +31,13 @@ var _pivot := Vector3.ZERO
 var _head_centre := Vector3.ZERO  # M2 AN3: the head hitbox centre (Head rest)
 var head_drop := 0.0  # M2 AN3 stage C: the free crouch's head drop (SoldierModel): the head pivot drops with it
 var _swing_clip: Animation
+## A3 item 2: the alternating slash set (slot -> clip, only the slots that resolved). The pawn's melee shots
+## count up swing_count; odd counts play blade_swing_a, even ones blade_swing_b (a slot that did not resolve plays
+## blade_swing, then the code-built raised/struck).
+const SWING_SLOTS: Array[String] = ["blade_swing_a", "blade_swing_b"]
+var _swing_clips: Dictionary = {}
+var swing_count := 0
+var swing_slot := ""
 var _revive_clip: Animation
 var _tracks := {}
 var _neck_from_chest := Transform3D.IDENTITY
@@ -60,7 +67,12 @@ func setup(new_pawn: Pawn) -> void:
 	# shared baked clips; null keeps the code-built poses.
 	_swing_clip = SoldierAnimation.shared("blade_swing", skeleton)
 	_revive_clip = SoldierAnimation.shared("revive", skeleton)
-	for clip: Animation in [_swing_clip, _revive_clip]:
+	_swing_clips.clear()
+	for slot in SWING_SLOTS:
+		var slash := SoldierAnimation.shared(slot, skeleton)
+		if slash != null:
+			_swing_clips[slot] = slash
+	for clip: Animation in [_swing_clip, _revive_clip] + _swing_clips.values():
 		if clip == null:
 			continue
 		var tracks := {}
@@ -140,6 +152,23 @@ func _on_shot(_origin: Vector3, _direction: Vector3, weapon_id: String) -> void:
 	var weapon := pawn.loadout.get_active() if pawn.loadout != null else null
 	if weapon != null and weapon.def.id == weapon_id and weapon.def.is_melee():
 		swing_left_s = float(cfg["swing"]["s"])
+		swing_count += 1
+		swing_slot = SWING_SLOTS[(swing_count - 1) % SWING_SLOTS.size()]
+
+
+## A3 item 2: the clip the current swing plays (its slash, else the blade_swing fallback; null: code-built).
+func swing_clip() -> Animation:
+	return _swing_clips.get(swing_slot, _swing_clip)
+
+
+## The clip time at swing fraction t (0..1 of poses.swing.s): a slash clip plays its own clip_from_s .. clip_to_s
+## (poses.swing.clips, the whole clip), the fallback the top-level clip_from_s .. clip_to_s.
+func swing_clip_time(t: float) -> float:
+	var swing: Dictionary = cfg["swing"]
+	var span: Dictionary = swing
+	if _swing_clips.has(swing_slot):
+		span = (swing.get("clips", {}) as Dictionary).get(swing_slot, {"clip_from_s": 0.0, "clip_to_s": (_swing_clips[swing_slot] as Animation).length})
+	return lerpf(float(span["clip_from_s"]), float(span["clip_to_s"]), t)
 
 
 func _on_landed() -> void:
@@ -250,11 +279,12 @@ func _process_modification_with_delta(delta: float) -> void:
 		var t := 1.0 - swing_left_s / float(swing["s"])
 		var strike := smoothstep(float(swing["strike_from"]), float(swing["strike_to"]), t)
 		var out := 1.0 - smoothstep(float(swing["recover_from"]), 1.0, t)
-		if _swing_clip != null:
+		var slash := swing_clip()
+		if slash != null:
 			# M2 AN1 commit 4: the authored sword strike (UAL Sword_Attack) from clip_from_s to clip_to_s over the
 			# same swing time, so its strike lands in the strike window; it fades in over fade_in of the swing.
-			var at := lerpf(float(swing["clip_from_s"]), float(swing["clip_to_s"]), t)
-			_blend_clip(skeleton, _swing_clip, at, minf(smoothstep(0.0, float(swing["fade_in"]), t), out), swing["clip_bones"], false)
+			# A3 item 2: the alternating slash clips play whole the same way (swing_clip_time).
+			_blend_clip(skeleton, slash, swing_clip_time(t), minf(smoothstep(0.0, float(swing["fade_in"]), t), out), swing["clip_bones"], false)
 		else:
 			var raised: Dictionary = swing["raised"]
 			var struck: Dictionary = swing["struck"]

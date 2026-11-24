@@ -85,7 +85,7 @@ func _initialize() -> void:
 	if write:
 		catalog["version"] = int(catalog.get("version", 1))  # JSON numbers parse as floats; keep the file's integer
 		catalog["generated"] = now
-		catalog["_generated_note"] = "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that CC0 asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
+		catalog["_generated_note"] = "S2 / S5 / M2 AN2: files made by the project's own tools: textures and sounds by tools/gen_textures.gd and tools/gen_audio.gd, and (M2 H1b) the minimap pictures by tools/render_layout.gd --minimap from the map data, from noise and maths, no source material; characters and weapons (.glb) by the Blender scripts under tools/blender/, each file's maker recorded per file (tools/blender/manifest.json). An entry with derived_from was made from that catalogued asset of the assets list (its licence says so); every other entry has no source material. Re-record with tools/asset_hashes.gd -- --write after regenerating."
 		var file := FileAccess.open(CATALOG, FileAccess.WRITE)
 		file.store_string(JSON.stringify(catalog, "\t", false) + "\n")
 		file.close()

@@ -60,6 +60,13 @@ var _sprint := 1.0
 var _air_s := 0.0
 var _replica_vy := 0.0
 var _last_hp := -1.0
+var hit_side := "front"  # A3 item 3: the side of the last flinch requested (tests, captures)
+## A3 item 4: the winner's cheer on the action layer (action_name VICTORY, held on its last frame); play_victory.
+const VICTORY := "victory"
+var _victory_pending := false  # A3 fix pass 1 (S7): won while climbing; cheer once the climb ends
+const CORPSE_WARM_FRAMES := 6 # A3 fix pass 1 (S1): drawn frames before the corpse hand settle is precomputed
+var _corpse_warm_frames := 0
+var _director: MatchDirector
 ## M2 AN2 items 3/5: keyed whole-body clips (assets/generated/characters/soldier_keyed.glb) played through SoldierPose.
 ## Climbing (pawn.climbing, read-only): ladder_up / ladder_down at the time the feet's height on the ladder gives, the
 ## model turned to face the ladder, the gun slung; ladder_top once after the top step. One-shots: play_action.
@@ -114,6 +121,9 @@ func _ready() -> void:
 		armor_far.visibility_range_begin = far_m
 		skeleton.add_child(armor_far)
 	local_part_bounds = SoldierRig.part_local_bounds(parts, skeleton)
+	# A3 fix pass 1 (S1): the corpse's per-set work (vertex sets, sampled death clip) once per armour set, now rather
+	# than on the set's first death mid-match (cached per mesh: later soldiers of the set skip it).
+	SoldierCorpse.precache(skeleton, armor.mesh, armor.skin)
 	pose_cache.resize(skeleton.get_bone_count())
 	_cache_pose()
 	skeleton.skeleton_updated.connect(_cache_pose)
@@ -172,13 +182,15 @@ func _ready() -> void:
 	skeleton.add_child(neck)
 	neck.setup()
 	_keyed = SoldierRig.config().get("keyed", {})
-	for slot: String in ["ladder_up", "ladder_down", "ladder_top"] + ACTIONS:
+	for slot: String in ["ladder_up", "ladder_down", "ladder_top", VICTORY] + ACTIONS:
 		var clip := SoldierAnimation.shared(slot, skeleton)
 		if clip != null:
 			_action_clips[slot] = clip
 	pawn.reload_started.connect(_on_reload_started)
 	pawn.weapon_switched.connect(_on_weapon_switched)
 	pawn.visibility_changed.connect(_on_visibility_changed)
+	pawn.shot.connect(_on_pawn_shot)
+	_bind_director()
 
 func _show_squad() -> void:
 	shown_squad = (_pawn as Pawn).squad_id
@@ -196,6 +208,12 @@ func posed_bounds(out: Array[AABB]) -> void:
 func _cache_pose() -> void:
 	for i in pose_cache.size():
 		pose_cache[i] = skeleton.get_bone_global_pose(i)
+	if _corpse_warm_frames < CORPSE_WARM_FRAMES:
+		# A3 fix pass 1 (S1): once the living pose is drawn (the aim layer has set the shoulders), the set's corpse hand
+		# settle is computed here rather than on the set's first death (once per armour set: SoldierCorpse caches it).
+		_corpse_warm_frames += 1
+		if _corpse_warm_frames == CORPSE_WARM_FRAMES:
+			SoldierCorpse.precache_settle(self)
 	if _was_climbing and climb_weight > 0.0:
 		_climb_skeleton_world = skeleton.global_transform
 		_climb_pose_drawn = true
@@ -293,6 +311,8 @@ func show_gun(id: String) -> void:
 func _process(delta: float) -> void:
 	if _pawn == null:
 		return
+	if not is_instance_valid(_director):
+		_bind_director()
 	# D2: squad ids change without a signal (MatchDirector.start), so the model polls its own pawn.
 	if (_pawn as Pawn).squad_id != shown_squad:
 		_show_squad()
@@ -339,7 +359,7 @@ func _process(delta: float) -> void:
 	gait.pivot_allowed = not head.is_empty() and velocity.length_squared() < idle_speed * idle_speed \
 		and blend.length_squared() < 0.0004 and absf(pawn.velocity.y) < idle_speed \
 		and pawn.drop_state == Pawn.Drop.NONE and not airborne and pawn.is_alive() and not pawn.is_downed() \
-		and not pawn.in_cover() and not pawn.climbing and not _yaw_owned and action_name.is_empty() \
+		and not pawn.in_cover() and not pawn.climbing and not _yaw_owned and (action_name.is_empty() or action_name == VICTORY) \
 		and crouch_shown <= 0.0 and float(pose.weights["land"]) <= 0.0 and float(pose.weights["revive"]) <= 0.0
 	crawl.move_local = local
 	crawl.weight = float(pose.weights["downed"])
@@ -389,8 +409,10 @@ func bind_shot_fx(fx: ShotFx) -> void:
 	fx.shot_shown.connect(_on_shot_shown)
 
 
-func _on_shot_shown(_origin: Vector3, _end: Vector3) -> void:
+func _on_shot_shown(origin: Vector3, end: Vector3) -> void:
 	var pawn := _pawn as Pawn
+	# A3 item 3: every shown shot of this pawn, for the victim's flinch side (SoldierHitSide; every peer).
+	SoldierHitSide.record_shot(pawn, origin, end)
 	var weapon := pawn.loadout.get_active()
 	if pawn.is_alive() and weapon != null and not weapon.def.is_melee():
 		animation_tree.set("parameters/fire/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
@@ -550,14 +572,61 @@ func _watch_hits() -> void:
 	var hp := float(pawn.bridge.state.shield) + float(pawn.bridge.state.health)
 	var hit_cfg: Dictionary = _gait_cfg["hit"]
 	if _last_hp >= 0.0 and hp < _last_hp - float(hit_cfg["min_drop"]) and pawn.is_alive():
-		flinch(_last_hp - hp >= float(hit_cfg["head_drop"]))
+		# A3 item 3: the side from the matching shown shot or simulated swing; none (LAN limits: see SoldierHitSide)
+		# plays the front flinch.
+		flinch(_last_hp - hp >= float(hit_cfg["head_drop"]), SoldierHitSide.take(pawn))
 	_last_hp = hp
 
 
-func flinch(head: bool) -> void:
+## `side`: where the hit came from (SoldierHitSide.SIDES: front, back, left, right); `head` plays the head clip.
+func flinch(head: bool, side: String = "front") -> void:
 	hit_count += 1
-	animation_tree.set("parameters/hit_which/transition_request", "head" if head else "chest")
+	hit_side = side if SoldierHitSide.SIDES.has(side) else "front"
+	animation_tree.set("parameters/hit_which/transition_request", "head" if head else hit_side)
 	animation_tree.set("parameters/hit/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+
+## A3 item 3: the attacker side of a melee swing this peer simulates (Pawn.shot fires only for those).
+func _on_pawn_shot(origin: Vector3, _direction: Vector3, weapon_id: String) -> void:
+	var pawn := _pawn as Pawn
+	var weapon := pawn.loadout.get_active() if pawn.loadout != null else null
+	if weapon != null and weapon.def.id == weapon_id and weapon.def.is_melee():
+		SoldierHitSide.record_melee(pawn, origin)
+
+
+## A3 item 4: the director this pawn plays in (a sibling "Director", as SoldierPose._director finds it), once.
+func _bind_director() -> void:
+	var parent := _pawn.get_parent() if _pawn != null else null
+	var director := parent.get_node_or_null("Director") as MatchDirector if parent != null else null
+	if director != null:
+		_director = director
+		if not director.match_over.is_connected(_on_match_over):
+			director.match_over.connect(_on_match_over)
+
+
+func _on_match_over(result: Dictionary) -> void:
+	play_victory(int(result.get("winner", -1)), bool(result.get("draw", false)))
+
+
+## A3 item 4: the victory cheer on this soldier when its squad `winner` won and it is alive and standing (nothing on
+## a draw). Upper body only (keyed.actions.victory_bones), held on its last frame; the pawn, its movement and its aim
+## are never touched. False when nothing plays.
+func play_victory(winner: int, draw: bool = false) -> bool:
+	var pawn := _pawn as Pawn
+	if draw or winner < 0 or pawn == null or pose == null or not _action_clips.has(VICTORY):
+		return false
+	if pawn.squad_id != winner or not pawn.is_alive() or pawn.is_downed():
+		return false
+	if pawn.climbing or climb_weight > 0.0 or action_name == "ladder_top":
+		# A3 fix pass 1 (S7): the climb owns the action layer; the cheer starts once the climb (and its top step) ends,
+		# if the soldier is still alive and standing then (drive_actions).
+		_victory_pending = true
+		return true
+	_victory_pending = false
+	action_name = VICTORY
+	action_s = 0.0
+	action_count += 1
+	return true
 
 
 ## M2 AN2 item 5: a visual-only one-shot (door_open, chest_open, pickup_ground) on this soldier. Ignored (false)
@@ -598,6 +667,8 @@ func action_weight() -> float:
 	if fade <= 0.0:
 		return 1.0
 	var fade_in := 1.0 if action_name == "ladder_top" else action_s / fade  # the top step continues the climb pose
+	if action_name == VICTORY:
+		return clampf(fade_in, 0.0, 1.0)  # held on its last frame: no fade-out
 	return clampf(minf(fade_in, (length - action_s) / fade), 0.0, 1.0)
 
 
@@ -641,10 +712,22 @@ func drive_actions(delta: float) -> void:
 			_climb_up = false
 	var blend_s := float(lad.get("blend_s", 0.15))
 	climb_weight = move_toward(climb_weight, 1.0 if climbing else 0.0, delta / blend_s if blend_s > 0.0 else 1.0)
-	if not action_name.is_empty() and not starting_top:
+	if action_name == VICTORY:
+		# A3 item 4: held on the last frame (the arm raised) until the end screen; a downed or dead soldier stops it.
+		action_s = minf(action_s + delta, (_action_clips[VICTORY] as Animation).length)
+		if not pawn.is_alive() or pawn.is_downed():
+			action_name = ""
+	elif not action_name.is_empty() and not starting_top:
 		action_s += delta
 		if not _action_clips.has(action_name) or action_s >= (_action_clips[action_name] as Animation).length:
 			action_name = ""
+	if _victory_pending and not pawn.climbing and climb_weight <= 0.0 and action_name.is_empty():
+		# A3 fix pass 1 (S7): the match ended while this winner climbed; the climb is over now.
+		_victory_pending = false
+		if pawn.is_alive() and not pawn.is_downed():
+			action_name = VICTORY
+			action_s = 0.0
+			action_count += 1
 	if climb_weight > 0.0:
 		climb_clip = "ladder_up" if _climb_up or not _action_clips.has("ladder_down") else "ladder_down"
 		var clip := _action_clips[climb_clip] as Animation
@@ -660,7 +743,7 @@ func drive_actions(delta: float) -> void:
 		pose.action_time = action_s
 		pose.action_weight = action_weight()
 		var full: Array = acts.get("full_body", [])
-		pose.action_bones = [] if full.has(action_name) else (acts.get("upper_bones", []) as Array)
+		pose.action_bones = [] if full.has(action_name) else (acts.get("victory_bones" if action_name == VICTORY else "upper_bones", []) as Array)
 		var catchup := float(lad.get("top_catchup_s", 0.6))
 		pose.action_offset = _top_offset * (1.0 - smoothstep(0.0, catchup, action_s)) if action_name == "ladder_top" else Vector3.ZERO
 	else:

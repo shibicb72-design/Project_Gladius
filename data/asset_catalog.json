@@ -1398,8 +1398,8 @@
 			"path": "res://assets/generated/characters/gladiator.glb",
 			"made_by": "tools/blender/build_gladiator.py",
 			"licence": "generated in this project (no source material)",
-			"bytes": 979056,
-			"sha256": "eeaf7490b3770eb4053ff4665632a148af565c184eae7163d98e358bf4128fa0"
+			"bytes": 1014736,
+			"sha256": "b076ec6591fa887255533bcd16107e2e2dd517c92588e18d4b15f46bc0b70125"
 		},
 		{
 			"path": "res://assets/generated/characters/gladiator_far_albedo.png",
@@ -1472,12 +1472,19 @@
 			"sha256": "90bf11207ca4689484cc8c221250b47a669c7fda7b65bd3ab6375cd5419466d4"
 		},
 		{
+			"path": "res://assets/generated/characters/soldier_a3.glb",
+			"made_by": "tools/blender/a3_clips.py",
+			"licence": "generated in this project (no source material)",
+			"bytes": 177344,
+			"sha256": "6a4e3e6c40e022c9363b1ec28a75baf886ce10764986ecc91bd5965bfc5ff1fc"
+		},
+		{
 			"path": "res://assets/generated/characters/soldier_clips.glb",
 			"made_by": "tools/blender/build_soldier_clips.py",
 			"derived_from": "quaternius_ual_standard_glb",
 			"licence": "derived in this project from Quaternius Universal Animation Library Standard (data/asset_catalog.json assets id quaternius_ual_standard_glb, CC0-1.0)",
 			"bytes": 771152,
-			"sha256": "8ac1d5c18f7b862cfe75a78cf590c6dd0f1d4f2215ae3d237cfe30df35c2dc4d"
+			"sha256": "1ae08ad973e6b99fb00d3227abf6cf48f7f2b073303a1e1dca15c05b6033e38c"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_directional.glb",
@@ -1490,15 +1497,15 @@
 			"path": "res://assets/generated/characters/soldier_keyed.glb",
 			"made_by": "tools/blender/build_soldier_keyed.py",
 			"licence": "generated in this project (no source material)",
-			"bytes": 769616,
-			"sha256": "3fcecf808f4da89e26ff786ad2e290c98ca4a8441b26e028043669b53305a788"
+			"bytes": 768772,
+			"sha256": "d793f5659ce1370c47fba2471aa3230650d37323b4780dd87ea1974eeabbf77f"
 		},
 		{
 			"path": "res://assets/generated/characters/soldier_rifle.glb",
 			"made_by": "tools/blender/build_soldier_rifle.py",
 			"licence": "generated in this project (no source material)",
 			"bytes": 56828,
-			"sha256": "b77bea05aba7d519837ddf3a5ecb57735b04dd052c6841d025a68411ac829169"
+			"sha256": "2ae6d9df605e69ff72ef922afa8d8f0d62ac31814e2df00e41b1df6e819d9ba4"
 		},
 		{
 			"path": "res://assets/generated/characters/view_arms.glb",

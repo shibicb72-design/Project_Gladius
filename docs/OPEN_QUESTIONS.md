@@ -7,10 +7,36 @@ A placeholder is never a design value.
 
 Format: **OQ-xx: question.** Placeholder now: ... (story that introduces it)
 
+## Animation pass (A3)
+
+- **OQ-A3-CONTACT: how close to the ground must the downed crawl and the corpse be?** Placeholder now: the lowest
+  skinned vertex of a planted hand or knee, and of a settled corpse's heels, hips and hands, within 3 cm of a flat
+  floor, and no part more than 3 cm below it (`data/anim_third_person.json` contact). The downed crawl now plants both
+  hands (crawl.hands), with the knees lowered and the back arched so straight arms reach (head about 0.93 m, inside
+  poses.downed head_tolerance_m); the corpse settles its hands by the arms (death.settle). All guesses for Shibi
+  (A3 item 1, tests/test_a3_contact.gd). Fix pass 1 added more guesses under the same id: each crawl hand planted in
+  35-65 % of the frames while moving (all frames while still), a planted hand bone moving at most 3 cm in world space
+  per planted span (measured 1.4-1.6 cm, nearly all of it the hand rising where the arm runs out of reach; 0.15 cm
+  along the ground), contact.corpse_first_budget_ms 16 ms for building the first corpse of an armour set (headless,
+  dev PC, Legionary / Murmillo: 19 / 43 ms before the per-set precache, 3.6 / 6.4 ms after; tests/test_a3_corpse_cost.gd), and in
+  death.settle the Blender hip settle of the death clip (hips: from_s 1.3, to_s 1.8, rest_m 0.007, near_m 0.13,
+  max_deg 25) and crossfade_keys_hz 120 (the corpse's leg keys over the crossfade). Known limits, not fixed in this
+  pass: the settled Murmillo corpse lies face down with the upper back and the helmet off the floor (the death clip
+  was grounded on the Legionary mesh, and chest and head are not in the contact probe); the death's shins stay raised
+  from the knee; the Murmillo's knees sit 1.3-1.7 cm into the floor while downed (inside the 3 cm target).
+- **OQ-A3-HITDIR: how is a flinch matched to the shot that caused it?** Placeholder now: a shown rifle shot whose end
+  lies within 1.0 m of the victim's body axis (feet to head hitbox), or a simulated melee swing whose origin lies within
+  3.0 m of the victim, seen within 0.5 s before the victim's shield + health drop, gives the flinch its side (front,
+  back, left, right by quadrant in the victim's frame); no match plays the front flinch, which is always the case for a
+  remote human's melee seen on the host and for every melee hit seen on a LAN replica (`data/anim_third_person.json`
+  gait.hit_dir, `scripts/visual/soldier_hit_side.gd`). All guesses for Shibi (A3 item 3, tests/test_a3_hit_side.gd).
+
 ## Web gladiator art (A2)
 
 - **OQ-A2-SET: first armour set and artwork.** Placeholder now is the Murmillo, with a bronze crested grille helmet,
   sword-arm manica, left greave, balteus, and a wrapped cloth subligaculum. Its appearance is a guess for Shibi.
+  Known art limit (A3 fix pass 1, not contact): the greave studs float off the greave and the ankle hoop stands off
+  the ankle.
 - **OQ-A2-BUDGET: PC armour budgets.** Placeholder now is 20,000 near and 4,000 far body triangles, with four near and
   three far total draws including the weapon. These are guesses for Shibi in `data/art_soldier.json`.
 - **OQ-A2-WARDROBE: armour selection.** Placeholder now is a free whole-set choice in Settings for the local

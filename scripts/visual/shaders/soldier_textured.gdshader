@@ -55,7 +55,11 @@ void fragment() {
 	AO = orm.r;
 	ROUGHNESS = mix(orm.g, wet_roughness, wetness * smoothstep(0.2, 0.9, up));
 	METALLIC = orm.b;
-	vec3 normal = texture(normal_atlas, UV).xyz * 2.0 - 1.0;
+	// A3 item 3: the normal atlas imports VRAM-compressed with compress/normal_map (two-channel RGTC/BC5 on desktop and
+	// in the web build), whose blue channel reads 0, so z is rebuilt from xy. The source map is unit length with z >= 0
+	// (z from xy matches its blue channel within 0.005), so the uncompressed result is unchanged.
+	vec3 normal = vec3(texture(normal_atlas, UV).xy * 2.0 - 1.0, 0.0);
+	normal.z = sqrt(max(0.0, 1.0 - dot(normal.xy, normal.xy)));
 	NORMAL = normalize(TANGENT * normal.x + BINORMAL * normal.y + NORMAL * normal.z);
 	float pulse = 1.0 + glow_pulse * sin(TIME * glow_pulse_speed);
 	float edge = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), rim_power);

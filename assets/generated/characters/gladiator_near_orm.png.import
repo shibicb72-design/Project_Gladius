@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://rfm61ityx6ra"
-path="res://.godot/imported/gladiator_near_orm.png-790551ae47dbbfaa8da7bfd58fef7f2d.ctex"
+path.s3tc="res://.godot/imported/gladiator_near_orm.png-790551ae47dbbfaa8da7bfd58fef7f2d.s3tc.ctex"
+path.etc2="res://.godot/imported/gladiator_near_orm.png-790551ae47dbbfaa8da7bfd58fef7f2d.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/generated/characters/gladiator_near_orm.png"
-dest_files=["res://.godot/imported/gladiator_near_orm.png-790551ae47dbbfaa8da7bfd58fef7f2d.ctex"]
+dest_files=["res://.godot/imported/gladiator_near_orm.png-790551ae47dbbfaa8da7bfd58fef7f2d.s3tc.ctex", "res://.godot/imported/gladiator_near_orm.png-790551ae47dbbfaa8da7bfd58fef7f2d.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

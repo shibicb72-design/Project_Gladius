@@ -270,8 +270,8 @@ def update_manifest(out_rel: str, made_by: str, derived_from: str = "") -> None:
     files = manifest.setdefault("files", {})
     key = "res://" + out_rel if not out_rel.startswith("res://") else out_rel
     files[key] = {"made_by": made_by, "derived_from": derived_from}
-    manifest["_note"] = ("M2 AN2: which committed script under tools/blender/ wrote each generated .glb, and the "
-                         "data/asset_catalog.json id of its CC0 source if it has one. Each script updates its own "
+    manifest["_note"] = ("M2 AN2: which committed script under tools/blender/ wrote each generated asset, and the "
+                         "data/asset_catalog.json id of its source if it has one. Each script updates its own "
                          "rows; tools/asset_hashes.gd reads this file.")
     manifest["files"] = {k: files[k] for k in sorted(files)}
     text = json.dumps({"_note": manifest["_note"], "files": manifest["files"]}, indent="\t", sort_keys=False) + "\n"

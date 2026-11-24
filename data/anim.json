@@ -106,7 +106,7 @@
 			"head_height_m": 1.0, "head_tolerance_m": 0.1,
 			"body_pitch_deg": -44, "body_offset_m": [0, -0.55, 0.1],
 			"bones": {
-				"Spine": [-10, 0, 0], "Chest": [-6, 0, 0], "Head": [-20, 0, 0],
+				"Spine": [-10, 0, 0], "Chest": [19, 0, 0], "Head": [-20, 0, 0],
 				"RightUpperLeg": [38, 0, 0], "RightLowerLeg": [-98, 0, 0], "RightFoot": [44, 0, 0],
 				"LeftUpperLeg": [108, 0, -8], "LeftLowerLeg": [-104, 0, 0], "LeftFoot": [14, 0, 0],
 				"RightUpperArm": [44, 0, 8], "RightForeArm": [12, 0, 0],

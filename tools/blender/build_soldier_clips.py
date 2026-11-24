@@ -924,6 +924,79 @@ class MeshCheck:
                 "end_max_y": float(end[:, 1].max())}
 
 
+# --- A3: the settled pelvis -------------------------------------------------------------------------------------------
+# A3 (ground contact): Death01 ends lying on the back unit, a rigid box on the Chest, which props the pelvis about 7 cm
+# off the floor (the whole-body ground() above only puts the LOWEST vertex on y = 0). From from_s to to_s of the clip
+# the lower trunk (Hips, Spine) hinges down about the Chest's joint until the lowest Hips-skinned vertex of the
+# legionary near mesh rests rest_m above the floor: the chest, back unit, arms, neck and head keep their place, the
+# legs are re-solved onto their ankles and the feet keep their orientation. rest_m is not 0 because the Murmillo's
+# pelvis sits about 1.5 cm lower in the same pose (A3 contact table): the one clip serves both sets inside the 3 cm
+# target (OQ-A3-CONTACT). Only the clips named here change; every other clip is baked exactly as before.
+# Fix pass 1: the numbers (from_s, to_s, rest_m, near_m, max_deg) are data now: data/anim_third_person.json
+# death.settle.hips (placeholders, OQ-A3-CONTACT), read through soldier_data.config(); this tuple only names the clips.
+HIP_SETTLE = ("Death01",)
+
+
+def hip_settle_cfg():
+    return soldier_data.config()["death"]["settle"]["hips"]
+
+
+def settle_hips(check: "MeshCheck", rig: Rig, frames, opt):
+    # the pelvis' own vertices, without the cape's (cloth: the shader lifts it; it hangs through the floor here)
+    hip_v = check.np.array([i for i in check.torso["Hips"] if check.solid[i]])
+
+    def hinged(fr, theta):
+        grot, gpos = rig.fk(fr["loc"], fr["hips"], fr["neck"])
+        pivot = gpos["Chest"]
+        lever = gpos["Hips"] - pivot
+        axis = lever.cross(Vector((0.0, -1.0, 0.0)))
+        if axis.length < 1e-6:
+            return copy_frame(fr), 0.0
+        turn = Quaternion(axis.normalized(), theta)
+        new = {b: q.copy() for b, q in grot.items()}
+        for b in ("Hips", "Spine"):
+            new[b] = (turn @ grot[b]).normalized()
+        hips = pivot + turn @ lever
+        miss = 0.0
+        for s in LEGS:
+            new[s + "UpperLeg"] = (turn @ grot[s + "UpperLeg"]).normalized()
+            new[s + "LowerLeg"] = (turn @ grot[s + "LowerLeg"]).normalized()
+            miss = max(miss, solve_leg(rig, s, new, hips, gpos[s + "Foot"]))
+        return {"loc": rig.locals_from(new), "hips": hips, "neck": fr["neck"].copy()}, miss
+
+    def low(fr):
+        return float(check.verts(fr)[hip_v, 1].min())
+
+    rep = {"max_deg": 0.0, "leg_miss_mm": 0.0, "end_before_m": low(frames[-1])}
+    for f in range(len(frames)):
+        w = smoothstep(float(opt["from_s"]), float(opt["to_s"]), f / float(FPS))
+        if w <= 0.0:
+            continue
+        fr = frames[f]
+        _g, gp = rig.fk(fr["loc"], fr["hips"], fr["neck"])
+        lever = gp["Hips"] - gp["Chest"]
+        flat = math.hypot(lever.x, lever.z)
+        y0 = low(fr)
+        # only a pelvis that is already near the floor is laid down (near_m .. 2 x near_m fades the hinge out), so a
+        # body that is still falling through the window is not folded in the air
+        near = 1.0 - smoothstep(float(opt["near_m"]), 2.0 * float(opt["near_m"]), y0)
+        drop = w * near * (y0 - float(opt["rest_m"]))
+        if flat < 0.1 or drop <= 0.0:
+            continue  # the trunk is still upright, or the pelvis is down already
+        target = y0 - drop
+        theta, cur, miss = 0.0, fr, 0.0
+        for _i in range(6):
+            theta += (low(cur) - target) / flat
+            theta = max(0.0, min(math.radians(float(opt["max_deg"])), theta))
+            cur, miss = hinged(fr, theta)
+        frames[f] = cur
+        rep["max_deg"] = max(rep["max_deg"], math.degrees(theta))
+        rep["leg_miss_mm"] = max(rep["leg_miss_mm"], miss * 1000.0)
+    rep["end_after_m"] = low(frames[-1])
+    rep["end_min_y_m"] = float(check.verts(frames[-1])[check.solid, 1].min())
+    return rep
+
+
 # --- measurement of the final clip ------------------------------------------------------------------------------------
 def final_points(rig: Rig, frames):
     pts = {}
@@ -1122,6 +1195,8 @@ def main():
             rep["ground_fix_m"] = check.ground(frames, cfg)
             if loop:
                 frames[n] = copy_frame(frames[0])
+        if check is not None and spec["name"] in HIP_SETTLE:
+            rep["hip_settle"] = settle_hips(check, rig, frames, hip_settle_cfg())
         if loop:
             # first == last per bone by construction; the step into the seam against the largest other step
             first_last = seam(frames, 0, n)
@@ -1157,6 +1232,10 @@ def main():
             line += " arm_turn_max_deg=%.1f" % rep["arm_turn_deg"]
         if "ground_fix_m" in rep:
             line += " ground_fix_max_m=%.3f" % rep["ground_fix_m"]
+        if "hip_settle" in rep:
+            hs = rep["hip_settle"]
+            line += " hip_settle_max_deg=%.2f hips_low_end_m=%.4f->%.4f leg_miss_mm=%.2f settled_min_y_m=%.4f" % (
+                hs["max_deg"], hs["end_before_m"], hs["end_after_m"], hs["leg_miss_mm"], hs["end_min_y_m"])
         print(line)
         lines.append(line)
     # export: the armature and its actions only (the check mesh is deleted; the previews build it again)

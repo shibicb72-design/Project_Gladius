@@ -1628,7 +1628,7 @@ FREE, ENTERING, IN_COVER, PEEK_LEFT, PEEK_RIGHT, EXITING) fed by `CoverProbe` (`
   `data/ui.json` (`cover_button`, `cover_fire_dim`), `data/haptics.json` (`cover_snap`); read-only
   `stats.json movement.muzzle_height_m` and `combat.auto_reload_on_empty`. See docs/OPEN_QUESTIONS.md OQ-COVER (M2 C1b).
 
-### 4.22 Soldier and view-model art and animation (M2 AN1, M2 AN2, M2 AN3)
+### 4.22 Soldier and view-model art and animation (M2 AN1, M2 AN2, M2 AN3, A3)
 Everything here is presentation: no collider, hitbox, muzzle, speed, ray, timing or net message reads it. Every
 look is a trial for Shibi (OQ-ART-SOLDIER), not a design decision. Since M2 AN2 the soldier, the first-person
 arms, the three weapons and most clips are built in Blender by scripts; the code-built paths below stay as the
@@ -1642,7 +1642,7 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `build_soldier_clips.py` (+ `soldier_clips_design.json`) -> `characters/soldier_clips.glb`;
   `build_soldier_directional.py` -> `characters/soldier_directional.glb`;
   `build_soldier_keyed.py` -> `characters/soldier_keyed.glb`; `build_soldier_rifle.py` (M2 AN3) ->
-  `characters/soldier_rifle.glb`; `build_view_arms.py` (+ `view_geom.py`,
+  `characters/soldier_rifle.glb`; `a3_clips.py` (A3) -> `characters/soldier_a3.glb`; `build_view_arms.py` (+ `view_geom.py`,
   `view_bl.py`) -> `characters/view_arms.glb`; `build_weapons.py` (+ `weapon_geom.py`) ->
   `weapons/pilum_br.glb`, `sagittarii_rifle.glb`, `gladius_lux.glb`; `build_view_clips.py` ->
   `characters/view_clips_<weapon>.glb` (all under `assets/generated/`, each with its own `.glb.import`). Each
@@ -1696,7 +1696,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   The glove-side cuff ring follows the hand and the sleeve-side ring follows the forearm, preserving their cross-sections.
 - **Armour sets (A2).** `data/cosmetics.json` registers the Legionary and the opt-in Murmillo and names their meshes,
   LOD nodes and material kinds. `SoldierRig.build` caches the remapped meshes by set and rest signature. The Murmillo
-  uses one PBR atlas material per LOD, with squad paint on mask R and tier paint and glow on G. Mask B is reserved for
+  uses one PBR atlas material per LOD (A3 changes its geometry and texture import: see "Murmillo look fixes" and
+  "Texture compression"), with squad paint on mask R and tier paint and glow on G. Mask B is reserved for
   sway. This set has no cape, so the existing cape inputs have no effect. `WorldSurface.adopt` supplies rain to the
   textured shaders. Both sets use the existing runtime skeleton, gameplay and animation paths. The corpse snapshots
   the living pawn's near mesh, skin and paint. The Settings armour row saves `armour_set` in the profile and applies
@@ -1705,7 +1706,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
 - **Soldier animation.** `clip_library.gd` resolves each logical clip from `data/anim_sources.json` in the
   order `blender`, `actionforge`, `ual`, `mixamo_local`. `blender` = `soldier_clips.glb` (the CC0 Quaternius
   UAL clips retargeted in Blender onto the soldier rig, feet and loops cleaned, shipped baked: idle, walk, jog,
-  sprint, jump, crouch idle and move, hit chest and head, death, revive kneel, blade swing) and
+  sprint, jump, crouch idle and move, hit chest and head, death, revive kneel, blade swing; A3 adds the slash set,
+  the directional flinches and the victory in `soldier_a3.glb`, see the A3 bullets below, and re-bakes Death01) and
   `soldier_keyed.glb` (hand-keyed: cover hug high and low, lean left and right, rise, enter and exit with left
   copies, ladder up, down and top, door open, chest open, ground pickup). A clip on the soldier's own rig is
   copied as authored (`AnimRetarget.same_rig_clip`); the UAL source (`assets/third_party/quaternius_ual/`,
@@ -1777,8 +1779,9 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `tests/test_soldier_crouch.gd`, and in `tests/test_soldier_head_motion.gd` the free crouch down / up and the
   free-crouch-to-low-cover hand-off (printed, not asserted: open finding, OQ-ANIM-HEAD). `tools/head_motion_measure.gd` and
   `tools/soldier_capture.gd` drive the real pawn's free crouch amount and update its body shapes.
-- **Downed crawl and revive (M2 CX1).** The existing SoldierCrawl modifier offsets the shoulders and elbows
-  in opposition to the knee cycle. The arm motion eases out when the pawn stops. During revive, SoldierModel
+- **Downed crawl and revive (M2 CX1; A3).** The existing SoldierCrawl modifier offsets the shoulders and elbows
+  in opposition to the knee cycle. The arm motion eases out when the pawn stops (since A3 only when
+  `crawl.hands.plant` is false: the hands now plant on the floor, see "Ground contact (A3)"). During revive, SoldierModel
   hides the held weapon mesh at half pose weight so both hands can work clear of the weapon. Visibility
   returns as the revive pose blends out. The active loadout stays available throughout.
 - **Stationary pivot (M2 CX1).** SoldierGait keeps the support boot in world space while the pawn turns. The
@@ -1802,6 +1805,126 @@ fallback when a `mesh_source` is empty or a clip is missing.
   resumes 0.136 -> 0.0096 m; Sagittarii 0.171 -> 0.020 m and 0.156 -> 0.0048 m. The Sagittarii's foregrip is 2 cm
   out of the left arm's reach in the aimed pose too (the IK leaves the same gap). Aim and fire stay code-built.
   Test: `tests/test_soldier_rifle_glb.gd`.
+- **Ground contact (A3 item 1; OQ-A3-CONTACT).** Measure: `tests/a3_contact_probe.gd` skins a set's near mesh on
+  the CPU from the live bone poses and returns the lowest vertex per part (hands, knees, heels, hips; each vertex
+  belongs to the bone of its strongest weight; the cape is left out because the shader displaces it).
+  `tests/test_a3_contact.gd` asserts `data/anim_third_person.json` `contact` (`contact_tolerance_m` 0.03,
+  placeholder; `knee_radius_m`, `sample_hz`, `death_settled_s`) for the downed crawl at three speeds and for the
+  death, both armour sets, against a flat floor at the pawn's y. Downed: data `crawl` (`knee_height_m` 0.06 ->
+  0.035, `pelvis_pitch_deg` 40 -> 55, `shin_rise_deg` 6 -> 8, and the new `hands` block) and `data/anim.json`
+  `poses.downed` Chest -6 -> 19. `scripts/visual/soldier_crawl.gd` plants both hands (`_plant_hand`): each hand is
+  the diagonal partner of the opposite knee, stands on its ground point (under the shoulder, `hands.width_m`,
+  `ahead_m`, at `floor_m`) while the body moves over it, and swings ahead with `lift_m` in the other half of the
+  cycle; the arm is a two-bone solve from the shoulder with the elbow on the `pole` side, the hand keeps `hand_deg`,
+  an out-of-reach target straightens the arm, and the Spine takes back `counter_roll` of the pelvis roll. With
+  `hands.plant` false the old arm swing (`arms`) runs; `hand_planted(side)` tells the test which hand is down.
+  Death: `scripts/visual/soldier_corpse.gd` settles each hand onto the floor per clip frame (`death.settle`: a hand
+  below the floor is lifted onto it, one above it is lowered by `smoothstep(from_s, full_s)` of the clip time; the
+  result is cached per mesh and clip) and, in the crossfade from the last living pose, adds leg keys at 120 Hz
+  wherever a foot would sink under the floor; only arm and leg bones change, never the root. Death01 was re-baked:
+  `tools/blender/build_soldier_clips.py` `HIP_SETTLE` / `settle_hips` hinges the lower trunk (Hips, Spine) down
+  about the Chest joint from 1.3 s to 1.8 s so the pelvis rests on the floor (Blender: lowest pelvis vertex 7.3 cm
+  -> 0.7 cm, hinge 6.9 degrees [measured by the build, not re-checked here]). Godot, before -> after [measured]:
+  downed planted hands 51-58 / 11-24 cm -> 0.1-1.8 cm; Legionary lower knee worst 5.4 -> 2.9 cm, Murmillo 1.0 ->
+  -1.3 cm (worst vertex -1.7 cm); death hands 19.7 / -3.4 -> 0.0 cm; death hips 7.3 / 5.8 -> 0.7 / 0.1 cm; heel
+  dip in the downed-death crossfade -2.8 -> -0.7 cm. Why the revive clip changed (fix pass 1, B4): the committed
+  base `soldier_clips.glb` (last written in `0eb12b2`) was not reproducible from the base scripts. Rebuilding with the
+  base commit's own scripts already differs from it in Death01 (RightUpperArm, 14 degrees) and Fixing_Kneeling (upper
+  arms 34 / 40 degrees), and equals this slice's file in Fixing_Kneeling. The mesh inputs changed after `0eb12b2`, in
+  `b55d000` and `265d99d` (M2 CX1) [the link from those commits to the turn is inferred]. 34 / 40 degrees is the size
+  of the arm-clearance turn the bake now applies (`MeshCheck.fix_arms`, capped at `arm_max_deg` 40), which is also the
+  size of the change because the old keys carry almost no turn there.
+- **Death settle numbers are data (fix pass 1, B5).** `data/anim_third_person.json` `death.settle.hips` (`from_s`,
+  `to_s`, `rest_m`, `near_m`, `max_deg`) is read by `tools/blender/build_soldier_clips.py` (`hip_settle_cfg`; the
+  script's `HIP_SETTLE` now only names the clips, `Death01`), and `death.settle.crossfade_keys_hz` by
+  `soldier_corpse.gd` (`_key_crossfade_feet`; it was the constant `CROSSFADE_KEYS_HZ`). Placeholders, OQ-A3-CONTACT.
+  The rebuilt `soldier_clips.glb` has the same sha as before the move.
+- **Corpse cost (fix pass 1, S1).** `SoldierCorpse.precache` runs at the end of `SoldierModel._ready` (model build):
+  it reads the armour mesh's hand and foot vertex sets (`HAND_PARTS`, `FOOT_PARTS`) and samples the death clip's bone
+  globals per frame (`_clip_globals`, from the clip and rests only, never the living pose), all cached per mesh or
+  clip, so later models of the set cost nothing. The per-frame hand settle depends on the drawn pose, so
+  `SoldierModel._cache_pose` fills it with `SoldierCorpse.precache_settle` after `CORPSE_WARM_FRAMES` (6) drawn frames
+  (also cached per mesh and clip). Measured headless on this PC, not a performance claim: `make_corpse` first / tenth
+  death, Legionary 19.4 / 8.2 ms -> 3.6 / 4.2 ms, Murmillo 43.5 / 14.9 ms -> 6.4 / 6.0 ms; the cost at model build is
+  not measured. `tests/test_a3_corpse_cost.gd` prints `A3_CORPSE_MS` and asserts, per set, that the vertex sets and
+  the settle are cached before the first death (`has_limb_verts`, `has_settle`), that ten deaths add no entry to
+  `_clip_globals`, and that the tenth death stays under `contact.corpse_first_budget_ms` (16.0, placeholder) x 4;
+  the first death is not asserted (wall clock, and only a real first when the file runs alone).
+- **Contact tests (fix pass 1, S2).** `tests/test_a3_contact.gd` now asserts both knees when still (the Legionary's
+  higher knee 2.97 cm against 3.0), hands planted in all frames when still and in the `contact.hand_planted_share`
+  band [0.35, 0.65] when crawling (measured 49-51 %), and the planted hand's travel under `contact.hand_slide_max_m`
+  0.03 (measured at most 1.62 cm in total, 0.15 cm along the ground; prints `A3_CONTACT_SLIDE`). It also checks that
+  the collapse animates bone tracks only (`stray_tracks`), which replaced the old `placed` check.
+- **Left hand on the handguard (fix pass 1, B3).** `data/art_soldier.json` `soldier.gun.weapons.<gun>.foregrip_m`
+  y 0.02 -> 0.04 for `pilum_br` and `sagittarii_rifle` (the third-person left-hand IK target; the glove hung about 4
+  cm under the handguard). `soldier_rifle.glb` (reload) and `soldier_keyed.glb` (11 cover clips: only the gun-side
+  arm chain changed, at most 10.35 degrees at the forearm) were re-baked from the same key; each built twice with the
+  same sha. Measured (`tests/a3_grip_probe.gd`, not a test): glove centre y in the gun frame 0.024 -> 0.052 (Pilum),
+  0.028 -> 0.057 (Sagittarii); the Sagittarii's hand still ends 1.8 cm short of its target (2.0 cm before; the arm's
+  reach, as the "Keyed rifle reload" bullet says); forearm vertices inside the gun volume 1-2 -> 1-4.
+- **Licence notes (fix pass 1, B1).** `tools/asset_hashes.gd` and `tools/blender/gladius_bl.py` write "that
+  catalogued asset" / "its source" (not CC0: forum_stall and farm_cart derive from Tripo assets), as
+  `data/asset_catalog.json` and `tools/blender/manifest.json` already say; `tests/test_a3_notes.gd` pins both files
+  and both templates.
+- **New keyed clips and the slash set (A3 item 4).** `tools/blender/a3_clips.py` ->
+  `assets/generated/characters/soldier_a3.glb` (the 22-bone armature only; it reuses the authoring of
+  `build_soldier_keyed.py` and the writer of `build_soldier_clips.py`): `blade_swing_a`, `blade_swing_b` (20
+  frames, 0.667 s authored, played whole over the frozen 0.34 s swing; the script fails with `A3_ERROR` when the
+  blade's fastest travel is outside `poses.swing` `strike_from`..`strike_to`, it lies at 0.275 of the clip),
+  `hit_front`, `hit_back`, `hit_left`, `hit_right` (0.4 s, from the rest pose, only Spine, Chest and the upper
+  arms) and `victory` (2.4 s). Slots of the same names are in `data/anim_sources.json`. Its `.glb.import` turns the
+  animation optimizer off, like `soldier_rifle.glb`. Slash set: `scripts/visual/soldier_pose.gd` `SWING_SLOTS`;
+  `swing_count` goes up per melee shot in `_on_shot` (pawns this peer simulates: the local player and host-owned
+  bots; replicas do not swing) and picks `blade_swing_a` on odd counts, `_b` on even ones; `swing_clip()` and
+  `swing_clip_time()` play the whole clip over the swing using the span in `poses.swing.clips`. `blade_swing`
+  (UAL Sword_Attack) stays in `SoldierAnimation.SHARED_SLOTS` and plays when a slash slot does not resolve.
+  `stats.json` `fire_interval_s`, `camera.json` `swing_s`, `poses.swing.s` and the strike window are unchanged;
+  damage stays on the fire frame. Test (fix pass 1, B2): `tests/test_a3_slash.gd::
+  test_drawn_arm_follows_swing_a_then_swing_b` emits the pawn's shot signal twice, runs the modifiers and compares the
+  drawn right arm with each clip at the swing's clip time (and against the old `blade_swing`).
+- **Directional flinches (A3; OQ-A3-HITDIR).** The one existing hit layer of `soldier_animation.gd` (additive
+  one-shot on `gait.hit.bones`) now selects by `hit_which`, with inputs `front`, `back`, `left`, `right`, `head`
+  (`HIT_INPUTS`, `HIT_SIDE_SLOTS`); a side whose slot does not resolve plays `hit_chest`. `SoldierHitSide`
+  (`scripts/visual/soldier_hit_side.gd`) is a static relay shared by every SoldierModel on a peer, holding at most 64
+  events: `record_shot(shooter, origin, end)` stores a shown rifle shot, `record_melee(attacker, origin)` a
+  simulated melee swing; `take(victim)` returns the side of the newest event within `gait.hit_dir.window_s` (0.5
+  s) that matches the victim and consumes it, or `"front"`. A shot matches when its end lies within `match_m`
+  (1.0 m) of the line from the victim's feet to its head hitbox, a melee swing when its origin is within
+  `melee_match_m` (3.0 m) of the victim; the side is the quadrant of the event origin in the victim's frame.
+  `soldier_model.gd`: `flinch(head, side = "front")`; `_on_shot_shown` (on `ShotFx.shot_shown`, so every shot a
+  pawn shows on every peer) records shots; `_on_pawn_shot` records melee swings from `Pawn.shot`; `_watch_hits`
+  takes the side when shield + health drops. LAN limits (no net change): a remote human's melee seen on the host
+  and every melee hit seen on a replica play the front flinch, and a damage drop seen before its shot event plays
+  front. Numbers are placeholders in `data/anim_third_person.json`.
+- **Victory (A3 item 4).** `soldier_model.gd` `_bind_director` / `_on_match_over` / `play_victory`, on
+  `MatchDirector.match_over`: living, not downed pawns of the winning squad play the `victory` clip, nothing plays
+  on a draw. It runs on the existing action layer with its own bone list, `keyed.actions.victory_bones` (both
+  arms, Spine, Chest, hands and fingers; no Hips, legs, Neck or Head), fades in over `keyed.actions.fade_s` and
+  holds its last frame until the end screen (`data/ui.json` `end_screen_delay_s` 3.0 s). The left-hand IK lets go
+  through `action_weight()`. No camera, UI or end-screen change. A winner climbing at match end (fix pass 1, S7):
+  `play_victory` sets `_victory_pending` (the climb owns the action layer) and returns true; `drive_actions` starts the
+  cheer once `pawn.climbing` is false, `climb_weight` is 0 and the action layer is free (the ladder top step done), if
+  the pawn is still alive and not downed.
+- **Murmillo look fixes (A3 item 2).** `tools/blender/gladiator_geom.py` (the A3 comments in helmet, manica,
+  footwear and `strap`): helmet sides x0.955 and back x0.96, brim radius 0.258 -> 0.242 m, a narrower plume at the
+  same height and a smaller grille stand-off (`tests/test_soldier_glb.gd` keeps the mesh within 2 cm of the helmet
+  part boxes). The shell cannot shrink further because the head hitbox is a 0.22 m sphere: the build prints
+  `GLADIATOR_HELMET nearest_facet_m` (0.2249 near / 0.2246 far [measured]) and fails under 0.221. Manica: the
+  elbow blend is wider (0.076 -> 0.10), the elbow lames are fuller, and the far-LOD lames are stretched to their
+  spacing so no arm shows between plates (rigid per-lame weights were tried and dropped). Boots: rounded ankle
+  hoops and, on the near LOD, three instep straps plus a ridge strap (the new `strap` helper) instead of three
+  boxes. Triangles near 7,998 -> 8,446, far 3,070 unchanged [measured] (budgets 20,000 / 4,000). The 8 atlases are
+  byte-identical. The left hand's own height on the handguard was changed in fix pass 1 (see "Left hand on the handguard").
+- **Texture compression (A3 item 3).** The gladiator albedo and ORM atlases import VRAM-compressed (BC1/DXT1 on
+  desktop and in the web build; the test asserts block compression, not BC1), the normal atlases
+  VRAM-compressed with the normal-map flag (BC5/RGTC RG), the masks stay lossless; mipmaps were already on.
+  `scripts/visual/shaders/soldier_textured.gdshader` reads the normal atlas as xy only and rebuilds z as
+  `sqrt(max(0, 1 - dot(xy, xy)))`, because the blue channel of a two-channel texture is 0; the source map is unit
+  length with z >= 0, so the picture is unchanged. The Web preset in `export_presets.cfg` ships the S3TC variants
+  only (`vram_texture_compression/for_desktop` true, `for_mobile` false). Graphics memory, computed (size x bytes
+  per pixel x 4/3) [inferred]: 61.5 MB -> 16.8 MB for the 8 textures. Web .pck [measured]: 40,973,024 bytes at the
+  slice base -> 47,169,296 bytes at fix pass 1 (the compressed textures are larger on disk than the lossless ones; most of it is
+  the near normal atlas). `tests/test_a3_textures.gd` pins the import settings and the shader's z rebuild.
 - **Soldier look.** `soldier_look.gd` lays `art_soldier.json` `soldier.part_overrides` and `parts_add` over the
   art_astra soldier parts (these feed the part boxes and the code-built fallback), writes per-class metallic and
   roughness into the soldier material's own copy of the surface data (one surface), and gives the hands the
@@ -1829,7 +1952,14 @@ fallback when a `mesh_source` is empty or a clip is missing.
   anchors), `test_view_clips.gd` (rig and clips per weapon, reload length and stages, the cell in the hand, ADS end
   pose, the procedural fallback), and the made_by pairing in
   `test_generated_assets.gd`. (AN3): `test_soldier_head_motion.gd`, `test_soldier_crouch.gd`,
-  `test_soldier_rifle_glb.gd`.
+  `test_soldier_rifle_glb.gd`. (A3): `test_a3_contact.gd`, `test_a3_slash.gd`, `test_a3_hit_side.gd`,
+  `test_a3_victory.gd`, `test_a3_textures.gd`, and the hit-layer facts in `test_anim_layers.gd`; fix pass 1 adds
+  `test_a3_notes.gd` and `test_a3_corpse_cost.gd`. Capture helpers
+  that the runner does not collect (no `test_` prefix): `tests/a3_capture.gd` (in-game sheets for A3; fix pass 1 adds
+  `revive` and a `grip` subject with a camera fixed on the shown gun), `tests/a3_grip_probe.gd` (the left-hand grip
+  measure),
+  `tests/a3_compress_capture.gd` (the before/after lighting capture), `tests/a3_contact_probe.gd` (the contact
+  measure that `test_a3_contact.gd` loads).
 - **Tools:** `tools/fp_capture.gd` (AN2: `dense_*` states for clip sequences, `--every=N`, `--no-clips`),
   `tools/soldier_capture.gd` (AN2: `ladder_up`, `ladder_down`, `ladder_top`, `door_open`, `chest_open`,
   `pickup_ground`; `--procedural` for code-built before-captures), `tools/l1c_capture.gd` (`--ladder-seq`),
@@ -1839,6 +1969,8 @@ fallback when a `mesh_source` is empty or a clip is missing.
   `tools/rifle_hands_measure.gd` (left hand to foregrip in aim and reload, keyed vs code-built);
   `soldier_capture.gd` gains `fall`, `fall_side`, `turn`, `crouch`, `crouch_walk`, `aim_sweep`,
   `reload_sagittarii`, `--legacy-head` and `--code-reload`.
+  A3: `tools/blender/a3_clips.py` (options `--out`, `--only`, `--preview`, `--no-mesh`, `--compare`; prints
+  `A3_CLIP`, `A3_HIT` and `A3_CLIPS` lines) and the A3 capture helpers listed under Tests.
 
 ## 5. Testing
 
