@@ -1398,8 +1398,8 @@
 			"path": "res://assets/generated/characters/gladiator.glb",
 			"made_by": "tools/blender/build_gladiator.py",
 			"licence": "generated in this project (no source material)",
-			"bytes": 979056,
-			"sha256": "eeaf7490b3770eb4053ff4665632a148af565c184eae7163d98e358bf4128fa0"
+			"bytes": 1014736,
+			"sha256": "b076ec6591fa887255533bcd16107e2e2dd517c92588e18d4b15f46bc0b70125"
 		},
 		{
 			"path": "res://assets/generated/characters/gladiator_far_albedo.png",
