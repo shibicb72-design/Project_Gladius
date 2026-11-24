@@ -434,7 +434,7 @@
 	"loading_overlay": {
 		"_placeholder": true,
 		"_todo": "OQ-W1C-LOADING (W1c): the opaque screen while a real solo match opens (map build, shader warm-up; scenes/ui/loading_overlay.tscn). A placeholder UI choice, not DESIGN.md's warm-up lobby: text, colours, sizes and the layer are guesses for Shibi. progress_build_share is the part of the bar the build steps fill before the warm-up takes the rest.",
-		"text": "Preparing the arena",
+		"text": "Preparing the arena\nThe first start takes longer",
 		"layer": 100,
 		"background_color": [0.05, 0.045, 0.04, 1.0],
 		"text_color": [0.92, 0.88, 0.8, 1.0],
